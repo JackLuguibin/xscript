@@ -1,0 +1,342 @@
+package com.xscript.app
+
+import android.Manifest
+import android.app.AlertDialog
+import android.content.ComponentName
+import android.content.ClipData
+import android.content.ClipboardManager
+import android.content.Intent
+import android.graphics.Typeface
+import android.media.projection.MediaProjectionManager
+import android.net.Uri
+import android.os.Build
+import android.os.Bundle
+import android.os.Environment
+import android.os.Handler
+import android.os.Looper
+import android.os.PowerManager
+import android.provider.Settings as AndroidSettings
+import android.view.Gravity
+import android.view.ViewGroup
+import android.widget.EditText
+import android.widget.LinearLayout
+import android.widget.TextView
+import android.widget.Toast
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.appcompat.app.AppCompatActivity
+import com.xscript.app.a11y.AccessibilityEngine
+import com.xscript.app.a11y.XscriptAccessibilityService
+import com.xscript.app.capture.CaptureEngine
+import com.xscript.app.cloud.CloudClient
+import com.xscript.app.http.ClientTracker
+import com.xscript.app.http.DeviceHttpService
+import com.xscript.app.net.NetworkInfo
+import com.xscript.app.project.ProjectStore
+import com.xscript.app.root.RootShell
+import com.xscript.app.runtime.RunState
+import com.xscript.app.runtime.ScriptService
+import com.xscript.app.settings.Settings
+import com.xscript.app.ui.FloatControl
+import com.xscript.app.ui.LogActivity
+import com.xscript.app.ui.ProjectsActivity
+import com.xscript.app.ui.UiKit
+
+/** Home screen, laid out like AScript's device page: status rows grouped in cards. */
+class MainActivity : AppCompatActivity() {
+    private val handler = Handler(Looper.getMainLooper())
+    private val tick = object : Runnable {
+        override fun run() {
+            refresh()
+            handler.postDelayed(this, 1500)
+        }
+    }
+
+    private lateinit var rowEndpoint: UiKit.Row
+    private lateinit var rowAi: UiKit.Row
+    private lateinit var rowMode: UiKit.Row
+    private lateinit var rowOverlay: UiKit.Row
+    private lateinit var rowA11y: UiKit.Row
+    private lateinit var rowRoot: UiKit.Row
+    private lateinit var rowCapture: UiKit.Row
+    private lateinit var rowCloud: UiKit.Row
+    private lateinit var rowProjects: UiKit.Row
+    private lateinit var rowStorage: UiKit.Row
+    private lateinit var rowBattery: UiKit.Row
+    private lateinit var runTitle: TextView
+    private lateinit var runSub: TextView
+    private lateinit var runButton: TextView
+
+    private val notifyPermission = registerForActivityResult(
+        ActivityResultContracts.RequestPermission(),
+    ) { DeviceHttpService.start(this) }
+
+    private val capturePermission = registerForActivityResult(
+        ActivityResultContracts.StartActivityForResult(),
+    ) { result ->
+        val data = result.data
+        if (result.resultCode == CaptureEngine.RESULT_OK && data != null) {
+            DeviceHttpService.deliverProjection(this, result.resultCode, data)
+        }
+    }
+
+    override fun onCreate(savedInstanceState: Bundle?) {
+        super.onCreate(savedInstanceState)
+        build()
+        if (Build.VERSION.SDK_INT >= 33) {
+            notifyPermission.launch(Manifest.permission.POST_NOTIFICATIONS)
+        } else {
+            DeviceHttpService.start(this)
+        }
+    }
+
+    private fun build() {
+        val col = UiKit.screen(this, getString(R.string.app_name), "Python 自动化 · v" + XscriptApp.versionName(this), back = false)
+        UiKit.barAction(col, "日志") { startActivity(Intent(this, LogActivity::class.java)) }
+
+        buildRunCard(col)
+
+        val dev = UiKit.card(col)
+        rowEndpoint = UiKit.row(dev, "</>", 0xFF2F7CF6.toInt(), "开发者地址") { copyEndpoint() }
+        rowAi = UiKit.row(dev, "✦", 0xFF10A37F.toInt(), "AI 编程连接") { showAiHelp() }
+        rowMode = UiKit.row(dev, "▶", 0xFF8E44AD.toInt(), "运行模式") { chooseMode() }
+        rowOverlay = UiKit.row(dev, "▣", 0xFF34A853.toInt(), "悬浮窗权限") { openOverlaySettings() }
+        rowRoot = UiKit.row(dev, ">_", 0xFF2F7CF6.toInt(), "Root 权限") { requestRoot() }
+        rowCapture = UiKit.row(dev, "◎", 0xFFE5484D.toInt(), "图色权限") { requestCapture() }
+        rowCloud = UiKit.row(dev, "☁", 0xFF2F9BF6.toInt(), "云端控制") { editCloud() }
+
+        val apps = UiKit.card(col)
+        rowProjects = UiKit.row(apps, "⬡", 0xFF00B8D4.toInt(), "小程序列表") {
+            startActivity(Intent(this, ProjectsActivity::class.java))
+        }
+
+        val sys = UiKit.card(col)
+        rowA11y = UiKit.row(sys, "◉", 0xFFF59E0B.toInt(), "辅助权限管理") {
+            startActivity(Intent(AndroidSettings.ACTION_ACCESSIBILITY_SETTINGS))
+        }
+        rowStorage = UiKit.row(sys, "▤", 0xFF6B7785.toInt(), "文件访问权限") { requestStorage() }
+        rowBattery = UiKit.row(sys, "⚡", 0xFF6B7785.toInt(), "后台运行") { requestBattery() }
+        UiKit.row(sys, "⚙", 0xFF5F6B7A.toInt(), "开发者选项") {
+            startActivity(Intent(AndroidSettings.ACTION_APPLICATION_DEVELOPMENT_SETTINGS))
+        }
+
+        UiKit.note(col, "USB 调试：adb forward tcp:<端口> tcp:<端口>（端口见“开发者地址”，默认 9096，被 AScript 占用时为 9097），然后在电脑上连接 127.0.0.1:<端口>。")
+    }
+
+    private fun buildRunCard(col: LinearLayout) {
+        val card = UiKit.card(col)
+        val line = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = Gravity.CENTER_VERTICAL
+            val p = UiKit.dp(this@MainActivity, 16f)
+            setPadding(p, p, p, p)
+        }
+        val texts = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
+        runTitle = TextView(this).apply {
+            textSize = 17f
+            setTextColor(UiKit.TEXT)
+            setTypeface(typeface, Typeface.BOLD)
+        }
+        runSub = TextView(this).apply {
+            textSize = 12f
+            setTextColor(UiKit.MUTED)
+        }
+        texts.addView(runTitle)
+        texts.addView(runSub)
+        line.addView(texts, LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f))
+        runButton = UiKit.button(this, "运行", UiKit.GREEN) { toggleRun() }
+        line.addView(runButton)
+        card.addView(line)
+    }
+
+    override fun onResume() {
+        super.onResume()
+        RootShell.probeAsync()
+        handler.post(tick)
+    }
+
+    override fun onPause() {
+        handler.removeCallbacks(tick)
+        super.onPause()
+    }
+
+    private fun refresh() {
+        val ip = NetworkInfo.localIp(this)
+        rowEndpoint.value("http://$ip:${NetworkInfo.PORT}/")
+        val ai = ClientTracker.active()
+        if (ai != null) rowAi.value("已连接", UiKit.GREEN) else rowAi.value("未连接")
+        rowMode.value(Settings.runModeLabel())
+
+        val overlay = FloatControl.canShow(this)
+        rowOverlay.value(if (overlay) "已授权" else "未授权", if (overlay) UiKit.GREEN else UiKit.RED)
+
+        val a11y = AccessibilityEngine.isOn()
+        val listed = a11y || isAccessibilityListed()
+        rowA11y.value(
+            when {
+                a11y -> "已开启"
+                listed -> "已开启(未连接)"
+                else -> "未开启"
+            },
+            if (a11y) UiKit.GREEN else UiKit.RED,
+        )
+
+        when (RootShell.known()) {
+            true -> rowRoot.value("已获取", UiKit.GREEN)
+            false -> rowRoot.value("未获取")
+            null -> rowRoot.value("检测中")
+        }
+
+        val cap = CaptureEngine.sourceLabel()
+        rowCapture.value(cap, if (CaptureEngine.available()) UiKit.GREEN else UiKit.RED)
+
+        val cloud = CloudClient.label()
+        rowCloud.value(cloud, if (CloudClient.state == CloudClient.State.CONNECTED) UiKit.GREEN else UiKit.MUTED)
+
+        rowProjects.value("${ProjectStore(this).list().size} 个")
+        rowStorage.value(if (hasStorage()) "已授权" else "未授权", if (hasStorage()) UiKit.GREEN else UiKit.MUTED)
+        rowBattery.value(if (isIgnoringBattery()) "不受限" else "受限", if (isIgnoringBattery()) UiKit.GREEN else UiKit.MUTED)
+
+        val running = RunState.current(this)
+        if (running != null) {
+            runTitle.text = running
+            runSub.text = "运行中"
+            runButton.text = "停止"
+            runButton.background = UiKit.ripple(UiKit.RED, 22f, this)
+        } else {
+            val last = Settings.lastProject.takeIf { ProjectStore(this).exists(it) }
+            runTitle.text = last ?: "未选择小程序"
+            runSub.text = if (last != null) "上次运行 · 点小程序列表切换" else "导入或新建一个小程序"
+            runButton.text = "运行"
+            runButton.background = UiKit.ripple(UiKit.GREEN, 22f, this)
+        }
+    }
+
+    private fun toggleRun() {
+        if (RunState.current(this) != null) {
+            ScriptService.stop(this)
+            return
+        }
+        val last = Settings.lastProject
+        if (last.isEmpty() || !ProjectStore(this).exists(last)) {
+            startActivity(Intent(this, ProjectsActivity::class.java))
+            return
+        }
+        ScriptService.run(this, last)
+        Toast.makeText(this, "启动 $last", Toast.LENGTH_SHORT).show()
+    }
+
+    private fun copyEndpoint() {
+        val url = "http://${NetworkInfo.localIp(this)}:${NetworkInfo.PORT}/"
+        (getSystemService(CLIPBOARD_SERVICE) as ClipboardManager).setPrimaryClip(ClipData.newPlainText("xscript", url))
+        Toast.makeText(this, "已复制 $url", Toast.LENGTH_SHORT).show()
+    }
+
+    private fun showAiHelp() {
+        val ip = NetworkInfo.localIp(this)
+        val who = ClientTracker.active()
+        AlertDialog.Builder(this)
+            .setTitle("AI 编程连接")
+            .setMessage(
+                (if (who != null) "当前连接：$who\n\n" else "") +
+                    "在 Cursor 中配置 xscript-mcp，设置：\nXSCRIPT_DEVICE=$ip:${NetworkInfo.PORT}\n\n" +
+                    "USB 连接时执行 adb forward tcp:${NetworkInfo.PORT} tcp:${NetworkInfo.PORT}，并使用 127.0.0.1:${NetworkInfo.PORT}。",
+            )
+            .setPositiveButton("好", null)
+            .show()
+    }
+
+    private fun chooseMode() {
+        val modes = arrayOf(Settings.MODE_AUTO, Settings.MODE_ACCESSIBILITY, Settings.MODE_ROOT)
+        val labels = modes.map { Settings.runModeLabel(it) }.toTypedArray()
+        AlertDialog.Builder(this)
+            .setTitle("运行模式")
+            .setSingleChoiceItems(labels, modes.indexOf(Settings.runMode)) { d, which ->
+                Settings.runMode = modes[which]
+                if (modes[which] == Settings.MODE_ROOT) RootShell.probeAsync()
+                d.dismiss()
+                refresh()
+            }
+            .show()
+    }
+
+    private fun openOverlaySettings() {
+        startActivity(Intent(AndroidSettings.ACTION_MANAGE_OVERLAY_PERMISSION, Uri.parse("package:$packageName")))
+    }
+
+    private fun requestRoot() {
+        RootShell.probeAsync { ok ->
+            runOnUiThread {
+                Toast.makeText(this, if (ok) "已获取 Root" else "未获取 Root", Toast.LENGTH_SHORT).show()
+                refresh()
+            }
+        }
+    }
+
+    private fun requestCapture() {
+        val mgr = getSystemService(MEDIA_PROJECTION_SERVICE) as MediaProjectionManager
+        capturePermission.launch(mgr.createScreenCaptureIntent())
+    }
+
+    private fun editCloud() {
+        val input = EditText(this).apply {
+            setText(Settings.cloudUrl)
+            hint = "wss://example.com/device?token=..."
+            isSingleLine = true
+        }
+        val box = LinearLayout(this).apply {
+            val p = UiKit.dp(this@MainActivity, 20f)
+            setPadding(p, UiKit.dp(this@MainActivity, 8f), p, 0)
+            addView(input, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT))
+        }
+        AlertDialog.Builder(this)
+            .setTitle("云端控制")
+            .setMessage("设备主动连接控制服务器的 WebSocket，服务器即可远程调用与局域网相同的接口。" +
+                if (CloudClient.lastError.isNotEmpty()) "\n\n最近错误：${CloudClient.lastError}" else "")
+            .setView(box)
+            .setPositiveButton("连接") { _, _ ->
+                try {
+                    CloudClient.connect(this, input.text.toString())
+                } catch (e: Exception) {
+                    Toast.makeText(this, e.message, Toast.LENGTH_LONG).show()
+                }
+            }
+            .setNeutralButton("断开") { _, _ -> CloudClient.forget() }
+            .setNegativeButton("取消", null)
+            .show()
+    }
+
+    private fun hasStorage(): Boolean =
+        if (Build.VERSION.SDK_INT >= 30) Environment.isExternalStorageManager() else true
+
+    private fun requestStorage() {
+        if (Build.VERSION.SDK_INT >= 30) {
+            try {
+                startActivity(Intent(AndroidSettings.ACTION_MANAGE_APP_ALL_FILES_ACCESS_PERMISSION, Uri.parse("package:$packageName")))
+            } catch (_: Exception) {
+                startActivity(Intent(AndroidSettings.ACTION_MANAGE_ALL_FILES_ACCESS_PERMISSION))
+            }
+        }
+    }
+
+    private fun requestBattery() {
+        startActivity(
+            Intent(AndroidSettings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS).apply {
+                data = Uri.parse("package:$packageName")
+            },
+        )
+    }
+
+    private fun isAccessibilityListed(): Boolean {
+        val expected = ComponentName(this, XscriptAccessibilityService::class.java).flattenToString()
+        val enabled = AndroidSettings.Secure.getString(
+            contentResolver,
+            AndroidSettings.Secure.ENABLED_ACCESSIBILITY_SERVICES,
+        ) ?: return false
+        return enabled.split(':').any { it.equals(expected, ignoreCase = true) }
+    }
+
+    private fun isIgnoringBattery(): Boolean {
+        val pm = getSystemService(POWER_SERVICE) as PowerManager
+        return pm.isIgnoringBatteryOptimizations(packageName)
+    }
+}

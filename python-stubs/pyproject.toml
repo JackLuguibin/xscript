@@ -1,0 +1,17 @@
+[build-system]
+requires = ["setuptools>=61"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "xscript-stubs"
+version = "0.2.0"
+description = "PC-only type stubs for the XScript Android runtime (xscript.* and ascript.* compat)"
+requires-python = ">=3.8"
+readme = "README.md"
+
+[tool.setuptools.packages.find]
+include = ["xscript*", "ascript*"]
+namespaces = true
+
+[tool.setuptools.package-data]
+"*" = ["*.pyi"]

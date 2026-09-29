@@ -1,0 +1,140 @@
+{
+  "notes": [
+    "Scripts run in the XScript app (Chaquopy Python 3.10, numpy, opencv, pillow, requests, pyyaml).",
+    "Two API families: xscript.android.* (native) and ascript.android.* (drop-in for AScript scripts; `from ascript.android import ...` works unchanged).",
+    "Coordinates are screen pixels in the current orientation.",
+    "Channel: accessibility or root, chosen by the run mode (auto / accessibility / root).",
+    "Device /eval runs in the main process; assign the answer to `_result`."
+  ],
+  "modules": [
+    {
+      "name": "xscript.android.action",
+      "description": "Gestures, touch, keys and text input through the current channel (accessibility or root).",
+      "functions": [
+        {"name": "click", "signature": "click(x, y=None, dur=20) -> bool", "doc": "Tap (x, y). x may also be a Point/tuple/node."},
+        {"name": "long_click", "signature": "long_click(x, y=None, dur=800) -> bool", "doc": "Long press."},
+        {"name": "swipe", "signature": "swipe(x1, y1, x2, y2, dur=300) -> bool", "doc": "Straight swipe."},
+        {"name": "path", "signature": "path(points, dur=300) -> bool", "doc": "One stroke through [(x, y), ...]."},
+        {"name": "gesture", "signature": "gesture(strokes) -> bool", "doc": "Multi-finger gesture: [{'points': [(x, y), ...], 'start': ms, 'duration': ms}, ...]; strokes run in parallel."},
+        {"name": "input", "signature": "input(text) -> bool", "doc": "Set text on the focused / first editable node."},
+        {"name": "back / home / recents", "signature": "back() / home() / recents() -> bool", "doc": "Global keys."},
+        {"name": "sleep", "signature": "sleep(seconds)", "doc": "time.sleep that honours stop requests."}
+      ],
+      "classes": [
+        {"name": "Touch", "doc": "Low-level touch stream.", "methods": ["down(x, y, dur=20)", "move(x, y, dur=20)", "up(x, y, dur=20)"]},
+        {"name": "Key", "doc": "Global actions.", "methods": ["back()", "home()", "recents()", "notifications()", "quick_settings()", "lock_screen()", "screenshot()", "power_dialog()", "code(keycode)  # root only"]}
+      ]
+    },
+    {
+      "name": "xscript.android.node",
+      "description": "Accessibility node selector (text/id/desc/type/state filters, relations, xpath-style paths).",
+      "functions": [
+        {"name": "dump", "signature": "dump(mode=0) -> dict", "doc": "Raw tree. mode 0 simple, 1 full."}
+      ],
+      "classes": [
+        {
+          "name": "Selector",
+          "signature": "Selector(mode=0)",
+          "doc": "Chain filters then find(). String filters are exact unless regex() or *_contains is used.",
+          "methods": [
+            "regex(enabled=True)", "text(v)", "text_contains(v)", "text_matches(pattern)", "id(v)", "desc(v)", "desc_contains(v)",
+            "type(v)", "hint(v)", "package(v)", "class_path(v)", "path(v)",
+            "clickable() long_clickable() editable() enabled() visible() checkable() checked() focusable() focused() scrollable() selected()",
+            "depth(*v)", "child_count(*v)", "filter(fn)",
+            "parent(*which)", "child(*which)", "brother(*which)", "descendant()", "within(node)",
+            "find(timeout=5) -> Node | None", "find_all(timeout=0, limit=0) -> list[Node]", "exists(timeout=0) -> bool", "wait_gone(timeout=10) -> bool",
+            "click()", "long_click()", "input(text)", "scroll(forward=True)"
+          ]
+        },
+        {
+          "name": "Node",
+          "doc": "Fields: path, id, text, desc, type, rect, clickable, editable, enabled; left/top/right/bottom/width/height/center_x/center_y.",
+          "methods": ["click()", "long_click()", "set_text(text)", "scroll(forward=True)", "children()", "find(selector)", "find_all(selector)", "to_dict()"]
+        }
+      ]
+    },
+    {
+      "name": "xscript.android.screen",
+      "description": "Screenshots, colour search, template (image) search and OCR. Rects are [l, t, r, b].",
+      "functions": [
+        {"name": "capture", "signature": "capture(path=None) -> str | None", "doc": "Save a PNG on the device and return its path."},
+        {"name": "capture_cv", "signature": "capture_cv(rect=None) -> ndarray", "doc": "BGR numpy image."},
+        {"name": "capture_pil", "signature": "capture_pil(rect=None) -> PIL.Image", "doc": "RGB PIL image."},
+        {"name": "capture_bitmap", "signature": "capture_bitmap(rect=None)", "doc": "android.graphics.Bitmap."},
+        {"name": "cache", "signature": "cache(enabled=True)", "doc": "Freeze one frame for the following searches."},
+        {"name": "size", "signature": "size() -> (w, h)", "doc": "Screen size in the current orientation."},
+        {"name": "get_color", "signature": "get_color(x, y, image=None) -> '#rrggbb'", "doc": "Pixel colour."},
+        {"name": "compare_colors", "signature": "compare_colors(colors, sim=0.9, image=None) -> bool", "doc": "Multi-point check. colors: 'x,y,#rrggbb|x,y,#rrggbb-101010|...'."},
+        {"name": "find_colors", "signature": "find_colors(colors, rect=None, sim=0.9, space=5, ori=2, image=None) -> Point | None", "doc": "First point matching a colour pattern (first colour absolute, rest relative offsets)."},
+        {"name": "find_all_colors", "signature": "find_all_colors(colors, rect=None, sim=0.9, space=5, ori=2, max_num=0, image=None) -> list[Point]", "doc": "All matches."},
+        {"name": "find_image", "signature": "find_image(template, rect=None, confidence=0.9, rgb=False, scale_range=None, image=None) -> dict | None", "doc": "Template match. Template may be a path, ndarray or list. Returns {result:(cx,cy), rect:[l,t,r,b], center_x, center_y, confidence, index}. Transparent PNG pixels are masked."},
+        {"name": "find_all_images", "signature": "find_all_images(template, rect=None, confidence=0.9, rgb=False, maxcnt=0, scale_range=None, image=None) -> list[dict]", "doc": "All template matches."},
+        {"name": "ocr", "signature": "ocr(rect=None, image=None) -> list[OcrResult]", "doc": "ML Kit Chinese+Latin OCR. OcrResult has text, confidence, rect, center_x, center_y and dict-style access."},
+        {"name": "ocr_find / ocr_find_all", "signature": "ocr_find(pattern, rect=None, image=None)", "doc": "Regex filter over ocr()."},
+        {"name": "ocr_wait", "signature": "ocr_wait(pattern, timeout=10, rect=None)", "doc": "Poll until text appears."},
+        {"name": "ocr_click", "signature": "ocr_click(pattern, timeout=0, rect=None) -> bool", "doc": "Find text and tap its centre."},
+        {"name": "imread", "signature": "imread(path) -> ndarray", "doc": "Unicode-safe cv2 read (keeps alpha)."}
+      ]
+    },
+    {
+      "name": "xscript.android.system",
+      "description": "Apps, device info, shell (root), clipboard, key-value store, resources (R), toast/vibrate/tts.",
+      "functions": [
+        {"name": "open", "signature": "open(name_or_package) -> bool", "doc": "Launch an app by label or package."},
+        {"name": "browser", "signature": "browser(url)", "doc": "Open a URL."},
+        {"name": "stop_app", "signature": "stop_app(package)", "doc": "Force-stop (root)."},
+        {"name": "apps / current_app / app_name", "signature": "apps() -> list; current_app() -> dict", "doc": "Installed and foreground apps."},
+        {"name": "wait_for_package", "signature": "wait_for_package(package, timeout=30) -> bool", "doc": "Wait until the package is in front."},
+        {"name": "device / battery / memory / status", "signature": "device() -> dict", "doc": "Device info."},
+        {"name": "is_screen_on / wake_up", "signature": "wake_up()", "doc": "Screen state."},
+        {"name": "clipboard_set / clipboard_get", "signature": "clipboard_set(text)", "doc": "Clipboard."},
+        {"name": "shell", "signature": "shell(cmd, root=True, timeout=30) -> ShellResult", "doc": "ShellResult: code, out, err, ok (AScript aliases res, error). timeout in seconds."},
+        {"name": "has_root", "signature": "has_root() -> bool", "doc": "Root available."},
+        {"name": "vibrate / speak / toast", "signature": "toast(msg, dur=2000)", "doc": "Feedback."},
+        {"name": "project_dir", "signature": "project_dir() -> str", "doc": "Running project folder."},
+        {"name": "exit", "signature": "exit(code=0)", "doc": "Stop the script."}
+      ],
+      "classes": [
+        {"name": "KeyValue", "doc": "Persistent key-value store.", "methods": ["save(key, value)", "get(key, default=None)", "remove(key)"]},
+        {"name": "R", "doc": "Project paths.", "methods": ["root(*parts)", "res(*parts)", "img(*parts)", "ui(*parts)", "sd(*parts)"]}
+      ]
+    },
+    {
+      "name": "xscript.android.ui",
+      "description": "Overlays: toast, dialogs, HTML web windows with a JS bridge, drawing canvas, image window, floating stop button.",
+      "functions": [
+        {"name": "can_overlay", "signature": "can_overlay() -> bool", "doc": "悬浮窗 permission granted."},
+        {"name": "toast", "signature": "toast(msg, dur=2000)", "doc": "Toast."},
+        {"name": "alert / confirm / prompt / select", "signature": "confirm(msg, title=None) -> bool", "doc": "Blocking dialogs."},
+        {"name": "show_image", "signature": "show_image(path)", "doc": "Preview an image in an overlay."},
+        {"name": "float_show / float_hide", "signature": "float_show()", "doc": "Floating stop button."}
+      ],
+      "classes": [
+        {"name": "Window", "signature": "Window(html, width=None, height=None, **opts)", "doc": "HTML overlay. JS calls window.xscript.call(key, value) (alias window.airscript.call) and window.xscript.close().", "methods": ["on(key)", "listen(fn)", "size(w, h)", "position(gravity, x, y)", "draggable()", "background(color)", "dim(amount)", "focusable()", "show(wait=False)", "wait(timeout)", "js(code)", "close()"]},
+        {"name": "Canvas", "doc": "Debug drawing layer (touch pass-through, opacity <= 0.8).", "methods": ["rect", "region", "circle", "oval", "line", "arrow", "text", "point", "cross", "polygon", "remove(id)", "clear()", "close()"]}
+      ]
+    },
+    {
+      "name": "ascript.android",
+      "description": "AScript compatibility package (modelled on ascript-tip 1.3.0). Existing AScript projects run unchanged; import with `from ascript.android import action, node, screen, system, ui, media`.",
+      "functions": [
+        {"name": "action.click / swipe / slide / input", "signature": "click(x, y=None, dur=20); slide(x, y, x1, y1, dur=20)", "doc": "Same as AScript."},
+        {"name": "action.Touch / Key / Path / gesture / Ime / catch_click", "signature": "gesture(paths, listener=None)", "doc": "Path supports moveTo/lineTo/quadTo/cubicTo/arcTo/addCircle/addRect/..."},
+        {"name": "node.Selector", "signature": "Selector(mode=0).text(..).id(..).find() / find_all()", "doc": "AScript method names (hintText, packageName, childCount, longClickable, ...)."},
+        {"name": "screen.capture / capture_cv / capture_pil / cache / get_color", "signature": "capture(x=None, y=None, x1=None, y1=None)", "doc": "Screenshots and bitmap helpers (bitmap_to_file, bitmap_crop, bitmap_base64, ...)."},
+        {"name": "screen.FindColors / CompareColors / Colors / FindBlock", "signature": "FindColors.find(colors, rect=None, space=5, ori=2, diff=0.98)", "doc": "Colour search; returns android.graphics.Point-like objects."},
+        {"name": "screen.FindImages", "signature": "FindImages.find_template(part_img, rect=None, confidence=0.9, ...) / find_all_template", "doc": "Masked multi-scale template matching (ascv-derived). find/find_all with method='smart' and find_sift fall back to template matching."},
+        {"name": "screen.Ocr", "signature": "Ocr.mlkitocr_v2(rect=None, pattern=None, confidence=0.5) / paddleocr(...) / find / wait / click", "doc": "All engines map to ML Kit; results are dict-like OcrResult objects."},
+        {"name": "screen.CodeScanner", "signature": "CodeScanner.scan(rect=None)", "doc": "QR codes via OpenCV."},
+        {"name": "system.*", "signature": "system.open(pkg); system.shell(cmd); system.R.img('a.png')", "doc": "Device, Clipboard, KeyValue, R, Config, shell, open, browser, get_foreground_app, ..."},
+        {"name": "ui.*", "signature": "ui.WebWindow(html).show(); ui.Dialog.toast(msg)", "doc": "WebWindow, Dialog, Loger, FloatWindow, ImageWindow, Canvas."},
+        {"name": "media.*", "signature": "media.vibrate(200); media.talk(msg)", "doc": "Volume, brightness, vibrate, TTS, play."}
+      ],
+      "unsupported": [
+        "action.Hid (hardware HID)", "screen.YoLov5", "screen.OcrX and Ocr.matrix (font libraries)", "screen.gp files from AScript's 图色工具",
+        "FindImages method='smart' (falls back to template)", "node.WebSelector", "Selector.on_event / event listeners",
+        "sms", "plug", "bluetooth", "location", "sensor", "system.Control (AScript cloud control)", "system.Notification.listen", "media.recode / send_email / AliTts"
+      ]
+    }
+  ]
+}

@@ -1,0 +1,23 @@
+[build-system]
+requires = ["setuptools>=61"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "xscript-mcp"
+version = "0.2.0"
+description = "Cursor MCP for the XScript Android runtime"
+requires-python = ">=3.10"
+# Pinned to the versions verified in this repo. server.py also runs on mcp 1.x (FastMCP).
+dependencies = [
+    "httpx==0.28.1",
+    "mcp==2.2.0",
+]
+
+[project.scripts]
+xscript-mcp = "xscript_mcp.server:main"
+
+[tool.setuptools.packages.find]
+include = ["xscript_mcp*"]
+
+[tool.setuptools.package-data]
+xscript_mcp = ["api_catalog.json"]

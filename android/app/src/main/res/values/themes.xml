@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <style name="Theme.Xscript" parent="Theme.MaterialComponents.Light.NoActionBar">
+        <item name="android:statusBarColor">@color/xscript_bg</item>
+        <item name="android:navigationBarColor">@color/xscript_bg</item>
+        <item name="android:windowBackground">@color/xscript_bg</item>
+        <item name="android:windowLightStatusBar">true</item>
+        <item name="android:windowLightNavigationBar">true</item>
+        <item name="colorPrimary">@color/xscript_accent</item>
+        <item name="colorOnPrimary">@android:color/white</item>
+        <item name="colorAccent">@color/xscript_accent</item>
+    </style>
+</resources>

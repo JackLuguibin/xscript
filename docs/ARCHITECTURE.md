@@ -1,0 +1,308 @@
+# XScript 技术架构
+
+XScript 是一个运行在 Android 上的 Python 自动化 App（AScript 风格）。PC 端（浏览器、Cursor MCP、云控服务器）通过 HTTP / WebSocket 把脚本推送到手机，手机上用内嵌的 CPython 3.10 执行，并通过无障碍服务或 root 完成点击、取节点树、截图、OCR 等操作。
+
+本文基于当前仓库源码整理（Android 端约 5.9k 行 Kotlin，Python 端约 6.5k 行）。
+
+## 1. 总览
+
+```mermaid
+flowchart LR
+    subgraph PC["PC / 远端"]
+        Cursor["Cursor + xscript-mcp<br/>(Python, httpx)"]
+        Browser["浏览器 / curl"]
+        Cloud["云控服务器<br/>(用户自建)"]
+    end
+
+    subgraph Phone["Android 设备 (com.xscript.app)"]
+        subgraph Main["主进程"]
+            HTTP["DeviceHttpService<br/>NanoHTTPD :9096~9105"]
+            WS["CloudClient<br/>OkHttp WebSocket"]
+            Router["ApiRouter"]
+            Auto["Automation<br/>(通道路由)"]
+            A11y["AccessibilityEngine"]
+            Root["RootEngine / RootShell"]
+            Cap["CaptureEngine"]
+            AIDL["AutomationService<br/>(IAutomation Binder)"]
+            Eval["EvalRunner<br/>(Chaquopy)"]
+            UI["Activity 界面 / FloatControl"]
+        end
+        subgraph Script[":script 进程"]
+            SS["ScriptService"]
+            Py["Chaquopy CPython 3.10<br/>xscript / ascript 包"]
+            Bridge["Bridge.kt"]
+            Local["OcrEngine / ScriptUi / SystemApi"]
+        end
+    end
+
+    Cursor -- "HTTP (adb forward / 局域网)" --> HTTP
+    Browser --> HTTP
+    WS -- "设备主动外连" --> Cloud
+    HTTP --> Router
+    WS --> Router
+    Router --> Auto
+    Router --> Eval
+    Router -- "startService" --> SS
+    Auto --> A11y
+    Auto --> Root
+    Router --> Cap
+    SS --> Py --> Bridge
+    Bridge --> Local
+    Bridge -- "Binder + Pipe" --> AIDL --> Auto
+    AIDL --> Cap
+```
+
+## 2. 仓库结构
+
+| 目录 | 语言 | 职责 |
+| --- | --- | --- |
+| `android/` | Kotlin | App 本体：HTTP 服务、云控、无障碍/root 引擎、截图、OCR、悬浮窗、Chaquopy 集成 |
+| `python-runtime/xscript/` | Python | 设备端原生 API：`action`、`node`、`screen`、`system`、`ui`，以及 `runtime`（桥接、运行器） |
+| `python-runtime/ascript/` | Python | AScript（ascript-tip 1.3.0）兼容层，基于 `xscript` 实现 |
+| `python-runtime/tests/` | Python | PC 端单测（使用假的 bridge，不依赖手机） |
+| `python-stubs/` | `.pyi` | 由 `scripts/gen_stubs.py` 生成的类型存根，供 PC 端 IDE 补全 |
+| `protocol/openapi.yaml` | YAML | 设备 HTTP 接口契约 |
+| `mcp-server/` | Python | Cursor MCP 服务 `xscript-mcp` |
+| `scripts/` | Bash/Python | 构建、存根生成、mock 设备、端到端冒烟、本地校验 |
+| `examples/` | Python | 示例工程（原生 API 与 AScript API 各一套） |
+
+## 3. 技术栈
+
+| 层 | 选型 |
+| --- | --- |
+| Android | Kotlin、JDK 17、`minSdk 26` / `targetSdk 34` / `compileSdk 37`，ABI 仅 `arm64-v8a`、`x86_64` |
+| 嵌入式 Python | Chaquopy 17，CPython 3.10（选 3.10 是因为 Chaquopy 的 OpenCV wheel 最高只到 3.10） |
+| Python 依赖（APK 内） | `numpy 1.23.3`、`opencv-python 4.5.1.48`、`pillow 9.2.0`、`pyyaml 6.0.3`、`requests 2.32.3` |
+| HTTP 服务 | NanoHTTPD 2.3.1 |
+| 云控 / 网络 | OkHttp 4.12.0（WebSocket） |
+| OCR | Google ML Kit `text-recognition-chinese` 16.0.1（离线模型） |
+| UI | AndroidX AppCompat + Material，界面为代码构建（`UiKit.kt`），无 Compose |
+| MCP | `mcp 2.2.0`（兼容 1.x FastMCP）、`httpx 0.28.1` |
+
+## 4. Android 端
+
+### 4.1 进程模型
+
+App 有两个进程，这是整个架构最核心的设计：
+
+| 进程 | 组件 | 生命周期 |
+| --- | --- | --- |
+| 主进程 `com.xscript.app` | `XscriptApp`、各 Activity、`XscriptAccessibilityService`、`DeviceHttpService`（前台服务）、`AutomationService`（Binder）、`CloudClient`、`CaptureEngine`、`FloatControl` | 常驻 |
+| `:script` 进程 | `ScriptService`、Chaquopy 解释器、`Bridge`、`ScriptUi`、`OcrEngine`、`SystemApi` | 每次运行一个工程，结束或停止时 `Process.killProcess` 自杀 |
+
+这样拆分的原因（见 `ScriptService.kt`、`IAutomation.aidl` 注释）：
+
+- 停止脚本 = 杀进程。任意 Python 代码（死循环、阻塞的 native 调用、子线程、悬浮窗）都无法被可靠地中断，杀进程是唯一可靠手段。
+- 脚本崩溃不会带走无障碍服务和 MediaProjection 截图会话，它们都留在主进程里。
+
+`XscriptApp.onCreate` 通过进程名判断 `isMainProcess`，只有主进程会探测 root、启动 `AutomationService` 并自动连接云控。
+
+### 4.2 跨进程通信
+
+```mermaid
+sequenceDiagram
+    participant Py as Python 脚本 (:script)
+    participant B as Bridge.kt
+    participant D as AutomationDispatcher
+    participant S as AutomationService (主进程)
+    participant A as Automation
+
+    Py->>B: bridge.click(x, y, dur)
+    B->>D: click()
+    alt 当前在主进程
+        D->>A: 直接调用
+    else 在 :script 进程
+        D->>S: IAutomation.click() (Binder)
+        S->>A: click()
+    end
+    A-->>Py: bool
+```
+
+- `AutomationDispatcher` 是统一入口：主进程内直接调用 `Automation`，`:script` 进程内走 `IAutomation` Binder。Binder 连接是异步建立的，`rpc()` 最多等 3 秒。
+- 大数据（节点树 JSON、截图原始帧）经 `ParcelFileDescriptor.createPipe()` 传输（`Pipes.kt`），绕开 Binder 1 MB 事务限制。
+- 截图帧格式由 `FrameCodec` 定义：8 字节小端头（宽、高）+ ARGB_8888 原始像素。Python 侧用 numpy 直接解码，不走 PNG 编解码。
+- `AutomationService` 的每个方法都包了一层 `safe {}`，异常时返回空值 / `false`，避免远程异常把脚本进程打挂。
+- 其它跨进程状态用文件共享：
+  - `RunState`：`filesDir/running-project` 记录当前运行的工程名，主进程再用进程列表校验 `:script` 是否还活着，避免崩溃后一直显示“运行中”。
+  - `LogBuffer`：`filesDir/logs/runtime.jsonl`（JSON Lines）+ `seq` 序号文件，用文件锁保证两个进程并发写入安全，超过 2 MB 截断保留尾部 512 KB。`/logs?since=` 按序号增量读取。
+
+### 4.3 自动化通道（`Automation.kt`）
+
+根据设置里的“运行模式”（`auto` / `accessibility` / `root`）选择通道：
+
+| 能力 | 无障碍通道 | Root 通道 |
+| --- | --- | --- |
+| 点击 / 滑动 / 手势 | `dispatchGesture` | `input tap` / `input swipe`；多点手势退化为首笔画的 `input motionevent` 回放 |
+| 节点树 | `AccessibilityNodeInfo` → `NodeDumper` | `uiautomator dump`（部分 ROM / MuMu 模拟器上不可用） |
+| 节点操作 | `performAction` | 按节点中心坐标模拟点击 / 输入 / 滑动 |
+| 文本输入 | `ACTION_SET_TEXT` | `input text` |
+| 按键 | 全局动作；`key:<code>` 强制走 root `input keyevent` | `input keyevent` |
+
+规则：
+
+- `auto` 模式优先无障碍，其次 root。
+- 只要无障碍开着，节点树和节点操作就一律走无障碍（更快、信息更全），即使运行模式是 root。
+- `RootShell` 每次调用都新起一个 `su -c` 进程，逻辑简单但单次延迟在百毫秒级。root 状态缓存，否定结果每 30 秒后台重新探测一次。
+
+节点路径（`path`）是真实树中的索引路径，即使 mode 0 精简输出时剪掉了兄弟节点，也能据此重新定位节点。
+
+### 4.4 截图（`CaptureEngine.kt`）
+
+来源按优先级降级：
+
+1. MediaProjection（系统录屏，需要一次授权，最快）。屏幕静止时不会产生新帧，所以缓存最后一帧。
+2. 无障碍截图（API 30+），系统限流约 3 fps，代码里做了 340 ms 节流。
+3. Root `screencap`（不带 `-p`，直接读原始 RGBA，省去 PNG 编码）。
+
+有一个针对模拟器的兜底：MuMu、雷电等模拟器的无障碍截图可能是全黑的。引擎用 12×12 采样网格检测纯黑帧，如果 root 截图正常，就在 10 分钟内不再信任无障碍截图。
+
+### 4.5 对外 API（`ApiRouter.kt`）
+
+`ApiRouter` 与传输层无关，被 HTTP 服务和云控 WebSocket 共用，因此两种入口暴露的是完全相同的接口（契约见 `protocol/openapi.yaml`）：
+
+| 分类 | 接口 |
+| --- | --- |
+| 设备 | `GET /status`、`GET /screen`（png / jpg）、`GET /ui-tree?mode=`、`POST /action`、`GET/PUT /settings` |
+| 工程 | `GET /projects`、`POST/DELETE /projects/{name}`、`GET/PUT /projects/{name}/files`、`GET/DELETE /projects/{name}/file`、`GET/PUT /projects/{name}/zip`、`POST /projects/{name}/run`、`POST /projects/{name}/stop` |
+| AScript 迁移 | `GET /ascript/projects`、`POST /ascript/import`（从 `/sdcard/airscript/model` 导入） |
+| 调试 | `GET/DELETE /logs`、`POST /eval` |
+
+异常统一映射：`IllegalArgumentException` → 400，`IllegalStateException` → 409，其它 → 500。
+
+**HTTP 服务**（`DeviceHttpServer` / `DeviceHttpService`）：
+
+- 作为前台服务运行（`dataSync | mediaProjection`），监听 `0.0.0.0`，从 9096 起向上找空闲端口直到 9105（AScript 默认也占 9096）。
+- 自己读取原始 body（上限 200 MB），不用 NanoHTTPD 的 `parseBody`，避免破坏 zip 等二进制上传。
+- 所有响应带 `Access-Control-Allow-Origin: *`。
+- 请求头 `X-XScript-Client` 用于 `ClientTracker` 在首页展示已连接客户端。
+
+**云控**（`CloudClient`）：设备主动外连 `ws://` / `wss://`，能穿透 NAT。协议是 JSON 文本帧：
+
+```text
+device → server  {"type":"hello","device":{...status}}
+server → device  {"type":"request","id":"1","method":"GET","path":"/status","query":{},"body":"<base64>"}
+device → server  {"type":"response","id":"1","status":200,"mime":"...","body":"<base64>"}
+```
+
+请求由 2 线程的线程池处理，25 秒 ping 保活，断线后 5 秒重连。鉴权完全交给服务端（例如 URL 中带 token）。
+
+### 4.6 工程存储（`ProjectStore.kt`）
+
+- 工程目录：`<外部 files 目录>/projects/<name>/`，入口为 `__init__.py`，资源约定放在 `res/img/`。
+- 目录名同时是 Python 包名，所以必须是合法标识符（允许中文，与 AScript 一致）。
+- 相对路径做了规范化，拒绝 `..` 和空段，防止路径穿越。
+- 支持 zip 导入 / 导出和 AScript 工程导入。
+
+### 4.7 脚本侧原生能力
+
+这些组件运行在 Python 所在进程，由 `Bridge.kt` 以静态方法暴露给 Python：
+
+- `OcrEngine`：ML Kit 中文 + 拉丁离线识别，返回行 / 元素及坐标。ML Kit 的初始化 Provider 只覆盖主进程，所以非主进程会手动初始化。
+- `ScriptUi`：toast、阻塞式对话框、悬浮 WebView 窗口（注入 `xscript` / `airscript` 两个 JS 接口）、绘图画布。Python 通过 `ui_poll` 轮询窗口事件，没有 Java→Python 回调，线程模型简单。
+- `SystemApi`：打开应用、设备 / 电量 / 内存信息、剪贴板、KeyValue 存储、shell（默认 root）、音量、亮度、TTS、振动等，以 `op` + JSON 参数分发。
+
+### 4.8 界面
+
+`MainActivity` 是仿 AScript 的首页（开发者地址、AI 编程连接、运行模式、各项权限、云控、小程序列表等），另有工程列表、工程详情、简易编辑器、日志页。`FloatControl` 是运行时的悬浮停止按钮，放在主进程，这样脚本进程被杀后按钮也能正常收起。
+
+## 5. Python 运行时
+
+### 5.1 分层
+
+```mermaid
+flowchart TB
+    User["用户脚本 __init__.py"]
+    AS["ascript.android.*<br/>(AScript 兼容层)"]
+    XS["xscript.android.*<br/>action / node / screen / system / ui"]
+    Core["纯 Python 核心<br/>tree.py (选择器引擎)<br/>image.py (找色 / 模板匹配 / OCR 封装)"]
+    BR["xscript.runtime.bridge"]
+    J["_JavaBridge → com.xscript.app.runtime.Bridge"]
+    M["_MissingJava (PC 端空实现)"]
+
+    User --> AS
+    User --> XS
+    AS --> XS
+    AS --> Core
+    XS --> Core
+    XS --> BR
+    Core --> BR
+    BR --> J
+    BR -. "PC 上导入 Java 失败时" .-> M
+```
+
+- `bridge.py` 是 Python 与 Java 之间唯一的接触面。导入 Java 类失败（即在 PC 上）时自动换成 `_MissingJava`，所有调用返回“不可用”的值，单测再对它打 monkeypatch。
+- `tree.py` 是纯 Python 的节点查询引擎：对 dump 出来的树建立父子 / 兄弟索引，按“过滤 → 关系（parent / child / brother）→ 过滤 …”的流水线求值。`node.Selector` 每次查找都重新 dump 一次整棵树，在 Python 侧匹配。
+- `image.py`（约 900 行）是图色核心，`xscript.android.screen` 和 `ascript.android.screen` 共用：原始帧 → numpy BGR、多点找色、带 alpha 掩码的多尺度模板匹配（OpenCV，含降采样粗筛 + 局部精修）、OCR 结果封装。
+- `ascript/` 按 ascript-tip 1.3.0 的 API 形状实现，已有 AScript 工程无需修改即可运行。暂不支持的接口通过 `_compat.warn_once` 提示。
+
+### 5.2 运行流程
+
+```mermaid
+sequenceDiagram
+    participant C as 客户端
+    participant R as ApiRouter (主进程)
+    participant S as ScriptService (:script)
+    participant P as runner.py
+
+    C->>R: POST /projects/demo/run
+    R->>R: 检查工程存在、当前无运行中的工程
+    R->>S: startService(ACTION_RUN)
+    S->>S: 启动 Python，绑定 AutomationService
+    S->>P: run_project(dir)
+    P->>P: 重定向 stdout/stderr → LogBuffer<br/>sys.path 加入工程目录及父目录，chdir<br/>清理同名模块缓存
+    P->>P: import demo（执行 __init__.py）
+    P->>P: 等待脚本创建的非守护线程
+    P-->>S: 返回退出码
+    S->>S: RunState 清空，隐藏悬浮窗，killProcess
+```
+
+- 同一时间只运行一个工程，重复运行返回 409。
+- 停止：`POST /stop` 或悬浮按钮 → `ScriptService` 收到 `ACTION_STOP` → 杀进程。
+- `_wait_for_threads` 模拟 CPython 退出时 join 非守护线程的行为。在 Chaquopy 下解释器的“主线程”是 Android UI Looper，永远不会结束，所以显式跳过它和 `_DummyThread`。
+
+### 5.3 `/eval`
+
+`EvalRunner` 在**主进程**的单线程执行器里调用 `eval_runner.run(code)`，约定脚本把结果赋给 `_result`，超时时间限制在 200 ms～15 s 之间。它面向 MCP 的短小探测（看一下节点、测一个颜色），长逻辑应放进工程里运行。
+
+## 6. PC 端工具链
+
+### 6.1 MCP 服务（`mcp-server/`）
+
+`xscript-mcp` 是一个 stdio MCP 服务，`DeviceClient` 用 httpx 调用设备 HTTP API，目标地址由环境变量 `XSCRIPT_DEVICE` 或 `connect_device` 工具设置。提供的工具：
+
+- 设备：`connect_device`、`get_device_status`、`screen_capture`（返回 MCP Image）、`dump_ui_tree`、`device_action`
+- 工程：`list_projects`、`list_project_files`、`read_project_file`、`upload_file`、`upload_directory`（本地打 zip 后上传，跳过 `.git`、`__pycache__` 等）、`delete_project`、`run_project`、`stop_project`、`get_run_log`
+- 调试：`eval_python`（拒绝包含 `while True` 的代码）
+- 文档：`get_module_apis`、`search_api`，查询本地 `api_catalog.json`
+
+`docs/AGENT_RULES.md` 是给 AI 编程时用的约束说明。
+
+### 6.2 存根与校验
+
+- `scripts/gen_stubs.py`：用 `ast` 从 `python-runtime/` 生成 `.pyi`，保留签名、docstring 和常量，去掉函数体和私有成员；`--check` 用于检查存根是否过期。
+- `scripts/mock_device.py`：按 `openapi.yaml` 实现的进程内 HTTP mock。
+- `scripts/vertical_slice.py`：端到端走一遍 status → tree → upload → run → logs → screenshot，可以对 mock 或真机运行。
+- `scripts/verify.sh`：运行时单测（`.venv-rt`，含 numpy / opencv）→ MCP 单测（`.venv`）→ 存根检查 → mock 端到端 → 检查 APK 是否存在。
+- `scripts/build_android.sh`：定位 JDK、Android SDK 和 Python 3.10（可借助 `uv python find 3.10`），然后执行 Gradle 构建。Chaquopy 要求构建机 Python 的次版本号与内嵌解释器一致。
+
+## 7. 关键设计取舍
+
+| 设计 | 收益 | 代价 |
+| --- | --- | --- |
+| 脚本独立进程，停止即杀进程 | 停止可靠；脚本崩溃不影响无障碍和截图 | 每次运行都要冷启动 Python 并重新加载 numpy / cv2；跨进程调用有 Binder 开销 |
+| `ApiRouter` 与传输层解耦 | 局域网 HTTP 与云控接口完全一致 | 云控的 body 走 base64，大文件（截图、zip）体积增加约 33% |
+| Python 侧做节点匹配 | 选择器逻辑可以在 PC 上单测，Java 侧只负责 dump | 每次 `find` 都要序列化并传输整棵树，复杂页面开销较大 |
+| 原始 RGBA 帧 + Pipe | 截图不做 PNG 编解码，避开 Binder 限制 | 单帧体积大（1080×2400 约 10 MB），每次截图都要完整拷贝 |
+| 通道自动降级（无障碍 → root） | 适配无 root / 无无障碍 / 模拟器等多种环境 | root 通道每次调用都起 `su` 进程，延迟较高；多点手势只能近似回放 |
+| 用文件做跨进程状态（RunState / LogBuffer） | 实现简单，进程被杀后状态仍然存在 | 每条日志都要打开文件、加锁、读写 seq 文件；`/logs` 每次都全量扫描日志文件 |
+
+## 8. 风险与改进建议
+
+以下几点是阅读代码时发现的，按影响排序：
+
+1. **无鉴权 + `CORS: *`**。README 已说明局域网接口没有鉴权，任何能访问端口的人都可以上传文件并执行任意 Python。另外还有一个容易忽视的场景：响应头是 `Access-Control-Allow-Origin: *`，开发者浏览器中打开的任意网页都可以跨域调用 `http://127.0.0.1:9096`（`adb forward` 之后）或局域网 IP 上的 `/eval`。建议至少加一个首次配对生成的 token（请求头校验），并把 CORS 限制到可信来源。
+2. **`/eval` 在主进程执行且无法真正超时**。`future.cancel(true)` 中断不了正在运行的 Python 代码；死循环会一直占着单线程执行器（后续所有 eval 都会排队超时），并与无障碍、截图、HTTP 服务共用主进程资源。MCP 侧的 `while True` 字符串检查很容易绕过。可以考虑把 eval 放到 `:script` 进程（或单独的 `:eval` 进程），超时后直接杀掉。
+3. **大请求完全载入内存**。上传 body 上限 200 MB，zip 导出也在 `ByteArrayOutputStream` 中完成，在低内存设备上有 OOM 风险。可以改为流式写入临时文件。
+4. **依赖版本偏旧**。`opencv-python 4.5.1.48`、`numpy 1.23.3` 受 Chaquopy / Python 3.10 的 wheel 约束，升级 Python 版本需要先确认 Chaquopy 对 OpenCV 的支持情况。
+5. **Root 通道性能**。可以维护一个常驻的 `su` shell 会话，复用它执行 `input` 等命令，降低每次调用的延迟。
+6. **日志读取**。`LogBuffer.since` 每次轮询都会完整解析最多 2 MB 的文件，可以记录字节偏移来做增量读取。

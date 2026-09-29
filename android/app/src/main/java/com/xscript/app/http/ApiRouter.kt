@@ -1,0 +1,250 @@
+package com.xscript.app.http
+
+import android.content.Context
+import android.graphics.Bitmap
+import com.xscript.app.capture.CaptureEngine
+import com.xscript.app.net.NetworkInfo
+import com.xscript.app.project.ProjectStore
+import com.xscript.app.runtime.Automation
+import com.xscript.app.runtime.EvalRunner
+import com.xscript.app.runtime.LogBuffer
+import com.xscript.app.runtime.MainControl
+import com.xscript.app.runtime.RunState
+import com.xscript.app.runtime.ScriptService
+import com.xscript.app.settings.Settings
+import org.json.JSONArray
+import org.json.JSONObject
+import java.io.ByteArrayInputStream
+import java.io.ByteArrayOutputStream
+
+/**
+ * Transport-independent request handling. Used by the LAN HTTP server and by the cloud
+ * control WebSocket, so both expose the exact same API (see protocol/openapi.yaml).
+ */
+class ApiRouter(private val context: Context) {
+    class Reply(val status: Int, val mime: String, val body: ByteArray) {
+        companion object {
+            fun json(obj: Any, status: Int = 200) =
+                Reply(status, "application/json; charset=utf-8", obj.toString().toByteArray(Charsets.UTF_8))
+        }
+    }
+
+    class Request(
+        val method: String,
+        val path: String,
+        val query: Map<String, String>,
+        val body: ByteArray,
+        val client: String = "",
+        val remote: String = "",
+    ) {
+        fun json(): JSONObject {
+            if (body.isEmpty()) return JSONObject()
+            val text = String(body, Charsets.UTF_8)
+            return if (text.isBlank()) JSONObject() else JSONObject(text)
+        }
+    }
+
+    private val store = ProjectStore(context)
+    private val projectRoute = Regex("^/projects/([^/]+)(/.*)?$")
+
+    fun handle(req: Request): Reply {
+        if (req.client.isNotEmpty()) ClientTracker.touch(req.client, req.remote)
+        return try {
+            route(req)
+        } catch (e: IllegalArgumentException) {
+            Reply.json(JSONObject().put("error", e.message ?: "bad request"), 400)
+        } catch (e: IllegalStateException) {
+            Reply.json(JSONObject().put("error", e.message ?: "conflict"), 409)
+        } catch (e: Exception) {
+            Reply.json(JSONObject().put("error", e.message ?: e.toString()), 500)
+        }
+    }
+
+    private fun route(req: Request): Reply {
+        val m = req.method
+        val p = req.path.trimEnd('/').ifEmpty { "/" }
+        when {
+            m == "GET" && p == "/" -> return home()
+            m == "GET" && p == "/status" -> return Reply.json(MainControl.status(context))
+            m == "GET" && p == "/screen" -> return screen(req)
+            m == "GET" && p == "/ui-tree" -> return uiTree(req)
+            m == "GET" && p == "/logs" -> return logs(req)
+            m == "DELETE" && p == "/logs" -> {
+                LogBuffer.clear(context)
+                return Reply.json(JSONObject().put("ok", true))
+            }
+            m == "POST" && p == "/eval" -> return eval(req)
+            m == "POST" && p == "/action" -> return action(req)
+            m == "GET" && p == "/settings" -> return Reply.json(settings())
+            m == "PUT" && p == "/settings" -> return putSettings(req)
+            m == "GET" && p == "/projects" -> return Reply.json(
+                JSONObject().put("projects", JSONArray(store.list())).put("details", store.describe()),
+            )
+            m == "GET" && p == "/ascript/projects" -> return Reply.json(JSONObject().put("projects", JSONArray(store.ascriptProjects())))
+            m == "POST" && p == "/ascript/import" -> {
+                val name = req.json().optString("name")
+                store.importAscript(name)
+                return Reply.json(JSONObject().put("ok", true).put("project", name))
+            }
+        }
+        val pm = projectRoute.matchEntire(p) ?: return Reply.json(JSONObject().put("error", "not found"), 404)
+        val name = java.net.URLDecoder.decode(pm.groupValues[1], "UTF-8")
+        val sub = pm.groupValues[2]
+        return when {
+            m == "DELETE" && sub.isEmpty() -> {
+                if (RunState.current(context) == name) ScriptService.stop(context)
+                Reply.json(JSONObject().put("ok", store.delete(name)))
+            }
+            m == "POST" && sub.isEmpty() -> {
+                store.create(name)
+                Reply.json(JSONObject().put("ok", true).put("project", name))
+            }
+            m == "GET" && sub == "/files" -> Reply.json(JSONObject().put("project", name).put("files", store.files(name)))
+            m == "PUT" && sub == "/files" -> upload(name, req)
+            m == "GET" && sub == "/file" -> readFile(name, req)
+            m == "DELETE" && sub == "/file" -> Reply.json(JSONObject().put("ok", store.deleteFile(name, req.query["path"].orEmpty())))
+            m == "PUT" && sub == "/zip" -> {
+                store.importZip(name, ByteArrayInputStream(req.body), replace = req.query["replace"] != "false")
+                Reply.json(JSONObject().put("ok", true).put("project", name).put("files", store.files(name).length()))
+            }
+            m == "GET" && sub == "/zip" -> {
+                val out = ByteArrayOutputStream()
+                store.exportZip(name, out)
+                Reply(200, "application/zip", out.toByteArray())
+            }
+            m == "POST" && sub == "/run" -> runProject(name)
+            m == "POST" && sub == "/stop" -> {
+                ScriptService.stop(context)
+                Reply.json(JSONObject().put("ok", true).put("running", false))
+            }
+            else -> Reply.json(JSONObject().put("error", "not found"), 404)
+        }
+    }
+
+    private fun home(): Reply {
+        val ip = NetworkInfo.localIp(context)
+        val s = MainControl.status(context)
+        val html = """
+            <html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width"></head>
+            <body style="font-family:sans-serif;background:#f4f5f7;color:#222;padding:16px">
+            <h2>XScript</h2>
+            <p>http://$ip:${NetworkInfo.PORT}</p>
+            <pre>${s.toString(2)}</pre>
+            </body></html>
+        """.trimIndent()
+        return Reply(200, "text/html; charset=utf-8", html.toByteArray(Charsets.UTF_8))
+    }
+
+    private fun screen(req: Request): Reply {
+        val bitmap = CaptureEngine.captureBitmap()
+            ?: return Reply.json(JSONObject().put("error", "capture_unavailable"), 503)
+        val fmt = req.query["format"].orEmpty()
+        val quality = req.query["quality"]?.toIntOrNull()?.coerceIn(1, 100) ?: 80
+        val bytes = ByteArrayOutputStream()
+        val jpeg = fmt == "jpg" || fmt == "jpeg"
+        bitmap.compress(if (jpeg) Bitmap.CompressFormat.JPEG else Bitmap.CompressFormat.PNG, if (jpeg) quality else 100, bytes)
+        bitmap.recycle()
+        return Reply(200, if (jpeg) "image/jpeg" else "image/png", bytes.toByteArray())
+    }
+
+    private fun uiTree(req: Request): Reply {
+        if (!Automation.ready()) {
+            return Reply.json(JSONObject().put("error", "no_channel: enable accessibility or root"), 503)
+        }
+        val mode = req.query["mode"]?.toIntOrNull() ?: 0
+        return Reply.json(Automation.dumpTree(mode))
+    }
+
+    private fun logs(req: Request): Reply {
+        val since = req.query["since"]?.toLongOrNull() ?: 0L
+        val (entries, next) = LogBuffer.since(context, since)
+        return Reply.json(LogBuffer.toJson(entries, next))
+    }
+
+    private fun upload(name: String, req: Request): Reply {
+        val body = req.json()
+        val files = body.optJSONArray("files")
+        if (files != null) {
+            for (i in 0 until files.length()) {
+                val f = files.getJSONObject(i)
+                store.writeFile(name, f.getString("path"), f.optString("content"), f.optString("encoding", "utf-8"))
+            }
+            return Reply.json(JSONObject().put("ok", true).put("count", files.length()))
+        }
+        store.writeFile(name, body.optString("path"), body.optString("content"), body.optString("encoding", "utf-8"))
+        return Reply.json(JSONObject().put("ok", true))
+    }
+
+    private fun readFile(name: String, req: Request): Reply {
+        val f = store.readFile(name, req.query["path"].orEmpty())
+        if (!f.isFile) return Reply.json(JSONObject().put("error", "missing file"), 404)
+        val bytes = f.readBytes()
+        val text = isText(f.name)
+        return if (req.query["raw"] == "1") {
+            Reply(200, if (text) "text/plain; charset=utf-8" else "application/octet-stream", bytes)
+        } else if (text) {
+            Reply.json(JSONObject().put("path", req.query["path"]).put("encoding", "utf-8").put("content", String(bytes, Charsets.UTF_8)))
+        } else {
+            Reply.json(
+                JSONObject().put("path", req.query["path"]).put("encoding", "base64")
+                    .put("content", android.util.Base64.encodeToString(bytes, android.util.Base64.NO_WRAP)),
+            )
+        }
+    }
+
+    private fun isText(name: String): Boolean {
+        val ext = name.substringAfterLast('.', "").lowercase()
+        return ext in setOf("py", "txt", "md", "json", "yaml", "yml", "html", "htm", "js", "css", "as", "ini", "cfg", "csv", "xml", "toml")
+    }
+
+    private fun runProject(name: String): Reply {
+        if (!store.exists(name)) return Reply.json(JSONObject().put("error", "missing project"), 404)
+        if (RunState.current(context) != null) {
+            return Reply.json(JSONObject().put("error", "already running").put("project", RunState.get(context)), 409)
+        }
+        Settings.lastProject = name
+        ScriptService.run(context, name)
+        return Reply.json(JSONObject().put("ok", true).put("running", true).put("project", name))
+    }
+
+    private fun eval(req: Request): Reply {
+        val body = req.json()
+        val code = body.optString("code")
+        val timeout = body.optLong("timeout_ms", 8000L).coerceIn(200L, 15_000L)
+        val result = EvalRunner.run(code, timeout)
+        val status = if (result.optString("error") == "timeout") 408 else 200
+        return Reply.json(result, status)
+    }
+
+    /** Direct automation for remote control panels: {"type":"click","x":..,"y":..} etc. */
+    private fun action(req: Request): Reply {
+        val a = req.json()
+        val ok = when (a.optString("type")) {
+            "click" -> Automation.click(a.getInt("x"), a.getInt("y"), a.optInt("dur", 20))
+            "swipe" -> Automation.swipe(a.getInt("x1"), a.getInt("y1"), a.getInt("x2"), a.getInt("y2"), a.optInt("dur", 300))
+            "input" -> Automation.inputText(a.optString("text"))
+            "key" -> Automation.globalAction(a.optString("name"))
+            "node" -> Automation.nodeAction(a.getString("path"), a.optString("action", "click"), a.optString("arg"))
+            else -> throw IllegalArgumentException("unknown action type")
+        }
+        return Reply.json(JSONObject().put("ok", ok))
+    }
+
+    private fun settings(): JSONObject = JSONObject()
+        .put("run_mode", Settings.runMode)
+        .put("float_on_run", Settings.floatOnRun)
+        .put("keep_screen_on", Settings.keepScreenOn)
+        .put("cloud_url", Settings.cloudUrl)
+
+    private fun putSettings(req: Request): Reply {
+        val a = req.json()
+        if (a.has("run_mode")) {
+            val mode = a.getString("run_mode")
+            require(mode in setOf(Settings.MODE_AUTO, Settings.MODE_ACCESSIBILITY, Settings.MODE_ROOT)) { "bad run_mode" }
+            Settings.runMode = mode
+        }
+        if (a.has("float_on_run")) Settings.floatOnRun = a.getBoolean("float_on_run")
+        if (a.has("keep_screen_on")) Settings.keepScreenOn = a.getBoolean("keep_screen_on")
+        return Reply.json(settings())
+    }
+}

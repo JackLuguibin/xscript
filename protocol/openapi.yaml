@@ -1,0 +1,521 @@
+openapi: 3.0.3
+info:
+  title: XScript Device HTTP
+  version: 0.2.0
+  description: |
+    Contract between the Android runtime and PC / MCP clients. Default port 9096; the app
+    falls back to 9097 when 9096 is taken (for example when AScript is running).
+    The cloud-control WebSocket relays the same requests through ApiRouter.
+
+    SECURITY: there is no authentication. Anyone who can reach the port can upload and run
+    code (/eval, /projects/{name}/run). Use only on trusted networks or via `adb forward`.
+servers:
+  - url: http://{host}:{port}
+    variables:
+      host:
+        default: 127.0.0.1
+      port:
+        default: "9096"
+paths:
+  /status:
+    get:
+      summary: Device and runtime status
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Status"
+  /screen:
+    get:
+      summary: Full-screen screenshot (PNG by default)
+      parameters:
+        - name: format
+          in: query
+          schema:
+            type: string
+            enum: [png, jpg, jpeg]
+            default: png
+        - name: quality
+          in: query
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+            default: 80
+          description: JPEG quality
+      responses:
+        "200":
+          description: Image bytes
+          content:
+            image/png:
+              schema:
+                type: string
+                format: binary
+            image/jpeg:
+              schema:
+                type: string
+                format: binary
+        "503":
+          description: Capture unavailable
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+  /ui-tree:
+    get:
+      summary: Accessibility (or root uiautomator) node tree
+      parameters:
+        - name: mode
+          in: query
+          schema:
+            type: integer
+            enum: [0, 1]
+            default: 0
+          description: "0 = simple (text/desc/clickable/editable), 1 = full tree"
+      responses:
+        "200":
+          description: Tree JSON
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/UiTree"
+        "503":
+          description: No automation channel (accessibility off and no root)
+  /action:
+    post:
+      summary: Direct automation for remote control panels
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/Action"
+      responses:
+        "200":
+          description: Done
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Ok"
+        "400":
+          description: Unknown action type
+  /settings:
+    get:
+      summary: Runtime settings
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Settings"
+    put:
+      summary: Update runtime settings (partial)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/Settings"
+      responses:
+        "200":
+          description: Updated settings
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Settings"
+        "400":
+          description: Bad value
+  /projects:
+    get:
+      summary: List project names
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ProjectList"
+  /projects/{name}:
+    parameters:
+      - $ref: "#/components/parameters/ProjectName"
+    post:
+      summary: Create an empty project with a template __init__.py
+      responses:
+        "200":
+          description: Created
+    delete:
+      summary: Delete a project (stops it first if running)
+      responses:
+        "200":
+          description: Deleted
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Ok"
+  /projects/{name}/files:
+    parameters:
+      - $ref: "#/components/parameters/ProjectName"
+    get:
+      summary: List files in a project
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  project: { type: string }
+                  files:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        path: { type: string }
+                        size: { type: integer }
+    put:
+      summary: Upload one file, or a batch via {"files":[...]} (creates the project if needed)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              oneOf:
+                - $ref: "#/components/schemas/FileUpload"
+                - type: object
+                  required: [files]
+                  properties:
+                    files:
+                      type: array
+                      items:
+                        $ref: "#/components/schemas/FileUpload"
+      responses:
+        "200":
+          description: Saved
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Ok"
+        "400":
+          description: Invalid path
+  /projects/{name}/file:
+    parameters:
+      - $ref: "#/components/parameters/ProjectName"
+      - name: path
+        in: query
+        required: true
+        schema:
+          type: string
+    get:
+      summary: Read a file. Text files return utf-8, others base64. raw=1 returns bytes.
+      parameters:
+        - name: raw
+          in: query
+          schema:
+            type: string
+            enum: ["1"]
+      responses:
+        "200":
+          description: File content
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/FileUpload"
+        "404":
+          description: Missing file
+    delete:
+      summary: Delete one file
+      responses:
+        "200":
+          description: Deleted
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Ok"
+  /projects/{name}/zip:
+    parameters:
+      - $ref: "#/components/parameters/ProjectName"
+    put:
+      summary: Import a zip (AScript exports supported; a single top folder is stripped)
+      parameters:
+        - name: replace
+          in: query
+          schema:
+            type: string
+            enum: ["true", "false"]
+            default: "true"
+      requestBody:
+        required: true
+        content:
+          application/zip:
+            schema:
+              type: string
+              format: binary
+      responses:
+        "200":
+          description: Imported
+    get:
+      summary: Export the project as a zip
+      responses:
+        "200":
+          description: Zip bytes
+          content:
+            application/zip:
+              schema:
+                type: string
+                format: binary
+  /projects/{name}/run:
+    parameters:
+      - $ref: "#/components/parameters/ProjectName"
+    post:
+      summary: Start the project in the :script process
+      responses:
+        "200":
+          description: Started
+        "404":
+          description: Missing project or entry file
+        "409":
+          description: Already running
+  /projects/{name}/stop:
+    parameters:
+      - $ref: "#/components/parameters/ProjectName"
+    post:
+      summary: Kill the script process
+      responses:
+        "200":
+          description: Stopped
+  /ascript/projects:
+    get:
+      summary: AScript projects found on the device (/sdcard/airscript/model)
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ProjectList"
+  /ascript/import:
+    post:
+      summary: Copy an AScript project into XScript (needs root or shared storage access)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [name]
+              properties:
+                name: { type: string }
+      responses:
+        "200":
+          description: Imported
+  /logs:
+    get:
+      summary: Incremental runtime logs
+      parameters:
+        - name: since
+          in: query
+          schema:
+            type: integer
+            default: 0
+          description: Return entries with seq greater than this value
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Logs"
+    delete:
+      summary: Clear logs
+      responses:
+        "200":
+          description: Cleared
+  /eval:
+    post:
+      summary: Short Python eval in the main process. Assign the answer to `_result`.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/EvalRequest"
+      responses:
+        "200":
+          description: Finished
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/EvalResponse"
+        "408":
+          description: Timeout
+components:
+  parameters:
+    ProjectName:
+      name: name
+      in: path
+      required: true
+      schema:
+        type: string
+  schemas:
+    Status:
+      type: object
+      required: [name, sdk, width, height, port, accessibility, capture, running]
+      properties:
+        name: { type: string }
+        model: { type: string }
+        brand: { type: string }
+        sdk: { type: integer }
+        release: { type: string }
+        width: { type: integer }
+        height: { type: integer }
+        density: { type: integer }
+        ip: { type: string }
+        port: { type: integer }
+        accessibility: { type: boolean }
+        root: { type: boolean }
+        run_mode:
+          type: string
+          enum: [auto, accessibility, root]
+        channel:
+          type: string
+          description: Channel currently used for gestures and node actions
+        capture: { type: boolean }
+        capture_source: { type: string }
+        running: { type: boolean }
+        project:
+          type: string
+          nullable: true
+        version: { type: string }
+    Settings:
+      type: object
+      properties:
+        run_mode:
+          type: string
+          enum: [auto, accessibility, root]
+        float_on_run: { type: boolean }
+        keep_screen_on: { type: boolean }
+        cloud_url:
+          type: string
+          readOnly: true
+    Action:
+      type: object
+      required: [type]
+      properties:
+        type:
+          type: string
+          enum: [click, swipe, input, key, node]
+        x: { type: integer }
+        y: { type: integer }
+        x1: { type: integer }
+        y1: { type: integer }
+        x2: { type: integer }
+        y2: { type: integer }
+        dur: { type: integer }
+        text: { type: string }
+        name:
+          type: string
+          description: "key: back, home, recents, notifications, quick_settings, lock_screen, screenshot, power_dialog"
+        path:
+          type: string
+          description: "node: node path from /ui-tree"
+        action:
+          type: string
+          default: click
+        arg: { type: string }
+    UiRect:
+      type: object
+      properties:
+        l: { type: integer }
+        t: { type: integer }
+        r: { type: integer }
+        b: { type: integer }
+    UiNode:
+      type: object
+      properties:
+        path: { type: string }
+        id: { type: string }
+        text: { type: string }
+        desc: { type: string }
+        type: { type: string }
+        rect:
+          $ref: "#/components/schemas/UiRect"
+        clickable: { type: boolean }
+        editable: { type: boolean }
+        enabled: { type: boolean }
+        children:
+          type: array
+          items:
+            $ref: "#/components/schemas/UiNode"
+    UiTree:
+      type: object
+      properties:
+        mode: { type: integer }
+        width: { type: integer }
+        height: { type: integer }
+        roots:
+          type: array
+          items:
+            $ref: "#/components/schemas/UiNode"
+    FileUpload:
+      type: object
+      required: [path, content]
+      properties:
+        path:
+          type: string
+          description: Relative path inside the project, e.g. __init__.py
+        content:
+          type: string
+        encoding:
+          type: string
+          enum: [utf-8, base64]
+          default: utf-8
+    ProjectList:
+      type: object
+      properties:
+        projects:
+          type: array
+          items:
+            type: string
+    Logs:
+      type: object
+      properties:
+        entries:
+          type: array
+          items:
+            type: object
+            properties:
+              seq: { type: integer }
+              ts: { type: integer }
+              stream: { type: string }
+              line: { type: string }
+        next:
+          type: integer
+    EvalRequest:
+      type: object
+      required: [code]
+      properties:
+        code:
+          type: string
+        timeout_ms:
+          type: integer
+          default: 8000
+          minimum: 200
+          maximum: 15000
+    EvalResponse:
+      type: object
+      properties:
+        ok: { type: boolean }
+        result: { type: string }
+        error: { type: string }
+    Ok:
+      type: object
+      properties:
+        ok: { type: boolean }
+    Error:
+      type: object
+      properties:
+        error: { type: string }
