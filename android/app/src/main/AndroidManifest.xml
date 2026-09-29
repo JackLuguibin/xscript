@@ -74,5 +74,10 @@
             android:name=".runtime.ScriptService"
             android:exported="false"
             android:process=":script" />
+
+        <service
+            android:name=".runtime.EvalService"
+            android:exported="false"
+            android:process=":eval" />
     </application>
 </manifest>

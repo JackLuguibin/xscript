@@ -138,7 +138,12 @@ def device_action(action_type: str, x: int = 0, y: int = 0, x2: int = 0, y2: int
 
 @mcp.tool()
 def eval_python(code: str, timeout_ms: int = EVAL_DEADLINE_MS) -> str:
-    """Short probe on the device. Assign _result. No while-True loops."""
+    """Short probe on the device. Assign _result. No while-True loops.
+
+    Runs in a separate device process that is killed on timeout, which also drops any state
+    earlier evals left behind.
+    """
+    # Guidance for the agent, not a security boundary: the device enforces the timeout.
     if "whileTrue" in code.replace(" ", ""):
         return _json({"ok": False, "error": "eval_python forbids while True; put loops in a project"})
     limit = min(int(timeout_ms), 15000)

@@ -9,6 +9,7 @@ info:
 
     SECURITY: there is no authentication. Anyone who can reach the port can upload and run
     code (/eval, /projects/{name}/run). Use only on trusted networks or via `adb forward`.
+    The server sends no CORS headers, so browser pages cannot read responses.
 servers:
   - url: http://{host}:{port}
     variables:
@@ -17,6 +18,16 @@ servers:
       port:
         default: "9096"
 paths:
+  /:
+    get:
+      summary: Landing page with the device status
+      responses:
+        "200":
+          description: HTML
+          content:
+            text/html:
+              schema:
+                type: string
   /status:
     get:
       summary: Device and runtime status
@@ -336,7 +347,11 @@ paths:
           description: Cleared
   /eval:
     post:
-      summary: Short Python eval in the main process. Assign the answer to `_result`.
+      summary: Short Python eval in the `:eval` process. Assign the answer to `_result`.
+      description: |
+        One snippet runs at a time. On timeout the `:eval` process is killed (and restarts on
+        the next call), so module state from earlier snippets is lost. A crash in the snippet
+        returns ok=false and does not affect the main process.
       requestBody:
         required: true
         content:

@@ -19,11 +19,11 @@ object RootEngine {
         } else {
             "input tap $x $y"
         }
-        return RootShell.exec(cmd).ok
+        return RootShell.run(cmd)
     }
 
     fun swipe(x1: Int, y1: Int, x2: Int, y2: Int, durMs: Int): Boolean =
-        RootShell.exec("input swipe $x1 $y1 $x2 $y2 ${durMs.coerceAtLeast(10)}").ok
+        RootShell.run("input swipe $x1 $y1 $x2 $y2 ${durMs.coerceAtLeast(10)}")
 
     /** action 0 down, 1 move, 2 up. `input motionevent` exists on Android 10+. */
     fun touch(action: Int, x: Int, y: Int): Boolean {
@@ -32,20 +32,20 @@ object RootEngine {
             1 -> "MOVE"
             else -> "UP"
         }
-        return RootShell.exec("input motionevent $name $x $y").ok
+        return RootShell.run("input motionevent $name $x $y")
     }
 
-    fun key(code: Int): Boolean = RootShell.exec("input keyevent $code").ok
+    fun key(code: Int): Boolean = RootShell.run("input keyevent $code")
 
     fun globalAction(name: String): Boolean = when (name) {
         "back" -> key(4)
         "home" -> key(3)
         "recents" -> key(187)
-        "notifications" -> RootShell.exec("cmd statusbar expand-notifications").ok
-        "quick_settings" -> RootShell.exec("cmd statusbar expand-settings").ok
+        "notifications" -> RootShell.run("cmd statusbar expand-notifications")
+        "quick_settings" -> RootShell.run("cmd statusbar expand-settings")
         "lock_screen" -> key(26)
         "screenshot" -> key(120)
-        "power_dialog" -> RootShell.exec("input keyevent --longpress 26").ok
+        "power_dialog" -> RootShell.run("input keyevent --longpress 26")
         else -> false
     }
 
@@ -58,7 +58,7 @@ object RootEngine {
         if (text.isEmpty()) return true
         if (text.all { it.code in 0x20..0x7e }) {
             val escaped = text.replace(" ", "%s")
-            return RootShell.exec("input text " + RootShell.quote(escaped)).ok
+            return RootShell.run("input text " + RootShell.quote(escaped))
         }
         return false
     }

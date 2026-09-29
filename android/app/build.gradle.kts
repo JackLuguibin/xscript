@@ -76,4 +76,8 @@ dependencies {
     implementation("org.nanohttpd:nanohttpd:2.3.1")
     implementation("com.squareup.okhttp3:okhttp:4.12.0")
     implementation("com.google.mlkit:text-recognition-chinese:16.0.1")
+
+    testImplementation("junit:junit:4.13.2")
+    // Real org.json on the JVM; the android.jar stub throws "not mocked".
+    testImplementation("org.json:json:20240303")
 }

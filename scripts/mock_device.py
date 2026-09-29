@@ -283,7 +283,7 @@ def serve(host="127.0.0.1", port=0):
 
 if __name__ == "__main__":
     server = serve("127.0.0.1", 9096)
-    print("mock device on http://127.0.0.1:%d (no auth; local testing only)" % server.server_address[1])
+    print("mock device on http://127.0.0.1:%d (local testing only)" % server.server_address[1])
     try:
         threading.Event().wait()
     except KeyboardInterrupt:

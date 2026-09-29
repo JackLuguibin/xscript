@@ -112,7 +112,14 @@ object CloudClient {
                 queryObj.keys().forEach { k -> query[k] = queryObj.optString(k) }
                 val body = msg.optString("body").takeIf { it.isNotEmpty() }?.let { Base64.decode(it, Base64.DEFAULT) } ?: ByteArray(0)
                 val reply = router?.handle(
-                    ApiRouter.Request(msg.optString("method", "GET"), msg.optString("path", "/"), query, body, "cloud", ""),
+                    ApiRouter.Request(
+                        msg.optString("method", "GET"),
+                        msg.optString("path", "/"),
+                        query,
+                        ApiRouter.Body.of(body),
+                        "cloud",
+                        "",
+                    ),
                 ) ?: ApiRouter.Reply.json(JSONObject().put("error", "not ready"), 503)
                 webSocket.send(
                     JSONObject()
@@ -120,7 +127,7 @@ object CloudClient {
                         .put("id", id)
                         .put("status", reply.status)
                         .put("mime", reply.mime)
-                        .put("body", Base64.encodeToString(reply.body, Base64.NO_WRAP))
+                        .put("body", Base64.encodeToString(reply.bytes(), Base64.NO_WRAP))
                         .toString(),
                 )
             }

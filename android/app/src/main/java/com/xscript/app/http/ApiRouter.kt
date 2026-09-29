@@ -14,18 +14,63 @@ import com.xscript.app.runtime.ScriptService
 import com.xscript.app.settings.Settings
 import org.json.JSONArray
 import org.json.JSONObject
-import java.io.ByteArrayInputStream
 import java.io.ByteArrayOutputStream
+import java.io.File
+import java.io.FileInputStream
+import java.io.InputStream
 
 /**
  * Transport-independent request handling. Used by the LAN HTTP server and by the cloud
  * control WebSocket, so both expose the exact same API (see protocol/openapi.yaml).
  */
 class ApiRouter(private val context: Context) {
-    class Reply(val status: Int, val mime: String, val body: ByteArray) {
+    /**
+     * Reply payload: in-memory [body], or a [file] streamed by the HTTP server (large zips,
+     * raw file reads). [deleteFile] marks the file as a temp file owned by the reply.
+     */
+    class Reply(
+        val status: Int,
+        val mime: String,
+        val body: ByteArray,
+        val file: File? = null,
+        val deleteFile: Boolean = false,
+    ) {
+        /** Whole payload in memory, for transports that cannot stream (cloud relay). */
+        fun bytes(): ByteArray {
+            val f = file ?: return body
+            return try {
+                f.readBytes()
+            } finally {
+                if (deleteFile) f.delete()
+            }
+        }
+
         companion object {
             fun json(obj: Any, status: Int = 200) =
                 Reply(status, "application/json; charset=utf-8", obj.toString().toByteArray(Charsets.UTF_8))
+
+            fun file(f: File, mime: String, temp: Boolean) = Reply(200, mime, ByteArray(0), f, temp)
+        }
+    }
+
+    /** Request body: small bodies in memory, large uploads spooled to a temp file. */
+    class Body private constructor(private val bytes: ByteArray?, private val file: File?) {
+        val isEmpty: Boolean get() = (bytes?.isEmpty() ?: true) && (file?.length() ?: 0L) == 0L
+
+        fun bytes(): ByteArray = bytes ?: file?.readBytes() ?: ByteArray(0)
+
+        fun stream(): InputStream = file?.let { FileInputStream(it) } ?: bytes().inputStream()
+
+        fun release() {
+            file?.delete()
+        }
+
+        companion object {
+            val EMPTY = Body(ByteArray(0), null)
+
+            fun of(bytes: ByteArray) = Body(bytes, null)
+
+            fun ofFile(file: File) = Body(null, file)
         }
     }
 
@@ -33,13 +78,13 @@ class ApiRouter(private val context: Context) {
         val method: String,
         val path: String,
         val query: Map<String, String>,
-        val body: ByteArray,
+        val body: Body,
         val client: String = "",
         val remote: String = "",
     ) {
         fun json(): JSONObject {
-            if (body.isEmpty()) return JSONObject()
-            val text = String(body, Charsets.UTF_8)
+            if (body.isEmpty) return JSONObject()
+            val text = String(body.bytes(), Charsets.UTF_8)
             return if (text.isBlank()) JSONObject() else JSONObject(text)
         }
     }
@@ -104,13 +149,19 @@ class ApiRouter(private val context: Context) {
             m == "GET" && sub == "/file" -> readFile(name, req)
             m == "DELETE" && sub == "/file" -> Reply.json(JSONObject().put("ok", store.deleteFile(name, req.query["path"].orEmpty())))
             m == "PUT" && sub == "/zip" -> {
-                store.importZip(name, ByteArrayInputStream(req.body), replace = req.query["replace"] != "false")
+                req.body.stream().use { store.importZip(name, it, replace = req.query["replace"] != "false") }
                 Reply.json(JSONObject().put("ok", true).put("project", name).put("files", store.files(name).length()))
             }
             m == "GET" && sub == "/zip" -> {
-                val out = ByteArrayOutputStream()
-                store.exportZip(name, out)
-                Reply(200, "application/zip", out.toByteArray())
+                if (!store.exists(name)) return Reply.json(JSONObject().put("error", "missing project"), 404)
+                val tmp = File.createTempFile("export", ".zip", context.cacheDir)
+                try {
+                    tmp.outputStream().use { store.exportZip(name, it) }
+                } catch (e: Exception) {
+                    tmp.delete()
+                    throw e
+                }
+                Reply.file(tmp, "application/zip", temp = true)
             }
             m == "POST" && sub == "/run" -> runProject(name)
             m == "POST" && sub == "/stop" -> {
@@ -178,11 +229,12 @@ class ApiRouter(private val context: Context) {
     private fun readFile(name: String, req: Request): Reply {
         val f = store.readFile(name, req.query["path"].orEmpty())
         if (!f.isFile) return Reply.json(JSONObject().put("error", "missing file"), 404)
-        val bytes = f.readBytes()
         val text = isText(f.name)
-        return if (req.query["raw"] == "1") {
-            Reply(200, if (text) "text/plain; charset=utf-8" else "application/octet-stream", bytes)
-        } else if (text) {
+        if (req.query["raw"] == "1") {
+            return Reply.file(f, if (text) "text/plain; charset=utf-8" else "application/octet-stream", temp = false)
+        }
+        val bytes = f.readBytes()
+        return if (text) {
             Reply.json(JSONObject().put("path", req.query["path"]).put("encoding", "utf-8").put("content", String(bytes, Charsets.UTF_8)))
         } else {
             Reply.json(

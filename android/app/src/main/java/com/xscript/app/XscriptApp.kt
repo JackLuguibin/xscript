@@ -6,8 +6,6 @@ import android.content.Context
 import android.content.Intent
 import android.os.Build
 import android.os.Process
-import com.chaquo.python.Python
-import com.chaquo.python.android.AndroidPlatform
 import com.xscript.app.cloud.CloudClient
 import com.xscript.app.root.RootShell
 import com.xscript.app.runtime.AutomationService
@@ -21,12 +19,6 @@ class XscriptApp : Application() {
             RootShell.probeAsync()
             startService(Intent(this, AutomationService::class.java))
             CloudClient.autoConnect(this)
-        }
-    }
-
-    fun ensurePython() {
-        if (!Python.isStarted()) {
-            Python.start(AndroidPlatform(this))
         }
     }
 

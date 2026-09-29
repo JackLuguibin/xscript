@@ -170,7 +170,7 @@ Unsupported. These raise `NotImplementedError` or print a one-time warning:
 
 ## Device HTTP and eval
 
-The full contract is in `protocol/openapi.yaml`. `POST /eval` runs code in the main process with an 8 s default timeout and a 15 s maximum. Assign the answer to `_result`:
+The full contract is in `protocol/openapi.yaml`. `POST /eval` runs code in a dedicated `:eval` process with an 8 s default timeout and a 15 s maximum. One snippet runs at a time. On timeout the process is killed, so state left by earlier snippets is lost; a crash in the snippet does not affect the app. Assign the answer to `_result`:
 
 ```python
 _result = __import__("xscript.android.screen", fromlist=["x"]).size()

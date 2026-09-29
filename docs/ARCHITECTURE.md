@@ -24,8 +24,11 @@ flowchart LR
             Root["RootEngine / RootShell"]
             Cap["CaptureEngine"]
             AIDL["AutomationService<br/>(IAutomation Binder)"]
-            Eval["EvalRunner<br/>(Chaquopy)"]
+            Eval["EvalRunner<br/>(IEval 客户端)"]
             UI["Activity 界面 / FloatControl"]
+        end
+        subgraph EvalP[":eval 进程"]
+            ES["EvalService<br/>Chaquopy 常驻解释器"]
         end
         subgraph Script[":script 进程"]
             SS["ScriptService"]
@@ -42,6 +45,8 @@ flowchart LR
     WS --> Router
     Router --> Auto
     Router --> Eval
+    Eval -- "IEval Binder<br/>超时则杀进程" --> ES
+    ES -- "IAutomation" --> AIDL
     Router -- "startService" --> SS
     Auto --> A11y
     Auto --> Root
@@ -83,17 +88,20 @@ flowchart LR
 
 ### 4.1 进程模型
 
-App 有两个进程，这是整个架构最核心的设计：
+App 有三个进程，这是整个架构最核心的设计：
 
 | 进程 | 组件 | 生命周期 |
 | --- | --- | --- |
 | 主进程 `com.xscript.app` | `XscriptApp`、各 Activity、`XscriptAccessibilityService`、`DeviceHttpService`（前台服务）、`AutomationService`（Binder）、`CloudClient`、`CaptureEngine`、`FloatControl` | 常驻 |
 | `:script` 进程 | `ScriptService`、Chaquopy 解释器、`Bridge`、`ScriptUi`、`OcrEngine`、`SystemApi` | 每次运行一个工程，结束或停止时 `Process.killProcess` 自杀 |
+| `:eval` 进程 | `EvalService`、Chaquopy 解释器 | 首次 `/eval` 时拉起并常驻；超时或崩溃时被杀，下次调用重新拉起 |
 
 这样拆分的原因（见 `ScriptService.kt`、`IAutomation.aidl` 注释）：
 
 - 停止脚本 = 杀进程。任意 Python 代码（死循环、阻塞的 native 调用、子线程、悬浮窗）都无法被可靠地中断，杀进程是唯一可靠手段。
 - 脚本崩溃不会带走无障碍服务和 MediaProjection 截图会话，它们都留在主进程里。
+
+`:eval` 和 `:script` 一样通过 `IAutomation` 访问主进程的自动化能力，因此 eval 里的代码与脚本里的代码行为一致。
 
 `XscriptApp.onCreate` 通过进程名判断 `isMainProcess`，只有主进程会探测 root、启动 `AutomationService` 并自动连接云控。
 
@@ -124,7 +132,7 @@ sequenceDiagram
 - `AutomationService` 的每个方法都包了一层 `safe {}`，异常时返回空值 / `false`，避免远程异常把脚本进程打挂。
 - 其它跨进程状态用文件共享：
   - `RunState`：`filesDir/running-project` 记录当前运行的工程名，主进程再用进程列表校验 `:script` 是否还活着，避免崩溃后一直显示“运行中”。
-  - `LogBuffer`：`filesDir/logs/runtime.jsonl`（JSON Lines）+ `seq` 序号文件，用文件锁保证两个进程并发写入安全，超过 2 MB 截断保留尾部 512 KB。`/logs?since=` 按序号增量读取。
+  - `LogBuffer`：`filesDir/logs/runtime.jsonl`（JSON Lines）+ `seq` 序号文件。跨进程用文件锁互斥，进程内先用 JVM 锁串行化（同一进程重复 `FileChannel.lock()` 会抛异常而不是阻塞）。超过 2 MB 截断保留尾部 512 KB。`/logs?since=` 从文件尾部按 64 KB 分块反向扫描，读到调用方已有的序号就停止，所以轮询成本与新增条目数成正比，与文件大小无关；序号被重置（清除数据）时返回最新条目。
 
 ### 4.3 自动化通道（`Automation.kt`）
 
@@ -142,7 +150,8 @@ sequenceDiagram
 
 - `auto` 模式优先无障碍，其次 root。
 - 只要无障碍开着，节点树和节点操作就一律走无障碍（更快、信息更全），即使运行模式是 root。
-- `RootShell` 每次调用都新起一个 `su -c` 进程，逻辑简单但单次延迟在百毫秒级。root 状态缓存，否定结果每 30 秒后台重新探测一次。
+- `RootShell.run` 复用一个常驻 `su` shell 执行手势、按键、文本输入等只关心退出码的命令：每条命令包在 `sh -c` 里，后面追加带序号的结束标记来读取退出码；超时或 shell 退出时重建会话，失败时回退到一次性的 `su -c`。需要输出或二进制数据的命令（`screencap`、`uiautomator dump`、`dumpsys`、`system.shell`）仍然用 `exec` / `execRaw` 单独起进程。在 MuMu 模拟器上实测，每次 `su` 启动约 250 ms，`/action` 按键请求由此从约 250 ms 降到约 8 ms。
+- root 状态缓存，否定结果每 30 秒后台重新探测一次。
 
 节点路径（`path`）是真实树中的索引路径，即使 mode 0 精简输出时剪掉了兄弟节点，也能据此重新定位节点。
 
@@ -169,11 +178,14 @@ sequenceDiagram
 
 异常统一映射：`IllegalArgumentException` → 400，`IllegalStateException` → 409，其它 → 500。
 
+`Reply` 可以携带内存字节，也可以携带文件（`Reply.file`）。zip 导出先写临时文件，`?raw=1` 读取工程文件时直接返回原文件，HTTP 层都以流的方式发送。
+
 **HTTP 服务**（`DeviceHttpServer` / `DeviceHttpService`）：
 
 - 作为前台服务运行（`dataSync | mediaProjection`），监听 `0.0.0.0`，从 9096 起向上找空闲端口直到 9105（AScript 默认也占 9096）。
-- 自己读取原始 body（上限 200 MB），不用 NanoHTTPD 的 `parseBody`，避免破坏 zip 等二进制上传。
-- 所有响应带 `Access-Control-Allow-Origin: *`。
+- **无鉴权**：任何能访问端口的人都可以调用全部接口。
+- **无 CORS 头**：设备只面向原生客户端（MCP、curl），不发送 `Access-Control-Allow-*`，浏览器里的网页因此无法读取接口响应。
+- **请求体**：上限 200 MB，先校验 `Content-Length`。4 MB 以内放内存，更大的写入 `cacheDir/http-spool` 临时文件，交给路由时以流读取，请求结束后删除。仍然不用 NanoHTTPD 的 `parseBody`，避免破坏二进制上传。
 - 请求头 `X-XScript-Client` 用于 `ClientTracker` 在首页展示已连接客户端。
 
 **云控**（`CloudClient`）：设备主动外连 `ws://` / `wss://`，能穿透 NAT。协议是 JSON 文本帧：
@@ -184,7 +196,7 @@ server → device  {"type":"request","id":"1","method":"GET","path":"/status","q
 device → server  {"type":"response","id":"1","status":200,"mime":"...","body":"<base64>"}
 ```
 
-请求由 2 线程的线程池处理，25 秒 ping 保活，断线后 5 秒重连。鉴权完全交给服务端（例如 URL 中带 token）。
+请求由 2 线程的线程池处理，25 秒 ping 保活，断线后 5 秒重连。鉴权完全交给服务端（例如 URL 中带 token）。云控无法流式传输，文件类回复会用 `Reply.bytes()` 读进内存后 base64 发送。
 
 ### 4.6 工程存储（`ProjectStore.kt`）
 
@@ -192,6 +204,7 @@ device → server  {"type":"response","id":"1","status":200,"mime":"...","body":
 - 目录名同时是 Python 包名，所以必须是合法标识符（允许中文，与 AScript 一致）。
 - 相对路径做了规范化，拒绝 `..` 和空段，防止路径穿越。
 - 支持 zip 导入 / 导出和 AScript 工程导入。
+- zip 导入逐条目流式解压到 `import-tmp/` 暂存目录，确认包含 `__init__.py` 后才删除旧工程并移动文件（同一文件系统内是 rename），所以坏的 zip 不会破坏已有工程，大文件也不会整块读进内存。
 
 ### 4.7 脚本侧原生能力
 
@@ -262,7 +275,13 @@ sequenceDiagram
 
 ### 5.3 `/eval`
 
-`EvalRunner` 在**主进程**的单线程执行器里调用 `eval_runner.run(code)`，约定脚本把结果赋给 `_result`，超时时间限制在 200 ms～15 s 之间。它面向 MCP 的短小探测（看一下节点、测一个颜色），长逻辑应放进工程里运行。
+`/eval` 面向 MCP 的短小探测（看一下节点、测一个颜色），约定把结果赋给 `_result`，超时时间限制在 200 ms～15 s 之间，长逻辑应放进工程里运行。
+
+- 主进程的 `EvalRunner` 只是客户端：它绑定 `:eval` 进程里的 `EvalService`，通过 `IEval.run(code)` 执行，自己在线程池里等待结果。
+- 超时后通过 `IEval.pid()` 拿到进程号并 `killProcess`，死循环和阻塞的 native 调用都会随进程一起结束。下次调用重新拉起进程（冷启动约 0.7～1.2 s，热调用约 10 ms）。
+- 代码崩溃（例如 `os._exit`）会表现为 `DeadObjectException`，返回 `ok=false`，下次调用自动重连。
+- 同一时间只执行一个 eval，因为超时杀进程会连带杀掉并发的其他 eval。
+- MCP 侧拒绝 `while True` 的检查只是给 AI 的提示，真正的保证来自设备端杀进程。
 
 ## 6. PC 端工具链
 
@@ -290,19 +309,20 @@ sequenceDiagram
 | 设计 | 收益 | 代价 |
 | --- | --- | --- |
 | 脚本独立进程，停止即杀进程 | 停止可靠；脚本崩溃不影响无障碍和截图 | 每次运行都要冷启动 Python 并重新加载 numpy / cv2；跨进程调用有 Binder 开销 |
+| eval 独立常驻进程，超时即杀 | eval 的死循环 / 崩溃不影响主进程；热调用快 | 多一个进程的常驻内存；超时后 eval 里的模块状态丢失 |
+| 无鉴权 + 无 CORS | PC 端无需任何配置即可连接；浏览器网页无法读取接口响应 | 同一网络内任何设备都能上传文件、执行任意 Python |
 | `ApiRouter` 与传输层解耦 | 局域网 HTTP 与云控接口完全一致 | 云控的 body 走 base64，大文件（截图、zip）体积增加约 33% |
 | Python 侧做节点匹配 | 选择器逻辑可以在 PC 上单测，Java 侧只负责 dump | 每次 `find` 都要序列化并传输整棵树，复杂页面开销较大 |
 | 原始 RGBA 帧 + Pipe | 截图不做 PNG 编解码，避开 Binder 限制 | 单帧体积大（1080×2400 约 10 MB），每次截图都要完整拷贝 |
-| 通道自动降级（无障碍 → root） | 适配无 root / 无无障碍 / 模拟器等多种环境 | root 通道每次调用都起 `su` 进程，延迟较高；多点手势只能近似回放 |
-| 用文件做跨进程状态（RunState / LogBuffer） | 实现简单，进程被杀后状态仍然存在 | 每条日志都要打开文件、加锁、读写 seq 文件；`/logs` 每次都全量扫描日志文件 |
+| 通道自动降级（无障碍 → root） | 适配无 root / 无无障碍 / 模拟器等多种环境 | 多点手势在 root 下只能近似回放；常驻 `su` 会话串行执行命令 |
+| 用文件做跨进程状态（RunState / LogBuffer） | 实现简单，进程被杀后状态仍然存在 | 每条日志都要打开文件、加锁、读写 seq 文件 |
 
-## 8. 风险与改进建议
+## 8. 风险与后续方向
 
-以下几点是阅读代码时发现的，按影响排序：
+以下问题已经处理：CORS、eval 隔离与超时、大请求 / 大文件的内存占用、root 命令延迟、日志轮询成本（见第 4、5 节）。仍然存在的风险与可做的改进：
 
-1. **无鉴权 + `CORS: *`**。README 已说明局域网接口没有鉴权，任何能访问端口的人都可以上传文件并执行任意 Python。另外还有一个容易忽视的场景：响应头是 `Access-Control-Allow-Origin: *`，开发者浏览器中打开的任意网页都可以跨域调用 `http://127.0.0.1:9096`（`adb forward` 之后）或局域网 IP 上的 `/eval`。建议至少加一个首次配对生成的 token（请求头校验），并把 CORS 限制到可信来源。
-2. **`/eval` 在主进程执行且无法真正超时**。`future.cancel(true)` 中断不了正在运行的 Python 代码；死循环会一直占着单线程执行器（后续所有 eval 都会排队超时），并与无障碍、截图、HTTP 服务共用主进程资源。MCP 侧的 `while True` 字符串检查很容易绕过。可以考虑把 eval 放到 `:script` 进程（或单独的 `:eval` 进程），超时后直接杀掉。
-3. **大请求完全载入内存**。上传 body 上限 200 MB，zip 导出也在 `ByteArrayOutputStream` 中完成，在低内存设备上有 OOM 风险。可以改为流式写入临时文件。
-4. **依赖版本偏旧**。`opencv-python 4.5.1.48`、`numpy 1.23.3` 受 Chaquopy / Python 3.10 的 wheel 约束，升级 Python 版本需要先确认 Chaquopy 对 OpenCV 的支持情况。
-5. **Root 通道性能**。可以维护一个常驻的 `su` shell 会话，复用它执行 `input` 等命令，降低每次调用的延迟。
-6. **日志读取**。`LogBuffer.since` 每次轮询都会完整解析最多 2 MB 的文件，可以记录字节偏移来做增量读取。
+1. **局域网接口无鉴权**。同一网络内任何能访问端口的设备都可以上传文件、执行任意 Python（`/eval`、`/projects/<name>/run`）。只在可信网络中使用，或者通过 USB + `adb forward` 连接。
+2. **云控通道没有设备侧鉴权**。它完全依赖中继服务器的认证，而且会把大文件整块读进内存再做 base64（体积增加约 33%）。可以考虑分片传输。
+3. **依赖版本偏旧**。`opencv-python 4.5.1.48`、`numpy 1.23.3` 受 Chaquopy / Python 3.10 的 wheel 约束，升级 Python 版本前需要先确认 Chaquopy 对 OpenCV 的支持情况。
+4. **截图和节点树的传输开销**。每帧原始 RGBA 约 8～10 MB，`Selector.find` 每次都要 dump 整棵树。可以做帧缓存 / 区域截图下推，或者把简单的选择器下推到 Java 侧过滤。
+5. **日志写入**。每条日志都要打开文件、加锁、读写 seq 文件，高频 `print` 时开销明显。可以在 Python 侧按时间窗口批量写入。

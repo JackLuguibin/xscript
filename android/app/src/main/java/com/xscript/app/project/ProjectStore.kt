@@ -106,26 +106,44 @@ class ProjectStore(context: Context) {
      * stripped, so both "proj.zip → __init__.py" and "proj.zip → proj/__init__.py" work.
      */
     fun importZip(name: String, input: InputStream, replace: Boolean = true): File {
-        val entries = mutableListOf<Pair<String, ByteArray>>()
-        ZipInputStream(input).use { zip ->
-            var e: ZipEntry? = zip.nextEntry
-            while (e != null) {
-                if (!e.isDirectory) entries.add(e.name.replace('\\', '/') to zip.readBytes())
-                e = zip.nextEntry
-            }
-        }
-        val prefix = commonTopFolder(entries.map { it.first })
         val target = dir(name)
-        if (replace) target.deleteRecursively()
-        target.mkdirs()
-        for ((path, bytes) in entries) {
-            val rel = path.removePrefix(prefix)
-            if (rel.isEmpty() || rel.split('/').any { it == "__pycache__" || it == "__MACOSX" }) continue
-            val out = File(target, normalizeRel(rel))
-            out.parentFile?.mkdirs()
-            out.writeBytes(bytes)
+        // Entries stream straight to a staging dir (never whole files in memory). It sits
+        // next to `projects/`, on the same filesystem, so moving files is a rename.
+        val staging = File(root.parentFile, "import-tmp/" + System.nanoTime())
+        staging.mkdirs()
+        try {
+            val paths = mutableListOf<String>()
+            ZipInputStream(input).use { zip ->
+                var e: ZipEntry? = zip.nextEntry
+                while (e != null) {
+                    val path = e.name.replace('\\', '/')
+                    val skip = e.isDirectory || path.split('/').any { it == "__pycache__" || it == "__MACOSX" }
+                    if (!skip) {
+                        val rel = normalizeRel(path)
+                        val out = File(staging, rel)
+                        out.parentFile?.mkdirs()
+                        out.outputStream().use { zip.copyTo(it) }
+                        paths.add(rel)
+                    }
+                    e = zip.nextEntry
+                }
+            }
+            val prefix = commonTopFolder(paths)
+            val src = if (prefix.isEmpty()) staging else File(staging, prefix.trimEnd('/'))
+            // Validate before touching the existing project so a bad zip leaves it intact.
+            val hasEntry = File(src, "__init__.py").isFile || (!replace && File(target, "__init__.py").isFile)
+            require(hasEntry) { "zip has no __init__.py" }
+            if (replace) target.deleteRecursively()
+            target.mkdirs()
+            src.walkTopDown().filter { it.isFile }.forEach { f ->
+                val out = File(target, f.relativeTo(src).path)
+                out.parentFile?.mkdirs()
+                if (out.exists()) out.delete()
+                if (!f.renameTo(out)) f.copyTo(out, overwrite = true)
+            }
+        } finally {
+            staging.deleteRecursively()
         }
-        require(File(target, "__init__.py").isFile) { "zip has no __init__.py" }
         return target
     }
 

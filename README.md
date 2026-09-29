@@ -20,7 +20,7 @@ Cloud control server    ←  WebSocket (device dials out)  ↗
 - **AScript compatibility** (`ascript.android.*`). Follows the ascript-tip 1.3.0 API, so `from ascript.android.screen import FindImages` works unchanged.
 - **Projects.** Create, zip import/export, import from AScript (`/sdcard/airscript/model`), an on-device editor, run logs, and the floating stop button.
 - **Cloud control.** The device dials out to a WebSocket relay and serves the same API through it, so it works behind NAT.
-- **Cursor MCP** (`xscript-mcp`). Screenshots, UI tree, file upload, run/stop, logs, eval, and an API catalog.
+- **Cursor MCP** (`xscript-mcp`). Screenshots, UI tree, file upload, run/stop, logs, eval, and an API catalog. Eval runs in its own process, which is killed on timeout.
 
 ## Repo layout
 
@@ -79,7 +79,7 @@ if p:
 
 ## Security
 
-The LAN HTTP server and the cloud relay have **no authentication**. Anyone who can reach the port can upload files and run arbitrary Python (`/eval`, `/projects/<name>/run`). Use XScript only on trusted networks, or over USB with `adb forward`. Put the cloud relay behind your own authenticated server; a token in the `wss://` URL is checked by the server, not by the app.
+The LAN HTTP server and the cloud relay have **no authentication**. Anyone who can reach the port can upload files and run arbitrary Python (`/eval`, `/projects/<name>/run`). Use XScript only on trusted networks, or over USB with `adb forward`. The server sends no CORS headers, so web pages open in your browser cannot read API responses. Put the cloud relay behind your own authenticated server; a token in the `wss://` URL is checked by the server, not by the app.
 
 ## Licenses
 

@@ -101,6 +101,12 @@ c.run_project("my_proj")
 
 This runs the runtime tests (with `.venv-rt` if present; it needs numpy, opencv-python, and pillow), the MCP tests, a stub freshness check, and the mock vertical slice. After changing `python-runtime/`, run `python3 scripts/gen_stubs.py`.
 
+Android JVM unit tests (log tail reader):
+
+```bash
+./scripts/build_android.sh :app:testDebugUnitTest
+```
+
 ## Security
 
 There is no authentication on the HTTP port or the cloud relay. Anyone who can reach them can run code on the phone. See the README.

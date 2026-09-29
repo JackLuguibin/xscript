@@ -22,7 +22,7 @@ Call `screen.size()` rather than assuming portrait. Games often run landscape.
 
 ## Long loops live in the device script
 
-Polling, game, and ad-watch loops belong in `__init__.py` on the phone. Do not drive those loops through MCP: LAN latency is too high, and `eval` cannot be cancelled cleanly.
+Polling, game, and ad-watch loops belong in `__init__.py` on the phone. Do not drive those loops through MCP: LAN latency is too high, and an `eval` that times out gets its whole process killed.
 
 `eval_python` is for one-shot probes, such as trying a selector, one click, or one OCR. Every `eval` must assign `_result` and return within a few seconds. No `while True`.
 

@@ -3,13 +3,15 @@ package com.xscript.app.root
 import android.os.SystemClock
 import java.io.ByteArrayOutputStream
 import java.io.InputStream
+import java.util.concurrent.LinkedBlockingQueue
 import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicBoolean
 import kotlin.concurrent.thread
 
 /**
- * Thin `su -c` wrapper. Each call spawns a short-lived su process, which keeps state
- * isolation simple; `input` itself dominates latency anyway.
+ * Root command runner. [run] reuses one long-lived `su` shell for latency-sensitive
+ * commands (gestures, keys); [exec] / [execRaw] spawn a short-lived `su -c` per call for
+ * anything that needs output, binary data or isolation.
  */
 object RootShell {
     data class Result(val code: Int, val out: String, val err: String) {
@@ -70,6 +72,98 @@ object RootShell {
             onDone?.invoke(ok)
         }
     }
+
+    // ---- persistent session -------------------------------------------------------------
+    //
+    // Spawning `su` costs ~250 ms per call (su daemon handshake, plus a "granted" toast on
+    // some managers), several times what `input tap` itself takes. Gesture/key commands only
+    // need an exit code, so they go through one long-lived root shell instead.
+
+    private const val MARK = "__XS_DONE__"
+    private const val EOF = "\u0000eof"
+
+    private class Session(val process: Process) {
+        val lines = LinkedBlockingQueue<String>()
+        val writer = process.outputStream.bufferedWriter()
+
+        init {
+            thread(name = "xscript-su-out", isDaemon = true) {
+                try {
+                    process.inputStream.bufferedReader().forEachLine { lines.put(it) }
+                } catch (_: Exception) {
+                }
+                lines.put(EOF)
+            }
+            thread(name = "xscript-su-err", isDaemon = true) {
+                try {
+                    val sink = ByteArray(4096)
+                    val err = process.errorStream
+                    while (err.read(sink) >= 0) Unit
+                } catch (_: Exception) {
+                }
+            }
+        }
+
+        fun alive(): Boolean = process.isAlive
+    }
+
+    private var session: Session? = null
+    private var seq = 0L
+
+    /**
+     * Run [cmd] in the shared root shell and report whether it exited 0. Output is discarded.
+     * Falls back to a one-shot [exec] if the session cannot start. A hung command resets the
+     * session so the next call starts clean.
+     */
+    @Synchronized
+    fun run(cmd: String, timeoutMs: Long = 15_000): Boolean {
+        val s = session?.takeIf { it.alive() } ?: openSession() ?: return exec(cmd, timeoutMs).ok
+        val marker = MARK + (++seq) + ":"
+        val code = try {
+            // `sh -c` contains syntax errors in the command; stdin from /dev/null keeps the
+            // command from eating the session's input.
+            s.writer.write("sh -c ${quote(cmd)} </dev/null >/dev/null 2>&1; echo \"$marker\$?\"\n")
+            s.writer.flush()
+            awaitMarker(s, marker, SystemClock.elapsedRealtime() + timeoutMs)
+        } catch (_: Exception) {
+            null
+        }
+        if (code == null) closeSession()
+        return code == "0"
+    }
+
+    /** Exit code printed after [marker], or null on timeout / dead shell. */
+    private fun awaitMarker(s: Session, marker: String, deadline: Long): String? {
+        while (true) {
+            val left = deadline - SystemClock.elapsedRealtime()
+            if (left <= 0) return null
+            val line = s.lines.poll(left, TimeUnit.MILLISECONDS) ?: return null
+            if (line == EOF) return null
+            if (line.startsWith(marker)) return line.substring(marker.length).trim()
+        }
+    }
+
+    private fun openSession(): Session? {
+        closeSession()
+        return try {
+            Session(ProcessBuilder("su").start()).also { session = it }
+        } catch (_: Exception) {
+            null
+        }
+    }
+
+    private fun closeSession() {
+        val s = session ?: return
+        session = null
+        try {
+            s.writer.write("exit\n")
+            s.writer.flush()
+        } catch (_: Exception) {
+        }
+        s.process.destroy()
+    }
+
+    // ---- one-shot commands --------------------------------------------------------------
 
     fun exec(cmd: String, timeoutMs: Long = 15_000): Result {
         val bytes = execRaw(cmd, timeoutMs)
