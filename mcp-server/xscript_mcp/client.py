@@ -162,6 +162,50 @@ class DeviceClient:
             r.raise_for_status()
             return r.json()
 
+    # ---- tools: snapshots, 图色 checks, 标注 datasets ----
+
+    def snapshot(self) -> dict[str, Any]:
+        with self._client() as client:
+            r = client.post(self._url("/tools/snapshots"))
+            r.raise_for_status()
+            return r.json()
+
+    def snapshot_png(self, snapshot_id: str) -> bytes:
+        with self._client() as client:
+            r = client.get(self._url("/tools/snapshots/%s.png" % quote(snapshot_id, safe="")))
+            r.raise_for_status()
+            return r.content
+
+    def vision(self, request: dict[str, Any]) -> dict[str, Any]:
+        """POST /tools/vision. 400/408 carry a JSON error body, returned as-is."""
+        with self._client(timeout=max(self.timeout, 25)) as client:
+            r = client.post(self._url("/tools/vision"), json=request)
+            if r.status_code in (400, 404, 408):
+                return r.json()
+            r.raise_for_status()
+            return r.json()
+
+    def crop_snapshot(self, snapshot_id: str, rect: list[int], project: str, path: str) -> dict[str, Any]:
+        with self._client() as client:
+            r = client.post(
+                self._url("/tools/snapshots/%s/crop" % quote(snapshot_id, safe="")),
+                json={"rect": rect, "project": project, "path": path},
+            )
+            r.raise_for_status()
+            return r.json()
+
+    def list_datasets(self) -> list[dict[str, Any]]:
+        return list(self._get("/tools/datasets").get("datasets") or [])
+
+    def dataset(self, name: str) -> dict[str, Any]:
+        return self._get("/tools/datasets/%s" % self._p(name))
+
+    def export_dataset(self, name: str) -> bytes:
+        with self._client(timeout=max(self.timeout, 120)) as client:
+            r = client.get(self._url("/tools/datasets/%s/export" % self._p(name)))
+            r.raise_for_status()
+            return r.content
+
     def eval_python(self, code: str, timeout_ms: int = 8000) -> dict[str, Any]:
         wait = max(self.timeout, timeout_ms / 1000.0 + 2)
         with self._client(timeout=wait) as client:

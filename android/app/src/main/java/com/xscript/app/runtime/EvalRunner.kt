@@ -32,10 +32,15 @@ object EvalRunner {
     private var connection: ServiceConnection? = null
 
     /** One snippet at a time: killing :eval on timeout would take concurrent snippets with it. */
-    fun run(code: String, timeoutMs: Long): JSONObject {
+    fun run(code: String, timeoutMs: Long): JSONObject = call(timeoutMs) { it.run(code) }
+
+    /** 图色工具 check (see xscript.runtime.vision). Same process, lock and timeout rules as [run]. */
+    fun vision(request: JSONObject, timeoutMs: Long): JSONObject = call(timeoutMs) { it.vision(request.toString()) }
+
+    private fun call(timeoutMs: Long, block: (IEval) -> String): JSONObject {
         synchronized(lock) {
             val eval = connect() ?: return fail("eval process unavailable")
-            val future = calls.submit<String> { eval.run(code) }
+            val future = calls.submit<String> { block(eval) }
             return try {
                 JSONObject(future.get(timeoutMs, TimeUnit.MILLISECONDS))
             } catch (_: TimeoutException) {

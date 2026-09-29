@@ -4,7 +4,7 @@
     "Two API families: xscript.android.* (native) and ascript.android.* (drop-in for AScript scripts; `from ascript.android import ...` works unchanged).",
     "Coordinates are screen pixels in the current orientation.",
     "Channel: accessibility or root, chosen by the run mode (auto / accessibility / root).",
-    "Device /eval runs in the main process; assign the answer to `_result`."
+    "Device /eval runs in a separate :eval process that is killed on timeout; assign the answer to `_result`."
   ],
   "modules": [
     {
@@ -134,6 +134,17 @@
         "action.Hid (hardware HID)", "screen.YoLov5", "screen.OcrX and Ocr.matrix (font libraries)", "screen.gp files from AScript's 图色工具",
         "FindImages method='smart' (falls back to template)", "node.WebSelector", "Selector.on_event / event listeners",
         "sms", "plug", "bluetooth", "location", "sensor", "system.Control (AScript cloud control)", "system.Notification.listen", "media.recode / send_email / AliTts"
+      ]
+    },
+    {
+      "name": "devtools",
+      "description": "Device-hosted developer tools at http://<device>:<port>/tools/ (图色工具, 标注工具, 投屏) and the matching MCP tools. Not importable from scripts.",
+      "functions": [
+        {"name": "take_snapshot", "signature": "take_snapshot() -> {id, width, height}", "doc": "Freeze the screen; all checks below run on this frame."},
+        {"name": "vision_test", "signature": "vision_test(snapshot_id, op, colors='', rect=None, sim=0.9, x=0, y=0, template='', template_rect=None, confidence=0.8)", "doc": "op = pixel | find_colors | compare_colors | find_image | ocr. Same engine as xscript.android.screen and ascript FindColors / CompareColors / FindImages / Ocr. Tune colors, sim and rects here before writing code."},
+        {"name": "crop_template", "signature": "crop_template(snapshot_id, rect, project_name, path='res/img/tpl.png')", "doc": "Save a snapshot region as a PNG template in a project, for FindImages / screen.find_image."},
+        {"name": "list_datasets / export_dataset", "signature": "list_datasets() / export_dataset(name, local_path)", "doc": "标注 datasets; export writes a YOLO zip (images/{train,val}, labels/{train,val}, data.yaml)."},
+        {"name": "screen stream", "signature": "GET /screen/stream?fps=5&scale=0.5&quality=50", "doc": "MJPEG 投屏 for browsers (max 2 viewers). Each part carries X-Screen-Size with the full resolution."}
       ]
     }
   ]

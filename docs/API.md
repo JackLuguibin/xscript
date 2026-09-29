@@ -168,6 +168,29 @@ Unsupported. These raise `NotImplementedError` or print a one-time warning:
 - `Notification.listen`
 - `media.recode` / `send_email` / `AliTts`
 
+## Developer tools (图色 / 标注 / 投屏)
+
+Open `http://<ip>:<port>/tools/` in a desktop browser. The pages are served by the app. There is nothing to install.
+
+**图色工具** works on a frozen snapshot, so every number refers to the same frame. Scroll to zoom and hold Space to pan.
+
+- **Pick colors:** click the image to add points. The panel builds `x,y,#RRGGBB|...`, with an optional per-point offset such as `-#101010`. It can copy ready-made `FindColors.find(...)` or `CompareColors.compare(...)` code.
+- **Select regions:** drag to select a region. Copy it as `rect`, or save it into a project as a PNG template (`res/img/...`).
+- **Test:** the test buttons run multi-point find-color, compare-color (showing expected vs actual per point), find-image (using the selected region as the template), and OCR. They use the same engine as scripts, and matches are drawn over the image.
+
+**标注工具** builds YOLO datasets on the phone. Files live in `<external files>/datasets/<name>/`.
+
+- **Add images:** use 截图加入 for the current screen, or upload PNG / JPEG files.
+- **Draw boxes:** drag to draw a box with the current class. Click a box to select it, drag it to move it, and press Delete to remove it. Keys 1–9 switch class; A and D move to the previous and next image. Changes save automatically.
+- **Export:** 导出 YOLO downloads `images/{train,val}`, `labels/{train,val}` (`cls cx cy w h`, normalised) and `data.yaml`. Every fifth labelled image goes to val.
+
+**投屏** shows a live MJPEG stream (`GET /screen/stream?fps=&scale=&quality=`, at most two viewers).
+
+- **Control:** clicks and drags on the image become taps and swipes on the phone.
+- **Frame rate:** it depends on the capture source. Root `screencap` gives about 2 fps; granting 图色权限 (MediaProjection) is much faster.
+
+The MCP server exposes the same checks for AI coding: call `take_snapshot`, then `vision_test(snapshot_id, op, ...)`, `crop_template`, and `export_dataset`.
+
 ## Device HTTP and eval
 
 The full contract is in `protocol/openapi.yaml`. `POST /eval` runs code in a dedicated `:eval` process with an 8 s default timeout and a 15 s maximum. One snippet runs at a time. On timeout the process is killed, so state left by earlier snippets is lost; a crash in the snippet does not affect the app. Assign the answer to `_result`:

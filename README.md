@@ -21,6 +21,10 @@ Cloud control server    ←  WebSocket (device dials out)  ↗
 - **Projects.** Create, zip import/export, import from AScript (`/sdcard/airscript/model`), an on-device editor, run logs, and the floating stop button.
 - **Cloud control.** The device dials out to a WebSocket relay and serves the same API through it, so it works behind NAT.
 - **Cursor MCP** (`xscript-mcp`). Screenshots, UI tree, file upload, run/stop, logs, eval, and an API catalog. Eval runs in its own process, which is killed on timeout.
+- **Developer tools in the browser** at `http://<ip>:<port>/tools/`, served by the app:
+  - **图色工具**: freeze a screenshot, pick colors with a zoom loupe, build multi-point color strings, select regions, save template crops into a project, and test find-color / compare-color / find-image / OCR on that frame.
+  - **标注工具**: add screenshots or uploads to a dataset, draw and label boxes, and export a YOLO training set (`images/`, `labels/`, `data.yaml`).
+  - **投屏**: live MJPEG mirror. Clicking the image clicks the phone, dragging swipes, and there are buttons for 返回 / 主页 / 最近任务.
 
 ## Repo layout
 

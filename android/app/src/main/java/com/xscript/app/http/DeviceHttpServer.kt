@@ -2,6 +2,7 @@ package com.xscript.app.http
 
 import android.content.Context
 import com.xscript.app.net.NetworkInfo
+import com.xscript.app.tools.ScreenStream
 import fi.iki.elonen.NanoHTTPD
 import org.json.JSONObject
 import java.io.File
@@ -28,6 +29,7 @@ class DeviceHttpServer(
         val headers = session.headers ?: emptyMap()
         val method = session.method?.name ?: "GET"
         val path = session.uri ?: "/"
+        if (method == "GET" && path.trimEnd('/') == "/screen/stream") return stream(session)
         val len = headers["content-length"]?.toLongOrNull() ?: 0L
         if (len > MAX_BODY) return error(Response.Status.PAYLOAD_TOO_LARGE, "body too large")
         val body = try {
@@ -90,6 +92,17 @@ class DeviceHttpServer(
             throw e
         }
         return ApiRouter.Body.ofFile(file)
+    }
+
+    /** 投屏 MJPEG stream; see [ScreenStream]. Chunked so it can run until the client leaves. */
+    private fun stream(session: IHTTPSession): Response {
+        val opts = ScreenStream.Options.from(session.parms ?: emptyMap())
+        val input = ScreenStream.open(opts)
+            ?: return error(Response.Status.TOO_MANY_REQUESTS, "too many screen streams (max 2)")
+        return newChunkedResponse(Response.Status.OK, ScreenStream.MIME, input).apply {
+            addHeader("Cache-Control", "no-cache, no-store")
+            addHeader("Pragma", "no-cache")
+        }
     }
 
     private fun error(status: Response.Status, message: String): Response =

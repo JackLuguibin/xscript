@@ -1,0 +1,101 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>图色工具 · XScript</title>
+<link rel="stylesheet" href="/tools/ui/tools.css">
+</head>
+<body>
+<header class="top">
+  <h1>图色工具</h1>
+  <nav aria-label="工具">
+    <a href="/tools/">首页</a>
+    <a href="/tools/ui/color.html" aria-current="page">图色工具</a>
+    <a href="/tools/ui/label.html">标注工具</a>
+    <a href="/tools/ui/mirror.html">投屏</a>
+  </nav>
+  <span class="spacer"></span>
+  <button id="snap" class="primary" type="button">截图</button>
+  <label>模式
+    <select id="mode" aria-label="鼠标模式">
+      <option value="pick">取色（点击）</option>
+      <option value="rect">框选区域（拖动）</option>
+    </select>
+  </label>
+  <button id="fit" type="button" title="适应窗口">适应</button>
+</header>
+<div class="layout">
+  <div class="stage">
+    <canvas id="view" aria-label="截图画布：点击取色，拖动框选"></canvas>
+    <div class="hint" id="hint">点“截图”获取当前屏幕。滚轮缩放，按住空格拖动平移。</div>
+  </div>
+  <aside class="side">
+    <section aria-labelledby="h-cur">
+      <h2 id="h-cur">当前像素</h2>
+      <div class="loupe">
+        <canvas id="loupe" width="11" height="11" aria-hidden="true"></canvas>
+        <div>
+          <div class="mono" id="cur-pos">x -, y -</div>
+          <div class="mono" id="cur-color">#------</div>
+          <div class="status" id="snap-info"></div>
+        </div>
+      </div>
+    </section>
+
+    <section aria-labelledby="h-pts">
+      <h2 id="h-pts">颜色点（点击画面添加）</h2>
+      <table class="list" aria-describedby="h-pts">
+        <thead><tr><th>#</th><th>坐标</th><th>颜色</th><th><span class="sr-only">操作</span></th></tr></thead>
+        <tbody id="points"></tbody>
+      </table>
+      <div class="row" style="margin-top:8px">
+        <label>偏色 <input id="delta" type="text" value="" placeholder="如 101010" size="7" aria-label="每个点的偏色（可选，十六进制）"></label>
+        <button id="clear" type="button">清空</button>
+      </div>
+      <label for="colors" class="sr-only">颜色特征串</label>
+      <textarea id="colors" rows="3" placeholder="x,y,#RRGGBB|x,y,#RRGGBB"></textarea>
+      <div class="row">
+        <button id="copy-colors" type="button">复制特征串</button>
+        <button id="copy-find" type="button">复制找色代码</button>
+        <button id="copy-compare" type="button">复制比色代码</button>
+      </div>
+    </section>
+
+    <section aria-labelledby="h-rect">
+      <h2 id="h-rect">区域</h2>
+      <div class="mono" id="rect-text">未框选</div>
+      <div class="row" style="margin-top:6px">
+        <button id="copy-rect" type="button">复制 rect</button>
+        <button id="clear-rect" type="button">清除</button>
+      </div>
+      <div class="row">
+        <label>工程 <select id="project" aria-label="保存到的工程"></select></label>
+      </div>
+      <div class="row">
+        <label>文件 <input id="crop-path" type="text" value="res/img/tpl.png" size="18" aria-label="模板图在工程内的路径"></label>
+        <button id="crop" type="button">保存模板图</button>
+      </div>
+    </section>
+
+    <section aria-labelledby="h-test">
+      <h2 id="h-test">测试（在当前截图上执行）</h2>
+      <div class="row">
+        <label>相似度 <input id="sim" type="number" min="0.5" max="1" step="0.01" value="0.9"></label>
+        <label><input id="use-rect" type="checkbox" checked> 限定区域</label>
+      </div>
+      <div class="row">
+        <button id="t-find" type="button">多点找色</button>
+        <button id="t-compare" type="button">多点比色</button>
+        <button id="t-image" type="button">找图（区域作模板）</button>
+        <button id="t-ocr" type="button">OCR</button>
+      </div>
+      <div class="status" id="test-status" role="status" aria-live="polite"></div>
+      <pre id="test-out" class="mono" style="white-space:pre-wrap;max-height:240px;overflow:auto;margin:0"></pre>
+    </section>
+  </aside>
+</div>
+<script src="/tools/ui/common.js"></script>
+<script src="/tools/ui/color.js"></script>
+</body>
+</html>

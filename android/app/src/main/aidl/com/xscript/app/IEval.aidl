@@ -7,4 +7,6 @@ interface IEval {
     // JSON object: {"ok": bool, "result": str, "error": str}
     String run(String code);
     int pid();
+    // Image checks for the 图色工具 (xscript.runtime.vision). JSON request in, JSON out.
+    String vision(String requestJson);
 }

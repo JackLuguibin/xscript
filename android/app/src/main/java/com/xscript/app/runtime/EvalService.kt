@@ -41,6 +41,17 @@ class EvalService : Service() {
         }
 
         override fun pid(): Int = Process.myPid()
+
+        override fun vision(requestJson: String): String = try {
+            val py = Python.getInstance()
+            // Base64 keeps arbitrary text (color strings, Chinese paths) out of Java/Python quoting.
+            val payload = android.util.Base64.encodeToString(requestJson.toByteArray(Charsets.UTF_8), android.util.Base64.NO_WRAP)
+            val result = py.getModule("xscript.runtime.vision").callAttr("run_b64", payload)
+            JSONObject(py.getModule("json").callAttr("dumps", result).toString()).put("ok", true).toString()
+        } catch (t: Throwable) {
+            // PyException messages start with the Python exception type, e.g. "ValueError: ...".
+            JSONObject().put("ok", false).put("error", (t.message ?: t.toString()).lineSequence().first()).toString()
+        }
     }
 
     override fun onCreate() {

@@ -1,0 +1,69 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>标注工具 · XScript</title>
+<link rel="stylesheet" href="/tools/ui/tools.css">
+</head>
+<body>
+<header class="top">
+  <h1>标注工具</h1>
+  <nav aria-label="工具">
+    <a href="/tools/">首页</a>
+    <a href="/tools/ui/color.html">图色工具</a>
+    <a href="/tools/ui/label.html" aria-current="page">标注工具</a>
+    <a href="/tools/ui/mirror.html">投屏</a>
+  </nav>
+  <span class="spacer"></span>
+  <label>数据集 <select id="dataset" aria-label="数据集"></select></label>
+  <button id="new-ds" type="button">新建</button>
+  <button id="del-ds" type="button">删除</button>
+  <a id="export" class="btn" href="#" download>导出 YOLO</a>
+</header>
+<div class="layout">
+  <div class="stage">
+    <canvas id="view" aria-label="标注画布：拖动画框"></canvas>
+    <div class="hint" id="hint">新建或选择一个数据集，再点“截图加入”。</div>
+  </div>
+  <aside class="side">
+    <section aria-labelledby="h-img">
+      <h2 id="h-img">图片</h2>
+      <div class="row">
+        <button id="add-snap" class="primary" type="button">截图加入</button>
+        <label class="btn" for="upload">上传图片</label>
+        <input id="upload" type="file" accept="image/png,image/jpeg" multiple class="sr-only">
+      </div>
+      <div class="thumbs" id="thumbs" role="list"></div>
+      <div class="row" style="margin-top:8px">
+        <button id="prev" type="button" aria-label="上一张">上一张 (A)</button>
+        <button id="next" type="button" aria-label="下一张">下一张 (D)</button>
+        <button id="del-img" type="button">删除图片</button>
+      </div>
+    </section>
+
+    <section aria-labelledby="h-cls">
+      <h2 id="h-cls">类别（数字键 1-9 切换）</h2>
+      <div class="classes" id="classes"></div>
+      <div class="row">
+        <label for="new-class" class="sr-only">新类别名</label>
+        <input id="new-class" type="text" placeholder="新类别名" size="12">
+        <button id="add-class" type="button">添加</button>
+      </div>
+    </section>
+
+    <section aria-labelledby="h-box">
+      <h2 id="h-box">当前图片的框</h2>
+      <table class="list">
+        <thead><tr><th>#</th><th>类别</th><th>区域</th><th><span class="sr-only">操作</span></th></tr></thead>
+        <tbody id="boxes"></tbody>
+      </table>
+      <p class="status">拖动画框；点中已有框可选中，Delete 删除，拖动框内移动。修改自动保存。</p>
+      <div class="status" id="status" role="status" aria-live="polite"></div>
+    </section>
+  </aside>
+</div>
+<script src="/tools/ui/common.js"></script>
+<script src="/tools/ui/label.js"></script>
+</body>
+</html>

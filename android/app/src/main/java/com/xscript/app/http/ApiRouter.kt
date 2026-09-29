@@ -90,6 +90,7 @@ class ApiRouter(private val context: Context) {
     }
 
     private val store = ProjectStore(context)
+    private val tools = com.xscript.app.tools.ToolsRouter(context)
     private val projectRoute = Regex("^/projects/([^/]+)(/.*)?$")
 
     fun handle(req: Request): Reply {
@@ -108,6 +109,7 @@ class ApiRouter(private val context: Context) {
     private fun route(req: Request): Reply {
         val m = req.method
         val p = req.path.trimEnd('/').ifEmpty { "/" }
+        if (tools.handles(p)) return tools.route(req, if (req.path == "/tools/") "/tools/" else p)
         when {
             m == "GET" && p == "/" -> return home()
             m == "GET" && p == "/status" -> return Reply.json(MainControl.status(context))
@@ -180,6 +182,7 @@ class ApiRouter(private val context: Context) {
             <body style="font-family:sans-serif;background:#f4f5f7;color:#222;padding:16px">
             <h2>XScript</h2>
             <p>http://$ip:${NetworkInfo.PORT}</p>
+            <p><a href="/tools/">开发工具：图色工具 · 标注工具 · 投屏</a></p>
             <pre>${s.toString(2)}</pre>
             </body></html>
         """.trimIndent()

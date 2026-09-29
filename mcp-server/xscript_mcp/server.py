@@ -151,6 +151,65 @@ def eval_python(code: str, timeout_ms: int = EVAL_DEADLINE_MS) -> str:
 
 
 @mcp.tool()
+def take_snapshot() -> str:
+    """Freeze the current screen on the device for 图色 checks. Returns {id, width, height}.
+
+    Pass the id to vision_test / crop_template so every check runs on the same frame.
+    """
+    return _json(_client.snapshot())
+
+
+@mcp.tool()
+def vision_test(snapshot_id: str, op: str, colors: str = "", rect: list[int] | None = None, sim: float = 0.9,
+                x: int = 0, y: int = 0, template: str = "", template_rect: list[int] | None = None,
+                confidence: float = 0.8) -> str:
+    """Run one 图色 check on a snapshot, with the same engine scripts use. Returns timings in ms.
+
+    op:
+      pixel           color at (x, y)
+      find_colors     colors = 'x,y,#RRGGBB|x2,y2,#RRGGBB' (first point is the anchor); rect optional
+      compare_colors  per-point expected vs actual
+      find_image      template = '<project>:res/img/a.png', or template_rect = region of this snapshot
+      ocr             text lines with rects; rect optional
+    rect / template_rect are [left, top, right, bottom] in screen pixels. sim is 0..1 (0.9 ≈ ±25 per channel).
+    """
+    req: dict = {"snapshot": snapshot_id, "op": op, "sim": sim, "confidence": confidence}
+    if rect:
+        req["rect"] = rect
+    if op == "pixel":
+        req.update(x=x, y=y)
+    if colors:
+        req["colors"] = colors
+    if template:
+        req["template"] = template
+    if template_rect:
+        req["template_rect"] = template_rect
+    return _json(_client.vision(req))
+
+
+@mcp.tool()
+def crop_template(snapshot_id: str, rect: list[int], project_name: str, path: str = "res/img/tpl.png") -> str:
+    """Save a region of a snapshot as a PNG template inside a device project (for find_image / FindImages)."""
+    return _json(_client.crop_snapshot(snapshot_id, rect, project_name, path))
+
+
+@mcp.tool()
+def list_datasets() -> str:
+    """标注 datasets on the device: name, classes, image and labelled counts."""
+    return _json({"datasets": _client.list_datasets()})
+
+
+@mcp.tool()
+def export_dataset(name: str, local_path: str) -> str:
+    """Download a dataset as a YOLO zip (images/{train,val}, labels/{train,val}, data.yaml) to local_path."""
+    data = _client.export_dataset(name)
+    target = Path(local_path).expanduser()
+    target.parent.mkdir(parents=True, exist_ok=True)
+    target.write_bytes(data)
+    return _json({"ok": True, "path": str(target), "bytes": len(data)})
+
+
+@mcp.tool()
 def get_module_apis(module: str = "") -> str:
     """Local API catalog. module is a substring such as action, node, screen, system, ui, or ascript."""
     catalog = _catalog()

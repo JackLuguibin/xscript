@@ -23,7 +23,34 @@ STATE = {
     "logs": [],
     "actions": [],
     "settings": {"run_mode": "auto", "float_on_run": True, "keep_screen_on": False, "cloud_url": ""},
+    "snapshots": {},   # id -> png bytes
+    "datasets": {},    # name -> {"classes": [...], "items": {id: {"image": bytes, "label": dict|None}}}
 }
+
+# 1x1 pixel, color #336699, for snapshot / vision tests.
+SNAP_PNG = (
+    b"\x89PNG\r\n\x1a\n\x00\x00\x00\rIHDR\x00\x00\x00\x01\x00\x00\x00\x01\x08\x02\x00\x00\x00\x90wS\xde"
+    b"\x00\x00\x00\x0cIDATx\x9cc0f\x9e\x04\x00\x01\xbc\x00\xe2\x1b\xa0\x02k\x00\x00\x00\x00IEND\xaeB`\x82"
+)
+
+
+def _vision(req):
+    """Mimic /tools/vision for the 1x1 snapshot without numpy/cv2."""
+    op = req.get("op")
+    if op == "pixel":
+        inside = int(req.get("x", 0)) == 0 and int(req.get("y", 0)) == 0
+        return {"op": op, "ms": 1, "color": "#336699" if inside else None}
+    if op == "find_colors":
+        first = str(req.get("colors", "")).split("|")[0].split(",")
+        hit = len(first) >= 3 and first[2].lower() == "#336699"
+        return {"op": op, "ms": 1, "points": [[0, 0]] if hit else [], "truncated": False}
+    if op in ("compare_colors", "find_image", "ocr"):
+        key = {"compare_colors": "details", "find_image": "hits", "ocr": "lines"}[op]
+        out = {"op": op, "ms": 1, key: []}
+        if op == "compare_colors":
+            out["match"] = False
+        return out
+    raise ValueError("unknown op %r" % op)
 
 TEXT_EXT = {"py", "txt", "md", "json", "yaml", "yml", "html", "htm", "js", "css", "ini", "cfg", "csv", "xml", "toml"}
 
@@ -135,6 +162,42 @@ class Handler(BaseHTTPRequestHandler):
         if parsed.path == "/":
             self._send(200, "text/plain", b"XScript mock device")
             return
+        if parsed.path.startswith("/tools/snapshots/") and parsed.path.endswith(".png"):
+            snap = STATE["snapshots"].get(parsed.path[len("/tools/snapshots/"):-4])
+            if snap is None:
+                self._json(404, {"error": "missing snapshot"})
+            else:
+                self._send(200, "image/png", snap)
+            return
+        if parsed.path == "/tools/datasets":
+            self._json(200, {"datasets": [
+                {"name": n, "classes": d["classes"], "images": len(d["items"]),
+                 "labeled": sum(1 for it in d["items"].values() if it["label"] is not None)}
+                for n, d in sorted(STATE["datasets"].items())
+            ]})
+            return
+        if parsed.path.startswith("/tools/datasets/"):
+            parts = parsed.path.split("/")[3:]
+            ds = STATE["datasets"].get(unquote(parts[0]))
+            if ds is None:
+                self._json(404, {"error": "missing dataset"})
+                return
+            if len(parts) == 1:
+                self._json(200, {"name": unquote(parts[0]), "classes": ds["classes"], "items": [
+                    {"id": i, "file": i + ".png", "boxes": len((it["label"] or {}).get("boxes", []))}
+                    for i, it in sorted(ds["items"].items())
+                ]})
+                return
+            if parts[1] == "export":
+                buf = io.BytesIO()
+                with zipfile.ZipFile(buf, "w") as zf:
+                    for i, it in ds["items"].items():
+                        if it["label"] is not None:
+                            zf.writestr("images/train/%s.png" % i, it["image"])
+                            zf.writestr("labels/train/%s.txt" % i, "")
+                    zf.writestr("data.yaml", "nc: %d\n" % len(ds["classes"]))
+                self._send(200, "application/zip", buf.getvalue())
+                return
         name, sub = self._project_route()
         if name is not None:
             files = STATE["projects"].get(name)
@@ -171,7 +234,25 @@ class Handler(BaseHTTPRequestHandler):
     # ------------------------------------------------------------------ PUT
 
     def do_PUT(self):
-        if urlparse(self.path).path == "/settings":
+        path = urlparse(self.path).path
+        if path.startswith("/tools/datasets/"):
+            parts = path.split("/")[3:]
+            ds = STATE["datasets"].get(unquote(parts[0]))
+            if ds is None:
+                self._json(404, {"error": "missing dataset"})
+                return
+            body = self._body()
+            if parts[1:] == ["classes"]:
+                ds["classes"] = list(body.get("classes") or [])
+                self._json(200, {"name": unquote(parts[0]), "classes": ds["classes"], "items": []})
+                return
+            if len(parts) == 3 and parts[1] == "labels" and parts[2] in ds["items"]:
+                ds["items"][parts[2]]["label"] = body
+                self._json(200, body)
+                return
+            self._json(404, {"error": "not found"})
+            return
+        if path == "/settings":
             body = self._body()
             if "run_mode" in body and body["run_mode"] not in ("auto", "accessibility", "root"):
                 self._json(400, {"error": "bad run_mode"})
@@ -219,6 +300,47 @@ class Handler(BaseHTTPRequestHandler):
 
     def do_POST(self):
         path = urlparse(self.path).path
+        if path == "/tools/snapshots":
+            sid = "%d_%d" % (1790000000000 + len(STATE["snapshots"]), len(STATE["snapshots"]) % 1000)
+            STATE["snapshots"][sid] = SNAP_PNG
+            self._json(200, {"id": sid, "width": 1, "height": 1, "url": "/tools/snapshots/%s.png" % sid})
+            return
+        if path == "/tools/vision":
+            body = self._body()
+            if body.get("snapshot") not in STATE["snapshots"]:
+                self._json(404, {"ok": False, "error": "missing snapshot"})
+                return
+            try:
+                out = _vision(body)
+            except ValueError as e:
+                self._json(400, {"ok": False, "error": "ValueError: %s" % e})
+                return
+            out["ok"] = True
+            self._json(200, out)
+            return
+        if path.startswith("/tools/snapshots/") and path.endswith("/crop"):
+            sid = path[len("/tools/snapshots/"):-len("/crop")]
+            body = self._body()
+            if sid not in STATE["snapshots"] or body.get("project") not in STATE["projects"]:
+                self._json(404, {"error": "missing snapshot or project"})
+                return
+            STATE["projects"][body["project"]][body["path"]] = STATE["snapshots"][sid]
+            self._json(200, {"ok": True, "project": body["project"], "path": body["path"], "rect": body["rect"]})
+            return
+        if path.startswith("/tools/datasets/"):
+            parts = path.split("/")[3:]
+            name = unquote(parts[0])
+            if len(parts) == 1:
+                STATE["datasets"].setdefault(name, {"classes": [], "items": {}})
+                self._json(200, {"name": name, "classes": [], "items": []})
+                return
+            ds = STATE["datasets"].get(name)
+            if ds is not None and parts[1:] == ["images"]:
+                snap = STATE["snapshots"].get(self._body().get("snapshot"))
+                iid = "%06d" % (len(ds["items"]) + 1)
+                ds["items"][iid] = {"image": snap or SNAP_PNG, "label": None}
+                self._json(200, {"ok": True, "id": iid})
+                return
         if path == "/eval":
             body = self._body()
             self._json(200, {"ok": True, "result": "mock:" + (body.get("code") or "")[:20], "error": ""})

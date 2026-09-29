@@ -367,6 +367,169 @@ paths:
                 $ref: "#/components/schemas/EvalResponse"
         "408":
           description: Timeout
+  /screen/stream:
+    get:
+      summary: 投屏 MJPEG stream (multipart/x-mixed-replace), at most 2 viewers
+      parameters:
+        - { name: fps, in: query, schema: { type: integer, minimum: 1, maximum: 15, default: 5 } }
+        - { name: scale, in: query, schema: { type: number, minimum: 0.2, maximum: 1, default: 0.5 } }
+        - { name: quality, in: query, schema: { type: integer, minimum: 10, maximum: 95, default: 50 } }
+      responses:
+        "200":
+          description: |
+            JPEG parts separated by `--xscriptframe`. Each part has `X-Screen-Size: WxH` with the
+            full screen resolution, for mapping clicks back to screen pixels. Frame rate is best
+            effort (root screencap ≈ 2 fps, MediaProjection much faster).
+          content:
+            multipart/x-mixed-replace:
+              schema: { type: string, format: binary }
+        "429":
+          description: Too many concurrent streams
+  /tools/:
+    get:
+      summary: Developer tools home (图色工具, 标注工具, 投屏). Pages live under /tools/ui/.
+      responses:
+        "200": { description: HTML }
+  /tools/snapshots:
+    get:
+      summary: Recent snapshots, newest first (the device keeps the last 20)
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  snapshots: { type: array, items: { $ref: "#/components/schemas/Snapshot" } }
+    post:
+      summary: Freeze the current screen as a PNG snapshot
+      responses:
+        "200":
+          description: Saved
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Snapshot" }
+        "503": { description: Capture unavailable }
+  /tools/snapshots/{id}.png:
+    get:
+      summary: Snapshot image
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: string } }
+      responses:
+        "200": { description: PNG, content: { image/png: { schema: { type: string, format: binary } } } }
+        "404": { description: Missing snapshot }
+  /tools/snapshots/{id}/crop:
+    post:
+      summary: Save a snapshot region as a PNG template inside a project
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: string } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [rect, project]
+              properties:
+                rect: { type: array, items: { type: integer }, minItems: 4, maxItems: 4 }
+                project: { type: string }
+                path: { type: string, default: "res/img/crop_<ms>.png", description: Must end with .png }
+      responses:
+        "200": { description: Saved }
+        "404": { description: Missing snapshot }
+  /tools/vision:
+    post:
+      summary: 图色 check on a snapshot, run in the :eval process with the script engine
+      description: |
+        ops: `pixel` (x, y, or points=[[x,y],...]), `find_colors` (colors, rect, sim, space, ori,
+        max_num ≤ 100), `compare_colors` (colors, sim → per-point expected/actual), `find_image`
+        (template "<project>:<path>" or template_rect on the snapshot; confidence, rgb, maxcnt,
+        scale_range), `ocr` (rect). Responses include `ms`.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [snapshot, op]
+              properties:
+                snapshot: { type: string }
+                op: { type: string, enum: [pixel, find_colors, compare_colors, find_image, ocr] }
+                colors: { type: string, example: "634,2126,#05D395|675,2142,#05D395" }
+                rect: { type: array, items: { type: integer } }
+                sim: { type: number, default: 0.9 }
+                template: { type: string, example: "demo:res/img/ok.png" }
+                template_rect: { type: array, items: { type: integer } }
+                confidence: { type: number, default: 0.8 }
+                timeout_ms: { type: integer, default: 12000, minimum: 500, maximum: 20000 }
+      responses:
+        "200": { description: Result (ok=true) }
+        "400": { description: Bad request (ok=false, error) }
+        "404": { description: Missing snapshot }
+        "408": { description: Timeout; the :eval process was restarted }
+  /tools/datasets:
+    get:
+      summary: 标注 datasets with image / labelled counts
+      responses:
+        "200": { description: OK }
+  /tools/datasets/{name}:
+    parameters:
+      - { name: name, in: path, required: true, schema: { type: string, pattern: "^[\\p{L}\\p{N}_-]{1,64}$" } }
+    get:
+      summary: Classes and items ({id, file, boxes})
+      responses: { "200": { description: OK }, "404": { description: Missing dataset } }
+    post:
+      summary: Create a dataset
+      responses: { "200": { description: Created } }
+    delete:
+      summary: Delete a dataset with its images and labels
+      responses: { "200": { description: Deleted } }
+  /tools/datasets/{name}/classes:
+    put:
+      summary: Replace the class list (rename or append; indices still used by labels cannot be dropped)
+      requestBody:
+        content:
+          application/json:
+            schema: { type: object, properties: { classes: { type: array, items: { type: string } } } }
+      responses: { "200": { description: Updated }, "400": { description: Invalid or in use } }
+  /tools/datasets/{name}/images:
+    post:
+      summary: 'Add an image. Body is PNG/JPEG bytes, or JSON {"snapshot": "<id>"}'
+      responses: { "200": { description: "{ok, id}" }, "400": { description: Not an image } }
+  /tools/datasets/{name}/images/{id}:
+    get:
+      summary: Image bytes
+      responses: { "200": { description: PNG or JPEG } }
+    delete:
+      summary: Delete the image and its label
+      responses: { "200": { description: Deleted } }
+  /tools/datasets/{name}/labels/{id}:
+    get:
+      summary: Boxes for one image
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Label" }
+    put:
+      summary: Save boxes (clamped to the image, zero-area boxes dropped)
+      requestBody:
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/Label" }
+      responses: { "200": { description: Saved label }, "400": { description: Bad class index } }
+  /tools/datasets/{name}/export:
+    get:
+      summary: YOLO (Ultralytics) zip of labelled images
+      description: |
+        images/{train,val}/, labels/{train,val}/ with `cls cx cy w h` (normalised), data.yaml
+        with nc and names. Every 5th labelled image goes to val; with a single image it is
+        also copied to val. Unlabelled images are skipped; empty labels are kept as negatives.
+      responses:
+        "200": { description: Zip, content: { application/zip: { schema: { type: string, format: binary } } } }
+        "400": { description: No classes or no labelled images }
 components:
   parameters:
     ProjectName:
@@ -534,3 +697,23 @@ components:
       type: object
       properties:
         error: { type: string }
+    Snapshot:
+      type: object
+      properties:
+        id: { type: string }
+        width: { type: integer }
+        height: { type: integer }
+        url: { type: string }
+    Label:
+      type: object
+      required: [width, height, boxes]
+      properties:
+        width: { type: integer }
+        height: { type: integer }
+        boxes:
+          type: array
+          items:
+            type: object
+            properties:
+              cls: { type: integer, description: Index into the dataset classes }
+              rect: { type: array, items: { type: integer }, description: "[l, t, r, b] in pixels" }

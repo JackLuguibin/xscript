@@ -55,6 +55,36 @@ class MockDeviceTest(unittest.TestCase):
             self.assertIn(key, status)
         self.assertTrue(self.client.screen_jpeg(50))
 
+    def test_snapshot_vision_and_crop(self):
+        snap = self.client.snapshot()
+        self.assertTrue(self.client.snapshot_png(snap["id"]).startswith(b"\x89PNG"))
+        px = self.client.vision({"snapshot": snap["id"], "op": "pixel", "x": 0, "y": 0})
+        self.assertEqual((px["ok"], px["color"]), (True, "#336699"))
+        hit = self.client.vision({"snapshot": snap["id"], "op": "find_colors", "colors": "0,0,#336699"})
+        self.assertEqual(hit["points"], [[0, 0]])
+        # Errors come back as JSON instead of raising.
+        self.assertFalse(self.client.vision({"snapshot": "nope", "op": "pixel"})["ok"])
+        self.assertIn("ValueError", self.client.vision({"snapshot": snap["id"], "op": "bogus"})["error"])
+        self.client.upload_file("croppy", "__init__.py", "print(1)")
+        out = self.client.crop_snapshot(snap["id"], [0, 0, 1, 1], "croppy", "res/img/t.png")
+        self.assertTrue(out["ok"])
+        self.assertIn("res/img/t.png", [f["path"] for f in self.client.list_files("croppy")])
+
+    def test_datasets_list_and_export(self):
+        import httpx
+
+        base = self.client.target.base_url + "/tools/datasets/btns"
+        httpx.post(base).raise_for_status()
+        httpx.put(base + "/classes", json={"classes": ["ok"]}).raise_for_status()
+        iid = httpx.post(base + "/images", json={}).json()["id"]
+        httpx.put(base + "/labels/" + iid, json={"width": 1, "height": 1, "boxes": []}).raise_for_status()
+        listed = {d["name"]: d for d in self.client.list_datasets()}
+        self.assertEqual((listed["btns"]["images"], listed["btns"]["labeled"]), (1, 1))
+        self.assertEqual(self.client.dataset("btns")["classes"], ["ok"])
+        with zipfile.ZipFile(io.BytesIO(self.client.export_dataset("btns"))) as zf:
+            self.assertIn("data.yaml", zf.namelist())
+            self.assertIn("images/train/%s.png" % iid, zf.namelist())
+
 
 if __name__ == "__main__":
     unittest.main()

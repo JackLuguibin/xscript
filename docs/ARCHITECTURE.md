@@ -62,6 +62,7 @@ flowchart LR
 | 目录 | 语言 | 职责 |
 | --- | --- | --- |
 | `android/` | Kotlin | App 本体：HTTP 服务、云控、无障碍/root 引擎、截图、OCR、悬浮窗、Chaquopy 集成 |
+| `android/app/src/main/assets/tools/` | HTML/JS | 设备提供的网页开发工具：图色工具、标注工具、投屏 |
 | `python-runtime/xscript/` | Python | 设备端原生 API：`action`、`node`、`screen`、`system`、`ui`，以及 `runtime`（桥接、运行器） |
 | `python-runtime/ascript/` | Python | AScript（ascript-tip 1.3.0）兼容层，基于 `xscript` 实现 |
 | `python-runtime/tests/` | Python | PC 端单测（使用假的 bridge，不依赖手机） |
@@ -175,6 +176,7 @@ sequenceDiagram
 | 工程 | `GET /projects`、`POST/DELETE /projects/{name}`、`GET/PUT /projects/{name}/files`、`GET/DELETE /projects/{name}/file`、`GET/PUT /projects/{name}/zip`、`POST /projects/{name}/run`、`POST /projects/{name}/stop` |
 | AScript 迁移 | `GET /ascript/projects`、`POST /ascript/import`（从 `/sdcard/airscript/model` 导入） |
 | 调试 | `GET/DELETE /logs`、`POST /eval` |
+| 开发工具 | `GET /tools/`（网页）、`/tools/snapshots`、`POST /tools/vision`、`/tools/datasets/...`、`GET /screen/stream`（投屏） |
 
 异常统一映射：`IllegalArgumentException` → 400，`IllegalStateException` → 409，其它 → 500。
 
@@ -184,7 +186,7 @@ sequenceDiagram
 
 - 作为前台服务运行（`dataSync | mediaProjection`），监听 `0.0.0.0`，从 9096 起向上找空闲端口直到 9105（AScript 默认也占 9096）。
 - **无鉴权**：任何能访问端口的人都可以调用全部接口。
-- **无 CORS 头**：设备只面向原生客户端（MCP、curl），不发送 `Access-Control-Allow-*`，浏览器里的网页因此无法读取接口响应。
+- **无 CORS 头**：不发送 `Access-Control-Allow-*`，其他网站的页面无法读取接口响应。设备自带的开发工具页面（`/tools/`）与接口同源，不受影响。
 - **请求体**：上限 200 MB，先校验 `Content-Length`。4 MB 以内放内存，更大的写入 `cacheDir/http-spool` 临时文件，交给路由时以流读取，请求结束后删除。仍然不用 NanoHTTPD 的 `parseBody`，避免破坏二进制上传。
 - 请求头 `X-XScript-Client` 用于 `ClientTracker` 在首页展示已连接客户端。
 
@@ -198,7 +200,23 @@ device → server  {"type":"response","id":"1","status":200,"mime":"...","body":
 
 请求由 2 线程的线程池处理，25 秒 ping 保活，断线后 5 秒重连。鉴权完全交给服务端（例如 URL 中带 token）。云控无法流式传输，文件类回复会用 `Reply.bytes()` 读进内存后 base64 发送。
 
-### 4.6 工程存储（`ProjectStore.kt`）
+### 4.6 开发工具（`tools/`：图色、标注、投屏）
+
+对应 AScript 网页端的图色工具、YOLO 标注工具和投屏。页面放在 `assets/tools/`（原生 HTML/JS，无构建步骤），由设备的 HTTP 服务直接提供，浏览器打开 `http://<ip>:<端口>/tools/` 即可使用。
+
+| 组件 | 职责 |
+| --- | --- |
+| `ToolsRouter` | 处理 `/tools/*`：静态页面、快照、裁剪模板、图色测试、数据集 |
+| `SnapshotStore` | 把当前屏幕冻结为 PNG（`filesDir/tools/snapshots`，保留最近 20 张），取色、裁剪、测试都基于同一帧，数值前后一致 |
+| `vision.py`（`:eval` 进程） | `POST /tools/vision` 经 `IEval.vision` 在 `:eval` 进程执行 pixel / 找色 / 比色 / 找图 / OCR，复用脚本使用的 `xscript.android.image`，所以工具里测出来的结果与脚本运行时一致；超时同样杀进程 |
+| `DatasetStore` | 标注数据集（外部存储 `datasets/<name>/`：`meta.json`、`images/`、`labels/<id>.json`，框以像素存储）；导出 Ultralytics 格式 zip（`images/`、`labels/` 的 train/val 划分 + `data.yaml`） |
+| `ScreenStream` | 投屏：生产线程截图、缩放、JPEG 编码后写入管道，HTTP 以 chunked `multipart/x-mixed-replace` 推给浏览器；客户端断开时写入失败，线程退出；最多 2 路 |
+
+投屏页的点击和拖动按画面比例映射回屏幕像素，再调用 `/action`，因此走的是和脚本相同的自动化通道（无障碍或 root）。帧率取决于截图来源：MuMu 上 root `screencap` 约 2.5 fps，授予图色权限（MediaProjection）后更快。
+
+MCP 也提供了对应工具（`take_snapshot`、`vision_test`、`crop_template`、`list_datasets`、`export_dataset`），AI 可以先在冻结的截图上调好颜色、相似度和区域，再写进脚本。
+
+### 4.7 工程存储（`ProjectStore.kt`）
 
 - 工程目录：`<外部 files 目录>/projects/<name>/`，入口为 `__init__.py`，资源约定放在 `res/img/`。
 - 目录名同时是 Python 包名，所以必须是合法标识符（允许中文，与 AScript 一致）。
@@ -206,7 +224,7 @@ device → server  {"type":"response","id":"1","status":200,"mime":"...","body":
 - 支持 zip 导入 / 导出和 AScript 工程导入。
 - zip 导入逐条目流式解压到 `import-tmp/` 暂存目录，确认包含 `__init__.py` 后才删除旧工程并移动文件（同一文件系统内是 rename），所以坏的 zip 不会破坏已有工程，大文件也不会整块读进内存。
 
-### 4.7 脚本侧原生能力
+### 4.8 脚本侧原生能力
 
 这些组件运行在 Python 所在进程，由 `Bridge.kt` 以静态方法暴露给 Python：
 
@@ -214,7 +232,7 @@ device → server  {"type":"response","id":"1","status":200,"mime":"...","body":
 - `ScriptUi`：toast、阻塞式对话框、悬浮 WebView 窗口（注入 `xscript` / `airscript` 两个 JS 接口）、绘图画布。Python 通过 `ui_poll` 轮询窗口事件，没有 Java→Python 回调，线程模型简单。
 - `SystemApi`：打开应用、设备 / 电量 / 内存信息、剪贴板、KeyValue 存储、shell（默认 root）、音量、亮度、TTS、振动等，以 `op` + JSON 参数分发。
 
-### 4.8 界面
+### 4.9 界面
 
 `MainActivity` 是仿 AScript 的首页（开发者地址、AI 编程连接、运行模式、各项权限、云控、小程序列表等），另有工程列表、工程详情、简易编辑器、日志页。`FloatControl` 是运行时的悬浮停止按钮，放在主进程，这样脚本进程被杀后按钮也能正常收起。
 
@@ -324,5 +342,6 @@ sequenceDiagram
 1. **局域网接口无鉴权**。同一网络内任何能访问端口的设备都可以上传文件、执行任意 Python（`/eval`、`/projects/<name>/run`）。只在可信网络中使用，或者通过 USB + `adb forward` 连接。
 2. **云控通道没有设备侧鉴权**。它完全依赖中继服务器的认证，而且会把大文件整块读进内存再做 base64（体积增加约 33%）。可以考虑分片传输。
 3. **依赖版本偏旧**。`opencv-python 4.5.1.48`、`numpy 1.23.3` 受 Chaquopy / Python 3.10 的 wheel 约束，升级 Python 版本前需要先确认 Chaquopy 对 OpenCV 的支持情况。
-4. **截图和节点树的传输开销**。每帧原始 RGBA 约 8～10 MB，`Selector.find` 每次都要 dump 整棵树。可以做帧缓存 / 区域截图下推，或者把简单的选择器下推到 Java 侧过滤。
-5. **日志写入**。每条日志都要打开文件、加锁、读写 seq 文件，高频 `print` 时开销明显。可以在 Python 侧按时间窗口批量写入。
+4. **投屏帧率受截图来源限制**。root `screencap` 每帧约 400 ms；未授予 MediaProjection 时投屏只有 2～3 fps。可以考虑 `screenrecord` H.264 流或 scrcpy 协议。
+5. **截图和节点树的传输开销**。每帧原始 RGBA 约 8～10 MB，`Selector.find` 每次都要 dump 整棵树。可以做帧缓存 / 区域截图下推，或者把简单的选择器下推到 Java 侧过滤。
+6. **日志写入**。每条日志都要打开文件、加锁、读写 seq 文件，高频 `print` 时开销明显。可以在 Python 侧按时间窗口批量写入。

@@ -1,0 +1,129 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>投屏 · XScript</title>
+<link rel="stylesheet" href="/tools/ui/tools.css">
+</head>
+<body>
+<header class="top">
+  <h1>投屏</h1>
+  <nav aria-label="工具">
+    <a href="/tools/">首页</a>
+    <a href="/tools/ui/color.html">图色工具</a>
+    <a href="/tools/ui/label.html">标注工具</a>
+    <a href="/tools/ui/mirror.html" aria-current="page">投屏</a>
+  </nav>
+  <span class="spacer"></span>
+  <div class="mirror-bar">
+    <label>清晰度
+      <select id="preset" aria-label="投屏清晰度">
+        <option value="scale=0.35&quality=40&fps=8">流畅</option>
+        <option value="scale=0.5&quality=55&fps=6" selected>标准</option>
+        <option value="scale=0.8&quality=75&fps=4">高清</option>
+      </select>
+    </label>
+    <label><input id="control" type="checkbox" checked> 允许操控</label>
+    <button type="button" data-key="back">返回</button>
+    <button type="button" data-key="home">主页</button>
+    <button type="button" data-key="recents">最近任务</button>
+    <button id="toggle" type="button">暂停</button>
+  </div>
+</header>
+<main class="mirror">
+  <img id="screen" alt="手机屏幕实时画面" draggable="false">
+</main>
+<div class="hint" id="hint" role="status" aria-live="polite" style="position:fixed;left:8px;bottom:8px;padding:4px 8px;border-radius:4px;background:rgba(0,0,0,.6);color:#fff;font-size:12px"></div>
+<script src="/tools/ui/common.js"></script>
+<script>
+"use strict";
+const img = document.getElementById("screen");
+const hint = document.getElementById("hint");
+let screen = { w: 0, h: 0 };
+let running = false;
+let down = null;
+
+async function loadSize() {
+  const s = await XS.api("GET", "/status");
+  screen = { w: s.width, h: s.height };
+}
+
+function start() {
+  // A new URL per start so the browser opens a fresh stream instead of reusing a closed one.
+  img.src = "/screen/stream?" + document.getElementById("preset").value + "&t=" + Date.now();
+  running = true;
+  document.getElementById("toggle").textContent = "暂停";
+}
+
+function stop() {
+  img.removeAttribute("src");
+  running = false;
+  document.getElementById("toggle").textContent = "继续";
+}
+
+img.onerror = () => {
+  if (running) {
+    hint.textContent = "连接断开，2 秒后重连…";
+    setTimeout(() => running && start(), 2000);
+  }
+};
+img.onload = () => (hint.textContent = "");
+
+/** Displayed <img> point → device screen pixel. Handles rotation by using the frame's aspect. */
+function toScreen(e) {
+  const r = img.getBoundingClientRect();
+  const fx = (e.clientX - r.left) / r.width;
+  const fy = (e.clientY - r.top) / r.height;
+  // The stream follows the device orientation, so map via the frame, not the portrait size.
+  const landscape = img.naturalWidth > img.naturalHeight;
+  const w = landscape ? Math.max(screen.w, screen.h) : Math.min(screen.w, screen.h);
+  const h = landscape ? Math.min(screen.w, screen.h) : Math.max(screen.w, screen.h);
+  return { x: Math.round(fx * w), y: Math.round(fy * h) };
+}
+
+async function act(payload) {
+  try {
+    const out = await XS.api("POST", "/action", payload);
+    if (!out.ok) hint.textContent = "操作未执行（检查无障碍 / Root）";
+  } catch (e) {
+    hint.textContent = e.message;
+  }
+}
+
+img.addEventListener("pointerdown", (e) => {
+  if (!document.getElementById("control").checked || e.button !== 0) return;
+  img.setPointerCapture(e.pointerId);
+  down = { p: toScreen(e), t: performance.now() };
+});
+img.addEventListener("pointerup", (e) => {
+  if (!down) return;
+  const p = toScreen(e);
+  const dur = Math.round(performance.now() - down.t);
+  const moved = Math.hypot(p.x - down.p.x, p.y - down.p.y);
+  if (moved < 12) {
+    act({ type: "click", x: p.x, y: p.y, dur: dur > 500 ? Math.min(dur, 2000) : 20 });
+  } else {
+    act({ type: "swipe", x1: down.p.x, y1: down.p.y, x2: p.x, y2: p.y, dur: Math.min(Math.max(dur, 100), 1500) });
+  }
+  down = null;
+});
+img.addEventListener("pointercancel", () => (down = null));
+
+document.querySelectorAll("[data-key]").forEach((b) => (b.onclick = () => act({ type: "key", name: b.dataset.key })));
+document.getElementById("toggle").onclick = () => (running ? stop() : start());
+document.getElementById("preset").onchange = () => running && start();
+document.addEventListener("visibilitychange", () => {
+  // Hidden tabs keep the device capturing for nothing; resume when visible again.
+  if (document.hidden && running) {
+    stop();
+    running = "paused";
+  } else if (!document.hidden && running === "paused") {
+    start();
+  }
+});
+
+loadSize().then(start).catch((e) => (hint.textContent = e.message));
+</script>
+</body>
+</html>
