@@ -41,6 +41,8 @@ def run(req):
         out = _find_image(src, req, rect)
     elif op == "ocr":
         out = _ocr(src, req, rect)
+    elif op == "yolo":
+        out = _yolo(src, req, rect)
     else:
         raise ValueError("unknown op %r" % op)
     out["op"] = op
@@ -101,10 +103,28 @@ def _ocr(src, req, rect):
         gray = cv2.cvtColor(src, cv2.COLOR_BGR2GRAY)
         _, bw = cv2.threshold(gray, int(binary), 255, cv2.THRESH_BINARY)
         src = cv2.cvtColor(bw, cv2.COLOR_GRAY2BGR)
-    lines = _img.ocr(rect, image=src)
+    engine = req.get("engine") or "mlkit"
+    if engine == "mlkit":
+        lines = _img.ocr(rect, image=src)
+    else:
+        from xscript.android import paddle
+
+        lines = paddle.engine("v4" if engine == "paddle_v4" else "v5").ocr(src, rect, 0.0)
     pattern = req.get("pattern") or None
     lines = _img.ocr_filter(lines, pattern, float(req.get("confidence") or 0.0))
     return {"lines": [line.to_dict() for line in lines]}
+
+
+def _yolo(src, req, rect):
+    """YOLO on the snapshot. `model` is an absolute .onnx path (the router resolves names)."""
+    from xscript.android import yolo
+
+    model = req.get("model")
+    if not model:
+        raise ValueError("yolo needs model")
+    m = yolo.load(model)
+    hits = m.detect(image=src, rect=rect, conf=float(req.get("conf", 0.25)), iou=float(req.get("iou", 0.45)))
+    return {"detections": [d.to_dict() for d in hits], "names": m.names, "imgsz": list(m.imgsz)}
 
 
 def _compare_colors(src, req):

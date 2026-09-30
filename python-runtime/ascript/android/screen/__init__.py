@@ -523,8 +523,73 @@ _sort_by_ori = _img.sort_by_ori
 
 
 class YoLov5:
-    def __init__(self, model_name=None, path=None):
-        raise NotImplementedError("YOLO models are not supported by XScript")
+    """AScript `screen.YoLov5` on XScript's ONNX YOLO (v5 / v8 / v11 exports all work).
+
+    AScript ships NCNN models (.param/.bin); XScript runs ONNX. Export the same training run
+    with `yolo export model=best.pt format=onnx` and point `path` at the .onnx file (or a
+    folder holding one .onnx and, optionally, data.yaml / classes.txt for the names).
+    """
+
+    def __init__(self, model_name=None, path=None, names=None, imgsz=None):
+        from xscript.android import yolo as _yolo
+
+        self._model = _yolo.load(_yolo_path(path or model_name), names=names or _yolo_names(path or model_name),
+                                 imgsz=imgsz)
+
+    def find_all(self, bitmap=None, use_gpu=False, size=640, confidence=0.25, rect=None):
+        """[{'label', 'x', 'y', 'w', 'h', 'prob', 'rect'}] like AScript's yolov5 plugin (x/y = top-left)."""
+        return [_yolo_dict(d) for d in self._model.detect(image=bitmap, rect=rect, conf=confidence)]
+
+    def find(self, label=None, bitmap=None, confidence=0.25, rect=None):
+        for d in self.find_all(bitmap, confidence=confidence, rect=rect):
+            if label is None or d["label"] == label:
+                return d
+        return None
+
+
+def _yolo_path(p):
+    import os
+
+    if not p:
+        raise ValueError("YOLO needs a model path (.onnx or a folder with one)")
+    p = str(p)
+    if os.path.isdir(p):
+        onnx = [f for f in sorted(os.listdir(p)) if f.lower().endswith(".onnx")]
+        if not onnx:
+            raise FileNotFoundError("no .onnx model in %s (export with format=onnx)" % p)
+        return os.path.join(p, onnx[0])
+    if p.lower().endswith((".param", ".bin")):
+        onnx = p.rsplit(".", 1)[0] + ".onnx"
+        if os.path.isfile(onnx):
+            return onnx
+        raise NotImplementedError("NCNN models (.param/.bin) are not supported by XScript; "
+                                  "export the model to ONNX (yolo export format=onnx) and use the .onnx file")
+    return p
+
+
+def _yolo_names(p):
+    """names from data.yaml / classes.txt next to the model, when present."""
+    import os
+
+    if not p:
+        return None
+    base = str(p) if os.path.isdir(str(p)) else os.path.dirname(str(p))
+    for name in ("data.yaml", "data.yml"):
+        f = os.path.join(base, name)
+        if os.path.isfile(f):
+            return f
+    f = os.path.join(base, "classes.txt")
+    if os.path.isfile(f):
+        with open(f, "r", encoding="utf-8") as fh:
+            return [ln.strip() for ln in fh if ln.strip()]
+    return None
+
+
+def _yolo_dict(d):
+    l, t, r, b = d.rect
+    return {"label": d.label, "class_id": d.class_id, "prob": d.confidence, "confidence": d.confidence,
+            "x": l, "y": t, "w": r - l, "h": b - t, "rect": [l, t, r, b],
+            "center_x": d.center_x, "center_y": d.center_y}
 
 
 class CodeScanner(GPTask):
@@ -575,8 +640,8 @@ class Ocr(GPTask):
 
     @staticmethod
     def _engine_note(mode):
-        if mode not in (None, Ocr.MODE_MLK):
-            warn_once("ocr-engine", "OCR engine %s maps to ML Kit on XScript" % mode)
+        if mode == Ocr.MODE_TESS:
+            warn_once("ocr-engine", "Tesseract OCR maps to ML Kit on XScript")
 
     @staticmethod
     def _binarize(image, threshold):
@@ -586,30 +651,36 @@ class Ocr(GPTask):
         return cv2.cvtColor(bw, cv2.COLOR_GRAY2BGR)
 
     @staticmethod
-    def _raw(rect=None, pattern=None, confidence=0.0, binary=-1, image=None, bitmap=None, file=None):
+    def _raw(rect=None, pattern=None, confidence=0.0, binary=-1, image=None, bitmap=None, file=None, mode=None):
         src = image if image is not None else (bitmap if bitmap is not None else file)
         if binary is not None and binary >= 0:
             src = Ocr._binarize(src, binary)
-        res = _img.ocr(rect, src)
+        mode = Ocr._default_mode if mode is None else mode
+        if mode == Ocr.MODE_PADDLE_V5:
+            from xscript.android import paddle
+
+            res = paddle.engine("v5").ocr(src, rect, confidence or 0.0)
+        else:
+            res = _img.ocr(rect, src)
         return _img.ocr_filter(res, pattern, confidence or 0.0)
 
     @staticmethod
     def paddleocr(rect=None, pattern=None, confidence=0.5, max_side_len=1200, precision=16, bitmap=None, file=None,
                   binary=-1, language="chinese", image=None):
-        Ocr._engine_note(Ocr.MODE_PADDLE_V5)
-        return Ocr._raw(rect, pattern, 0.0, binary, image, bitmap, file) or None
+        """PP-OCRv5 on ONNX Runtime (models download on first use)."""
+        return Ocr._raw(rect, pattern, confidence, binary, image, bitmap, file, mode=Ocr.MODE_PADDLE_V5) or None
 
     paddleocr_v2 = paddleocr
     paddleocr_v3 = paddleocr
 
     @staticmethod
     def mlkitocr_v2(rect=None, pattern=None, confidence=0.5, bitmap=None, binary=-1, image=None):
-        return Ocr._raw(rect, pattern, 0.0, binary, image, bitmap) or None
+        return Ocr._raw(rect, pattern, 0.0, binary, image, bitmap, mode=Ocr.MODE_MLK) or None
 
     @staticmethod
     def tess(data_file=Tess_CHI, rect=None, pattern=None, split_level=RIL_AUTO, white_list=None, black_list=None):
         Ocr._engine_note(Ocr.MODE_TESS)
-        return Ocr._raw(rect, pattern) or None
+        return Ocr._raw(rect, pattern, mode=Ocr.MODE_MLK) or None
 
     @staticmethod
     def _result_to_dict(d):
@@ -618,13 +689,13 @@ class Ocr(GPTask):
     @staticmethod
     def find(text, rect=None, mode=None, binary=-1, confidence=0.1, image=None):
         Ocr._engine_note(mode)
-        res = Ocr._raw(rect, text, 0.0, binary, image)
+        res = Ocr._raw(rect, text, 0.0, binary, image, mode=mode)
         return res[0].to_dict() if res else None
 
     @staticmethod
     def find_all(text=None, rect=None, mode=None, binary=-1, confidence=0.1, image=None):
         Ocr._engine_note(mode)
-        res = Ocr._raw(rect, text, 0.0, binary, image)
+        res = Ocr._raw(rect, text, 0.0, binary, image, mode=mode)
         return [r.to_dict() for r in res] if res else None
 
     @staticmethod

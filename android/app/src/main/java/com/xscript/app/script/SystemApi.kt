@@ -74,6 +74,9 @@ object SystemApi {
             "brightness" -> brightness(a.optInt("v", -1)).toString()
             "get_brightness" -> Settings.System.getInt(ctx.contentResolver, Settings.System.SCREEN_BRIGHTNESS, -1).toString()
             "tts" -> speak(a.optString("v")).toString()
+            "models_dir" -> com.xscript.app.ml.ModelStore.dir(ctx).absolutePath
+            // Runtime pip installs: private storage, shared by :script and :eval, kept across updates.
+            "pip_home" -> java.io.File(ctx.filesDir, "pip").apply { mkdirs() }.absolutePath
             "current_app" -> AutomationDispatcher.control("current_app", "")
             "status" -> AutomationDispatcher.control("status", "")
             else -> throw IllegalArgumentException("unknown system op $op")

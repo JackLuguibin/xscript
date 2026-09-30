@@ -9,4 +9,6 @@ interface IEval {
     int pid();
     // Image checks for the 图色工具 (xscript.runtime.vision). JSON request in, JSON out.
     String vision(String requestJson);
+    // Runtime package installs (xscript.android.pip.run_request). JSON request in, JSON out.
+    String pip(String requestJson);
 }

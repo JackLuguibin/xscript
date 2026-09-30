@@ -95,6 +95,17 @@ object Bridge {
     fun ocr(bitmap: Bitmap, offsetX: Int, offsetY: Int, level: String): String =
         OcrEngine.recognize(XscriptApp.instance, bitmap, offsetX, offsetY, level)
 
+    // ---- ONNX (YOLO / PaddleOCR; sessions live in this process) ----
+    @JvmStatic
+    fun onnxLoad(path: String, optsJson: String): String = com.xscript.app.ml.OnnxEngine.load(path, optsJson)
+
+    @JvmStatic
+    fun onnxRun(handle: String, input: String, shapeJson: String, data: ByteArray, reduce: String): ByteArray =
+        com.xscript.app.ml.OnnxEngine.run(handle, input, shapeJson, data, reduce)
+
+    @JvmStatic
+    fun onnxClose(handle: String) = com.xscript.app.ml.OnnxEngine.close(handle)
+
     // ---- UI (overlay windows live in the Python host process) ----
     @JvmStatic
     fun ui(op: String, json: String): String = ScriptUi.call(op, json)

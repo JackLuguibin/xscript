@@ -129,7 +129,22 @@ class ToolsRouter(private val context: Context) {
             req.put("template_path", f.absolutePath)
             req.remove("template")
         }
-        val timeout = body.optLong("timeout_ms", 12_000L).coerceIn(500L, 20_000L)
+        val model = body.optString("model")
+        if (model.isNotEmpty()) {
+            // "<project>:res/best.onnx" or a path under the shared model directory.
+            val f = if (model.contains(':')) {
+                val project = model.substringBefore(':')
+                require(projects.exists(project)) { "missing project $project" }
+                projects.readFile(project, model.substringAfter(':'))
+            } else {
+                com.xscript.app.ml.ModelStore.file(context, model)
+            }
+            require(f.isFile) { "missing model $model" }
+            req.put("model", f.absolutePath)
+        }
+        // Model ops load (and PaddleOCR may download) models on the first call.
+        val heavy = body.optString("op") == "yolo" || body.optString("engine").startsWith("paddle")
+        val timeout = body.optLong("timeout_ms", if (heavy) 60_000L else 12_000L).coerceIn(500L, if (heavy) 120_000L else 20_000L)
         val result = EvalRunner.vision(req, timeout)
         return when {
             result.optString("error") == "timeout" -> Reply.json(result, 408)

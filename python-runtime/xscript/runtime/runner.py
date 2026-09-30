@@ -48,7 +48,7 @@ class _Stream(object):
         return True
 
 
-_context = {"project_dir": "", "name": ""}
+_context = {"project_dir": "", "name": "", "params": {}}
 
 
 def project_dir():
@@ -60,8 +60,32 @@ def project_name():
     return _context["name"]
 
 
-def run_project(project_dir):
+def params():
+    """Launch parameters of this run (云控 app_run "param"), as a dict."""
+    return dict(_context.get("params") or {})
+
+
+def _apply_params(raw):
+    import json
+
+    try:
+        data = json.loads(raw) if raw else {}
+    except ValueError:
+        data = {}
+    if not isinstance(data, dict):
+        data = {}
+    _context["params"] = data
+    # AScript: `if hasattr(builtins, 'name'): print(name)` reads launch parameters.
+    import builtins
+
+    for k, v in data.items():
+        if isinstance(k, str) and k.isidentifier() and not hasattr(builtins, k):
+            setattr(builtins, k, v)
+
+
+def run_project(project_dir, launch_params="{}"):
     """Import `<parent>/<name>` so __init__.py runs as a package."""
+    _apply_params(launch_params)
     project_dir = os.path.abspath(project_dir)
     name = os.path.basename(project_dir)
     parent = os.path.dirname(project_dir)
@@ -89,6 +113,7 @@ def run_project(project_dir):
     print("xscript: starting %s" % name)
     code = 0
     try:
+        _prepare_packages(project_dir)
         importlib.import_module(name)
         _wait_for_threads()
         print("xscript: finished %s" % name)
@@ -108,6 +133,17 @@ def run_project(project_dir):
         except Exception:
             pass
     return code
+
+
+def _prepare_packages(project_dir):
+    """Runtime pip packages on sys.path, then install whatever requirements.txt still lacks."""
+    from xscript.runtime import sitepkgs
+
+    sitepkgs.activate()
+    if os.path.isfile(os.path.join(project_dir, "requirements.txt")):
+        from xscript.android import pip
+
+        pip.ensure_project(project_dir)
 
 
 def _wait_for_threads():

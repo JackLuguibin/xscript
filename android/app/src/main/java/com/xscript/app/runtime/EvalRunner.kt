@@ -37,6 +37,9 @@ object EvalRunner {
     /** 图色工具 check (see xscript.runtime.vision). Same process, lock and timeout rules as [run]. */
     fun vision(request: JSONObject, timeoutMs: Long): JSONObject = call(timeoutMs) { it.vision(request.toString()) }
 
+    /** Runtime pip (xscript.android.pip.run_request). Downloads can take minutes. */
+    fun pip(request: JSONObject, timeoutMs: Long): JSONObject = call(timeoutMs) { it.pip(request.toString()) }
+
     private fun call(timeoutMs: Long, block: (IEval) -> String): JSONObject {
         synchronized(lock) {
             val eval = connect() ?: return fail("eval process unavailable")

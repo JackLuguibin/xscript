@@ -129,6 +129,16 @@ class ApiRouter(private val context: Context) {
                 JSONObject().put("projects", JSONArray(store.list())).put("details", store.describe()),
             )
             p == "/schedules" || p.startsWith("/schedules/") -> return schedules(req, m, p)
+            p == "/models" || p.startsWith("/models/") -> return models(req, m, p)
+            m == "GET" && p == "/packages" -> return pip(JSONObject().put("op", "list"), 20_000L)
+            m == "POST" && p == "/packages" -> {
+                val body = req.json()
+                val req2 = JSONObject().put("op", body.optString("op", "install"))
+                    .put("packages", body.optJSONArray("packages") ?: JSONArray())
+                    .put("upgrade", body.optBoolean("upgrade"))
+                    .put("index_url", body.optString("index_url"))
+                return pip(req2, body.optLong("timeout_ms", 300_000L).coerceIn(5_000L, 900_000L))
+            }
             m == "GET" && p == "/ascript/projects" -> return Reply.json(JSONObject().put("projects", JSONArray(store.ascriptProjects())))
             m == "POST" && p == "/ascript/import" -> {
                 val name = req.json().optString("name")
@@ -320,6 +330,39 @@ class ApiRouter(private val context: Context) {
                 Reply.json(JSONObject().put("result", Scheduler.runNow(context, id)))
             }
             else -> Reply.json(JSONObject().put("error", "not found"), 404)
+        }
+    }
+
+    /** Model files for YOLO / PaddleOCR: GET /models, PUT/GET/DELETE /models/<path>. */
+    private fun models(req: Request, m: String, p: String): Reply {
+        val store = com.xscript.app.ml.ModelStore
+        val rel = java.net.URLDecoder.decode(p.removePrefix("/models").trim('/'), "UTF-8")
+        if (rel.isEmpty()) {
+            if (m != "GET") return Reply.json(JSONObject().put("error", "not found"), 404)
+            return Reply.json(JSONObject().put("dir", store.dir(context).absolutePath).put("models", store.list(context)))
+        }
+        return when (m) {
+            "PUT" -> {
+                val f = req.body.stream().use { store.write(context, rel, it) }
+                Reply.json(JSONObject().put("ok", true).put("path", rel).put("size", f.length()))
+            }
+            "GET" -> {
+                val f = store.file(context, rel)
+                if (!f.isFile) Reply.json(JSONObject().put("error", "missing model"), 404)
+                else Reply.file(f, "application/octet-stream", temp = false)
+            }
+            "DELETE" -> Reply.json(JSONObject().put("ok", store.delete(context, rel)))
+            else -> Reply.json(JSONObject().put("error", "not found"), 404)
+        }
+    }
+
+    /** GET /packages lists runtime-installed packages; POST installs / uninstalls (in :eval). */
+    private fun pip(body: JSONObject, timeoutMs: Long): Reply {
+        val result = EvalRunner.pip(body, timeoutMs)
+        return when {
+            result.optString("error") == "timeout" -> Reply.json(result, 408)
+            !result.optBoolean("ok") -> Reply.json(result, 400)
+            else -> Reply.json(result)
         }
     }
 

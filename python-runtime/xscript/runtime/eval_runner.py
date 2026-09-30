@@ -5,6 +5,12 @@ def run(code):
     """Execute a short snippet. Caller must assign `_result`."""
     scope = {"_result": None, "__name__": "__xscript_eval__"}
     try:
+        from xscript.runtime import sitepkgs
+
+        sitepkgs.activate()
+    except Exception:
+        pass
+    try:
         exec(code, scope, scope)
         result = scope.get("_result")
         if result is None:

@@ -83,36 +83,71 @@ def find_all_images(template, rect=None, confidence=0.9, rgb=False, maxcnt=0, sc
     return _img.find_templates(template, rect, confidence, rgb, maxcnt, scale_range, image)
 
 
-def ocr(rect=None, image=None):
-    """All text lines → [OcrResult(text, rect, center_x, center_y, confidence)]."""
-    return _img.ocr(rect, image)
+OCR_MLKIT = "mlkit"
+OCR_PADDLE = "paddle"      # PP-OCRv5 (downloaded on first use)
+OCR_PADDLE_V4 = "paddle_v4"
+_ocr_engine = {"name": OCR_MLKIT}
 
 
-def ocr_find(pattern, rect=None, image=None):
-    hits = _img.ocr_filter(_img.ocr(rect, image), pattern)
+def set_ocr_engine(name):
+    """Default OCR engine: "mlkit" (built in), "paddle" (PP-OCRv5) or "paddle_v4"."""
+    if name not in (OCR_MLKIT, OCR_PADDLE, OCR_PADDLE_V4):
+        raise ValueError("engine must be mlkit, paddle or paddle_v4")
+    _ocr_engine["name"] = name
+
+
+def ocr(rect=None, image=None, engine=None, confidence=None):
+    """All text lines → [OcrResult(text, rect, center_x, center_y, confidence)].
+
+    engine: None (the default from set_ocr_engine), "mlkit", "paddle" or "paddle_v4".
+    PaddleOCR loads its models on first use (about 1 s per full screen afterwards), reads
+    small Chinese text better and works on emulators where ML Kit cannot run.
+    confidence: drop lines below it. Default 0 for ML Kit, 0.5 for PaddleOCR (which
+    otherwise reports icons as low-confidence "text").
+    """
+    name = engine or _ocr_engine["name"]
+    if name == OCR_MLKIT:
+        res = _img.ocr(rect, image)
+        return [r for r in res if not confidence or r.confidence >= confidence]
+    from xscript.android import paddle
+
+    conf = 0.5 if confidence is None else confidence
+    return paddle.engine("v4" if name == OCR_PADDLE_V4 else "v5").ocr(image, rect, conf)
+
+
+def ocr_find(pattern, rect=None, image=None, engine=None):
+    hits = _img.ocr_filter(ocr(rect, image, engine), pattern)
     return hits[0] if hits else None
 
 
-def ocr_find_all(pattern, rect=None, image=None):
-    return _img.ocr_filter(_img.ocr(rect, image), pattern)
+def ocr_find_all(pattern, rect=None, image=None, engine=None):
+    return _img.ocr_filter(ocr(rect, image, engine), pattern)
 
 
-def ocr_wait(pattern, timeout=10, rect=None):
+def ocr_wait(pattern, timeout=10, rect=None, engine=None):
     deadline = time.time() + float(timeout)
     while True:
-        hit = ocr_find(pattern, rect)
+        hit = ocr_find(pattern, rect, engine=engine)
         if hit or time.time() >= deadline:
             return hit
         time.sleep(0.3)
 
 
-def ocr_click(pattern, timeout=0, rect=None):
-    hit = ocr_wait(pattern, timeout, rect) if timeout else ocr_find(pattern, rect)
+def ocr_click(pattern, timeout=0, rect=None, engine=None):
+    hit = ocr_wait(pattern, timeout, rect, engine) if timeout else ocr_find(pattern, rect, engine=engine)
     if not hit:
         return False
     from xscript.android import action
 
     return action.click(hit.center_x, hit.center_y)
+
+
+def detect(model, rect=None, conf=0.25, iou=0.45, image=None, classes=None):
+    """YOLO detections on the screen: `model` is an .onnx path or a loaded `yolo.Yolo`."""
+    from xscript.android import yolo
+
+    m = yolo.load(model) if isinstance(model, str) else model
+    return m.detect(image=image, rect=rect, conf=conf, iou=iou, classes=classes)
 
 
 def imread(path):

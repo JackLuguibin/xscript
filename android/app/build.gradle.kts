@@ -1,20 +1,69 @@
+import java.util.Properties
+
 plugins {
     id("com.android.application")
     id("com.chaquo.python")
 }
+
+/*
+ * APK 打包: `scripts/xscript_pack.py` builds a standalone app from one project by passing
+ * -Pxscript.pack=<pack.properties>. Without it this is the regular XScript developer app.
+ *
+ * pack.properties keys:
+ *   project_dir, project_name, app_id, app_name, version_name, version_code, icon (png),
+ *   license_pubkey (base64 DER, enables 卡密), license_server, cloud_url, cloud_group,
+ *   dev_server (true/false), autostart (true/false), keystore / keystore_password /
+ *   key_alias / key_password (release signing)
+ */
+val packFile: File? = (project.findProperty("xscript.pack") as String?)?.let { file(it) }
+val pack: Properties = Properties().apply { packFile?.takeIf { it.isFile }?.reader(Charsets.UTF_8)?.use { load(it) } }
+val packed = packFile != null
+// Each packed app builds into its own directory, so it never mixes outputs with the
+// developer app (or with another packed app) and incremental builds stay valid.
+if (packed) layout.buildDirectory.set(file("build-pack/" + pack.getProperty("app_id", "app").trim()))
+fun packProp(key: String, default: String = ""): String = pack.getProperty(key, default).trim()
+fun String.kotlinQuoted(): String = "\"" + replace("\\", "\\\\").replace("\"", "\\\"").replace("$", "\\$") + "\""
+
+// Generated resources and assets for a packed build: the bundled project, app name, icon.
+// A plain File (AGP 9 rejects Provider source dirs); preBuild depends on preparePack below.
+val packGen: File = file("build-pack-gen/" + pack.getProperty("app_id", "app").trim())
 
 android {
     namespace = "com.xscript.app"
     compileSdk = 37
 
     defaultConfig {
-        applicationId = "com.xscript.app"
+        applicationId = if (packed) packProp("app_id") else "com.xscript.app"
         minSdk = 26
         targetSdk = 34
-        versionCode = 2
-        versionName = "0.2.0"
+        versionCode = if (packed) packProp("version_code", "1").toInt() else 2
+        versionName = if (packed) packProp("version_name", "1.0.0") else "0.2.0"
         ndk {
-            abiFilters += listOf("arm64-v8a", "x86_64")
+            abiFilters += (packProp("abis").ifEmpty { "arm64-v8a,x86_64" }).split(',').map { it.trim() }.filter { it.isNotEmpty() }
+        }
+        buildConfigField("boolean", "PACKAGED", packed.toString())
+        buildConfigField("String", "PACK_PROJECT", packProp("project_name").kotlinQuoted())
+        buildConfigField("boolean", "PACK_AUTOSTART", packProp("autostart", "false").toBoolean().toString())
+        buildConfigField("String", "PACK_CLOUD_URL", packProp("cloud_url").kotlinQuoted())
+        buildConfigField("String", "PACK_CLOUD_GROUP", packProp("cloud_group").kotlinQuoted())
+        buildConfigField("boolean", "PACK_DEV_SERVER", packProp("dev_server", if (packed) "false" else "true").toBoolean().toString())
+        val pub = packProp("license_pubkey")
+        buildConfigField("boolean", "LICENSE_REQUIRED", (pub.isNotEmpty()).toString())
+        buildConfigField("String", "LICENSE_PUBKEY", pub.kotlinQuoted())
+        buildConfigField("String", "LICENSE_SERVER", packProp("license_server").kotlinQuoted())
+        manifestPlaceholders["appLabel"] = if (packed) "@string/pack_app_name" else "@string/app_name"
+        manifestPlaceholders["appIcon"] =
+            if (packed && packProp("icon").isNotEmpty()) "@drawable/ic_pack" else "@drawable/ic_launcher"
+    }
+
+    signingConfigs {
+        if (packed && packProp("keystore").isNotEmpty()) {
+            create("pack") {
+                storeFile = file(packProp("keystore"))
+                storePassword = packProp("keystore_password")
+                keyAlias = packProp("key_alias")
+                keyPassword = packProp("key_password")
+            }
         }
     }
 
@@ -25,6 +74,16 @@ android {
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro",
             )
+            signingConfigs.findByName("pack")?.let { signingConfig = it }
+        }
+    }
+
+    sourceSets {
+        getByName("main") {
+            if (packed) {
+                assets.srcDir(File(packGen, "assets"))
+                res.srcDir(File(packGen, "res"))
+            }
         }
     }
 
@@ -34,10 +93,45 @@ android {
     }
     buildFeatures {
         aidl = true
+        buildConfig = true
     }
     packaging {
         resources.excludes += listOf("META-INF/*.kotlin_module", "META-INF/DEPENDENCIES")
     }
+}
+
+// Copy the project into assets/pack/<name>/ and write the label / icon resources.
+val preparePack by tasks.registering {
+    val out = packGen
+    val src = packProp("project_dir")
+    val name = packProp("project_name")
+    val label = packProp("app_name", name)
+    val icon = packProp("icon")
+    inputs.property("pack", pack.toString())
+    if (src.isNotEmpty()) inputs.dir(src)
+    outputs.dir(out)
+    doLast {
+        val root = out
+        root.deleteRecursively()
+        val dest = File(root, "assets/pack/$name")
+        copy {
+            from(src)
+            into(dest)
+            exclude("**/__pycache__/**", "**/.git/**", "**/*.pyc", "**/.DS_Store", "**/.idea/**", "**/.vscode/**")
+        }
+        val values = File(root, "res/values").apply { mkdirs() }
+        val esc = label.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;").replace("'", "\\'").replace("\"", "\\\"")
+        File(values, "pack.xml").writeText(
+            "<?xml version=\"1.0\" encoding=\"utf-8\"?>\n<resources>\n    <string name=\"pack_app_name\">$esc</string>\n</resources>\n",
+        )
+        if (icon.isNotEmpty() && file(icon).isFile) {
+            val dir = File(root, "res/drawable-nodpi").apply { mkdirs() }
+            file(icon).copyTo(File(dir, "ic_pack.png"), overwrite = true)
+        }
+    }
+}
+if (packed) {
+    tasks.named("preBuild") { dependsOn(preparePack) }
 }
 
 // Chaquopy ships OpenCV wheels up to CPython 3.10, and AScript projects lean on cv2/numpy,
@@ -57,6 +151,10 @@ chaquopy {
             install("pillow==9.2.0")
             install("pyyaml==6.0.3")
             install("requests==2.32.3")
+            // Version parsing / markers for the runtime installer (xscript.android.pip).
+            install("packaging==24.2")
+            // Packed apps can pre-install their requirements.txt at build time (pack key `pip`).
+            packProp("pip").split(',').map { it.trim() }.filter { it.isNotEmpty() }.forEach { install(it) }
         }
         pyc {
             src = false
@@ -76,6 +174,8 @@ dependencies {
     implementation("org.nanohttpd:nanohttpd:2.3.1")
     implementation("com.squareup.okhttp3:okhttp:4.12.0")
     implementation("com.google.mlkit:text-recognition-chinese:16.0.1")
+    // YOLO / PaddleOCR inference (xscript.android.onnx). Only the ABIs in abiFilters are packaged.
+    implementation("com.microsoft.onnxruntime:onnxruntime-android:1.22.0")
 
     testImplementation("junit:junit:4.13.2")
     // Real org.json on the JVM; the android.jar stub throws "not mocked".
