@@ -49,7 +49,7 @@ xscript_pack.py         →  standalone APK (one project, optional 卡密)
 | `mcp-server/` | Cursor MCP (`xscript-mcp`) |
 | `examples/` | `settings_search`, `xs_smoke` (native API), `as_demo` (AScript API) |
 | `scripts/` | Build, verify, stubs, mock device, `xscript_pack.py` (APK 打包), `xscript_license.py` (卡密), `xscript_cloud.py` (云控 server) |
-| `docs/` | [Getting started](docs/GETTING_STARTED.md), [API](docs/API.md), [云控](docs/CLOUD.md), [打包与卡密](docs/PACKAGING.md), [agent rules](docs/AGENT_RULES.md), [architecture](docs/ARCHITECTURE.md) |
+| `docs/` | [使用手册（各系统入口）](docs/使用手册.md), [Getting started](docs/GETTING_STARTED.md), [API](docs/API.md), [云控](docs/CLOUD.md), [打包与卡密](docs/PACKAGING.md), [agent rules](docs/AGENT_RULES.md), [architecture](docs/ARCHITECTURE.md) |
 
 ## Quick start
 

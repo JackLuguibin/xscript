@@ -22,3 +22,9 @@ android/app/src/main/python/
 .kotlin/
 android/app/build-pack/
 android/app/build-pack-gen/
+
+# 卡密 signing keys, card databases and 云控 server state (secrets / runtime data)
+keys/
+*.pem
+licenses.db
+xscript_cloud_state.json
