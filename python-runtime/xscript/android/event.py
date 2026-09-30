@@ -34,7 +34,8 @@ TOUCH = "touch"
 NOTIFICATION = "notification"
 TOAST = "toast"
 ACCESSIBILITY = "a11y"
-TYPES = (KEY, TOUCH, NOTIFICATION, TOAST, ACCESSIBILITY)
+CLOUD = "cloud"     # messages from the 云控 server (see xscript.android.cloud)
+TYPES = (KEY, TOUCH, NOTIFICATION, TOAST, ACCESSIBILITY, CLOUD)
 
 # Android key codes that scripts commonly listen for.
 KEYCODE_HOME = 3

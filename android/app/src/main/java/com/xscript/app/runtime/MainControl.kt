@@ -42,13 +42,35 @@ object MainControl {
             }
             "script_started" -> {
                 if (Settings.floatOnRun) FloatControl.show(ctx, arg)
+                // RunState is set now, so the 云控 dashboard sees the run.
+                com.xscript.app.cloud.CloudClient.pushStatus()
                 "ok"
             }
             "script_finished" -> {
                 ScriptSupervisor.onFinished(arg)
                 FloatControl.hide()
+                com.xscript.app.cloud.CloudClient.pushStatus()
                 "ok"
             }
+            // ---- 云控 (xscript.android.cloud / ascript cloud_control)
+            "cloud_send" -> com.xscript.app.cloud.CloudClient.sendData(
+                arg.trim().let { if (it.startsWith("{")) JSONObject(it) else if (it.startsWith("[")) JSONArray(it) else it },
+            ).toString()
+            "cloud_status" -> com.xscript.app.cloud.CloudClient.status().toString()
+            "cloud_connect" -> {
+                val a = JSONObject(arg)
+                if (a.has("group")) Settings.cloudGroup = a.getString("group")
+                com.xscript.app.cloud.CloudClient.connect(ctx, a.getString("url"))
+                com.xscript.app.cloud.CloudClient.status().toString()
+            }
+            "cloud_close" -> {
+                com.xscript.app.cloud.CloudClient.forget()
+                "ok"
+            }
+            // ---- 卡密
+            // The script itself may read its full card (AScript R.get_card()); HTTP only sees it masked.
+            "license_status" -> com.xscript.app.license.LicenseManager.status(ctx)
+                .put("card_full", com.xscript.app.license.LicenseManager.card(ctx) ?: JSONObject.NULL).toString()
             // ---- lifecycle (AScript system.Config / system.reboot)
             "rerun_after_exit" -> {
                 ScriptSupervisor.requestRerun(arg.toLongOrNull() ?: 0L)
@@ -135,5 +157,9 @@ object MainControl {
             .put("running", running != null)
             .put("project", running)
             .put("version", XscriptApp.versionName(ctx))
+            .put("device_id", com.xscript.app.cloud.CloudClient.deviceId(ctx))
+            .put("cloud", com.xscript.app.cloud.CloudClient.label())
+            .put("packaged", com.xscript.app.BuildConfig.PACKAGED)
+            .put("app_id", ctx.packageName)
     }
 }

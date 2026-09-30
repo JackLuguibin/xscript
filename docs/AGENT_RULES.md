@@ -18,7 +18,9 @@ Call `screen.size()` rather than assuming portrait. Games often run landscape.
 
 - New scripts use `xscript.android.*`. Look up exact signatures with `get_module_apis` / `search_api`.
 - AScript projects use `ascript.android.*`. Keep their imports as they are. Do not port them to `xscript.*` unless asked.
-- Unsupported AScript features (HID, YOLO, OcrX, WebSelector, sms, plug, AScript cloud control, gp files) raise `NotImplementedError`. Replace them with supported calls instead of retrying.
+- Unsupported AScript features (HID, NCNN model files, OcrX, WebSelector, sms, paid plugins, `connect_to_as`, gp files) raise `NotImplementedError`. Replace them with supported calls instead of retrying.
+- YOLO needs an ONNX model: `xscript.android.yolo.load(R.res("best.onnx"))`. Check it on a frozen frame with `vision_test(op="yolo", model="<project>:res/best.onnx")` before writing the loop. For hard-to-read Chinese text, or when ML Kit returns nothing (emulators), use `screen.ocr(engine="paddle")` / `vision_test(op="ocr", engine="paddle")`.
+- Third-party packages: list them in the project's `requirements.txt`; they install before the first run. Do not vendor wheels or copy site-packages into the project. `pip_install` is for trying a package from `eval_python`.
 - React to keys, notifications and toasts with `xscript.android.event` (or AScript's `ascript.android.event`) instead of polling. Handlers run on a daemon thread, so the script must keep running.
 - For unattended runs, use the `project_run_options` and `add_schedule` MCP tools (or `system.Config` / `system.Schedule` in a script). Do not write a `while True` loop that sleeps until a certain time.
 

@@ -38,6 +38,7 @@ class R(metaclass=_RMeta):
 
     @staticmethod
     def get_card():
+        """卡密 of a packaged app's license (None when unlicensed or not packaged)."""
         ...
 
 def exit():
@@ -122,6 +123,8 @@ def shell(command, callback=None):
     ...
 
 def channel(fun):
+    """fun(msg) for each 云控 server message (the connection is made in the app or with
+    cloud_control.connect_to_ws). Keep the script alive yourself (a loop)."""
     ...
 
 class Device:
@@ -258,4 +261,5 @@ class Control:
 
     @staticmethod
     def send(params):
+        """Report data to the 云控 server (same as cloud_control.send)."""
         ...

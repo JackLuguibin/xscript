@@ -56,21 +56,39 @@ def find_image(template, rect=None, confidence=0.9, rgb=False, scale_range=None,
 
 def find_all_images(template, rect=None, confidence=0.9, rgb=False, maxcnt=0, scale_range=None, image=None):
     ...
+OCR_MLKIT = 'mlkit'
+OCR_PADDLE = 'paddle'
+OCR_PADDLE_V4 = 'paddle_v4'
 
-def ocr(rect=None, image=None):
-    """All text lines → [OcrResult(text, rect, center_x, center_y, confidence)]."""
+def set_ocr_engine(name):
+    """Default OCR engine: "mlkit" (built in), "paddle" (PP-OCRv5) or "paddle_v4"."""
     ...
 
-def ocr_find(pattern, rect=None, image=None):
+def ocr(rect=None, image=None, engine=None, confidence=None):
+    """All text lines → [OcrResult(text, rect, center_x, center_y, confidence)].
+
+    engine: None (the default from set_ocr_engine), "mlkit", "paddle" or "paddle_v4".
+    PaddleOCR loads its models on first use (about 1 s per full screen afterwards), reads
+    small Chinese text better and works on emulators where ML Kit cannot run.
+    confidence: drop lines below it. Default 0 for ML Kit, 0.5 for PaddleOCR (which
+    otherwise reports icons as low-confidence "text").
+    """
     ...
 
-def ocr_find_all(pattern, rect=None, image=None):
+def ocr_find(pattern, rect=None, image=None, engine=None):
     ...
 
-def ocr_wait(pattern, timeout=10, rect=None):
+def ocr_find_all(pattern, rect=None, image=None, engine=None):
     ...
 
-def ocr_click(pattern, timeout=0, rect=None):
+def ocr_wait(pattern, timeout=10, rect=None, engine=None):
+    ...
+
+def ocr_click(pattern, timeout=0, rect=None, engine=None):
+    ...
+
+def detect(model, rect=None, conf=0.25, iou=0.45, image=None, classes=None):
+    """YOLO detections on the screen: `model` is an .onnx path or a loaded `yolo.Yolo`."""
     ...
 
 def imread(path):

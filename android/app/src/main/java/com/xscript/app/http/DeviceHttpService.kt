@@ -11,7 +11,6 @@ import android.content.pm.ServiceInfo
 import android.os.Build
 import android.os.IBinder
 import androidx.core.app.NotificationCompat
-import com.xscript.app.MainActivity
 import com.xscript.app.R
 import com.xscript.app.capture.CaptureEngine
 import com.xscript.app.net.NetworkInfo
@@ -32,7 +31,9 @@ class DeviceHttpService : Service() {
         } else {
             startForeground(NOTIF_ID, notification)
         }
-        server = startServer()
+        // Packaged apps keep the service (it holds the 图色 MediaProjection session) but only
+        // open the LAN developer API when the pack or the user enabled it.
+        server = if (com.xscript.app.settings.Settings.devServer) startServer() else null
         if (server != null) {
             getSystemService(NotificationManager::class.java).notify(NOTIF_ID, notification())
         }
@@ -83,14 +84,19 @@ class DeviceHttpService : Service() {
         val launch = PendingIntent.getActivity(
             this,
             0,
-            Intent(this, MainActivity::class.java),
+            Intent(this, com.xscript.app.LauncherActivity.home(this)),
             PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT,
         )
         val ip = NetworkInfo.localIp(this)
+        val text = if (server != null || !com.xscript.app.BuildConfig.PACKAGED) {
+            getString(R.string.server_notify, ip, NetworkInfo.PORT)
+        } else {
+            getString(R.string.pack_notify)
+        }
         return NotificationCompat.Builder(this, CHANNEL)
             .setSmallIcon(R.drawable.ic_launcher)
-            .setContentTitle(getString(R.string.app_name))
-            .setContentText(getString(R.string.server_notify, ip, NetworkInfo.PORT))
+            .setContentTitle(applicationInfo.loadLabel(packageManager))
+            .setContentText(text)
             .setContentIntent(launch)
             .setOngoing(true)
             .build()

@@ -461,6 +461,126 @@ paths:
       responses:
         "200":
           description: Cleared
+  /models:
+    get:
+      summary: Model files (YOLO .onnx, PaddleOCR packs) in the shared model directory
+      responses:
+        "200":
+          description: Directory and files
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  dir: {type: string}
+                  models:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        path: {type: string}
+                        size: {type: integer}
+                        modified: {type: integer}
+  /models/{path}:
+    parameters:
+      - name: path
+        in: path
+        required: true
+        description: Relative path inside the model directory (may contain "/")
+        schema: {type: string}
+    put:
+      summary: Upload a model file (raw body, written through a temp file)
+      requestBody:
+        content:
+          application/octet-stream:
+            schema: {type: string, format: binary}
+      responses:
+        "200":
+          description: Stored
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  ok: {type: boolean}
+                  path: {type: string}
+                  size: {type: integer}
+    get:
+      summary: Download a model file
+      responses:
+        "200":
+          description: File bytes
+          content:
+            application/octet-stream:
+              schema: {type: string, format: binary}
+        "404": {description: Missing}
+    delete:
+      summary: Remove a model file
+      responses:
+        "200":
+          description: Result
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/Ok"}
+  /packages:
+    get:
+      summary: Packages installed at runtime (not the ones bundled in the APK)
+      responses:
+        "200":
+          description: Installed packages
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  ok: {type: boolean}
+                  packages:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        name: {type: string}
+                        version: {type: string}
+                        location: {type: string}
+    post:
+      summary: Install or uninstall PyPI packages on the device (runs in the eval process)
+      description: |
+        Pure-Python wheels come from PyPI (or index_url); packages with C extensions only from
+        Chaquopy's Android index. Packages bundled in the APK are never replaced.
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [packages]
+              properties:
+                op: {type: string, enum: [install, uninstall], default: install}
+                packages: {type: array, items: {type: string}, example: ["schedule==1.2.2", "pymysql"]}
+                upgrade: {type: boolean, default: false}
+                index_url: {type: string}
+                timeout_ms: {type: integer, default: 300000}
+      responses:
+        "200":
+          description: Result with the install log
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  ok: {type: boolean}
+                  installed:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        name: {type: string}
+                        version: {type: string}
+                        native: {type: boolean}
+                  skipped: {type: object, additionalProperties: {type: string}}
+                  removed: {type: array, items: {type: string}}
+                  log: {type: array, items: {type: string}}
+        "400": {description: Resolution or download failed (error in body)}
+        "408": {description: Timed out}
   /eval:
     post:
       summary: Short Python eval in the `:eval` process. Assign the answer to `_result`.
@@ -599,7 +719,11 @@ paths:
               required: [snapshot, op]
               properties:
                 snapshot: { type: string }
-                op: { type: string, enum: [pixel, find_colors, compare_colors, find_image, ocr] }
+                op: { type: string, enum: [pixel, find_colors, compare_colors, find_image, ocr, yolo] }
+                engine: { type: string, enum: [mlkit, paddle, paddle_v4], default: mlkit, description: ocr engine }
+                model: { type: string, example: "demo:res/best.onnx", description: "yolo model: <project>:<path> or a path in the model directory" }
+                conf: { type: number, default: 0.25, description: yolo confidence threshold }
+                iou: { type: number, default: 0.45, description: yolo NMS IoU }
                 colors: { type: string, example: "634,2126,#05D395|675,2142,#05D395" }
                 rect: { type: array, items: { type: integer } }
                 sim: { type: number, default: 0.9 }
@@ -611,7 +735,7 @@ paths:
                 pattern: { type: string, description: ocr regex filter }
                 binary: { type: integer, minimum: 0, maximum: 255, description: ocr binarisation threshold }
                 confidence: { type: number, default: 0.8 }
-                timeout_ms: { type: integer, default: 12000, minimum: 500, maximum: 20000 }
+                timeout_ms: { type: integer, default: 12000, minimum: 500, maximum: 120000, description: "yolo / paddle default 60000 (model load)" }
       responses:
         "200": { description: Result (ok=true) }
         "400": { description: Bad request (ok=false, error) }

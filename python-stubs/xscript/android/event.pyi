@@ -31,6 +31,7 @@ TOUCH = 'touch'
 NOTIFICATION = 'notification'
 TOAST = 'toast'
 ACCESSIBILITY = 'a11y'
+CLOUD = 'cloud'
 TYPES = ...
 KEYCODE_HOME = 3
 KEYCODE_BACK = 4

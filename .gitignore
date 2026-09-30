@@ -20,3 +20,5 @@ android/app/src/main/python/
 *.ap_
 *.dex
 .kotlin/
+android/app/build-pack/
+android/app/build-pack-gen/

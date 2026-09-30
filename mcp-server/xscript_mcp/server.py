@@ -232,7 +232,7 @@ def take_snapshot() -> str:
 @mcp.tool()
 def vision_test(snapshot_id: str, op: str, colors: str = "", rect: list[int] | None = None, sim: float = 0.9,
                 x: int = 0, y: int = 0, template: str = "", template_rect: list[int] | None = None,
-                confidence: float = 0.8) -> str:
+                confidence: float = 0.8, engine: str = "", model: str = "", conf: float = 0.25) -> str:
     """Run one 图色 check on a snapshot, with the same engine scripts use. Returns timings in ms.
 
     op:
@@ -240,10 +240,16 @@ def vision_test(snapshot_id: str, op: str, colors: str = "", rect: list[int] | N
       find_colors     colors = 'x,y,#RRGGBB|x2,y2,#RRGGBB' (first point is the anchor); rect optional
       compare_colors  per-point expected vs actual
       find_image      template = '<project>:res/img/a.png', or template_rect = region of this snapshot
-      ocr             text lines with rects; rect optional
+      ocr             text lines with rects; rect optional. engine = mlkit (default) | paddle | paddle_v4
+      yolo            detections; model = '<project>:res/best.onnx' or a path under the model dir; conf threshold
     rect / template_rect are [left, top, right, bottom] in screen pixels. sim is 0..1 (0.9 ≈ ±25 per channel).
+    The first paddle / yolo call loads (and may download) models, so it takes longer.
     """
     req: dict = {"snapshot": snapshot_id, "op": op, "sim": sim, "confidence": confidence}
+    if engine:
+        req["engine"] = engine
+    if op == "yolo":
+        req.update(model=model, conf=conf)
     if rect:
         req["rect"] = rect
     if op == "pixel":
@@ -277,6 +283,48 @@ def export_dataset(name: str, local_path: str) -> str:
     target.parent.mkdir(parents=True, exist_ok=True)
     target.write_bytes(data)
     return _json({"ok": True, "path": str(target), "bytes": len(data)})
+
+
+@mcp.tool()
+def list_models() -> str:
+    """Model files on the device (YOLO .onnx, PaddleOCR packs) with sizes, and the model directory."""
+    return _json(_client.list_models())
+
+
+@mcp.tool()
+def upload_model(local_path: str, remote_path: str = "") -> str:
+    """Copy a local model file (e.g. runs/detect/train/weights/best.onnx) to the device model directory.
+
+    remote_path defaults to the file name. Scripts load it with
+    yolo.load(models.path("<remote_path>")). Project-local models (res/best.onnx) go through
+    upload_directory instead.
+    """
+    name = remote_path or Path(local_path).name
+    return _json(_client.upload_model(local_path, name))
+
+
+@mcp.tool()
+def pip_install(packages: list[str], upgrade: bool = False, index_url: str = "") -> str:
+    """Install PyPI packages on the device at runtime (no APK rebuild), e.g. ["schedule", "pymysql==1.1.1"].
+
+    Pure-Python wheels come from PyPI (or index_url); C-extension packages only from Chaquopy's
+    Android index (pandas, scipy, lxml, cryptography, ...). Packages built into the app (numpy,
+    opencv, pillow, requests, pyyaml) are never replaced. A project's requirements.txt installs
+    automatically on its first run, so prefer that for project dependencies.
+    """
+    return _json(_client.pip("install", packages, upgrade=upgrade, index_url=index_url))
+
+
+@mcp.tool()
+def pip_list() -> str:
+    """Packages installed at runtime with pip_install / requirements.txt (not the bundled ones)."""
+    return _json(_client.list_packages())
+
+
+@mcp.tool()
+def pip_uninstall(packages: list[str]) -> str:
+    """Remove runtime-installed packages from the device."""
+    return _json(_client.pip("uninstall", packages, timeout_s=60))
 
 
 @mcp.tool()

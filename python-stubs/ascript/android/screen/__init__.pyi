@@ -252,8 +252,21 @@ class FindImages(GPTask):
         ...
 
 class YoLov5:
+    """AScript `screen.YoLov5` on XScript's ONNX YOLO (v5 / v8 / v11 exports all work).
 
-    def __init__(self, model_name=None, path=None):
+    AScript ships NCNN models (.param/.bin); XScript runs ONNX. Export the same training run
+    with `yolo export model=best.pt format=onnx` and point `path` at the .onnx file (or a
+    folder holding one .onnx and, optionally, data.yaml / classes.txt for the names).
+    """
+
+    def __init__(self, model_name=None, path=None, names=None, imgsz=None):
+        ...
+
+    def find_all(self, bitmap=None, use_gpu=False, size=640, confidence=0.25, rect=None):
+        """[{'label', 'x', 'y', 'w', 'h', 'prob', 'rect'}] like AScript's yolov5 plugin (x/y = top-left)."""
+        ...
+
+    def find(self, label=None, bitmap=None, confidence=0.25, rect=None):
         ...
 
 class CodeScanner(GPTask):
@@ -291,6 +304,7 @@ class Ocr(GPTask):
 
     @staticmethod
     def paddleocr(rect=None, pattern=None, confidence=0.5, max_side_len=1200, precision=16, bitmap=None, file=None, binary=-1, language='chinese', image=None):
+        """PP-OCRv5 on ONNX Runtime (models download on first use)."""
         ...
     paddleocr_v2 = ...
     paddleocr_v3 = ...

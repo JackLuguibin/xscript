@@ -93,7 +93,8 @@ class R(metaclass=_RMeta):
 
     @staticmethod
     def get_card():
-        return None
+        """卡密 of a packaged app's license (None when unlicensed or not packaged)."""
+        return _xs.license_status().get("card_full") or None
 
 
 def exit():  # noqa: A001
@@ -211,7 +212,11 @@ def shell(command, callback=None):
 
 
 def channel(fun):
-    warn_once("channel", "system.channel is not supported by XScript")
+    """fun(msg) for each 云控 server message (the connection is made in the app or with
+    cloud_control.connect_to_ws). Keep the script alive yourself (a loop)."""
+    from xscript.android import cloud
+
+    return cloud.on_message(fun)
 
 
 class _Obj(object):
@@ -390,4 +395,7 @@ class Notification:
 class Control:
     @staticmethod
     def send(params):
-        warn_once("control", "Control.send (AScript cloud control) is not supported by XScript")
+        """Report data to the 云控 server (same as cloud_control.send)."""
+        from xscript.android import cloud
+
+        return cloud.send(params)

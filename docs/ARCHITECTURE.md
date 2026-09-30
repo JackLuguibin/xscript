@@ -2,7 +2,7 @@
 
 XScript 是一个运行在 Android 上的 Python 自动化 App（AScript 风格）。PC 端（浏览器、Cursor MCP、云控服务器）通过 HTTP / WebSocket 把脚本推送到手机，手机上用内嵌的 CPython 3.10 执行，并通过无障碍服务或 root 完成点击、取节点树、截图、OCR 等操作。
 
-本文基于当前仓库源码整理（Android 端约 5.9k 行 Kotlin，Python 端约 6.5k 行）。
+本文基于当前仓库源码整理（Android 端约 7k 行 Kotlin，Python 端约 9k 行）。
 
 ## 1. 总览
 
@@ -34,7 +34,7 @@ flowchart LR
             SS["ScriptService"]
             Py["Chaquopy CPython 3.10<br/>xscript / ascript 包"]
             Bridge["Bridge.kt"]
-            Local["OcrEngine / ScriptUi / SystemApi"]
+            Local["OcrEngine / OnnxEngine / ScriptUi / SystemApi"]
         end
     end
 
@@ -69,7 +69,7 @@ flowchart LR
 | `python-stubs/` | `.pyi` | 由 `scripts/gen_stubs.py` 生成的类型存根，供 PC 端 IDE 补全 |
 | `protocol/openapi.yaml` | YAML | 设备 HTTP 接口契约 |
 | `mcp-server/` | Python | Cursor MCP 服务 `xscript-mcp` |
-| `scripts/` | Bash/Python | 构建、存根生成、mock 设备、端到端冒烟、本地校验 |
+| `scripts/` | Bash/Python | 构建、存根生成、mock 设备、端到端冒烟、本地校验；`xscript_pack.py`（APK 打包）、`xscript_license.py`（卡密）、`xscript_cloud.py`（参考云控服务端） |
 | `examples/` | Python | 示例工程（原生 API 与 AScript API 各一套） |
 
 ## 3. 技术栈
@@ -78,12 +78,14 @@ flowchart LR
 | --- | --- |
 | Android | Kotlin、JDK 17、`minSdk 26` / `targetSdk 34` / `compileSdk 37`，ABI 仅 `arm64-v8a`、`x86_64` |
 | 嵌入式 Python | Chaquopy 17，CPython 3.10（选 3.10 是因为 Chaquopy 的 OpenCV wheel 最高只到 3.10） |
-| Python 依赖（APK 内） | `numpy 1.23.3`、`opencv-python 4.5.1.48`、`pillow 9.2.0`、`pyyaml 6.0.3`、`requests 2.32.3` |
+| Python 依赖（APK 内） | `numpy 1.23.3`、`opencv-python 4.5.1.48`、`pillow 9.2.0`、`pyyaml 6.0.3`、`requests 2.32.3`、`packaging 24.2`；其它包运行时安装（5.3） |
+| 端侧推理 | ONNX Runtime Android 1.22.0（YOLO、PaddleOCR PP-OCRv5，见 4.10） |
 | HTTP 服务 | NanoHTTPD 2.3.1 |
 | 云控 / 网络 | OkHttp 4.12.0（WebSocket） |
-| OCR | Google ML Kit `text-recognition-chinese` 16.0.1（离线模型） |
+| OCR | Google ML Kit `text-recognition-chinese` 16.0.1（离线模型）；PaddleOCR PP-OCRv5 / v4（ONNX，首次使用时下载） |
 | UI | AndroidX AppCompat + Material，界面为代码构建（`UiKit.kt`），无 Compose |
 | MCP | `mcp 2.2.0`（兼容 1.x FastMCP）、`httpx 0.28.1` |
+| 云控 / 卡密服务端 | `aiohttp 3.14.3`、`cryptography`（ECDSA P-256） |
 
 ## 4. Android 端
 
@@ -208,15 +210,14 @@ sequenceDiagram
 - **请求体**：上限 200 MB，先校验 `Content-Length`。4 MB 以内放内存，更大的写入 `cacheDir/http-spool` 临时文件，交给路由时以流读取，请求结束后删除。仍然不用 NanoHTTPD 的 `parseBody`，避免破坏二进制上传。
 - 请求头 `X-XScript-Client` 用于 `ClientTracker` 在首页展示已连接客户端。
 
-**云控**（`CloudClient`）：设备主动外连 `ws://` / `wss://`，能穿透 NAT。协议是 JSON 文本帧：
+**云控**（`CloudClient`）：设备主动外连 `ws://` / `wss://`，能穿透 NAT。一条连接上有两套指令（完整协议见 `docs/CLOUD.md`）：
 
-```text
-device → server  {"type":"hello","device":{...status}}
-server → device  {"type":"request","id":"1","method":"GET","path":"/status","query":{},"body":"<base64>"}
-device → server  {"type":"response","id":"1","status":200,"mime":"...","body":"<base64>"}
-```
+- **HTTP 转发**：`{"type":"request"}` / `{"type":"response"}`，body 为 base64，交给同一个 `ApiRouter`，所以云控能调用全部 HTTP 接口。
+- **AScript 指令集**：带 `path` 的帧（`app_run`、`app_stop`、`device_info`、`screen_shot`、`device_action`、`app_list`、`message`），回执带 `code` / `msg` / `device_id`，并回显 `seq` 关联号。`app_run` 的 `param` 经 `ScriptService` 传给脚本（`system.params()`，并写进 `builtins`），`card` 用于顺便激活卡密。
 
-请求由 2 线程的线程池处理，25 秒 ping 保活，断线后 5 秒重连。鉴权完全交给服务端（例如 URL 中带 token）。云控无法流式传输，文件类回复会用 `Reply.bytes()` 读进内存后 base64 发送。
+设备在 `hello` 和 `status` 帧里上报 `device_id`（`ANDROID_ID`）、分组和包名；运行开始、结束时推一次状态，另外每 60 秒一次。脚本的 `cloud.send()` 经 `IAutomation.control` 到主进程发出 `{"type":"data"}`；服务端的 `message` 经 `EventHub` 以 `cloud` 事件推给脚本。请求由 2 线程的线程池处理，25 秒 ping 保活，断线后 5 秒重连。鉴权完全交给服务端（URL 里带 token）。
+
+`scripts/xscript_cloud.py` 是参考服务端（aiohttp，单文件）：设备表按 `device_id@包名` 区分同一台手机上的多个 App，支持分组（设备上报 + 控制台覆盖）、按设备 / 分组 / 包名批量下发、脚本数据回显、服务端定时任务、网页控制台，以及卡密激活接口。
 
 ### 4.6 开发工具（`tools/`：图色、标注、投屏）
 
@@ -250,9 +251,41 @@ MCP 也提供了对应工具（`take_snapshot`、`vision_test`、`crop_template`
 - `ScriptUi`：toast、阻塞式对话框、悬浮 WebView 窗口（注入 `xscript` / `airscript` 两个 JS 接口）、绘图画布。Python 通过 `ui_poll` 轮询窗口事件，没有 Java→Python 回调，线程模型简单。
 - `SystemApi`：打开应用、设备 / 电量 / 内存信息、剪贴板、KeyValue 存储、shell（默认 root）、音量、亮度、TTS、振动等，以 `op` + JSON 参数分发。
 
+### 4.8.1 端侧推理（`OnnxEngine`）
+
+`OnnxEngine`（`ml/`）在脚本所在进程（`:script` / `:eval`）里持有 ONNX Runtime 会话，张量不跨 Binder。它只负责搬运张量：Python 传入 float32 原始字节和形状，拿回“u32 头长度 + JSON 头 + 各输出字节”。模型相关的前后处理全部在 Python（numpy / cv2）里完成，PC 上用 `onnxruntime` 包跑同一套代码，所以 YOLO 解码和 PaddleOCR 后处理都能在 PC 上对着真实模型做单测。
+
+- 大输出可以在设备端先做 argmax（`reduce="argmax"`）。PP-OCR 识别模型每行输出约 18k 个类别，逐元素搬到 Python 要几秒；在 Kotlin 里归约后只回传每个时间步的类别和概率，整屏识别从约 4.4 s 降到约 1.1 s（MuMu）。
+- 模型文件放在外部存储 `models/`（`ModelStore`，HTTP `GET/PUT/DELETE /models/...`）。PaddleOCR 模型首次使用时从 ModelScope 下载（Hugging Face 备用），按固定的 SHA-256 校验后原子替换；校验结果按大小和修改时间缓存，避免每次运行都重新计算 16 MB 文件的哈希。
+- `accel="nnapi"` 先尝试 NNAPI，失败时回退 CPU。
+
 ### 4.9 界面
 
-`MainActivity` 是仿 AScript 的首页（开发者地址、AI 编程连接、运行模式、各项权限、云控、小程序列表等），另有工程列表、工程详情、简易编辑器、日志页。`FloatControl` 是运行时的悬浮停止按钮，放在主进程，这样脚本进程被杀后按钮也能正常收起。
+`LauncherActivity` 是桌面入口：XScript 本身进入 `MainActivity`，打包出来的 App 进入 `PackActivity`（见 4.10）。`MainActivity` 是仿 AScript 的首页（开发者地址、AI 编程连接、运行模式、各项权限、云控、小程序列表等），另有工程列表、工程详情、简易编辑器、日志页。`FloatControl` 是运行时的悬浮停止按钮，放在主进程，这样脚本进程被杀后按钮也能正常收起。
+
+### 4.10 APK 打包与卡密
+
+打包不是另写一个壳，而是用同一份 Gradle 工程加一个参数：`xscript_pack.py` 写出 `pack.properties`，以 `-Pxscript.pack=...` 调用构建。`build.gradle.kts` 据此：
+
+- 改 `applicationId`、版本号、ABI，以及桌面名称和图标（`manifestPlaceholders`）；
+- 把工程复制进 `assets/pack/<工程名>/`，生成名称和图标资源；
+- 写入 `BuildConfig`（`PACKAGED`、`PACK_PROJECT`、卡密公钥和服务器、云控地址、是否保留局域网接口）；
+- 可选：配置 release 签名；构建时就把 `requirements.txt` 装进 APK。
+
+构建输出在 `build-pack/<包名>/`，和开发版互不干扰。运行时：
+
+- `PackInstaller` 在首次启动和版本号变化时把工程从 assets 复制到工程目录，之后复用全部现有机制（运行器、定时任务、开机自启、云控）。
+- `DeviceHttpService` 照常运行（它还持有 MediaProjection 截图会话），但默认不开局域网端口。
+
+卡密（`license/`）：
+
+- **令牌格式**：`base64url(payload).base64url(ECDSA P-256 签名)`，payload 里有卡号、设备 ID（或 `*`）、包名（或 `*`）、到期时间。App 只内置公钥，验签在本地完成。
+- **激活**：输入短卡密时向授权服务器请求令牌，服务器在首次激活时绑定设备；输入长令牌则离线校验。
+- **复核**：有服务器时每 6 小时复核一次，被停用的卡密在复核后失效，网络不通则保留当前授权。
+- **拦截点**：`ScriptService.run` 是所有启动路径（界面、HTTP、云控、定时任务、开机）的汇合点，校验放在这里，未授权时拒绝启动并写日志。
+- **时钟保护**：记录见过的最晚时间，防止通过回拨系统时钟延长授权。
+
+`LicenseToken`（纯 JVM）的 JVM 单测直接验证 Python 签发的令牌，保证两边格式一致。
 
 ## 5. Python 运行时
 
@@ -312,7 +345,21 @@ sequenceDiagram
 - 进程结束后 `ScriptSupervisor` 通过 Binder 死亡通知决定下一步：启动排队中的工程、按选项重跑，或者什么都不做（见 4.1.1）。
 - `_wait_for_threads` 模拟 CPython 退出时 join 非守护线程的行为。在 Chaquopy 下解释器的“主线程”是 Android UI Looper，永远不会结束，所以显式跳过它和 `_DummyThread`。
 
-### 5.3 `/eval`
+### 5.3 运行时安装 pip 包（`xscript.android.pip`）
+
+Chaquopy 默认只在构建时安装包。这里没有在手机上运行 pip：pip 依赖 `sys.executable`、子进程和编译工具链，在 Chaquopy 里都不可靠。所以自己实现了一个只装 wheel 的安装器：
+
+- **包来源**：先查 Chaquopy 的 Android 索引（`android_<api>_<abi>` 标签的原生 wheel），再查 PyPI 的 JSON simple API（只取 `py3-none-any` 纯 Python wheel）。
+- **依赖解析**：用 `packaging` 按 Android / Python 3.10 的环境求值依赖标记，深度优先解析。
+- **跳过已有的包**：已安装且满足要求的不再安装；APK 自带的包永远不替换，否则编译进 APK 的 numpy 等版本会和新包不一致。
+- **安装方式**：wheel 先解压到临时目录再改名进 `files/pip/site-packages`，卸载按 RECORD 删除。原生 wheel 的共享库（`chaquopy/lib/*.so`）合并到同一目录。
+- **加载**：`sitepkgs.activate()` 在每个脚本 / eval 进程启动时把这个目录追加到 `sys.path` 末尾（自带包优先），并按依赖顺序 `dlopen` 其中的共享库，这和 Chaquopy 对 APK 内原生包的处理一致。
+- **并发**：安装用文件锁互斥，`:script` 和 `:eval` 同时安装也不会互相破坏。
+- **requirements.txt**：`runner` 在导入工程前检查，只安装缺失的包，所以只有第一次运行需要联网。
+
+实测（MuMu）：`schedule`、`pymysql`、`cffi`（含 `chaquopy-libffi`）约 8 秒；`pandas` 连同依赖由 requirements.txt 自动安装后正常导入和计算。
+
+### 5.4 `/eval`
 
 `/eval` 面向 MCP 的短小探测（看一下节点、测一个颜色），约定把结果赋给 `_result`，超时时间限制在 200 ms～15 s 之间，长逻辑应放进工程里运行。
 
@@ -332,6 +379,7 @@ sequenceDiagram
 - 工程：`list_projects`、`list_project_files`、`read_project_file`、`upload_file`、`upload_directory`（本地打 zip 后上传，跳过 `.git`、`__pycache__` 等）、`delete_project`、`run_project`、`stop_project`、`get_run_log`
 - 运行选项与定时任务：`project_run_options`、`list_schedules`、`add_schedule`、`update_schedule`、`delete_schedule`、`run_schedule_now`
 - 调试：`eval_python`（拒绝包含 `while True` 的代码）
+- 模型与包：`list_models`、`upload_model`、`pip_install`、`pip_list`、`pip_uninstall`；`vision_test` 支持 `op="yolo"` 和 `engine="paddle"`
 - 文档：`get_module_apis`、`search_api`，查询本地 `api_catalog.json`
 
 `docs/AGENT_RULES.md` 是给 AI 编程时用的约束说明。
@@ -356,14 +404,21 @@ sequenceDiagram
 | 原始 RGBA 帧 + Pipe | 截图不做 PNG 编解码，避开 Binder 限制 | 单帧体积大（1080×2400 约 10 MB），每次截图都要完整拷贝 |
 | 通道自动降级（无障碍 → root） | 适配无 root / 无无障碍 / 模拟器等多种环境 | 多点手势在 root 下只能近似回放；常驻 `su` 会话串行执行命令 |
 | 用文件做跨进程状态（RunState / LogBuffer） | 实现简单，进程被杀后状态仍然存在 | 每条日志都要打开文件、加锁、读写 seq 文件 |
+| 推理引擎只搬张量，前后处理在 Python | YOLO / PaddleOCR 逻辑能在 PC 上对着真实模型测试；换模型结构只改 Python | 每次推理要拷贝输入张量；大输出需要设备端归约（argmax） |
+| 运行时 pip 自己实现、只装 wheel | 不依赖 pip 的子进程和编译环境，行为可测；APK 自带包不会被替换 | 只有源码包的项目装不了；依赖解析是简化版（取满足条件的最新版本，不回溯） |
+| 打包复用同一份 Gradle 工程 | 打包出的 App 与开发版运行时完全一致，功能改进自动带上 | 每次打包都是一次完整的 Android 构建，需要 SDK 和 Python 3.10 |
+| 卡密用非对称签名 + 本地验签 | 离线可用，App 里没有能签发授权的秘密 | 本地校验可被改包绕过；停用依赖联网复核 |
 
 ## 8. 风险与后续方向
 
-以下问题已经处理：CORS、eval 隔离与超时、大请求 / 大文件的内存占用、root 命令延迟、日志轮询成本（见第 4、5 节）。仍然存在的风险与可做的改进：
+以下问题已经处理：CORS、eval 隔离与超时、大请求 / 大文件的内存占用、root 命令延迟、日志轮询成本、OCR 识别输出的传输开销（见第 4、5 节）。仍然存在的风险与可做的改进：
 
-1. **局域网接口无鉴权**。同一网络内任何能访问端口的设备都可以上传文件、执行任意 Python（`/eval`、`/projects/<name>/run`）。只在可信网络中使用，或者通过 USB + `adb forward` 连接。
-2. **云控通道没有设备侧鉴权**。它完全依赖中继服务器的认证，而且会把大文件整块读进内存再做 base64（体积增加约 33%）。可以考虑分片传输。
-3. **依赖版本偏旧**。`opencv-python 4.5.1.48`、`numpy 1.23.3` 受 Chaquopy / Python 3.10 的 wheel 约束，升级 Python 版本前需要先确认 Chaquopy 对 OpenCV 的支持情况。
-4. **投屏帧率受截图来源限制**。root `screencap` 每帧约 400 ms；未授予 MediaProjection 时投屏只有 2～3 fps。可以考虑 `screenrecord` H.264 流或 scrcpy 协议。
-5. **截图和节点树的传输开销**。每帧原始 RGBA 约 8～10 MB，`Selector.find` 每次都要 dump 整棵树。可以做帧缓存 / 区域截图下推，或者把简单的选择器下推到 Java 侧过滤。
-6. **日志写入**。每条日志都要打开文件、加锁、读写 seq 文件，高频 `print` 时开销明显。可以在 Python 侧按时间窗口批量写入。
+1. **局域网接口无鉴权**。同一网络内任何能访问端口的设备都可以上传文件、执行任意 Python（`/eval`、`/projects/<name>/run`）。只在可信网络中使用，或者通过 USB + `adb forward` 连接。打包出来的 App 默认不开这个端口。
+2. **云控依赖服务端鉴权**。设备侧只负责外连，安全性取决于服务端的 token 和 TLS。云控的大文件会整块读进内存再 base64（体积增加约 33%），可以考虑分片传输。
+3. **卡密是客户端校验**。能拦住普通的复制和分享，拦不住修改 APK 的人。价值高的逻辑应放在服务端。私钥泄露后所有令牌都可以伪造，只能换密钥重新打包。
+4. **APK 体积**。ONNX Runtime 每个 ABI 约 18–22 MB。开发版带 arm64 和 x86_64 两个 ABI，约 155 MB；打包时用 `--abis arm64-v8a` 约 77 MB。
+5. **运行时 pip 的覆盖面**。只能安装纯 Python wheel 和 Chaquopy 索引里的原生包（约 140 个），只有源码包的项目无法在手机上构建。
+6. **依赖版本偏旧**。`opencv-python 4.5.1.48`、`numpy 1.23.3` 受 Chaquopy / Python 3.10 的 wheel 约束，升级 Python 版本前需要先确认 Chaquopy 对 OpenCV 的支持情况。
+7. **投屏帧率受截图来源限制**。root `screencap` 每帧约 400 ms；未授予 MediaProjection 时投屏只有 2～3 fps。可以考虑 `screenrecord` H.264 流或 scrcpy 协议。
+8. **截图和节点树的传输开销**。每帧原始 RGBA 约 8～10 MB，`Selector.find` 每次都要 dump 整棵树。可以做帧缓存 / 区域截图下推，或者把简单的选择器下推到 Java 侧过滤。YOLO / PaddleOCR 每次调用也要完整截一帧。
+9. **日志写入**。每条日志都要打开文件、加锁、读写 seq 文件，高频 `print` 时开销明显。可以在 Python 侧按时间窗口批量写入。

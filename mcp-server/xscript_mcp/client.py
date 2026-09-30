@@ -178,7 +178,9 @@ class DeviceClient:
 
     def vision(self, request: dict[str, Any]) -> dict[str, Any]:
         """POST /tools/vision. 400/408 carry a JSON error body, returned as-is."""
-        with self._client(timeout=max(self.timeout, 25)) as client:
+        # YOLO / PaddleOCR load models (and may download them) on the first call.
+        heavy = request.get("op") == "yolo" or str(request.get("engine", "")).startswith("paddle")
+        with self._client(timeout=max(self.timeout, 130 if heavy else 25)) as client:
             r = client.post(self._url("/tools/vision"), json=request)
             if r.status_code in (400, 404, 408):
                 return r.json()
@@ -248,6 +250,42 @@ class DeviceClient:
         with self._client() as client:
             r = client.post(self._url("/schedules/%s/run" % quote(schedule_id, safe="")))
             if r.status_code == 404:
+                return r.json()
+            r.raise_for_status()
+            return r.json()
+
+    # ---- models (YOLO / PaddleOCR) and runtime packages ----
+
+    def list_models(self) -> dict[str, Any]:
+        return self._get("/models")
+
+    def upload_model(self, local_path: str | os.PathLike, remote_path: str) -> dict[str, Any]:
+        data = Path(local_path).expanduser().read_bytes()
+        with self._client(timeout=max(self.timeout, 300)) as client:
+            r = client.put(self._url("/models/" + quote(remote_path.lstrip("/"), safe="/")), content=data,
+                           headers={"Content-Type": "application/octet-stream"})
+            r.raise_for_status()
+            return r.json()
+
+    def delete_model(self, remote_path: str) -> dict[str, Any]:
+        with self._client() as client:
+            r = client.delete(self._url("/models/" + quote(remote_path.lstrip("/"), safe="/")))
+            r.raise_for_status()
+            return r.json()
+
+    def list_packages(self) -> dict[str, Any]:
+        with self._client(timeout=max(self.timeout, 30)) as client:
+            r = client.get(self._url("/packages"))
+            return r.json()
+
+    def pip(self, op: str, packages: list[str], upgrade: bool = False, index_url: str = "",
+            timeout_s: float = 300) -> dict[str, Any]:
+        """POST /packages. 400 / 408 carry a JSON error body, returned as-is."""
+        body = {"op": op, "packages": list(packages), "upgrade": bool(upgrade), "index_url": index_url,
+                "timeout_ms": int(timeout_s * 1000)}
+        with self._client(timeout=timeout_s + 10) as client:
+            r = client.post(self._url("/packages"), json=body)
+            if r.status_code in (400, 408):
                 return r.json()
             r.raise_for_status()
             return r.json()

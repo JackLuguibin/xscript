@@ -35,13 +35,15 @@ These are useful on emulators, or after every reinstall during development:
 
 ```bash
 PKG=com.xscript.app
-adb shell settings put secure enabled_accessibility_services $PKG/$PKG.a11y.XscriptAccessibilityService
+adb shell settings put secure enabled_accessibility_services $PKG/com.xscript.app.a11y.XscriptAccessibilityService
 adb shell settings put secure accessibility_enabled 1
 adb shell cmd appops set $PKG SYSTEM_ALERT_WINDOW allow
-adb shell am start -n $PKG/.MainActivity
+adb shell am start -n $PKG/com.xscript.app.LauncherActivity
 ```
 
 The `enabled_accessibility_services` line replaces the whole list. Append to it instead if other services must stay on.
+
+For a packaged app, set `PKG` to its `--app-id`. The class names stay `com.xscript.app.*`, so the commands work unchanged.
 
 ### MuMu and other emulators
 
@@ -117,7 +119,7 @@ A forward lives in the adb server, so it disappears whenever the emulator restar
    adb -s 127.0.0.1:16384 shell "ss -ltn | grep 986"
    ```
 
-   If nothing is listening, open XScript on the device (`adb -s 127.0.0.1:16384 shell am start -n com.xscript.app/.MainActivity`).
+   If nothing is listening, open XScript on the device (`adb -s 127.0.0.1:16384 shell am start -n com.xscript.app/.LauncherActivity`).
 4. **`curl` works but Cursor still cannot connect.** Check that `mcp.json` uses the `.venv` Python and `XSCRIPT_DEVICE=127.0.0.1:9860`, then toggle the MCP server. Errors show up in Cursor under **Output → MCP Logs**.
 
 XScript listens on 9860 and AScript on 9096, so both apps can be installed at once. Forward the port for the app you want to reach. `adb forward tcp:9096 ...` reaches AScript, not XScript.
@@ -147,9 +149,16 @@ c.run_project("my_proj")
 ./scripts/verify.sh
 ```
 
-This runs the runtime tests (with `.venv-rt` if present; it needs numpy, opencv-python, and pillow), the MCP tests, a stub freshness check, and the mock vertical slice. After changing `python-runtime/`, run `python3 scripts/gen_stubs.py`.
+This runs these checks. After changing `python-runtime/`, run `python3 scripts/gen_stubs.py`.
 
-Android JVM unit tests (log tail reader, datasets, snapshots):
+- **Runtime tests:** use `.venv-rt` if present. They need numpy, opencv-python and pillow; the YOLO / PaddleOCR / pip tests also need `onnxruntime==1.22.1` and `packaging==24.2`.
+- **MCP tests:** the 云控 server and 卡密 tests need `aiohttp==3.14.3` and `cryptography` in `.venv`, and are skipped without them.
+- **Stub freshness check.**
+- **Mock vertical slice.**
+
+To also run the YOLO11n / PP-OCRv5 tests against real models, put `yolo11n.onnx`, `ch_PP-OCRv5_det_mobile.onnx`, `ch_PP-OCRv5_rec_mobile.onnx` and `bus.jpg` in a folder and set `XSCRIPT_TEST_MODELS=<folder>`.
+
+Android JVM unit tests (log tail reader, datasets, snapshots, schedules, 卡密 tokens):
 
 ```bash
 ./scripts/build_android.sh :app:testDebugUnitTest
@@ -157,4 +166,4 @@ Android JVM unit tests (log tail reader, datasets, snapshots):
 
 ## Security
 
-There is no authentication on the HTTP port or the cloud relay. Anyone who can reach them can run code on the phone. See the README.
+There is no authentication on the HTTP port. Anyone who can reach it can run code on the phone. The cloud connection relies on the server's token (see [CLOUD.md](CLOUD.md)). See the README.

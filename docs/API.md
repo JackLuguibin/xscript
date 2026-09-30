@@ -110,7 +110,67 @@ Color patterns: the first entry is absolute (`#rrggbb`) or `x,y,#rrggbb`. Later 
 
 Template matching uses grayscale by default, or H+S with `rgb=True`. Transparent PNG pixels are masked out. `scale_range` searches log-spaced scales and keeps the best one. Large templates go through a coarse-to-fine pass. Templates may be paths (relative paths resolve against the project), numpy arrays, or lists of either.
 
-OCR uses Google ML Kit (Chinese and Latin) on the device. The first call loads the model, which takes about 1 s.
+OCR engines:
+
+- `mlkit` (default): Google ML Kit (Chinese and Latin), built in. The first call loads the model, about 1 s.
+- `paddle`: PP-OCRv5 on ONNX Runtime. It reads small Chinese text better and works on emulators where ML Kit does not. The models (about 22 MB) download on first use, from ModelScope with a Hugging Face fallback, and are checked against pinned SHA-256 hashes. A full 1080×1920 screen takes about 1 s on MuMu after the first call. `paddle_v4` uses PP-OCRv4.
+
+```python
+screen.set_ocr_engine("paddle")              # default for all ocr* calls
+screen.ocr(engine="paddle", confidence=0.6)  # or per call
+```
+
+Offline devices: put the files in `models.directory()/paddle/v5/` (for example with `adb push`, or `PUT /models/paddle/v5/<file>`).
+
+## yolo (object detection)
+
+```python
+from xscript.android import yolo, models, system
+
+model = yolo.load(system.R.res("best.onnx"))            # or models.path("best.onnx")
+for d in model.detect(conf=0.5):                         # current screen; image=, rect=, classes=
+    print(d.label, d.confidence, d.rect, d.center_x, d.center_y)
+hit = model.find("按钮")                                  # best detection of one class
+if hit:
+    hit.click()
+screen.detect("res/best.onnx", conf=0.5)                 # one-shot form
+```
+
+- **Models:** Ultralytics YOLOv5 / v8 / v11 detection exports in ONNX format, plus end-to-end exports ([N, 6] output: v10, `nms=True`). Class names and input size come from the model metadata that Ultralytics writes. Otherwise pass `names=` (a list, `{id: name}`, or a `data.yaml` path) and `imgsz=`.
+- **From labels to a model:** export a dataset from the 标注工具, then `yolo detect train data=data.yaml model=yolo11n.pt imgsz=640`, then `yolo export model=runs/detect/train/weights/best.pt format=onnx imgsz=640`. Put `best.onnx` in the project's `res/`, or upload it with the MCP `upload_model` tool.
+- **Speed:** YOLO11n at 640 takes about 135 ms per frame on MuMu (arm64, 6 cores) after the first call. `accel="nnapi"` tries Android NNAPI and falls back to CPU.
+- **Custom models:** `xscript.android.onnx.load(path)` gives a raw session (`run(tensor)`, `run_argmax`, `inputs`, `outputs`, `metadata`) for any float32 ONNX model.
+
+## pip (runtime packages)
+
+```python
+from xscript.android import pip
+pip.install("schedule", "pymysql==1.1.1")
+pip.list(); pip.uninstall("schedule")
+```
+
+A `requirements.txt` in the project is installed automatically before `__init__.py` runs. Only packages that are missing get installed, so only the first run needs the network.
+
+- **Pure-Python packages:** come from PyPI wheels (`py3-none-any`), with the Tsinghua mirror as a fallback, or from `index_url=`.
+- **Packages with C extensions:** come only from Chaquopy's Android index (about 140 packages, including pandas, scipy, lxml, cryptography, cffi and pycryptodome). Their shared libraries are loaded automatically.
+- **Source-only packages:** cannot be built on the phone.
+- **Bundled packages:** the ones in the APK (numpy, opencv, pillow, requests, pyyaml, packaging) are never replaced.
+- **Location:** packages live in the app's private storage and survive app updates. HTTP: `GET /packages`, `POST /packages`. MCP: `pip_install`, `pip_list`, `pip_uninstall`.
+
+## cloud (云控)
+
+```python
+from xscript.android import cloud, system
+cloud.send({"gold": 180})                 # dashboard data for this device
+
+@cloud.on_message
+def on_msg(data):
+    print(data)
+
+system.params()                           # 云控 app_run "param"
+```
+
+See [CLOUD.md](CLOUD.md) for the command set, the wire protocol and the reference server.
 
 ## system
 
@@ -237,7 +297,9 @@ Supported: `action` (click / swipe / slide / Touch / Key / Path / gesture / Ime 
 
 Behavior differences:
 
-- **OCR:** `Ocr.mlkitocr_v2`, `paddleocr`, and `tess` all run ML Kit. Results are `OcrResult` objects that support attribute access (`.text`, `.rect`, `.center_x`, `.region_position`) and dict access (`r["text"]`, `r.get(...)`).
+- **OCR:** `Ocr.mlkitocr_v2` runs ML Kit. `paddleocr` / `paddleocr_v2` / `paddleocr_v3`, and `find` / `find_all` after `Ocr.set_engine(Ocr.MODE_PADDLE_V5)`, run PP-OCRv5. `tess` maps to ML Kit. Results are `OcrResult` objects that support attribute access (`.text`, `.rect`, `.center_x`, `.region_position`) and dict access (`r["text"]`, `r.get(...)`).
+- **YOLO:** `screen.YoLov5(path=...)` and `plug.load("yolov5" | "Yolov8Ncnn" | "Yolov11Ncnn")` run the ONNX detector with AScript's result shapes. AScript ships NCNN models (`.param` / `.bin`); export the same weights to ONNX (`format=onnx`) and point `load()` at the `.onnx` file. Class names come from the model, a `data.yaml` or `classes.txt` next to it, or `nc`.
+- **云控:** `cloud_control.connect_to_ws / send / close`, `system.channel` and `system.Control.send` use XScript's 云控 connection. Launch parameters are also set on `builtins` as in AScript. `R.get_card()` returns a packaged app's 卡密.
 - **Template matching:** `FindImages.find` / `find_all` default to template matching with confidence 0.9. `method="smart"` and `find_sift` fall back to template matching. The results have AScript's dict shape (`result`, `rect`, `center_x`, `center_y`, `confidence`).
 - **Screenshots:** `capture()` returns an android `Bitmap`, as in AScript. `capture_cv` returns BGR numpy.
 - **Events:** `NotificationEvent` events carry plain data, so `event.raw` is `None`. `Selector.on_event` gets an object with `getEventType()`, `getPackageName()`, `getClassName()`, and `getText()`.
@@ -246,12 +308,13 @@ Behavior differences:
 Unsupported. These raise `NotImplementedError` or print a one-time warning:
 
 - `action.Hid`
-- `screen.YoLov5`
+- NCNN model files (use the ONNX export of the same model)
 - `OcrX` / `Ocr.matrix`
 - gp files from AScript's 图色工具
 - `node.WebSelector`
-- `sms`, `plug`, `bluetooth`, `location`, `sensor`
-- `system.Control` (AScript cloud control)
+- `sms`, `bluetooth`, `location`, `sensor`
+- `plug.load` for plugins other than the built-in YOLO ones, `plug.load_apk` / `inject`
+- `cloud_control.connect_to_as` (AScript's official cloud server)
 - `media.recode` / `send_email` / `AliTts`
 
 ## Developer tools (图色 / 标注 / 投屏)

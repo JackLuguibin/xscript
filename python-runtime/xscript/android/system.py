@@ -209,6 +209,17 @@ def exit(code=0):  # noqa: A001
     raise SystemExit(code)
 
 
+def params():
+    """Launch parameters of this run: the 云控 app_run "param" object ({} otherwise)."""
+    return runner.params()
+
+
+def license_status():
+    """Packaged apps: {"required", "activated", "card" (masked), "card_full", "expires", "error"}."""
+    raw = bridge.control("license_status", "")
+    return json.loads(raw) if raw and raw.startswith("{") else {"required": False}
+
+
 def reboot(delay=0):
     """End this run and start the project again in a fresh script process after `delay` seconds."""
     _control("rerun_after_exit", str(int(max(0.0, float(delay)) * 1000)))

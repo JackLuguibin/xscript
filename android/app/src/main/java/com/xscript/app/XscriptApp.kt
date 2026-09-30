@@ -18,6 +18,12 @@ class XscriptApp : Application() {
         instance = this
         isMainProcess = resolveProcessName() == packageName
         if (isMainProcess) {
+            // Packaged app: unpack the bundled project (first start / after an update).
+            try {
+                com.xscript.app.pack.PackInstaller.ensure(this)
+            } catch (t: Throwable) {
+                android.util.Log.e("XScript", "pack install failed", t)
+            }
             RootShell.probeAsync()
             startService(Intent(this, AutomationService::class.java))
             CloudClient.autoConnect(this)

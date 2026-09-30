@@ -38,5 +38,18 @@ The standard MIT terms apply:
 | Pillow 9.2.0 | HPND |
 | PyYAML | MIT |
 | requests | Apache-2.0 |
+| packaging 24.2 | Apache-2.0 / BSD-2-Clause |
 | OkHttp 4.12.0 | Apache-2.0 |
 | Google ML Kit Text Recognition (Chinese) | ML Kit Terms of Service |
+| ONNX Runtime Android 1.22.0 | MIT |
+
+## Downloaded at runtime (not in the APK)
+
+| Component | License |
+| --- | --- |
+| PaddleOCR PP-OCRv5 / PP-OCRv4 models (ONNX exports by RapidOCR, from ModelScope / Hugging Face) | Apache-2.0 |
+| Packages installed with `xscript.android.pip` | Their own licenses; check before redistributing a packaged app that bundles them |
+
+YOLO models are supplied by the user. Ultralytics YOLOv8 / YOLO11 weights and code are AGPL-3.0 unless you hold an
+Ultralytics Enterprise license. That applies to models you train from their pretrained weights and ship inside a
+packaged app.

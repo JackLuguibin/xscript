@@ -30,6 +30,16 @@ object Settings {
         get() = prefs().getString("cloud_url", "") ?: ""
         set(value) = prefs().edit().putString("cloud_url", value.trim()).apply()
 
+    /** 云控 group label reported in hello; the server can also assign groups on its side. */
+    var cloudGroup: String
+        get() = prefs().getString("cloud_group", "") ?: ""
+        set(value) = prefs().edit().putString("cloud_group", value.trim()).apply()
+
+    /** Packaged apps: whether the LAN developer server (HTTP API) runs. Off by default there. */
+    var devServer: Boolean
+        get() = prefs().getBoolean("dev_server", !com.xscript.app.BuildConfig.PACKAGED)
+        set(value) = prefs().edit().putBoolean("dev_server", value).apply()
+
     var lastProject: String
         get() = prefs().getString("last_project", "") ?: ""
         set(value) = prefs().edit().putString("last_project", value).apply()

@@ -131,6 +131,14 @@ def exit(code=0):
     """Stop the running script."""
     ...
 
+def params():
+    """Launch parameters of this run: the 云控 app_run "param" object ({} otherwise)."""
+    ...
+
+def license_status():
+    """Packaged apps: {"required", "activated", "card" (masked), "card_full", "expires", "error"}."""
+    ...
+
 def reboot(delay=0):
     """End this run and start the project again in a fresh script process after `delay` seconds."""
     ...

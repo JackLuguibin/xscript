@@ -17,7 +17,6 @@ import android.view.View
 import android.view.WindowManager
 import android.widget.LinearLayout
 import android.widget.TextView
-import com.xscript.app.MainActivity
 import com.xscript.app.runtime.RunState
 import com.xscript.app.runtime.ScriptService
 import kotlin.math.abs
@@ -78,7 +77,7 @@ object FloatControl {
             maxWidth = dp(ctx, 140f)
             isSingleLine = true
             setOnClickListener {
-                ctx.startActivity(Intent(ctx, MainActivity::class.java).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
+                ctx.startActivity(Intent(ctx, com.xscript.app.LauncherActivity.home(ctx)).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
             }
         }
         val stop = TextView(ctx).apply {

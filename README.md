@@ -3,8 +3,9 @@
 XScript is an Android Python automation app in the style of AScript. It runs Python scripts on the phone, and AScript scripts run unchanged. You write the script on a computer (or with Cursor through MCP), push it to the phone, and it runs on-device.
 
 ```
-Cursor / MCP / browser  →  HTTP :9860  →  XScript app  →  accessibility / root + Python 3.10
+Cursor / MCP / browser  →  HTTP :9860  →  XScript app  →  accessibility / root + Python 3.10 + ONNX Runtime
 Cloud control server    ←  WebSocket (device dials out)  ↗
+xscript_pack.py         →  standalone APK (one project, optional 卡密)
 ```
 
 ## Features
@@ -19,9 +20,16 @@ Cloud control server    ←  WebSocket (device dials out)  ↗
   - `ui`: dialogs, HTML windows with a JS bridge, a drawing canvas, and the floating stop button.
   - `event`: listeners for physical keys, view clicks, notifications (with `send()`), toasts, and raw accessibility events.
 - **Unattended runs.** 开机自启 (start after boot), 停止后重新运行 (restart after an exit or crash, with crash-loop protection), and 定时任务 (daily / every N minutes / once). You can set these on the project screen, from scripts (`system.Config`, `system.Schedule`), over HTTP, or over MCP.
+- **AI vision on the device.** YOLO v5 / v8 / v11 detection (`xscript.android.yolo`) and PaddleOCR PP-OCRv5 (`screen.ocr(engine="paddle")`) run on ONNX Runtime. Label screenshots in the 标注工具, train with Ultralytics, export ONNX, and run the model on the phone. AScript's `YoLov5`, `plug.load("Yolov8Ncnn")` and `Ocr.paddleocr` map onto these engines.
+- **Runtime pip.** A `requirements.txt` in a project installs before the first run, with no APK rebuild. Pure-Python wheels come from PyPI; C-extension packages (pandas, scipy, lxml, cryptography, ...) come from Chaquopy's Android index.
 - **AScript compatibility** (`ascript.android.*`). Follows the ascript-tip 1.3.0 API, so `from ascript.android.screen import FindImages` works unchanged.
 - **Projects.** Create, zip import/export, import from AScript (`/sdcard/airscript/model`), an on-device editor, run logs, and the floating stop button.
-- **Cloud control.** The device dials out to a WebSocket relay and serves the same API through it, so it works behind NAT.
+- **Cloud control (云控).** The device dials out to a WebSocket server, so it works behind NAT.
+  - AScript's command set: `app_run` with parameters, `app_stop`, `device_info`, `screen_shot`, `device_action`.
+  - The full device HTTP API is relayed over the same connection.
+  - Scripts send data and receive messages (`cloud.send` / `on_message`, `cloud_control`, `system.channel`).
+  - The reference server (`scripts/xscript_cloud.py`) adds groups, batch commands, server-side schedules and a web dashboard. See [docs/CLOUD.md](docs/CLOUD.md).
+- **APK packaging and 卡密.** `scripts/xscript_pack.py` turns a project into its own app, with its own package name, label and icon, and optional release signing. Packaged apps can require a 卡密 license: an ECDSA-signed token bound to the device. Cards are activated online through the reference server, or with offline tokens. See [docs/PACKAGING.md](docs/PACKAGING.md).
 - **Cursor MCP** (`xscript-mcp`). Screenshots, UI tree, file upload, run/stop, logs, eval, run options, schedules, and an API catalog. Eval runs in its own process, which is killed on timeout.
 - **Developer tools in the browser** at `http://<ip>:<port>/tools/`, served by the app:
   - **图色工具**: freeze a screenshot, pick colors with a zoom loupe, build multi-point color strings, select regions, save template crops into a project, and test find-color / compare-color / find-image / OCR on that frame.
@@ -40,7 +48,8 @@ Cloud control server    ←  WebSocket (device dials out)  ↗
 | `protocol/openapi.yaml` | Device HTTP contract |
 | `mcp-server/` | Cursor MCP (`xscript-mcp`) |
 | `examples/` | `settings_search`, `xs_smoke` (native API), `as_demo` (AScript API) |
-| `docs/` | [Getting started](docs/GETTING_STARTED.md), [API](docs/API.md), [agent rules](docs/AGENT_RULES.md) |
+| `scripts/` | Build, verify, stubs, mock device, `xscript_pack.py` (APK 打包), `xscript_license.py` (卡密), `xscript_cloud.py` (云控 server) |
+| `docs/` | [Getting started](docs/GETTING_STARTED.md), [API](docs/API.md), [云控](docs/CLOUD.md), [打包与卡密](docs/PACKAGING.md), [agent rules](docs/AGENT_RULES.md), [architecture](docs/ARCHITECTURE.md) |
 
 ## Quick start
 
@@ -86,7 +95,11 @@ if p:
 
 ## Security
 
-The LAN HTTP server and the cloud relay have **no authentication**. Anyone who can reach the port can upload files and run arbitrary Python (`/eval`, `/projects/<name>/run`). Use XScript only on trusted networks, or over USB with `adb forward`. The server sends no CORS headers, so web pages open in your browser cannot read API responses. Put the cloud relay behind your own authenticated server; a token in the `wss://` URL is checked by the server, not by the app.
+The LAN HTTP server has **no authentication**. Anyone who can reach the port can upload files and run arbitrary Python (`/eval`, `/projects/<name>/run`). Use XScript only on trusted networks, or over USB with `adb forward`. The server sends no CORS headers, so web pages open in your browser cannot read API responses. Packaged apps turn the LAN server off unless they are built with `--dev-server`.
+
+The cloud connection is authenticated only by the server. Run `scripts/xscript_cloud.py` with `--token`, and put TLS (`wss://`) in front of it on the internet. Anyone who holds the token controls every connected device.
+
+卡密 checks run inside the app. They stop casual copying, but not someone who patches the APK.
 
 ## Licenses
 

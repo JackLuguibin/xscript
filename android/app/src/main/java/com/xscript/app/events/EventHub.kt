@@ -32,6 +32,7 @@ object EventHub {
     const val NOTIFICATION = "notification"
     const val TOAST = "toast"
     const val A11Y = "a11y"
+    const val CLOUD = "cloud"
 
     /** Default raw accessibility mask: everything except the very chatty content changes. */
     private const val DEFAULT_A11Y_MASK = AccessibilityEvent.TYPES_ALL_MASK and
@@ -104,6 +105,11 @@ object EventHub {
     }
 
     // ------------------------------------------------------------------ sources
+
+    /** A 云控 message for the script (`cloud.on_message`, AScript `system.channel`). */
+    fun cloudMessage(data: Any) {
+        emit(CLOUD, JSONObject().put("data", data))
+    }
 
     fun onKey(event: KeyEvent) {
         if (KEY !in types) return

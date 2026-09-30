@@ -2,8 +2,9 @@
 
 Scripts written for AScript (`from ascript.android.xxx import ...`) run on XScript
 unchanged for the supported surface: action, node, screen, system, ui, data, media.
-Features that need AScript's proprietary services (HID hardware, YOLO, cloud control,
-plugins) raise NotImplementedError with a clear message.
+Features that need AScript's proprietary services (HID hardware, NCNN models, the official cloud,
+paid plugins) raise NotImplementedError with a clear message. YOLO, PaddleOCR and
+cloud_control run on XScript's own engines (ONNX Runtime, the 云控 connection).
 """
 
 __version__ = "1.3.0-xscript"

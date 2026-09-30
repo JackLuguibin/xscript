@@ -27,23 +27,32 @@
     <application
         android:name=".XscriptApp"
         android:allowBackup="true"
-        android:icon="@drawable/ic_launcher"
-        android:label="@string/app_name"
-        android:roundIcon="@drawable/ic_launcher"
+        android:icon="${appIcon}"
+        android:label="${appLabel}"
+        android:roundIcon="${appIcon}"
         android:supportsRtl="true"
         android:theme="@style/Theme.Xscript"
         android:requestLegacyExternalStorage="true"
         android:usesCleartextTraffic="true">
 
+        <!-- Launcher entry: the developer home, or the packaged app's own screen (LauncherActivity decides). -->
         <activity
-            android:name=".MainActivity"
+            android:name=".LauncherActivity"
             android:exported="true"
-            android:launchMode="singleTop">
+            android:theme="@style/Theme.Xscript">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
         </activity>
+        <activity
+            android:name=".MainActivity"
+            android:exported="false"
+            android:launchMode="singleTop" />
+        <activity
+            android:name=".ui.PackActivity"
+            android:exported="false"
+            android:launchMode="singleTop" />
         <activity android:name=".ui.ProjectsActivity" android:exported="false" />
         <activity android:name=".ui.ProjectActivity" android:exported="false" />
         <activity
