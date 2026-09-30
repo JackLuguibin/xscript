@@ -2,7 +2,9 @@ package com.xscript.app.tools
 
 import org.junit.After
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotNull
+import org.junit.Assert.assertTrue
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertThrows
 import org.junit.Before
@@ -32,6 +34,24 @@ class SnapshotStoreTest {
         assertEquals("/tools/snapshots/${s.getString("id")}.png", s.getString("url"))
         assertNotNull(store.file(s.getString("id")))
         assertThrows(IllegalArgumentException::class.java) { store.save("nope".toByteArray(), 1, 1) }
+    }
+
+    @Test
+    fun uploadReadsSizeFromIhdrAndDeletes() {
+        val store = SnapshotStore(root)
+        // Signature + IHDR length/type + 720x1280.
+        val ihdr = png + byteArrayOf(0, 0, 0, 13) + "IHDR".toByteArray() +
+            byteArrayOf(0, 0, 0x02, 0xD0.toByte(), 0, 0, 0x05, 0x00)
+        val s = store.saveUpload(ihdr)
+        assertEquals(720, s.getInt("width"))
+        assertEquals(1280, s.getInt("height"))
+        assertThrows(IllegalArgumentException::class.java) { store.saveUpload(png) }
+        assertTrue(store.delete(s.getString("id")))
+        assertFalse(store.delete(s.getString("id")))
+        store.save(png, 1, 1)
+        store.save(png, 1, 1)
+        assertEquals(2, store.clear())
+        assertEquals(0, store.list().length())
     }
 
     @Test

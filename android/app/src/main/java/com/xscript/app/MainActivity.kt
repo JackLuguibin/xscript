@@ -119,7 +119,7 @@ class MainActivity : AppCompatActivity() {
             startActivity(Intent(AndroidSettings.ACTION_APPLICATION_DEVELOPMENT_SETTINGS))
         }
 
-        UiKit.note(col, "USB 调试：adb forward tcp:<端口> tcp:<端口>（端口见“开发者地址”，默认 9096，被 AScript 占用时为 9097），然后在电脑上连接 127.0.0.1:<端口>。")
+        UiKit.note(col, "USB 调试：adb forward tcp:<端口> tcp:<端口>（端口见“开发者地址”，默认 9860，与 AScript 的 9096 互不冲突），然后在电脑上连接 127.0.0.1:<端口>。")
     }
 
     private fun buildRunCard(col: LinearLayout) {

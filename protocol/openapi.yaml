@@ -3,8 +3,8 @@ info:
   title: XScript Device HTTP
   version: 0.2.0
   description: |
-    Contract between the Android runtime and PC / MCP clients. Default port 9096; the app
-    falls back to 9097 when 9096 is taken (for example when AScript is running).
+    Contract between the Android runtime and PC / MCP clients. Default port 9860 (kept clear of
+    AScript's 9096); the app tries 9861..9869 if 9860 is taken.
     The cloud-control WebSocket relays the same requests through ApiRouter.
 
     SECURITY: there is no authentication. Anyone who can reach the port can upload and run
@@ -16,7 +16,7 @@ servers:
       host:
         default: 127.0.0.1
       port:
-        default: "9096"
+        default: "9860"
 paths:
   /:
     get:
@@ -390,9 +390,19 @@ paths:
       summary: Developer tools home (图色工具, 标注工具, 投屏). Pages live under /tools/ui/.
       responses:
         "200": { description: HTML }
+  /website/src/screen.html:
+    get:
+      summary: AScript URL alias for 图色工具 (serves /tools/ui/color.html; `?plug=FindColors|CompareColors|FindImages|Ocr`)
+      responses:
+        "200": { description: HTML }
+  /website/src/label.html:
+    get:
+      summary: AScript URL alias for 标注工具 (serves /tools/ui/label.html)
+      responses:
+        "200": { description: HTML }
   /tools/snapshots:
     get:
-      summary: Recent snapshots, newest first (the device keeps the last 20)
+      summary: Recent snapshots, newest first (the device keeps the last 30)
       responses:
         "200":
           description: OK
@@ -403,14 +413,30 @@ paths:
                 properties:
                   snapshots: { type: array, items: { $ref: "#/components/schemas/Snapshot" } }
     post:
-      summary: Freeze the current screen as a PNG snapshot
+      summary: Freeze the current screen as a PNG snapshot; with a PNG body, store that image instead
+      requestBody:
+        required: false
+        content:
+          application/octet-stream: { schema: { type: string, format: binary } }
       responses:
         "200":
           description: Saved
           content:
             application/json:
               schema: { $ref: "#/components/schemas/Snapshot" }
+        "400": { description: Body is not a PNG }
         "503": { description: Capture unavailable }
+    delete:
+      summary: Delete every cached snapshot
+      responses:
+        "200": { description: "{ok, deleted}" }
+  /tools/snapshots/{id}:
+    delete:
+      summary: Delete one snapshot (a trailing .png is accepted)
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: string } }
+      responses:
+        "200": { description: "{ok}" }
   /tools/snapshots/{id}.png:
     get:
       summary: Snapshot image
@@ -443,9 +469,11 @@ paths:
       summary: 图色 check on a snapshot, run in the :eval process with the script engine
       description: |
         ops: `pixel` (x, y, or points=[[x,y],...]), `find_colors` (colors, rect, sim, space, ori,
-        max_num ≤ 100), `compare_colors` (colors, sim → per-point expected/actual), `find_image`
-        (template "<project>:<path>" or template_rect on the snapshot; confidence, rgb, maxcnt,
-        scale_range), `ocr` (rect). Responses include `ms`.
+        max_num ≤ 100), `compare_colors` (colors, sim, count_sim → match, hits, need, per-point
+        expected/actual), `find_image` (template "<project>:<path>", template_rect on this
+        snapshot, or template_snapshot + template_rect for a region of another snapshot;
+        confidence, rgb, maxcnt, ori, scale_range), `ocr` (rect, pattern, confidence, binary
+        threshold 0-255). Responses include `ms`.
       requestBody:
         required: true
         content:
@@ -461,6 +489,11 @@ paths:
                 sim: { type: number, default: 0.9 }
                 template: { type: string, example: "demo:res/img/ok.png" }
                 template_rect: { type: array, items: { type: integer } }
+                template_snapshot: { type: string, description: Snapshot that template_rect is cut from }
+                count_sim: { type: number, default: 1.0, description: compare_colors share of points that must match }
+                ori: { type: integer, minimum: 1, maximum: 8, description: AScript search direction }
+                pattern: { type: string, description: ocr regex filter }
+                binary: { type: integer, minimum: 0, maximum: 255, description: ocr binarisation threshold }
                 confidence: { type: number, default: 0.8 }
                 timeout_ms: { type: integer, default: 12000, minimum: 500, maximum: 20000 }
       responses:
@@ -477,7 +510,7 @@ paths:
     parameters:
       - { name: name, in: path, required: true, schema: { type: string, pattern: "^[\\p{L}\\p{N}_-]{1,64}$" } }
     get:
-      summary: Classes and items ({id, file, boxes})
+      summary: Classes, per-class box counts and items ({id, file, labeled, boxes})
       responses: { "200": { description: OK }, "404": { description: Missing dataset } }
     post:
       summary: Create a dataset
@@ -493,6 +526,20 @@ paths:
           application/json:
             schema: { type: object, properties: { classes: { type: array, items: { type: string } } } }
       responses: { "200": { description: Updated }, "400": { description: Invalid or in use } }
+  /tools/datasets/{name}/classes/{index}:
+    delete:
+      summary: Drop a class and its boxes; later class indices shift down by one
+      parameters:
+        - { name: index, in: path, required: true, schema: { type: integer, minimum: 0 } }
+      responses: { "200": { description: Updated dataset }, "400": { description: Index out of range } }
+  /tools/datasets/{name}/rename:
+    post:
+      summary: Rename the dataset
+      requestBody:
+        content:
+          application/json:
+            schema: { type: object, required: [to], properties: { to: { type: string } } }
+      responses: { "200": { description: Renamed dataset }, "400": { description: Invalid or taken name } }
   /tools/datasets/{name}/images:
     post:
       summary: 'Add an image. Body is PNG/JPEG bytes, or JSON {"snapshot": "<id>"}'
@@ -520,6 +567,9 @@ paths:
           application/json:
             schema: { $ref: "#/components/schemas/Label" }
       responses: { "200": { description: Saved label }, "400": { description: Bad class index } }
+    delete:
+      summary: Remove the label so the image is unlabelled again (an empty PUT marks a negative sample)
+      responses: { "200": { description: "{ok}" } }
   /tools/datasets/{name}/export:
     get:
       summary: YOLO (Ultralytics) zip of labelled images

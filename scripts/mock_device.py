@@ -5,6 +5,8 @@ from __future__ import annotations
 import base64
 import io
 import json
+import os
+import struct
 import threading
 import zipfile
 from http.server import BaseHTTPRequestHandler, HTTPServer
@@ -54,6 +56,38 @@ def _vision(req):
 
 TEXT_EXT = {"py", "txt", "md", "json", "yaml", "yml", "html", "htm", "js", "css", "ini", "cfg", "csv", "xml", "toml"}
 
+# The device serves the web tools from the APK assets; the mock reads the same files.
+ASSETS = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "android", "app", "src", "main", "assets", "tools")
+WEBSITE_ALIASES = {"/website/src/screen.html": "color.html", "/website/src/label.html": "label.html"}
+MIME = {"html": "text/html; charset=utf-8", "js": "text/javascript; charset=utf-8", "css": "text/css; charset=utf-8",
+        "svg": "image/svg+xml", "png": "image/png"}
+
+
+def _png_size(raw):
+    """(width, height) from the IHDR chunk, or None when `raw` is not a PNG."""
+    if len(raw) < 24 or raw[:8] != b"\x89PNG\r\n\x1a\n" or raw[12:16] != b"IHDR":
+        return None
+    w, h = struct.unpack(">II", raw[16:24])
+    return (w, h) if w > 0 and h > 0 else None
+
+
+def _snap_info(sid):
+    w, h = _png_size(STATE["snapshots"][sid]) or (1, 1)
+    return {"id": sid, "width": w, "height": h, "url": "/tools/snapshots/%s.png" % sid}
+
+
+def _describe(name):
+    ds = STATE["datasets"][name]
+    counts = [0] * len(ds["classes"])
+    items = []
+    for i, it in sorted(ds["items"].items()):
+        boxes = (it["label"] or {}).get("boxes", [])
+        for b in boxes:
+            if 0 <= b["cls"] < len(counts):
+                counts[b["cls"]] += 1
+        items.append({"id": i, "file": i + ".png", "labeled": it["label"] is not None, "boxes": len(boxes)})
+    return {"name": name, "classes": ds["classes"], "counts": counts, "items": items}
+
 
 def _safe_rel(rel):
     return bool(rel) and not rel.startswith("/") and ".." not in rel.split("/")
@@ -74,6 +108,17 @@ class Handler(BaseHTTPRequestHandler):
         self.send_header("Content-Length", str(len(raw)))
         self.end_headers()
         self.wfile.write(raw)
+
+    def _asset(self, rel):
+        if not _safe_rel(rel):
+            self._json(400, {"error": "invalid path"})
+            return
+        path = os.path.join(ASSETS, rel)
+        if not os.path.isfile(path):
+            self._json(404, {"error": "missing asset %s" % rel})
+            return
+        with open(path, "rb") as f:
+            self._send(200, MIME.get(rel.rsplit(".", 1)[-1], "application/octet-stream"), f.read())
 
     def _json(self, code, payload):
         self._send(code, "application/json; charset=utf-8", json.dumps(payload).encode("utf-8"))
@@ -162,6 +207,13 @@ class Handler(BaseHTTPRequestHandler):
         if parsed.path == "/":
             self._send(200, "text/plain", b"XScript mock device")
             return
+        asset = WEBSITE_ALIASES.get(parsed.path)
+        if asset or parsed.path in ("/tools", "/tools/") or parsed.path.startswith("/tools/ui/"):
+            self._asset(asset or ("index.html" if parsed.path in ("/tools", "/tools/") else parsed.path[len("/tools/ui/"):]))
+            return
+        if parsed.path == "/tools/snapshots":
+            self._json(200, {"snapshots": [_snap_info(s) for s in reversed(list(STATE["snapshots"]))]})
+            return
         if parsed.path.startswith("/tools/snapshots/") and parsed.path.endswith(".png"):
             snap = STATE["snapshots"].get(parsed.path[len("/tools/snapshots/"):-4])
             if snap is None:
@@ -183,10 +235,13 @@ class Handler(BaseHTTPRequestHandler):
                 self._json(404, {"error": "missing dataset"})
                 return
             if len(parts) == 1:
-                self._json(200, {"name": unquote(parts[0]), "classes": ds["classes"], "items": [
-                    {"id": i, "file": i + ".png", "boxes": len((it["label"] or {}).get("boxes", []))}
-                    for i, it in sorted(ds["items"].items())
-                ]})
+                self._json(200, _describe(unquote(parts[0])))
+                return
+            if len(parts) == 3 and parts[1] == "images" and parts[2] in ds["items"]:
+                self._send(200, "image/png", ds["items"][parts[2]]["image"])
+                return
+            if len(parts) == 3 and parts[1] == "labels" and parts[2] in ds["items"]:
+                self._json(200, ds["items"][parts[2]]["label"] or {"width": 0, "height": 0, "boxes": []})
                 return
             if parts[1] == "export":
                 buf = io.BytesIO()
@@ -244,7 +299,7 @@ class Handler(BaseHTTPRequestHandler):
             body = self._body()
             if parts[1:] == ["classes"]:
                 ds["classes"] = list(body.get("classes") or [])
-                self._json(200, {"name": unquote(parts[0]), "classes": ds["classes"], "items": []})
+                self._json(200, _describe(unquote(parts[0])))
                 return
             if len(parts) == 3 and parts[1] == "labels" and parts[2] in ds["items"]:
                 ds["items"][parts[2]]["label"] = body
@@ -301,9 +356,15 @@ class Handler(BaseHTTPRequestHandler):
     def do_POST(self):
         path = urlparse(self.path).path
         if path == "/tools/snapshots":
-            sid = "%d_%d" % (1790000000000 + len(STATE["snapshots"]), len(STATE["snapshots"]) % 1000)
-            STATE["snapshots"][sid] = SNAP_PNG
-            self._json(200, {"id": sid, "width": 1, "height": 1, "url": "/tools/snapshots/%s.png" % sid})
+            # Empty body: "capture" the 1x1 screen; a PNG body is an upload.
+            raw = self._raw_body()
+            if raw and _png_size(raw) is None:
+                self._json(400, {"error": "snapshot upload must be a PNG image"})
+                return
+            STATE["seq"] = STATE.get("seq", 0) + 1
+            sid = "%d_%d" % (1790000000000 + STATE["seq"], STATE["seq"] % 1000)
+            STATE["snapshots"][sid] = raw or SNAP_PNG
+            self._json(200, _snap_info(sid))
             return
         if path == "/tools/vision":
             body = self._body()
@@ -336,10 +397,23 @@ class Handler(BaseHTTPRequestHandler):
                 return
             ds = STATE["datasets"].get(name)
             if ds is not None and parts[1:] == ["images"]:
-                snap = STATE["snapshots"].get(self._body().get("snapshot"))
-                iid = "%06d" % (len(ds["items"]) + 1)
-                ds["items"][iid] = {"image": snap or SNAP_PNG, "label": None}
+                raw = self._raw_body()
+                if raw[:4] == b"\x89PNG" or raw[:3] == b"\xff\xd8\xff":
+                    image = raw
+                else:
+                    snap_id = (json.loads(raw.decode("utf-8")) if raw.strip() else {}).get("snapshot")
+                    image = STATE["snapshots"].get(snap_id) or SNAP_PNG
+                iid = "%06d" % (max([int(i) for i in ds["items"]] or [0]) + 1)
+                ds["items"][iid] = {"image": image, "label": None}
                 self._json(200, {"ok": True, "id": iid})
+                return
+            if ds is not None and parts[1:] == ["rename"]:
+                to = (self._body().get("to") or "").strip()
+                if not to or to in STATE["datasets"]:
+                    self._json(400, {"error": "bad or existing name"})
+                    return
+                STATE["datasets"][to] = STATE["datasets"].pop(name)
+                self._json(200, _describe(to))
                 return
         if path == "/eval":
             body = self._body()
@@ -383,6 +457,48 @@ class Handler(BaseHTTPRequestHandler):
             STATE["logs"].clear()
             self._json(200, {"ok": True})
             return
+        if path == "/tools/snapshots":
+            n = len(STATE["snapshots"])
+            STATE["snapshots"].clear()
+            self._json(200, {"ok": True, "deleted": n})
+            return
+        if path.startswith("/tools/snapshots/"):
+            sid = path[len("/tools/snapshots/"):].replace(".png", "")
+            self._json(200, {"ok": STATE["snapshots"].pop(sid, None) is not None})
+            return
+        if path.startswith("/tools/datasets/"):
+            parts = path.split("/")[3:]
+            name = unquote(parts[0])
+            ds = STATE["datasets"].get(name)
+            if ds is None:
+                self._json(404, {"error": "missing dataset"})
+                return
+            if len(parts) == 1:
+                del STATE["datasets"][name]
+                self._json(200, {"ok": True})
+                return
+            if len(parts) == 3 and parts[1] == "images":
+                self._json(200, {"ok": ds["items"].pop(parts[2], None) is not None})
+                return
+            if len(parts) == 3 and parts[1] == "labels" and parts[2] in ds["items"]:
+                had = ds["items"][parts[2]]["label"] is not None
+                ds["items"][parts[2]]["label"] = None
+                self._json(200, {"ok": had})
+                return
+            if len(parts) == 3 and parts[1] == "classes" and parts[2].isdigit():
+                idx = int(parts[2])
+                if idx >= len(ds["classes"]):
+                    self._json(400, {"error": "class index out of range"})
+                    return
+                ds["classes"].pop(idx)
+                for it in ds["items"].values():
+                    label = it["label"]
+                    if label:
+                        label["boxes"] = [dict(b, cls=b["cls"] - (b["cls"] > idx)) for b in label.get("boxes", []) if b["cls"] != idx]
+                self._json(200, _describe(name))
+                return
+            self._json(404, {"error": "not found"})
+            return
         name, sub = self._project_route()
         if name is not None and sub == "":
             if STATE["running"] == name:
@@ -404,7 +520,7 @@ def serve(host="127.0.0.1", port=0):
 
 
 if __name__ == "__main__":
-    server = serve("127.0.0.1", 9096)
+    server = serve("127.0.0.1", 9860)
     print("mock device on http://127.0.0.1:%d (local testing only)" % server.server_address[1])
     try:
         threading.Event().wait()

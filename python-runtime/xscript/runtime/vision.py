@@ -6,8 +6,8 @@ would get on the same frame. The device passes a JSON request:
     {"op": "find_colors", "image": "/abs/snapshot.png", "colors": "x,y,#RRGGBB|...",
      "rect": [l, t, r, b], "sim": 0.9}
 
-Ops: pixel, find_colors, compare_colors, find_image, ocr. All coordinates are screen
-pixels of the snapshot.
+Ops: pixel, find_colors, compare_colors (count_sim), find_image (ori), ocr (pattern,
+binary, confidence). All coordinates are screen pixels of the snapshot.
 """
 
 import base64
@@ -40,8 +40,7 @@ def run(req):
     elif op == "find_image":
         out = _find_image(src, req, rect)
     elif op == "ocr":
-        lines = _img.ocr(rect, image=src)
-        out = {"lines": [line.to_dict() for line in lines]}
+        out = _ocr(src, req, rect)
     else:
         raise ValueError("unknown op %r" % op)
     out["op"] = op
@@ -94,8 +93,25 @@ def _find_colors(src, req, rect):
     return {"points": [[p.x, p.y] for p in pts[:limit]], "truncated": len(pts) > limit}
 
 
+def _ocr(src, req, rect):
+    """ML Kit lines; optional `binary` threshold (0-255) and AScript-style regex `pattern`."""
+    binary = req.get("binary")
+    if binary is not None and int(binary) >= 0:
+        import cv2
+        gray = cv2.cvtColor(src, cv2.COLOR_BGR2GRAY)
+        _, bw = cv2.threshold(gray, int(binary), 255, cv2.THRESH_BINARY)
+        src = cv2.cvtColor(bw, cv2.COLOR_GRAY2BGR)
+    lines = _img.ocr(rect, image=src)
+    pattern = req.get("pattern") or None
+    lines = _img.ocr_filter(lines, pattern, float(req.get("confidence") or 0.0))
+    return {"lines": [line.to_dict() for line in lines]}
+
+
 def _compare_colors(src, req):
-    """Per-point detail so the tool can show which point failed and by how much."""
+    """Per-point detail so the tool can show which point failed and by how much.
+
+    `count_sim` (0..1) is AScript's 数量相似度: the share of points that must match.
+    """
     tol = _img.diff_from_similarity(float(req.get("sim", 0.9)))
     h, w = src.shape[:2]
     details = []
@@ -109,12 +125,23 @@ def _compare_colors(src, req):
             t = pdiff or tol
             ok = abs(r - rgb[0]) <= t[0] and abs(g - rgb[1]) <= t[1] and abs(b - rgb[2]) <= t[2]
         details.append({"x": x, "y": y, "expected": _hex(rgb), "actual": actual, "ok": ok})
-    return {"match": bool(details) and all(d["ok"] for d in details), "details": details}
+    need = max(1, int(round(len(details) * float(req.get("count_sim", 1.0)))))
+    hits = sum(1 for d in details if d["ok"])
+    return {"match": bool(details) and hits >= need, "hits": hits, "need": need, "details": details}
 
 
 def _find_image(src, req, rect):
     """Template from a project file (`template_path`) or a region of this snapshot (`template_rect`)."""
-    if req.get("template_path"):
+    if req.get("template_path") and req.get("template_rect"):
+        # A region of another snapshot.
+        tr = _rect(req.get("template_rect"))
+        if not tr:
+            raise ValueError("bad template_rect")
+        other = _load(req["template_path"])
+        tpl = other[tr[1]:tr[3], tr[0]:tr[2]].copy()
+        if tpl.size == 0:
+            raise ValueError("template_rect is outside the template image")
+    elif req.get("template_path"):
         tpl = req["template_path"]
     else:
         tr = _rect(req.get("template_rect"))
@@ -122,9 +149,11 @@ def _find_image(src, req, rect):
             raise ValueError("find_image needs template_path or template_rect")
         tpl = src[tr[1]:tr[3], tr[0]:tr[2]].copy()
     scale = req.get("scale_range")
+    ori = req.get("ori")
     hits = _img.find_templates(
         tpl, rect, float(req.get("confidence", 0.8)), bool(req.get("rgb", False)),
         int(req.get("maxcnt", 10)), scale if scale else None, image=src,
+        ori=int(ori) if ori else None,
     )
     out = []
     for h in hits:

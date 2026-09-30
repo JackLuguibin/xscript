@@ -16,8 +16,11 @@ import java.io.File
  * Developer tools served from the device (图色工具, 标注工具, 投屏):
  *
  *   GET  /tools/                         tool pages (assets/tools/)
- *   POST /tools/snapshots                freeze the current screen → {id, width, height, url}
+ *   GET  /website/src/{screen,label}.html  AScript URL aliases for 图色工具 / 标注工具
+ *   POST /tools/snapshots                freeze the current screen → {id, width, height, url};
+ *                                        with a PNG body, store that image as a snapshot instead
  *   GET  /tools/snapshots                recent snapshots
+ *   DELETE /tools/snapshots[/<id>]       delete one snapshot, or all of them
  *   GET  /tools/snapshots/<id>.png       snapshot image
  *   POST /tools/snapshots/<id>/crop      save a region into a project (res/img/...)
  *   POST /tools/vision                   pixel / find_colors / compare_colors / find_image / ocr
@@ -31,14 +34,19 @@ class ToolsRouter(private val context: Context) {
     private val datasets = DatasetStore(File(context.getExternalFilesDir(null), "datasets"))
     private val projects = ProjectStore(context)
 
-    fun handles(path: String) = path == "/tools" || path.startsWith("/tools/")
+    fun handles(path: String) = path == "/tools" || path.startsWith("/tools/") || path in WEBSITE_ALIASES
 
     fun route(req: Request, p: String): Reply {
         val m = req.method
+        WEBSITE_ALIASES[p]?.let { if (m == "GET") return asset("/tools/ui/$it") }
         return when {
             m == "GET" && (p == "/tools" || p == "/tools/" || p.startsWith("/tools/ui/")) -> asset(p)
             m == "GET" && p == "/tools/snapshots" -> Reply.json(JSONObject().put("snapshots", snapshots.list()))
-            m == "POST" && p == "/tools/snapshots" -> snapshot()
+            m == "POST" && p == "/tools/snapshots" ->
+                if (req.body.isEmpty) snapshot() else Reply.json(snapshots.saveUpload(req.body.bytes()))
+            m == "DELETE" && p == "/tools/snapshots" -> Reply.json(JSONObject().put("ok", true).put("deleted", snapshots.clear()))
+            m == "DELETE" && p.startsWith("/tools/snapshots/") ->
+                Reply.json(JSONObject().put("ok", snapshots.delete(p.removePrefix("/tools/snapshots/").removeSuffix(".png"))))
             m == "GET" && p.startsWith("/tools/snapshots/") && p.endsWith(".png") -> {
                 val id = p.removePrefix("/tools/snapshots/").removeSuffix(".png")
                 val f = snapshots.file(id) ?: return notFound("missing snapshot")
@@ -106,7 +114,13 @@ class ToolsRouter(private val context: Context) {
         val req = JSONObject(body.toString()).put("image", file.absolutePath)
         req.remove("snapshot")
         val template = body.optString("template")
-        if (template.isNotEmpty()) {
+        val templateSnap = body.optString("template_snapshot")
+        if (templateSnap.isNotEmpty()) {
+            // Template = template_rect cut from another snapshot (the web tool keeps crops across tabs).
+            val f = snapshots.file(templateSnap) ?: return notFound("missing template snapshot")
+            req.put("template_path", f.absolutePath)
+            req.remove("template_snapshot")
+        } else if (template.isNotEmpty()) {
             val project = template.substringBefore(':')
             val rel = template.substringAfter(':', "")
             require(projects.exists(project) && rel.isNotEmpty()) { "template must be <project>:<path>" }
@@ -130,15 +144,18 @@ class ToolsRouter(private val context: Context) {
     //   POST   /tools/datasets/<name>                  create
     //   DELETE /tools/datasets/<name>                  delete
     //   GET    /tools/datasets/<name>                  classes + items
+    //   POST   /tools/datasets/<name>/rename           {"to": "new_name"}
     //   PUT    /tools/datasets/<name>/classes          {"classes": [...]}
+    //   DELETE /tools/datasets/<name>/classes/<index>  drop a class and its boxes, shift later indices
     //   POST   /tools/datasets/<name>/images           body = PNG/JPEG bytes, or {"snapshot": id}
     //   GET    /tools/datasets/<name>/images/<id>      image bytes
     //   DELETE /tools/datasets/<name>/images/<id>
     //   GET    /tools/datasets/<name>/labels/<id>      {"width","height","boxes":[{"cls","rect"}]}
     //   PUT    /tools/datasets/<name>/labels/<id>
+    //   DELETE /tools/datasets/<name>/labels/<id>      back to unlabelled
     //   GET    /tools/datasets/<name>/export           YOLO zip (images/, labels/, data.yaml)
 
-    private val datasetRoute = Regex("^/tools/datasets/([^/]+)(?:/(classes|images|labels|export)(?:/([^/]+))?)?$")
+    private val datasetRoute = Regex("^/tools/datasets/([^/]+)(?:/(classes|images|labels|export|rename)(?:/([^/]+))?)?$")
 
     private fun datasets(req: Request, p: String): Reply {
         val m = req.method
@@ -154,8 +171,13 @@ class ToolsRouter(private val context: Context) {
             section.isEmpty() && m == "POST" -> Reply.json(datasets.create(name))
             section.isEmpty() && m == "GET" -> Reply.json(datasets.describe(name))
             section.isEmpty() && m == "DELETE" -> Reply.json(JSONObject().put("ok", datasets.delete(name)))
-            section == "classes" && m == "PUT" ->
+            section == "rename" && m == "POST" -> Reply.json(datasets.rename(name, req.json().optString("to").trim()))
+            section == "classes" && id.isEmpty() && m == "PUT" ->
                 Reply.json(datasets.setClasses(name, req.json().optJSONArray("classes") ?: JSONArray()))
+            section == "classes" && id.isNotEmpty() && m == "DELETE" -> {
+                val index = id.toIntOrNull() ?: throw IllegalArgumentException("class index must be a number")
+                Reply.json(datasets.deleteClass(name, index))
+            }
             section == "images" && id.isEmpty() && m == "POST" -> addImage(name, req)
             section == "images" && id.isNotEmpty() && m == "GET" -> {
                 val f = datasets.imageFile(name, id) ?: return notFound("missing image")
@@ -165,6 +187,8 @@ class ToolsRouter(private val context: Context) {
                 Reply.json(JSONObject().put("ok", datasets.deleteImage(name, id)))
             section == "labels" && id.isNotEmpty() && m == "GET" -> Reply.json(datasets.label(name, id))
             section == "labels" && id.isNotEmpty() && m == "PUT" -> Reply.json(datasets.saveLabel(name, id, req.json()))
+            section == "labels" && id.isNotEmpty() && m == "DELETE" ->
+                Reply.json(JSONObject().put("ok", datasets.deleteLabel(name, id)))
             section == "export" && m == "GET" -> {
                 val tmp = File.createTempFile("yolo", ".zip", context.cacheDir)
                 try {
@@ -220,4 +244,15 @@ class ToolsRouter(private val context: Context) {
     }
 
     private fun notFound(msg: String) = Reply.json(JSONObject().put("error", msg), 404)
+
+    companion object {
+        /**
+         * AScript's tool URLs, so bookmarks such as /website/src/screen.html?plug=FindColors open the
+         * matching XScript page. Pages load their scripts from absolute /tools/ui/ paths.
+         */
+        val WEBSITE_ALIASES = mapOf(
+            "/website/src/screen.html" to "color.html",
+            "/website/src/label.html" to "label.html",
+        )
+    }
 }

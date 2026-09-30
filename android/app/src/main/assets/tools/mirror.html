@@ -4,19 +4,19 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>投屏 · XScript</title>
+<script>
+  (function () {
+    var m = localStorage.getItem("xs-theme");
+    var dark = m === "dark" || (m !== "light" && matchMedia("(prefers-color-scheme: dark)").matches);
+    document.documentElement.dataset.theme = dark ? "dark" : "light";
+  })();
+</script>
 <link rel="stylesheet" href="/tools/ui/tools.css">
 </head>
-<body>
-<header class="top">
-  <h1>投屏</h1>
-  <nav aria-label="工具">
-    <a href="/tools/">首页</a>
-    <a href="/tools/ui/color.html">图色工具</a>
-    <a href="/tools/ui/label.html">标注工具</a>
-    <a href="/tools/ui/mirror.html" aria-current="page">投屏</a>
-  </nav>
-  <span class="spacer"></span>
-  <div class="mirror-bar">
+<body class="xs-shell">
+<header class="xs-appbar" data-page="mirror"></header>
+<div class="mirror-page xs-page">
+  <div class="mirror-bar" role="toolbar" aria-label="投屏">
     <label>清晰度
       <select id="preset" aria-label="投屏清晰度">
         <option value="scale=0.35&quality=40&fps=8">流畅</option>
@@ -25,16 +25,21 @@
       </select>
     </label>
     <label><input id="control" type="checkbox" checked> 允许操控</label>
+    <span class="sep"></span>
     <button type="button" data-key="back">返回</button>
     <button type="button" data-key="home">主页</button>
     <button type="button" data-key="recents">最近任务</button>
+    <span class="sep"></span>
     <button id="toggle" type="button">暂停</button>
+    <span class="spacer"></span>
+    <button id="to-color" type="button" title="截取当前画面，在图色工具中取色 / 找图"><i data-i="palette"></i> 截图到图色工具</button>
+    <button id="to-label" type="button" title="截取当前画面，加入标注工具的当前数据集"><i data-i="tag"></i> 截图到标注</button>
   </div>
-</header>
-<main class="mirror">
-  <img id="screen" alt="手机屏幕实时画面" draggable="false">
-</main>
-<div class="hint" id="hint" role="status" aria-live="polite" style="position:fixed;left:8px;bottom:8px;padding:4px 8px;border-radius:4px;background:rgba(0,0,0,.6);color:#fff;font-size:12px"></div>
+  <main class="mirror">
+    <img id="screen" alt="手机屏幕实时画面" draggable="false">
+    <div class="mirror-hint" id="hint" role="status" aria-live="polite"></div>
+  </main>
+</div>
 <script src="/tools/ui/common.js"></script>
 <script>
 "use strict";
@@ -111,6 +116,26 @@ img.addEventListener("pointerup", (e) => {
 img.addEventListener("pointercancel", () => (down = null));
 
 document.querySelectorAll("[data-key]").forEach((b) => (b.onclick = () => act({ type: "key", name: b.dataset.key })));
+
+/** Freeze the current screen as a snapshot and hand it to 图色工具 / 标注工具. */
+async function handOff(btn, page) {
+  btn.disabled = true;
+  hint.textContent = "截图中…";
+  try {
+    const snap = await XS.api("POST", "/tools/snapshots");
+    stop();
+    const t = new Date().toLocaleTimeString("zh-CN", { hour12: false });
+    await XS.go("/tools/ui/" + page + "?snapshot=" + encodeURIComponent(snap.id) + "&name=" + encodeURIComponent("投屏 " + t));
+  } catch (e) {
+    hint.textContent = /capture_unavailable/.test(e.message) ? "截图不可用：请在 XScript App 中开启截图权限" : "截图失败：" + e.message;
+  } finally {
+    btn.disabled = false;
+  }
+}
+document.getElementById("to-color").onclick = (e) => handOff(e.currentTarget, "color.html");
+document.getElementById("to-label").onclick = (e) => handOff(e.currentTarget, "label.html");
+// Stop the MJPEG stream before switching tools so the device stops encoding frames.
+XS.onLeave(() => running && stop());
 document.getElementById("toggle").onclick = () => (running ? stop() : start());
 document.getElementById("preset").onchange = () => running && start();
 document.addEventListener("visibilitychange", () => {

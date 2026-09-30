@@ -53,17 +53,64 @@ class DatasetStore(val root: File) {
     fun describe(name: String): JSONObject {
         val d = requireDataset(name)
         val items = JSONArray()
+        val classes = meta(name).getJSONArray("classes")
+        val counts = IntArray(classes.length())
         images(d).forEach { f ->
             val id = f.nameWithoutExtension
             val label = readLabel(d, id)
+            val boxes = label?.optJSONArray("boxes")
+            if (boxes != null) {
+                for (i in 0 until boxes.length()) {
+                    val c = boxes.getJSONObject(i).optInt("cls", -1)
+                    if (c in counts.indices) counts[c]++
+                }
+            }
             items.put(
                 JSONObject()
                     .put("id", id)
                     .put("file", f.name)
-                    .put("boxes", label?.optJSONArray("boxes")?.length() ?: 0),
+                    .put("labeled", label != null)
+                    .put("boxes", boxes?.length() ?: 0),
             )
         }
-        return JSONObject().put("name", name).put("classes", meta(name).getJSONArray("classes")).put("items", items)
+        return JSONObject().put("name", name).put("classes", classes)
+            .put("counts", JSONArray(counts.toList())).put("items", items)
+    }
+
+    /** Rename a dataset directory. The new name must be valid and unused. */
+    fun rename(name: String, to: String): JSONObject {
+        val src = requireDataset(name)
+        val dst = dir(to)
+        require(!dst.exists()) { "dataset $to already exists" }
+        require(src.renameTo(dst)) { "cannot rename $name" }
+        return describe(to)
+    }
+
+    /**
+     * Drop class [index]: boxes of that class are deleted and higher indices shift down by one,
+     * so the remaining labels keep pointing at the same names.
+     */
+    fun deleteClass(name: String, index: Int): JSONObject {
+        val d = requireDataset(name)
+        val classes = meta(name).getJSONArray("classes")
+        require(index in 0 until classes.length()) { "class index $index out of range" }
+        File(d, "labels").listFiles()?.filter { it.extension == "json" }?.forEach { f ->
+            val label = JSONObject(f.readText())
+            val boxes = label.optJSONArray("boxes") ?: return@forEach
+            val kept = JSONArray()
+            for (i in 0 until boxes.length()) {
+                val b = boxes.getJSONObject(i)
+                val c = b.optInt("cls", -1)
+                if (c == index) continue
+                if (c > index) b.put("cls", c - 1)
+                kept.put(b)
+            }
+            f.writeText(label.put("boxes", kept).toString())
+        }
+        val next = JSONArray()
+        for (i in 0 until classes.length()) if (i != index) next.put(classes.getString(i))
+        writeMeta(name, next)
+        return describe(name)
     }
 
     /**
@@ -114,6 +161,13 @@ class DatasetStore(val root: File) {
         requireId(id)
         require(imageFile(name, id) != null) { "missing image $id" }
         return readLabel(d, id) ?: JSONObject().put("width", 0).put("height", 0).put("boxes", JSONArray())
+    }
+
+    /** Drop the label file so the image counts as unlabelled again (not a negative sample). */
+    fun deleteLabel(name: String, id: String): Boolean {
+        val d = requireDataset(name)
+        requireId(id)
+        return File(d, "labels/$id.json").delete()
     }
 
     /**

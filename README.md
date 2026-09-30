@@ -3,7 +3,7 @@
 XScript is an Android Python automation app in the style of AScript. It runs Python scripts on the phone, and AScript scripts run unchanged. You write the script on a computer (or with Cursor through MCP), push it to the phone, and it runs on-device.
 
 ```
-Cursor / MCP / browser  →  HTTP :9096 (or :9097)  →  XScript app  →  accessibility / root + Python 3.10
+Cursor / MCP / browser  →  HTTP :9860  →  XScript app  →  accessibility / root + Python 3.10
 Cloud control server    ←  WebSocket (device dials out)  ↗
 ```
 
@@ -47,14 +47,15 @@ Cloud control server    ←  WebSocket (device dials out)  ↗
 adb install -r android/app/build/outputs/apk/debug/app-debug.apk
 ```
 
-Open **XScript** on the phone and grant accessibility, the overlay (悬浮窗) permission, and root if you have it. The **开发者地址** row shows `http://<ip>:<port>/`. The port is 9096, or 9097 when AScript already holds 9096.
+Open **XScript** on the phone and grant accessibility, the overlay (悬浮窗) permission, and root if you have it. The **开发者地址** row shows `http://<ip>:<port>/`. The port is 9860 (AScript uses 9096, so both apps can run side by side). If 9860 is taken the app uses the next free port up to 9869.
 
 ```bash
-adb forward tcp:9096 tcp:9096          # use the port shown in the app
-curl http://127.0.0.1:9096/status
+adb connect 127.0.0.1:16384            # MuMu emulator only
+adb forward tcp:9860 tcp:9860          # use the port shown in the app; add -s <serial> with several devices
+curl http://127.0.0.1:9860/status
 ```
 
-See [docs/GETTING_STARTED.md](docs/GETTING_STARTED.md) for the MCP setup, emulator notes (MuMu), and test commands.
+The forward is lost whenever the emulator or adb restarts, so rerun these two adb commands. See [Connecting to the device](docs/GETTING_STARTED.md#connecting-to-the-device) for troubleshooting, and [docs/GETTING_STARTED.md](docs/GETTING_STARTED.md) for the MCP setup, emulator notes (MuMu), and test commands.
 
 ## Script shape
 

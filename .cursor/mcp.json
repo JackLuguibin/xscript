@@ -1,10 +1,10 @@
 {
   "mcpServers": {
     "xscript": {
-      "command": "python3.12",
+      "command": "${workspaceFolder}/.venv/bin/python",
       "args": ["-m", "xscript_mcp"],
       "env": {
-        "XSCRIPT_DEVICE": "127.0.0.1:9096"
+        "XSCRIPT_DEVICE": "127.0.0.1:9860"
       }
     }
   }

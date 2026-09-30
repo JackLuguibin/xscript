@@ -16,7 +16,7 @@ flowchart LR
 
     subgraph Phone["Android 设备 (com.xscript.app)"]
         subgraph Main["主进程"]
-            HTTP["DeviceHttpService<br/>NanoHTTPD :9096~9105"]
+            HTTP["DeviceHttpService<br/>NanoHTTPD :9860~9869"]
             WS["CloudClient<br/>OkHttp WebSocket"]
             Router["ApiRouter"]
             Auto["Automation<br/>(通道路由)"]
@@ -184,7 +184,7 @@ sequenceDiagram
 
 **HTTP 服务**（`DeviceHttpServer` / `DeviceHttpService`）：
 
-- 作为前台服务运行（`dataSync | mediaProjection`），监听 `0.0.0.0`，从 9096 起向上找空闲端口直到 9105（AScript 默认也占 9096）。
+- 作为前台服务运行（`dataSync | mediaProjection`），监听 `0.0.0.0`，默认端口 9860，被占用时依次尝试到 9869。刻意避开 AScript 的 9096 及其备用端口，两个 App 可以同时安装、同时运行，`adb forward` 也不会转到错误的 App。
 - **无鉴权**：任何能访问端口的人都可以调用全部接口。
 - **无 CORS 头**：不发送 `Access-Control-Allow-*`，其他网站的页面无法读取接口响应。设备自带的开发工具页面（`/tools/`）与接口同源，不受影响。
 - **请求体**：上限 200 MB，先校验 `Content-Length`。4 MB 以内放内存，更大的写入 `cacheDir/http-spool` 临时文件，交给路由时以流读取，请求结束后删除。仍然不用 NanoHTTPD 的 `parseBody`，避免破坏二进制上传。

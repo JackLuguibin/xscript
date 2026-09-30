@@ -10,7 +10,7 @@ from urllib.parse import quote
 
 import httpx
 
-DEFAULT_PORT = 9096
+DEFAULT_PORT = 9860  # XScript's port; AScript uses 9096
 CLIENT_HEADER = {"X-XScript-Client": "mcp"}
 
 # Directories never worth shipping to the phone.

@@ -4,98 +4,123 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>图色工具 · XScript</title>
+<script>
+  // Set the theme before first paint so dark mode does not flash.
+  (function () {
+    var m = localStorage.getItem("xs-theme");
+    var dark = m === "dark" || (m !== "light" && matchMedia("(prefers-color-scheme: dark)").matches);
+    document.documentElement.dataset.theme = dark ? "dark" : "light";
+  })();
+</script>
 <link rel="stylesheet" href="/tools/ui/tools.css">
+<link rel="stylesheet" href="/tools/ui/color.css">
 </head>
-<body>
-<header class="top">
-  <h1>图色工具</h1>
-  <nav aria-label="工具">
-    <a href="/tools/">首页</a>
-    <a href="/tools/ui/color.html" aria-current="page">图色工具</a>
-    <a href="/tools/ui/label.html">标注工具</a>
-    <a href="/tools/ui/mirror.html">投屏</a>
+<body class="xs-shell">
+<header class="xs-appbar" data-page="color"></header>
+<div class="app xs-page">
+  <!-- Left icon toolbar -->
+  <nav class="rail" aria-label="图色工具栏">
+    <button id="btn-capture" class="rail-btn" type="button" title="截图 (S)" aria-label="截图"><i data-i="camera"></i></button>
+    <button id="btn-upload" class="rail-btn" type="button" title="上传图片（也可拖拽或粘贴到画布）" aria-label="上传图片"><i data-i="upload"></i></button>
+    <button id="btn-gallery" class="rail-btn" type="button" title="缓存截图 (Esc)" aria-label="缓存截图"><i data-i="images"></i></button>
+    <span class="rail-sep"></span>
+    <button id="btn-fit" class="rail-btn" type="button" title="适应窗口 (F)" aria-label="适应窗口"><i data-i="fit"></i></button>
+    <button id="btn-clear-marks" class="rail-btn" type="button" title="清空标记" aria-label="清空标记"><i data-i="slash"></i></button>
+    <span class="spacer"></span>
+    <button id="btn-to-label" class="rail-btn" type="button" title="把当前截图加入标注数据集" aria-label="把当前截图加入标注数据集" disabled><i data-i="folder-plus"></i></button>
   </nav>
-  <span class="spacer"></span>
-  <button id="snap" class="primary" type="button">截图</button>
-  <label>模式
-    <select id="mode" aria-label="鼠标模式">
-      <option value="pick">取色（点击）</option>
-      <option value="rect">框选区域（拖动）</option>
-    </select>
-  </label>
-  <button id="fit" type="button" title="适应窗口">适应</button>
-</header>
-<div class="layout">
-  <div class="stage">
-    <canvas id="view" aria-label="截图画布：点击取色，拖动框选"></canvas>
-    <div class="hint" id="hint">点“截图”获取当前屏幕。滚轮缩放，按住空格拖动平移。</div>
-  </div>
-  <aside class="side">
-    <section aria-labelledby="h-cur">
-      <h2 id="h-cur">当前像素</h2>
-      <div class="loupe">
-        <canvas id="loupe" width="11" height="11" aria-hidden="true"></canvas>
-        <div>
-          <div class="mono" id="cur-pos">x -, y -</div>
-          <div class="mono" id="cur-color">#------</div>
-          <div class="status" id="snap-info"></div>
+  <input id="file" type="file" accept="image/*" multiple hidden>
+
+  <!-- Image area -->
+  <section class="viewer" aria-label="截图预览">
+    <div class="tabs-row">
+      <div class="tabs" id="tabs" role="tablist" aria-label="打开的截图"></div>
+      <button class="icon-btn sm" id="btn-close-tabs" type="button" title="关闭全部标签" aria-label="关闭全部标签"><i data-i="x"></i></button>
+    </div>
+    <div class="stage" id="stage">
+      <canvas class="view" id="view" aria-label="截图画布：左键拖拽框选，右键拖拽平移，滚轮缩放，数字键取色"></canvas>
+      <div class="sel-info" id="sel-info" hidden>
+        <i data-i="box"></i><span class="muted">选区</span><span class="mono" id="sel-text"></span>
+        <button class="icon-btn sm" id="sel-copy" type="button" title="复制选区" aria-label="复制选区"><i data-i="copy"></i></button>
+        <button class="icon-btn sm" id="sel-clear" type="button" title="清除选区 (Delete)" aria-label="清除选区"><i data-i="x"></i></button>
+      </div>
+      <div class="stage-empty" id="empty">
+        <i data-i="image"></i>
+        <div class="title">截图或上传一张图片开始</div>
+        <div class="muted">支持拖拽、粘贴（Ctrl/⌘ + V）多张图片</div>
+        <div class="btns">
+          <button class="primary" type="button" id="empty-capture"><i data-i="camera"></i> 截图</button>
+          <button type="button" id="empty-upload"><i data-i="upload"></i> 上传图片</button>
+          <button type="button" id="empty-gallery"><i data-i="images"></i> 缓存截图</button>
+        </div>
+        <div class="keys">
+          <kbd>左键拖拽</kbd><span>框选区域（拖动手柄调整）</span>
+          <kbd>右键拖拽</kbd><span>平移画布</span>
+          <kbd>滚轮</kbd><span>缩放</span>
+          <kbd>1 - 9</kbd><span>取色到对应槽位</span>
         </div>
       </div>
-    </section>
+      <div class="help-wrap" id="help" hidden>
+        <button type="button" aria-label="操作指南"><i data-i="help"></i></button>
+        <div class="help-panel" role="tooltip">
+          <div class="t">操作指南</div>
+          <div><kbd>左键拖拽</kbd><span>框选区域，拖手柄调整，拖内部移动</span></div>
+          <div><kbd>左键单击</kbd><span>取色到下一个空槽位（找色 / 比色）</span></div>
+          <div><kbd>右键拖拽</kbd> / <kbd>空格</kbd>+拖拽<span>平移画布</span></div>
+          <div><kbd>右键单击</kbd><span>复制坐标、颜色</span></div>
+          <div><kbd>滚轮</kbd> / <kbd>+</kbd> <kbd>-</kbd><span>缩放</span></div>
+          <div><kbd>双击</kbd><span>放大到选区 / 恢复全图</span></div>
+          <div><kbd>1 - 9</kbd><span>取鼠标处颜色到对应槽位</span></div>
+          <div><kbd>方向键</kbd><span>移动选区，Shift 每次 10 像素</span></div>
+          <div><kbd>F</kbd><span>适应窗口</span> <kbd>S</kbd><span>截图</span></div>
+          <div><kbd>Delete</kbd><span>清除选区</span></div>
+          <div><kbd>Esc</kbd><span>打开 / 关闭缓存截图</span></div>
+        </div>
+      </div>
+      <div class="zoom-bar" id="zoom-bar" hidden>
+        <button class="icon-btn sm" type="button" id="zoom-out" title="缩小 (-)" aria-label="缩小">−</button>
+        <button class="zoom-text" type="button" id="zoom-text" title="适应窗口 (F)">100%</button>
+        <button class="icon-btn sm" type="button" id="zoom-in" title="放大 (+)" aria-label="放大">+</button>
+      </div>
+      <div class="loading" id="loading" hidden><span class="spin"></span><span id="loading-text">截图中…</span></div>
 
-    <section aria-labelledby="h-pts">
-      <h2 id="h-pts">颜色点（点击画面添加）</h2>
-      <table class="list" aria-describedby="h-pts">
-        <thead><tr><th>#</th><th>坐标</th><th>颜色</th><th><span class="sr-only">操作</span></th></tr></thead>
-        <tbody id="points"></tbody>
-      </table>
-      <div class="row" style="margin-top:8px">
-        <label>偏色 <input id="delta" type="text" value="" placeholder="如 101010" size="7" aria-label="每个点的偏色（可选，十六进制）"></label>
-        <button id="clear" type="button">清空</button>
+      <!-- Cached snapshots -->
+      <div class="gallery" id="gallery" hidden role="dialog" aria-label="缓存截图">
+        <div class="panel-header">
+          <button class="icon-btn sm" type="button" id="gallery-close" title="关闭 (Esc)" aria-label="关闭"><i data-i="x"></i></button>
+          <span>缓存截图</span><span class="count" id="gallery-count"></span>
+          <div class="actions">
+            <button class="ghost danger" type="button" id="gallery-clear"><i data-i="trash"></i> 清空</button>
+          </div>
+        </div>
+        <div class="gallery-grid" id="gallery-grid"></div>
       </div>
-      <label for="colors" class="sr-only">颜色特征串</label>
-      <textarea id="colors" rows="3" placeholder="x,y,#RRGGBB|x,y,#RRGGBB"></textarea>
-      <div class="row">
-        <button id="copy-colors" type="button">复制特征串</button>
-        <button id="copy-find" type="button">复制找色代码</button>
-        <button id="copy-compare" type="button">复制比色代码</button>
-      </div>
-    </section>
+    </div>
+    <div class="statusbar" aria-live="off">
+      <span class="item"><i data-i="image"></i><span class="mono" id="st-size">-</span></span>
+      <span class="item"><i data-i="crosshair"></i><span class="swatch" id="st-swatch"></span><span class="mono" id="st-cursor">-</span></span>
+      <span class="item"><i data-i="box"></i><span class="mono" id="st-sel">-</span></span>
+      <span class="spacer"></span>
+      <span class="item mono" id="st-zoom"></span>
+    </div>
+  </section>
 
-    <section aria-labelledby="h-rect">
-      <h2 id="h-rect">区域</h2>
-      <div class="mono" id="rect-text">未框选</div>
-      <div class="row" style="margin-top:6px">
-        <button id="copy-rect" type="button">复制 rect</button>
-        <button id="clear-rect" type="button">清除</button>
-      </div>
-      <div class="row">
-        <label>工程 <select id="project" aria-label="保存到的工程"></select></label>
-      </div>
-      <div class="row">
-        <label>文件 <input id="crop-path" type="text" value="res/img/tpl.png" size="18" aria-label="模板图在工程内的路径"></label>
-        <button id="crop" type="button">保存模板图</button>
-      </div>
-    </section>
+  <div class="splitter" id="splitter" role="separator" aria-orientation="vertical" aria-label="调整面板宽度" tabindex="0"></div>
 
-    <section aria-labelledby="h-test">
-      <h2 id="h-test">测试（在当前截图上执行）</h2>
-      <div class="row">
-        <label>相似度 <input id="sim" type="number" min="0.5" max="1" step="0.01" value="0.9"></label>
-        <label><input id="use-rect" type="checkbox" checked> 限定区域</label>
-      </div>
-      <div class="row">
-        <button id="t-find" type="button">多点找色</button>
-        <button id="t-compare" type="button">多点比色</button>
-        <button id="t-image" type="button">找图（区域作模板）</button>
-        <button id="t-ocr" type="button">OCR</button>
-      </div>
-      <div class="status" id="test-status" role="status" aria-live="polite"></div>
-      <pre id="test-out" class="mono" style="white-space:pre-wrap;max-height:240px;overflow:auto;margin:0"></pre>
-    </section>
+  <!-- Plugin list -->
+  <aside class="plugs" aria-label="工具列表">
+    <div class="panel-header"><i data-i="puzzle"></i><span>工具列表</span></div>
+    <div class="plug-group"><i data-i="palette"></i> 图色工具</div>
+    <div id="plug-list" role="tablist" aria-orientation="vertical"></div>
   </aside>
+
+  <!-- Plugin panel -->
+  <main class="plug-panel" id="plug-panel" aria-live="polite"></main>
 </div>
+
 <script src="/tools/ui/common.js"></script>
+<script src="/tools/ui/plug-colors.js"></script>
+<script src="/tools/ui/plug-image.js"></script>
 <script src="/tools/ui/color.js"></script>
 </body>
 </html>

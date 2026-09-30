@@ -11,7 +11,7 @@ import java.io.FileOutputStream
 import java.io.InputStream
 
 /**
- * LAN HTTP server on :9096. All logic lives in [ApiRouter]; this class handles transport
+ * LAN HTTP server on :9860. All logic lives in [ApiRouter]; this class handles transport
  * concerns: body spooling and streaming file replies. There is no authentication.
  *
  * No CORS headers are sent. Only native clients (MCP, curl, scripts) are expected, and

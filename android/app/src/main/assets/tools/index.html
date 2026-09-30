@@ -4,32 +4,45 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>XScript 开发工具</title>
+<script>
+  (function () {
+    var m = localStorage.getItem("xs-theme");
+    var dark = m === "dark" || (m !== "light" && matchMedia("(prefers-color-scheme: dark)").matches);
+    document.documentElement.dataset.theme = dark ? "dark" : "light";
+  })();
+</script>
 <link rel="stylesheet" href="/tools/ui/tools.css">
 </head>
-<body>
-<header class="top">
-  <h1>XScript 开发工具</h1>
-  <nav aria-label="工具">
-    <a href="/tools/" aria-current="page">首页</a>
-    <a href="/tools/ui/color.html">图色工具</a>
-    <a href="/tools/ui/label.html">标注工具</a>
-    <a href="/tools/ui/mirror.html">投屏</a>
-  </nav>
-</header>
-<main class="cards">
-  <a class="card" href="/tools/ui/color.html">
-    <h2>图色工具</h2>
-    <p>截图取色、生成多点找色 / 比色特征串，框选区域裁剪模板图到工程，并在同一帧上测试找色、比色、找图与 OCR。</p>
-  </a>
-  <a class="card" href="/tools/ui/label.html">
-    <h2>标注工具</h2>
-    <p>把截图加入数据集，框选目标并标注类别，导出 YOLO 训练集（images / labels / data.yaml）。</p>
-  </a>
-  <a class="card" href="/tools/ui/mirror.html">
-    <h2>投屏</h2>
-    <p>浏览器实时查看手机屏幕，点击画面即点击手机，拖动即滑动，支持返回 / 主页 / 最近任务。</p>
-  </a>
+<body class="xs-shell xs-scroll">
+<header class="xs-appbar" data-page="home"></header>
+<main class="home">
+  <div class="home-head">
+    <h1>开发工具</h1>
+    <span class="muted" id="home-dev">正在连接设备…</span>
+  </div>
+  <div class="cards" id="cards"></div>
+  <p class="note">任意页面顶部的导航栏都可以切换工具，也可以按 <kbd id="k1"></kbd> <kbd id="k2"></kbd> <kbd id="k3"></kbd> 直接跳转，<kbd id="k0"></kbd> 回到首页。
+    AScript 的地址 <code>/website/src/screen.html</code>、<code>/website/src/label.html</code> 也会打开对应工具。</p>
+  <p class="note">设备接口没有鉴权，请只在可信网络中使用，或通过 USB + <code>adb forward</code> 访问。</p>
 </main>
-<p style="padding:0 24px;color:#667085">设备接口没有鉴权，请只在可信网络中使用，或通过 USB + <code>adb forward</code> 访问。</p>
+<script src="/tools/ui/common.js"></script>
+<script>
+"use strict";
+const DESC = {
+  color: "多标签截图取色，多点找色 / 多点比色 / 找图 / 文字识别四个插件，在同一帧上测试并生成 AScript 或 XScript 代码。",
+  label: "截图、自动截图或导入文件夹到数据集，画框选类别，类别管理与负样本，一键导出 YOLO 训练集。",
+  mirror: "浏览器实时查看手机屏幕，点击画面即点击手机，拖动即滑动；可一键截图送到图色工具或标注工具。",
+};
+document.getElementById("cards").innerHTML = XS.TOOLS.map((t, i) =>
+  '<a class="card" href="' + t.href + '"><h2>' + XS.icon(t.icon) + " " + t.name + "</h2><p>" + DESC[t.id] + "</p>" +
+  '<div class="card-foot"><kbd>' + XS.navKey(i + 1) + '</kbd><span>快速切换</span><span class="go">打开 ' + XS.icon("right") + "</span></div></a>").join("");
+[0, 1, 2, 3].forEach((n) => (document.getElementById("k" + n).textContent = XS.navKey(n)));
+window.addEventListener("xs-device", (e) => {
+  const s = e.detail;
+  document.getElementById("home-dev").textContent = s
+    ? "已连接 " + (s.model || s.name) + " · Android " + s.release + " · " + s.width + "×" + s.height
+    : "设备离线：确认手机上 XScript 已打开，USB 连接时执行 adb forward";
+});
+</script>
 </body>
 </html>

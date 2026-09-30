@@ -38,7 +38,7 @@ class DeviceHttpService : Service() {
         }
     }
 
-    /** Bind the first free port from 9096 upward (AScript also listens on 9096 by default). */
+    /** Bind the first free port in DEFAULT_PORT..MAX_PORT (9860–9869, clear of AScript's 9096). */
     private fun startServer(): DeviceHttpServer? {
         for (port in NetworkInfo.DEFAULT_PORT..NetworkInfo.MAX_PORT) {
             val http = DeviceHttpServer(this, port)
@@ -106,7 +106,7 @@ class DeviceHttpService : Service() {
 
     companion object {
         private const val CHANNEL = "xscript.server"
-        private const val NOTIF_ID = 9096
+        private const val NOTIF_ID = 9860
         const val EXTRA_PROJECTION_CODE = "code"
         const val EXTRA_PROJECTION_DATA = "data"
 

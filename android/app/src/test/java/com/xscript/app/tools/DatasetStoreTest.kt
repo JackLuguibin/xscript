@@ -53,6 +53,19 @@ class DatasetStoreTest {
     }
 
     @Test
+    fun deleteLabelMakesImageUnlabelledAgain() {
+        store.create("btns")
+        store.setClasses("btns", JSONArray(listOf("ok")))
+        val id = store.addImage("btns", png, "png")
+        store.saveLabel("btns", id, label(10, 10))
+        assertTrue(store.describe("btns").getJSONArray("items").getJSONObject(0).getBoolean("labeled"))
+        assertTrue(store.deleteLabel("btns", id))
+        assertFalse(store.describe("btns").getJSONArray("items").getJSONObject(0).getBoolean("labeled"))
+        assertFalse(store.deleteLabel("btns", id))
+        assertThrows(IllegalArgumentException::class.java) { store.deleteLabel("btns", "../x") }
+    }
+
+    @Test
     fun createListAndDelete() {
         store.create("btns")
         assertEquals(1, store.list().length())
@@ -115,6 +128,35 @@ class DatasetStoreTest {
         // Renaming and dropping the unused tail are fine.
         store.setClasses("d", JSONArray(listOf("A", "B")))
         assertEquals("B", store.describe("d").getJSONArray("classes").getString(1))
+    }
+
+    @Test
+    fun deleteClassRemapsLabelsAndCounts() {
+        store.create("d")
+        store.setClasses("d", JSONArray(listOf("a", "b", "c")))
+        val id = store.addImage("d", png, "png")
+        store.saveLabel("d", id, label(10, 10, 0 to listOf(0, 0, 2, 2), 1 to listOf(1, 1, 3, 3), 2 to listOf(2, 2, 5, 5)))
+        val before = store.describe("d")
+        assertEquals(listOf(1, 1, 1), (0 until 3).map { before.getJSONArray("counts").getInt(it) })
+        assertTrue(before.getJSONArray("items").getJSONObject(0).getBoolean("labeled"))
+        val after = store.deleteClass("d", 1)
+        assertEquals(listOf("a", "c"), (0 until 2).map { after.getJSONArray("classes").getString(it) })
+        val boxes = store.label("d", id).getJSONArray("boxes")
+        assertEquals(listOf(0, 1), (0 until boxes.length()).map { boxes.getJSONObject(it).getInt("cls") })
+        assertEquals(listOf(2, 2, 5, 5), (0 until 4).map { boxes.getJSONObject(1).getJSONArray("rect").getInt(it) })
+        assertThrows(IllegalArgumentException::class.java) { store.deleteClass("d", 5) }
+    }
+
+    @Test
+    fun renameMovesDataset() {
+        store.create("old")
+        store.addImage("old", png, "png")
+        store.create("taken")
+        assertThrows(IllegalArgumentException::class.java) { store.rename("old", "taken") }
+        assertThrows(IllegalArgumentException::class.java) { store.rename("old", "../x") }
+        assertEquals(1, store.rename("old", "new").getJSONArray("items").length())
+        assertFalse(store.exists("old"))
+        assertTrue(store.exists("new"))
     }
 
     @Test

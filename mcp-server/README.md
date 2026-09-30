@@ -1,10 +1,10 @@
 # xscript-mcp
 
-Stdio MCP server for Cursor. It talks to the XScript device HTTP API on the port shown in the app (9096 by default, 9097 when AScript holds 9096). It works with both mcp 1.x (`FastMCP`) and 2.x (`MCPServer`).
+Stdio MCP server for Cursor. It talks to the XScript device HTTP API on the port shown in the app (9860 by default; AScript uses 9096). It works with both mcp 1.x (`FastMCP`) and 2.x (`MCPServer`).
 
 ```bash
 python3.12 -m venv .venv && .venv/bin/pip install -e .
-export XSCRIPT_DEVICE=127.0.0.1:9096
+export XSCRIPT_DEVICE=127.0.0.1:9860
 .venv/bin/python -m xscript_mcp
 ```
 
@@ -16,7 +16,7 @@ Cursor config:
     "xscript": {
       "command": "/absolute/path/to/.venv/bin/python",
       "args": ["-m", "xscript_mcp"],
-      "env": { "XSCRIPT_DEVICE": "127.0.0.1:9096" }
+      "env": { "XSCRIPT_DEVICE": "127.0.0.1:9860" }
     }
   }
 }

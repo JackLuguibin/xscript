@@ -4,65 +4,197 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>标注工具 · XScript</title>
+<script>
+  // Set the theme before first paint so dark mode does not flash.
+  (function () {
+    var m = localStorage.getItem("xs-theme");
+    var dark = m === "dark" || (m !== "light" && matchMedia("(prefers-color-scheme: dark)").matches);
+    document.documentElement.dataset.theme = dark ? "dark" : "light";
+  })();
+</script>
 <link rel="stylesheet" href="/tools/ui/tools.css">
+<link rel="stylesheet" href="/tools/ui/label.css">
 </head>
-<body>
-<header class="top">
-  <h1>标注工具</h1>
-  <nav aria-label="工具">
-    <a href="/tools/">首页</a>
-    <a href="/tools/ui/color.html">图色工具</a>
-    <a href="/tools/ui/label.html" aria-current="page">标注工具</a>
-    <a href="/tools/ui/mirror.html">投屏</a>
-  </nav>
-  <span class="spacer"></span>
-  <label>数据集 <select id="dataset" aria-label="数据集"></select></label>
-  <button id="new-ds" type="button">新建</button>
-  <button id="del-ds" type="button">删除</button>
-  <a id="export" class="btn" href="#" download>导出 YOLO</a>
-</header>
-<div class="layout">
-  <div class="stage">
-    <canvas id="view" aria-label="标注画布：拖动画框"></canvas>
-    <div class="hint" id="hint">新建或选择一个数据集，再点“截图加入”。</div>
+<body class="xs-shell">
+<header class="xs-appbar" data-page="label"></header>
+<div class="label-app xs-page">
+  <!-- Dataset toolbar -->
+  <div class="lb-nav" role="toolbar" aria-label="数据集">
+    <div class="lb-nav-left">
+      <button type="button" class="nav-btn" id="btn-new-ds" title="新建数据集"><i data-i="plus"></i><span>新建</span></button>
+      <button type="button" class="nav-btn" id="btn-upload-dir" title="选择文件夹，导入其中的 PNG / JPEG 图片"><i data-i="folder-plus"></i><span>导入文件夹</span></button>
+      <span class="sep"></span>
+      <a class="nav-btn" id="btn-export" href="#" download title="导出 YOLO 训练集：images/ labels/ data.yaml"><i data-i="package"></i><span>导出 YOLO</span></a>
+    </div>
+
+    <div class="lb-nav-center">
+      <div class="ds-picker">
+        <button type="button" class="ds-btn" id="ds-btn" aria-haspopup="listbox" aria-expanded="false">
+          <i data-i="layers"></i><span id="ds-name">选择数据集</span><span class="ds-count" id="ds-count"></span><i data-i="down"></i>
+        </button>
+        <div class="ds-menu" id="ds-menu" role="listbox" aria-label="数据集" hidden></div>
+      </div>
+      <button type="button" class="icon-btn" id="btn-rename-ds" title="重命名数据集" aria-label="重命名数据集"><i data-i="pencil"></i></button>
+      <button type="button" class="icon-btn danger" id="btn-del-ds" title="删除数据集" aria-label="删除数据集"><i data-i="trash"></i></button>
+    </div>
+
+    <div class="lb-nav-right">
+      <button type="button" class="nav-btn" id="btn-to-color" title="在图色工具中打开当前图片（取色 / 找图）" disabled><i data-i="palette"></i><span>图色分析</span></button>
+      <span class="sep"></span>
+      <button type="button" class="nav-btn" id="btn-tags" aria-pressed="false" title="类别管理"><i data-i="tags"></i><span>类别管理</span></button>
+    </div>
   </div>
-  <aside class="side">
-    <section aria-labelledby="h-img">
-      <h2 id="h-img">图片</h2>
-      <div class="row">
-        <button id="add-snap" class="primary" type="button">截图加入</button>
-        <label class="btn" for="upload">上传图片</label>
-        <input id="upload" type="file" accept="image/png,image/jpeg" multiple class="sr-only">
+  <input id="file" type="file" accept="image/png,image/jpeg,image/webp,image/bmp" multiple hidden>
+  <input id="dir" type="file" webkitdirectory directory multiple hidden>
+
+  <div class="lb-main">
+    <!-- Viewer -->
+    <section class="lb-viewer" aria-label="图片标注区">
+      <div class="stage" id="stage">
+        <canvas class="view" id="view" aria-label="标注画布：左键拖拽画框，右键拖拽平移，滚轮缩放"></canvas>
+
+        <div class="float-bar" id="float-bar" role="toolbar" aria-label="标注工具栏">
+          <button type="button" class="fb-btn" id="fb-prev" title="上一张 (A / ←)" aria-label="上一张"><i data-i="left"></i></button>
+          <span class="fb-sep"></span>
+          <button type="button" class="fb-btn primary" id="fb-capture" title="截图加入数据集 (S)" aria-label="截图加入数据集"><i data-i="camera"></i></button>
+          <button type="button" class="fb-btn" id="fb-auto" title="自动截图" aria-label="自动截图" aria-pressed="false"><i data-i="clock"></i></button>
+          <button type="button" class="fb-btn primary" id="fb-upload" title="上传图片（也可拖拽或粘贴）" aria-label="上传图片"><i data-i="upload"></i></button>
+          <span class="fb-sep"></span>
+          <button type="button" class="fb-btn" id="fb-fit" title="适应窗口 (F)" aria-label="适应窗口"><i data-i="fit"></i></button>
+          <button type="button" class="fb-btn" id="fb-locate" title="在列表中定位当前图片" aria-label="定位当前图片"><i data-i="crosshair"></i></button>
+          <button type="button" class="fb-btn" id="fb-hide" title="隐藏 / 显示标注框 (H)" aria-label="隐藏标注框" aria-pressed="false"><i data-i="eye"></i></button>
+          <span class="fb-sep"></span>
+          <span class="fb-pos mono" id="fb-pos">-</span>
+          <button type="button" class="fb-btn" id="fb-next" title="下一张 (D / →)" aria-label="下一张"><i data-i="right"></i></button>
+        </div>
+
+        <div class="help-wrap" id="help">
+          <button type="button" aria-label="快捷键"><i data-i="help"></i></button>
+          <div class="help-panel" role="tooltip">
+            <div class="t">快捷键</div>
+            <div><kbd>←</kbd> <kbd>A</kbd><span>上一张图片</span></div>
+            <div><kbd>→</kbd> <kbd>D</kbd><span>下一张图片</span></div>
+            <div><kbd>左键拖拽</kbd><span>画框；拖框内移动，拖手柄调整</span></div>
+            <div><kbd>双击框</kbd><span>重选类别</span></div>
+            <div><kbd>右键拖拽</kbd> / <kbd>空格</kbd>+拖拽<span>平移</span></div>
+            <div><kbd>滚轮</kbd><span>缩放</span> <kbd>F</kbd><span>适应窗口</span></div>
+            <div><kbd>1 - 9</kbd><span>把选中框改为对应类别</span></div>
+            <div><kbd>Delete</kbd><span>删除选中的框</span></div>
+            <div><kbd>Ctrl/⌘ + Z</kbd><span>撤销</span></div>
+            <div><kbd>H</kbd><span>隐藏 / 显示标注框</span> <kbd>S</kbd><span>截图</span></div>
+            <div><kbd>Esc</kbd><span>取消选中 / 关闭面板</span></div>
+          </div>
+        </div>
+
+        <div class="stage-empty" id="empty">
+          <i data-i="images"></i>
+          <div class="title" id="empty-title">还没有图片，从设备截图或上传开始</div>
+          <div class="btns">
+            <button type="button" class="primary" id="empty-capture"><i data-i="camera"></i> 截图</button>
+            <button type="button" id="empty-upload"><i data-i="upload"></i> 上传图片</button>
+            <button type="button" id="empty-dir"><i data-i="folder-plus"></i> 导入文件夹</button>
+          </div>
+          <div class="muted" id="empty-note">图片和标注保存在手机上，导出为 YOLO 训练集</div>
+        </div>
+        <div class="loading" id="loading" hidden><span class="spin"></span><span id="loading-text">加载中…</span></div>
       </div>
-      <div class="thumbs" id="thumbs" role="list"></div>
-      <div class="row" style="margin-top:8px">
-        <button id="prev" type="button" aria-label="上一张">上一张 (A)</button>
-        <button id="next" type="button" aria-label="下一张">下一张 (D)</button>
-        <button id="del-img" type="button">删除图片</button>
+      <div class="statusbar" aria-live="off">
+        <span class="item"><i data-i="image"></i><span class="mono" id="st-size">-</span></span>
+        <span class="item"><i data-i="crosshair"></i><span class="swatch" id="st-swatch"></span><span class="mono" id="st-cursor">-</span></span>
+        <span class="item"><i data-i="box"></i><span class="mono" id="st-rect">-</span></span>
+        <span class="spacer"></span>
+        <span class="item" id="st-save"></span>
+        <span class="item mono" id="st-zoom"></span>
       </div>
     </section>
 
-    <section aria-labelledby="h-cls">
-      <h2 id="h-cls">类别（数字键 1-9 切换）</h2>
-      <div class="classes" id="classes"></div>
-      <div class="row">
-        <label for="new-class" class="sr-only">新类别名</label>
-        <input id="new-class" type="text" placeholder="新类别名" size="12">
-        <button id="add-class" type="button">添加</button>
-      </div>
-    </section>
+    <!-- Right panel -->
+    <aside class="lb-panel" aria-label="图片与标注">
+      <section class="lb-sec grow">
+        <div class="panel-header">
+          <i data-i="images"></i><span>图片</span>
+          <div class="actions">
+            <span class="spin sm" id="img-loading" hidden></span>
+            <button type="button" class="icon-btn sm" id="btn-del-unlabeled" title="删除未标注的图片" aria-label="删除未标注的图片"><i data-i="filter"></i></button>
+            <button type="button" class="icon-btn sm danger" id="btn-del-all-img" title="删除全部图片" aria-label="删除全部图片"><i data-i="trash"></i></button>
+          </div>
+        </div>
+        <div class="filter-bar" role="tablist" aria-label="图片筛选">
+          <button type="button" role="tab" data-filter="all" aria-selected="true">全部 <span id="cnt-all">0</span></button>
+          <button type="button" role="tab" data-filter="unlabeled" aria-selected="false">未标注 <span id="cnt-unlabeled">0</span></button>
+          <button type="button" role="tab" data-filter="labeled" aria-selected="false">已标注 <span id="cnt-labeled">0</span></button>
+        </div>
+        <div class="img-list" id="img-list" role="listbox" aria-label="图片列表" tabindex="0"></div>
+      </section>
 
-    <section aria-labelledby="h-box">
-      <h2 id="h-box">当前图片的框</h2>
-      <table class="list">
-        <thead><tr><th>#</th><th>类别</th><th>区域</th><th><span class="sr-only">操作</span></th></tr></thead>
-        <tbody id="boxes"></tbody>
-      </table>
-      <p class="status">拖动画框；点中已有框可选中，Delete 删除，拖动框内移动。修改自动保存。</p>
-      <div class="status" id="status" role="status" aria-live="polite"></div>
-    </section>
-  </aside>
+      <section class="lb-sec grow">
+        <div class="panel-header">
+          <i data-i="box"></i><span>标注</span><span class="count" id="box-count"></span>
+          <div class="actions">
+            <button type="button" class="ghost" id="btn-negative" title="没有目标的图片也可作为负样本导出">标为负样本</button>
+            <button type="button" class="icon-btn sm danger" id="btn-del-boxes" title="删除当前图片的全部标注" aria-label="删除当前图片的全部标注"><i data-i="trash"></i></button>
+          </div>
+        </div>
+        <div class="box-list" id="box-list" role="listbox" aria-label="当前图片的标注框"></div>
+      </section>
+
+      <section class="lb-sec">
+        <div class="panel-header">
+          <i data-i="tags"></i><span>类别</span><span class="count" id="cls-count"></span>
+          <div class="actions">
+            <button type="button" class="icon-btn sm" id="btn-add-cls" title="添加类别" aria-label="添加类别"><i data-i="plus"></i></button>
+          </div>
+        </div>
+        <div class="cls-chips" id="cls-chips"></div>
+      </section>
+    </aside>
+  </div>
 </div>
+
+<!-- Class picker shown after drawing a box -->
+<div class="pop tag-pop" id="tag-pop" role="dialog" aria-labelledby="tag-pop-title" hidden>
+  <div class="pop-head"><span id="tag-pop-title">选择类别</span>
+    <button type="button" class="icon-btn sm" id="tag-pop-close" aria-label="取消"><i data-i="x"></i></button></div>
+  <div class="pop-input">
+    <input type="text" id="tag-pop-input" placeholder="输入筛选，或回车新建类别" aria-label="类别名称" autocomplete="off">
+    <button type="button" class="icon-btn sm" id="tag-pop-add" title="添加类别" aria-label="添加类别"><i data-i="plus"></i></button>
+  </div>
+  <div class="tag-list" id="tag-pop-list" role="listbox" aria-label="类别"></div>
+  <div class="pop-foot muted"><kbd>↑</kbd><kbd>↓</kbd> 选择 · <kbd>Enter</kbd> 确认 · <kbd>Esc</kbd> 取消</div>
+</div>
+
+<!-- Class manager -->
+<div class="pop side-pop" id="tag-mgr" role="dialog" aria-labelledby="tag-mgr-title" hidden>
+  <div class="pop-head"><span id="tag-mgr-title">类别管理</span>
+    <button type="button" class="icon-btn sm" id="tag-mgr-close" aria-label="关闭"><i data-i="x"></i></button></div>
+  <div class="pop-input">
+    <input type="text" id="tag-mgr-input" placeholder="新类别名称" aria-label="新类别名称" autocomplete="off">
+    <button type="button" class="primary" id="tag-mgr-add">添加</button>
+  </div>
+  <div class="tag-list" id="tag-mgr-list"></div>
+  <div class="pop-foot">
+    <span class="muted" id="tag-mgr-count"></span><span class="spacer"></span>
+    <button type="button" class="ghost" id="tag-mgr-clean" title="删除没有任何标注框使用的类别"><i data-i="filter"></i> 清理未引用</button>
+  </div>
+</div>
+
+<!-- Auto capture -->
+<div class="pop side-pop" id="auto-pop" role="dialog" aria-labelledby="auto-pop-title" hidden>
+  <div class="pop-head"><span id="auto-pop-title">自动截图</span>
+    <button type="button" class="icon-btn sm" id="auto-close" aria-label="关闭"><i data-i="x"></i></button></div>
+  <div class="pop-body">
+    <label class="auto-row">间隔 <input type="number" id="ac-interval" min="0.5" max="600" step="0.5" value="2"> 秒</label>
+    <label class="auto-row">次数 <input type="number" id="ac-count" min="1" max="500" step="1" value="10"> 张</label>
+    <div class="progress" aria-hidden="true"><div class="bar" id="ac-bar"></div></div>
+    <div class="muted" id="ac-text" role="status" aria-live="polite"></div>
+    <div class="pop-actions">
+      <button type="button" class="primary" id="ac-start"><i data-i="play"></i> 开始</button>
+      <button type="button" class="danger-btn" id="ac-stop" hidden><i data-i="stop"></i> 停止</button>
+    </div>
+    <div class="muted small">每次截图都会加入当前数据集。切换应用画面采集更多样本。</div>
+  </div>
+</div>
+
 <script src="/tools/ui/common.js"></script>
 <script src="/tools/ui/label.js"></script>
 </body>

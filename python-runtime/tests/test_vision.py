@@ -71,6 +71,10 @@ class VisionTest(unittest.TestCase):
         self.assertEqual(out["details"][1]["actual"], "#0000ff")
         ok = self.run_op(op="compare_colors", colors="25,15,#FF0000|100,60,#0000FF", sim=0.95)
         self.assertTrue(ok["match"])
+        # 数量相似度: half of the points is enough.
+        half = self.run_op(op="compare_colors", colors="25,15,#FF0000|100,60,#00FF00", sim=0.95, count_sim=0.5)
+        self.assertTrue(half["match"])
+        self.assertEqual((half["hits"], half["need"]), (1, 1))
 
     def test_find_image_from_snapshot_region(self):
         out = self.run_op(op="find_image", template_rect=[140, 70, 180, 100], confidence=0.9)
@@ -83,6 +87,21 @@ class VisionTest(unittest.TestCase):
         cv2.imwrite(tpl, _frame()[70:100, 140:180])
         out = self.run_op(op="find_image", template_path=tpl, confidence=0.9)
         self.assertEqual(out["hits"][0]["center_x"], 160)
+
+    def test_find_image_from_region_of_other_image(self):
+        other = os.path.join(self.dir, "other.png")
+        cv2.imwrite(other, _frame())
+        out = self.run_op(op="find_image", template_path=other, template_rect=[140, 70, 180, 100], confidence=0.9)
+        self.assertEqual(out["hits"][0]["rect"], [140, 70, 180, 100])
+        with self.assertRaises(ValueError):
+            self.run_op(op="find_image", template_path=other, template_rect=[500, 500, 600, 600])
+
+    def test_ocr_pattern_and_compare_count(self):
+        # OCR itself needs the device; only check that the filter path is wired (no crash on empty).
+        from unittest import mock
+        with mock.patch.object(vision._img, "ocr", return_value=[]):
+            out = self.run_op(op="ocr", pattern=r"\d+", binary=128)
+        self.assertEqual(out["lines"], [])
 
     def test_errors(self):
         with self.assertRaises(ValueError):

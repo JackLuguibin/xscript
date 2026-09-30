@@ -7,9 +7,13 @@ import java.net.NetworkInterface
 import java.util.Locale
 
 object NetworkInfo {
-    /** Preferred port. AScript uses the same default, so the server falls back upward. */
-    const val DEFAULT_PORT = 9096
-    const val MAX_PORT = 9105
+    /**
+     * Preferred port. Deliberately away from AScript's 9096 (and the ports it falls back to),
+     * so both apps can run side by side and `adb forward` never hits the wrong one.
+     * If 9860 is taken the server tries the next ports up to [MAX_PORT].
+     */
+    const val DEFAULT_PORT = 9860
+    const val MAX_PORT = 9869
 
     /** Port the server actually bound (DEFAULT_PORT until the server starts). */
     @Volatile

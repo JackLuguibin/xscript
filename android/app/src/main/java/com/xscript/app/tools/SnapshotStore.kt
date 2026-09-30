@@ -9,7 +9,7 @@ import java.io.File
  * runs against one saved PNG, so the numbers stay consistent while the user works.
  * Pure JVM; the caller supplies the PNG bytes. Oldest snapshots beyond [keep] are pruned.
  */
-class SnapshotStore(val root: File, private val keep: Int = 20) {
+class SnapshotStore(val root: File, private val keep: Int = 30) {
     init {
         root.mkdirs()
     }
@@ -23,9 +23,31 @@ class SnapshotStore(val root: File, private val keep: Int = 20) {
         return describe(id)
     }
 
+    /** An uploaded PNG (the web tool converts other formats first); size comes from IHDR. */
+    fun saveUpload(png: ByteArray): JSONObject {
+        val (w, h) = pngSize(png) ?: throw IllegalArgumentException("snapshot upload must be a PNG image")
+        return save(png, w, h)
+    }
+
     fun file(id: String): File? {
         require(ID.matches(id)) { "invalid snapshot id" }
         return File(root, "$id.png").takeIf { it.isFile }
+    }
+
+    fun delete(id: String): Boolean {
+        val f = file(id) ?: return false
+        File(root, "$id.json").delete()
+        return f.delete()
+    }
+
+    /** Remove every snapshot; returns how many were deleted. */
+    fun clear(): Int {
+        val all = ids()
+        all.forEach {
+            File(root, "$it.png").delete()
+            File(root, "$it.json").delete()
+        }
+        return all.size
     }
 
     fun describe(id: String): JSONObject {
@@ -60,6 +82,17 @@ class SnapshotStore(val root: File, private val keep: Int = 20) {
 
     companion object {
         private val ID = Regex("""\d{1,15}_\d{1,3}""")
+
+        /** (width, height) from the IHDR chunk, which the PNG spec requires to come first. */
+        fun pngSize(png: ByteArray): Pair<Int, Int>? {
+            if (png.size < 24 || DatasetStore.sniff(png) != "png") return null
+            if (String(png, 12, 4, Charsets.US_ASCII) != "IHDR") return null
+            fun int(at: Int) = ((png[at].toInt() and 0xFF) shl 24) or ((png[at + 1].toInt() and 0xFF) shl 16) or
+                ((png[at + 2].toInt() and 0xFF) shl 8) or (png[at + 3].toInt() and 0xFF)
+            val w = int(16)
+            val h = int(20)
+            return if (w > 0 && h > 0) w to h else null
+        }
 
         @Volatile
         private var seq = 0

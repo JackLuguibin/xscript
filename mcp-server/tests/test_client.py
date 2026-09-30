@@ -27,7 +27,7 @@ class _Handler(BaseHTTPRequestHandler):
                     "sdk": 34,
                     "width": 1080,
                     "height": 2400,
-                    "port": 9096,
+                    "port": 9860,
                     "accessibility": True,
                     "capture": True,
                     "running": self.store["running"],

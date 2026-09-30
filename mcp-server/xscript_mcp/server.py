@@ -14,7 +14,7 @@ from xscript_mcp.client import DEFAULT_PORT, DeviceClient, DeviceTarget
 EVAL_DEADLINE_MS = 8000
 
 mcp = _Server("xscript")
-_client = DeviceClient(DeviceTarget.parse(os.environ.get("XSCRIPT_DEVICE", "127.0.0.1:9096")))
+_client = DeviceClient(DeviceTarget.parse(os.environ.get("XSCRIPT_DEVICE", "127.0.0.1:%d" % DEFAULT_PORT)))
 
 
 def _catalog() -> dict:
