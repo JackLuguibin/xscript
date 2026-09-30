@@ -116,6 +116,76 @@ def get_run_log(since: int = 0) -> str:
 
 
 @mcp.tool()
+def project_run_options(project_name: str, auto_run: bool | None = None, stop_re_run: bool | None = None) -> str:
+    """Read or change a project's run options. Omit both flags to read.
+
+    auto_run: 开机自启, start the project after the device boots (one boot project per device).
+    stop_re_run: 停止后重新运行, re-run the project when it exits or crashes (not after a user stop).
+    """
+    flags = {k: v for k, v in (("auto_run", auto_run), ("stop_re_run", stop_re_run)) if v is not None}
+    if not flags:
+        return _json(_client.project_config(project_name))
+    return _json(_client.set_project_config(project_name, **flags))
+
+
+@mcp.tool()
+def list_schedules(project_name: str = "") -> str:
+    """定时任务 on the device (all, or one project's). Each has id, kind, next (epoch ms), enabled."""
+    return _json(_client.list_schedules(project_name or None))
+
+
+@mcp.tool()
+def add_schedule(project_name: str, kind: str, time: str = "", weekdays: list[int] | None = None,
+                 every: int = 0, window: str = "", at: str = "", if_running: str = "skip") -> str:
+    """Add a 定时任务 that runs a project. Times are device-local.
+
+    kind:
+      daily     time = "HH:mm"; weekdays = [1..7] (1 = Monday), empty = every day
+      interval  every = minutes; window = "HH:mm-HH:mm" to limit hours (optional, may cross midnight)
+      once      at = "yyyy-MM-dd HH:mm"
+    if_running: "skip" (default) leaves a running script alone; "restart" stops it and runs this project.
+    """
+    body: dict = {"project": project_name, "kind": kind, "if_running": if_running}
+    if kind == "daily":
+        body.update(time=time, weekdays=list(weekdays or []))
+    elif kind == "interval":
+        body.update(every=int(every), window=window)
+    elif kind == "once":
+        body["at"] = at
+    return _json(_client.add_schedule(body))
+
+
+@mcp.tool()
+def update_schedule(schedule_id: str, enabled: bool | None = None, time: str = "", every: int = 0,
+                    window: str | None = None, if_running: str = "") -> str:
+    """Change a schedule: enable/disable it, or change its time / interval / window / if_running."""
+    fields: dict = {}
+    if enabled is not None:
+        fields["enabled"] = enabled
+    if time:
+        fields["time"] = time
+    if every:
+        fields["every"] = int(every)
+    if window is not None:
+        fields["window"] = window
+    if if_running:
+        fields["if_running"] = if_running
+    return _json(_client.update_schedule(schedule_id, fields))
+
+
+@mcp.tool()
+def delete_schedule(schedule_id: str) -> str:
+    """Remove a 定时任务."""
+    return _json(_client.delete_schedule(schedule_id))
+
+
+@mcp.tool()
+def run_schedule_now(schedule_id: str) -> str:
+    """Run a schedule's project immediately. result: started / skipped / queued / missing."""
+    return _json(_client.run_schedule(schedule_id))
+
+
+@mcp.tool()
 def device_action(action_type: str, x: int = 0, y: int = 0, x2: int = 0, y2: int = 0, dur: int = 0,
                   text: str = "", key: str = "") -> str:
     """One direct action without writing code.

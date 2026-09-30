@@ -11,6 +11,7 @@ import com.xscript.app.runtime.LogBuffer
 import com.xscript.app.runtime.MainControl
 import com.xscript.app.runtime.RunState
 import com.xscript.app.runtime.ScriptService
+import com.xscript.app.schedule.Scheduler
 import com.xscript.app.settings.Settings
 import org.json.JSONArray
 import org.json.JSONObject
@@ -127,6 +128,7 @@ class ApiRouter(private val context: Context) {
             m == "GET" && p == "/projects" -> return Reply.json(
                 JSONObject().put("projects", JSONArray(store.list())).put("details", store.describe()),
             )
+            p == "/schedules" || p.startsWith("/schedules/") -> return schedules(req, m, p)
             m == "GET" && p == "/ascript/projects" -> return Reply.json(JSONObject().put("projects", JSONArray(store.ascriptProjects())))
             m == "POST" && p == "/ascript/import" -> {
                 val name = req.json().optString("name")
@@ -140,7 +142,16 @@ class ApiRouter(private val context: Context) {
         return when {
             m == "DELETE" && sub.isEmpty() -> {
                 if (RunState.current(context) == name) ScriptService.stop(context)
+                Scheduler.forgetProject(context, name)
                 Reply.json(JSONObject().put("ok", store.delete(name)))
+            }
+            m == "GET" && sub == "/config" -> Reply.json(MainControl.config(name))
+            m == "PUT" && sub == "/config" -> {
+                if (!store.exists(name)) return Reply.json(JSONObject().put("error", "missing project"), 404)
+                val body = req.json()
+                val patch = JSONObject().put("project", name)
+                for (k in listOf("auto_run", "stop_re_run")) if (body.has(k)) patch.put(k, body.getBoolean(k))
+                Reply.json(JSONObject(MainControl.handle("config_set", patch.toString())))
             }
             m == "POST" && sub.isEmpty() -> {
                 store.create(name)
@@ -260,6 +271,56 @@ class ApiRouter(private val context: Context) {
         Settings.lastProject = name
         ScriptService.run(context, name)
         return Reply.json(JSONObject().put("ok", true).put("running", true).put("project", name))
+    }
+
+    /** 定时任务: GET/POST /schedules, GET/PUT/DELETE /schedules/<id>, POST /schedules/<id>/run. */
+    private fun schedules(req: Request, m: String, p: String): Reply {
+        val sched = Scheduler.store(context)
+        val parts = p.removePrefix("/schedules").trim('/').split('/').filter { it.isNotEmpty() }
+        val now = System.currentTimeMillis()
+        fun one(id: String): Reply {
+            val s = sched.get(id) ?: return Reply.json(JSONObject().put("error", "missing schedule"), 404)
+            return Reply.json(s.toJson())
+        }
+        if (parts.isEmpty()) {
+            return when (m) {
+                "GET" -> Reply.json(
+                    JSONObject()
+                        .put("schedules", JSONArray(sched.list(req.query["project"]).map { it.toJson() }))
+                        .put("exact_alarms", Scheduler.canExact(context)),
+                )
+                "POST" -> {
+                    val body = req.json()
+                    require(store.exists(body.optString("project"))) { "missing project ${body.optString("project")}" }
+                    val s = sched.add(body, now)
+                    Scheduler.rearm(context)
+                    one(s.id)
+                }
+                else -> Reply.json(JSONObject().put("error", "not found"), 404)
+            }
+        }
+        val id = parts[0]
+        return when {
+            parts.size == 1 && m == "GET" -> one(id)
+            parts.size == 1 && m == "PUT" -> {
+                val body = req.json()
+                if (body.has("project")) require(store.exists(body.getString("project"))) { "missing project ${body.getString("project")}" }
+                sched.get(id) ?: return Reply.json(JSONObject().put("error", "missing schedule"), 404)
+                sched.update(id, body, now)
+                Scheduler.rearm(context)
+                one(id)
+            }
+            parts.size == 1 && m == "DELETE" -> {
+                val ok = sched.remove(id)
+                if (ok) Scheduler.rearm(context)
+                Reply.json(JSONObject().put("ok", ok))
+            }
+            parts.size == 2 && parts[1] == "run" && m == "POST" -> {
+                sched.get(id) ?: return Reply.json(JSONObject().put("error", "missing schedule"), 404)
+                Reply.json(JSONObject().put("result", Scheduler.runNow(context, id)))
+            }
+            else -> Reply.json(JSONObject().put("error", "not found"), 404)
+        }
     }
 
     private fun eval(req: Request): Reply {

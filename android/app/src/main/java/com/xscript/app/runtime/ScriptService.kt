@@ -10,14 +10,19 @@ import android.os.Process
 import com.chaquo.python.Python
 import com.chaquo.python.android.AndroidPlatform
 import com.xscript.app.IAutomation
+import com.xscript.app.IEventSink
 import com.xscript.app.project.ProjectStore
 import java.util.concurrent.CountDownLatch
+import java.util.concurrent.LinkedBlockingQueue
 import java.util.concurrent.TimeUnit
 import kotlin.concurrent.thread
 
 /**
  * Runs one project in the `:script` process. Stop = kill the process, which is the only
  * reliable way to interrupt arbitrary Python (threads, blocking native calls, overlays).
+ *
+ * The run attaches an [IEventSink] to the main process ([ScriptSupervisor]): its binder
+ * dies with this process, and subscribed events arrive through it into [events].
  */
 class ScriptService : Service() {
     private val ready = CountDownLatch(1)
@@ -30,6 +35,16 @@ class ScriptService : Service() {
 
         override fun onServiceDisconnected(name: ComponentName?) {
             AutomationDispatcher.remote = null
+        }
+    }
+
+    private val sink = object : IEventSink.Stub() {
+        override fun onEvent(json: String) {
+            // Bounded: a script that never reads events must not grow memory without limit.
+            if (!events.offer(json)) {
+                events.poll()
+                events.offer(json)
+            }
         }
     }
 
@@ -47,7 +62,7 @@ class ScriptService : Service() {
         when (intent?.action) {
             ACTION_STOP -> {
                 LogBuffer.append(this, "stdout", "xscript: stopped by user\n")
-                finish()
+                finish("stopped")
             }
             ACTION_RUN -> {
                 val name = intent.getStringExtra(EXTRA_NAME) ?: return START_NOT_STICKY
@@ -66,15 +81,20 @@ class ScriptService : Service() {
         ready.await(5, TimeUnit.SECONDS)
         val dir = ProjectStore(this).dir(name)
         RunState.set(this, name)
+        try {
+            AutomationDispatcher.remote?.attachScript(name, sink)
+        } catch (_: Throwable) {
+        }
         safeControl("script_started", name)
         LogBuffer.append(this, "stdout", "xscript: script process start $name\n")
+        var exit = "1"
         try {
             val runner = Python.getInstance().getModule("xscript.runtime.runner")
-            runner.callAttr("run_project", dir.absolutePath)
+            exit = runner.callAttr("run_project", dir.absolutePath).toString()
         } catch (t: Throwable) {
             LogBuffer.append(this, "stderr", (t.message ?: t.toString()) + "\n")
         } finally {
-            finish()
+            finish(exit)
         }
     }
 
@@ -85,9 +105,9 @@ class ScriptService : Service() {
         }
     }
 
-    private fun finish() {
+    private fun finish(exit: String) {
         RunState.set(this, null)
-        safeControl("script_finished", "")
+        safeControl("script_finished", exit)
         stopSelf()
         // Script threads, overlay windows and native handles all go with the process.
         Process.killProcess(Process.myPid())
@@ -106,7 +126,15 @@ class ScriptService : Service() {
         const val ACTION_STOP = "com.xscript.app.STOP"
         const val EXTRA_NAME = "name"
 
-        fun run(context: Context, name: String) {
+        /** Events pushed by the main process, read by Python through [Bridge.pollEvent]. */
+        val events = LinkedBlockingQueue<String>(1000)
+
+        /**
+         * Start [name] in the script process. [auto] marks starts made by the supervisor
+         * (boot, rerun, schedules) so a manual start resets the crash-loop counter.
+         */
+        fun run(context: Context, name: String, auto: Boolean = false) {
+            ScriptSupervisor.noteStart(name, auto)
             val intent = Intent(context, ScriptService::class.java).apply {
                 action = ACTION_RUN
                 putExtra(EXTRA_NAME, name)
@@ -114,7 +142,9 @@ class ScriptService : Service() {
             context.startService(intent)
         }
 
+        /** User-requested stop: the supervisor will not rerun this run. */
         fun stop(context: Context) {
+            ScriptSupervisor.noteUserStop()
             if (!RunState.scriptProcessAlive(context)) {
                 RunState.set(context, null)
                 return

@@ -313,10 +313,10 @@ def collect_related(roots, anchor_filters, relation, target_filters, op="exact")
 
 
 def parse_xpath(xpath):
-    """Minimal XPath: //Type[@attr='v'][@attr2='v2']/Child... -> list of (axis, type, attrs).
+    """Legacy step parser: //Type[@attr='v']/Child... -> list of (axis, type, attrs).
 
-    axis is 'descendant' for // and 'child' for /. Enough for AScript's documented form
-    `//TextView[@text='开发者']`.
+    Kept for callers that inspect simple paths; evaluation goes through run_xpath, which
+    supports the full subset in xscript.android.xpath.
     """
     steps = []
     pos = 0
@@ -342,35 +342,8 @@ def parse_xpath(xpath):
     return steps
 
 
-_XPATH_ATTRS = {"resource-id": "id", "content-desc": "desc", "class": "type"}
-
-
 def run_xpath(roots, xpath):
-    order, tops = index_tree(roots)
-    steps = parse_xpath(xpath)
-    current = None
-    for axis, typ, attrs in steps:
-        if current is None:
-            pool = order if axis == "descendant" else tops
-        else:
-            pool = relate(current, "descendant" if axis == "descendant" else "child", ())
-        nxt = []
-        for n in pool:
-            if typ != "*" and not match_string(_short_type(n.raw.get("type")), typ, "exact") \
-                    and not match_string(n.raw.get("type") or "", typ, "exact"):
-                continue
-            ok = True
-            for key, val in attrs:
-                if key == "__index":
-                    continue
-                key = _XPATH_ATTRS.get(key, key)
-                if not match_filter(n.raw, key, "exact", val if key not in BOOL_FIELDS else val == "true"):
-                    ok = False
-                    break
-            if ok:
-                nxt.append(n)
-        idx = [v for k, v in attrs if k == "__index"]
-        if idx:
-            nxt = [nxt[i - 1] for i in idx if 0 < i <= len(nxt)]
-        current = nxt
-    return current or []
+    """Evaluate an XPath expression (see xscript.android.xpath for the supported subset)."""
+    from xscript.android import xpath as _xpath
+
+    return _xpath.select(roots, xpath)

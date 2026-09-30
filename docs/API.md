@@ -60,6 +60,21 @@ Filters: `text`, `text_contains`, `text_matches`, `id`, `desc`, `desc_contains`,
 
 `Selector(mode=0)` searches the simple tree (the same as `GET /ui-tree?mode=0`). `mode=1` searches the full tree.
 
+`Selector(xpath=...)` takes an XPath 1.0 expression. Filters chained after it narrow the XPath result.
+
+```python
+node.Selector(xpath="//TextView[@text='开发者']").find()
+node.Selector(xpath="//*[contains(@text,'网络') and @clickable='true']").find_all()
+node.Selector(xpath="(//Button)[last()]").click()
+node.Selector(xpath="//*[@text='WLAN']/following-sibling::Switch[1]").find()
+node.Selector(xpath="//LinearLayout[.//Switch[@checked='true']]").find_all()
+```
+
+- Paths: `/`, `//`, `.`, `..`, `*`, and the axes `child`, `descendant(-or-self)`, `parent`, `ancestor(-or-self)`, `self`, `following-sibling`, `preceding-sibling`. Name tests match the short class name (`TextView`) or the full one.
+- Predicates: `[2]`, `[last()]`, `[position()<3]`, `= != < <= > >=`, `and` / `or` / `not()`, nested paths as existence tests, `(expr)[n]` grouping, and `|` unions.
+- Functions: `text()`, `contains`, `starts-with`, `ends-with`, `matches` (Python regex search), `string-length`, `normalize-space`, `concat`, `count`, `position`, `last`.
+- Attributes: `text`, `resource-id` / `id`, `content-desc` / `desc`, `class` / `type`, `package`, `hint`, `bounds` (`[l,t][r,b]`), `index` (0-based among siblings), `depth`, `child-count`, and the flags (`clickable`, `checked`, `enabled`, ...) as `"true"` / `"false"`.
+
 `Node` fields: `path`, `id`, `text`, `desc`, `type`, `rect`, `clickable`, `editable`, `enabled`, `left`/`top`/`right`/`bottom`, `width`/`height`, and `center_x`/`center_y`.
 
 ## screen
@@ -113,7 +128,78 @@ system.KeyValue.save("k", 1); system.KeyValue.get("k", 0)
 system.R.img("btn.png")              # <project>/res/img/btn.png
 system.toast("hi"); system.vibrate(200); system.speak("完成")
 system.exit()
+system.reboot(delay=5)               # end this run, start the project again in 5 s
 ```
+
+### Run options and schedules
+
+Each project has two run options, also shown as switches on its screen in the app (小程序列表 → project):
+
+- **开机自启** (`Config.set_auto_run`): starts the project after the device boots, once accessibility or root is ready (up to 60 s). Only one project per device can be the boot project, so enabling it on one project clears it on the previous one.
+- **停止后重新运行** (`Config.set_stop_re_run`): starts the project again 3 s after it exits or crashes. A stop from the app, the float button, HTTP, or MCP never triggers it. After 5 exits within 10 s each, it pauses until the next manual start.
+
+```python
+from xscript.android import system
+
+system.Config.set_auto_run(True)            # the running project; or project="name"
+system.Config.set_stop_re_run(True)
+system.Config.get()                         # {'project', 'auto_run', 'stop_re_run', 'boot_project'}
+
+system.Schedule.daily("08:30", weekdays=[1, 2, 3, 4, 5])   # 1 = Monday
+system.Schedule.every(30, window="08:00-23:00")            # window may cross midnight
+system.Schedule.once("2026-10-01 09:00")                   # or a datetime / epoch seconds
+system.Schedule.list()                                     # project="*" for all projects
+system.Schedule.update(sid, enabled=False)
+system.Schedule.remove(sid)
+```
+
+Schedules use device-local time.
+
+- **Firing:** schedules fire through AlarmManager. Exact alarms on Android 12+ need the 闹钟和提醒 grant. Without it they fall back to inexact alarms, which Doze can delay by several minutes, and the project screen shows a warning row.
+- **Interval grid:** interval schedules keep a fixed grid from the moment they were created, so a late alarm does not shift later runs.
+- **Missed runs:** a run missed by more than 10 minutes (device off, app force-stopped) is skipped and logged.
+- **One script at a time:** with `if_running="skip"` (the default), a schedule that finds another script running logs a skip. `if_running="restart"` stops the running script and starts this project.
+- **Screen:** `wake=True` turns the screen on first.
+- **Reboot and cleanup:** alarms are re-armed after reboot, clock changes, and app updates. Deleting a project deletes its schedules and clears its run options.
+
+## event
+
+```python
+from xscript.android import event
+
+@event.on_key(event.KEYCODE_VOLUME_UP)
+def vol(e):
+    if e.action == "down":
+        print("volume up")
+
+@event.on_notification(package="com.tencent.mm")
+def wx(e):
+    print(e.title, e.text, e.time)
+    e.send()                             # open the notification
+
+@event.on_touch("click")
+def tap(e):
+    print(e.x, e.y, e.package, e.text)
+
+t = event.wait("toast", timeout=10)      # Event or None
+event.on("a11y", lambda e: print(e.event_name, e.package))
+event.off()                              # remove all handlers
+event.loop()                             # or keep the script alive yourself
+```
+
+| Type | Source | Fields |
+| --- | --- | --- |
+| `key` | accessibility key filter | `key_code`, `action` (`down` / `up`), `repeat`, `long_press` |
+| `touch` | view click / long click / scroll | `action`, `x`, `y` (view center), `rect`, `package`, `class`, `text` |
+| `notification` | 通知使用权, else accessibility | `package`, `title`, `text`, `sub_text`, `big_text`, `time`, `key`, `id`, `tag`, `source`, `send()` |
+| `toast` | accessibility | `package`, `text` |
+| `a11y` | every accessibility event except content changes (set `mask` to change) | `event_type`, `event_name`, `package`, `class`, `text`, `desc` |
+
+- **Filters:** keyword filters on `on()` / `wait()` match fields exactly, by membership in a list, or with a callable.
+- **Threading:** handlers run one at a time on a daemon thread, so a script that only registers handlers must keep itself alive (`event.loop()` or a loop).
+- **Keys:** key events are observed, never consumed. Key filtering is on only while a script listens.
+- **Notifications:** full notification data needs **通知使用权** (home screen → 通知使用权). Without it, notifications come from accessibility with only the package and text.
+- **Scope:** events belong to the current run and stop when it ends.
 
 ## ui
 
@@ -147,13 +233,15 @@ The drawing canvas is a full-screen overlay that passes touches through. Android
 
 `ascript.android.*` mirrors ascript-tip 1.3.0, the MIT-licensed API package. AScript projects run without edits: import them with **小程序列表 → 导入 → 从 AScript 导入** (`/sdcard/airscript/model`, needs root), from a zip (`PUT /projects/<name>/zip`), or with `upload_directory` over MCP.
 
-Supported: `action` (click / swipe / slide / Touch / Key / Path / gesture / Ime / catch_click), `node.Selector` (AScript method names), `screen` (capture, bitmap helpers, Colors / FindColors / CompareColors / FindBlock / FindImages / Ocr / CodeScanner / Eraser and the GP task pipeline), `system` (Device, R, KeyValue, Clipboard, Config, shell, open, ...), `ui` (WebWindow, Dialog, Loger, FloatWindow, ImageWindow, Canvas), `media`, and `data`.
+Supported: `action` (click / swipe / slide / Touch / Key / Path / gesture / Ime / catch_click), `node.Selector` (AScript method names, `xpath=`, `on_event`), `screen` (capture, bitmap helpers, Colors / FindColors / CompareColors / FindBlock / FindImages / Ocr / CodeScanner / Eraser and the GP task pipeline), `system` (Device, R, KeyValue, Clipboard, Config, Notification.listen, reboot, shell, open, ...), `event` (KeyEvent / TouchEvent / NotificationEvent), `ui` (WebWindow, Dialog, Loger, FloatWindow, ImageWindow, Canvas), `media`, and `data`.
 
 Behavior differences:
 
 - **OCR:** `Ocr.mlkitocr_v2`, `paddleocr`, and `tess` all run ML Kit. Results are `OcrResult` objects that support attribute access (`.text`, `.rect`, `.center_x`, `.region_position`) and dict access (`r["text"]`, `r.get(...)`).
 - **Template matching:** `FindImages.find` / `find_all` default to template matching with confidence 0.9. `method="smart"` and `find_sift` fall back to template matching. The results have AScript's dict shape (`result`, `rect`, `center_x`, `center_y`, `confidence`).
 - **Screenshots:** `capture()` returns an android `Bitmap`, as in AScript. `capture_cv` returns BGR numpy.
+- **Events:** `NotificationEvent` events carry plain data, so `event.raw` is `None`. `Selector.on_event` gets an object with `getEventType()`, `getPackageName()`, `getClassName()`, and `getText()`.
+- **`system.reboot(ms)`:** restarts the project in a fresh script process. It does not reboot the device.
 
 Unsupported. These raise `NotImplementedError` or print a one-time warning:
 
@@ -162,10 +250,8 @@ Unsupported. These raise `NotImplementedError` or print a one-time warning:
 - `OcrX` / `Ocr.matrix`
 - gp files from AScript's 图色工具
 - `node.WebSelector`
-- `Selector.on_event` and the `event` listeners
 - `sms`, `plug`, `bluetooth`, `location`, `sensor`
 - `system.Control` (AScript cloud control)
-- `Notification.listen`
 - `media.recode` / `send_email` / `AliTts`
 
 ## Developer tools (图色 / 标注 / 投屏)

@@ -29,6 +29,8 @@ Tools:
 - `list_projects`, `list_project_files`, `read_project_file`
 - `upload_file`, `upload_directory`, `delete_project`
 - `run_project`, `stop_project`, `get_run_log`
+- `project_run_options` (开机自启 / 停止后重新运行)
+- `list_schedules`, `add_schedule`, `update_schedule`, `delete_schedule`, `run_schedule_now` (定时任务)
 - `device_action`, `eval_python`
 - `take_snapshot`, `vision_test`, `crop_template` (图色: test colors, templates and OCR on a frozen frame)
 - `list_datasets`, `export_dataset` (标注: download a YOLO zip)

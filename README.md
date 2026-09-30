@@ -13,14 +13,16 @@ Cloud control server    ←  WebSocket (device dials out)  ↗
 - **Run modes.** `auto`, `accessibility`, or `root`. Gestures, node trees, and screenshots each fall back to root when accessibility is missing. Screenshots also fall back when the accessibility frame is black.
 - **Script APIs** (`xscript.android.*`):
   - `action`: gestures, keys, and text input.
-  - `node`: selectors with relations.
+  - `node`: selectors with relations, and XPath 1.0 queries (`contains()`, axes, `[last()]`, unions).
   - `screen`: multi-point colors, masked multi-scale template matching, and ML Kit OCR.
   - `system`: apps, shell, device info, KeyValue, and R paths.
   - `ui`: dialogs, HTML windows with a JS bridge, a drawing canvas, and the floating stop button.
+  - `event`: listeners for physical keys, view clicks, notifications (with `send()`), toasts, and raw accessibility events.
+- **Unattended runs.** 开机自启 (start after boot), 停止后重新运行 (restart after an exit or crash, with crash-loop protection), and 定时任务 (daily / every N minutes / once). You can set these on the project screen, from scripts (`system.Config`, `system.Schedule`), over HTTP, or over MCP.
 - **AScript compatibility** (`ascript.android.*`). Follows the ascript-tip 1.3.0 API, so `from ascript.android.screen import FindImages` works unchanged.
 - **Projects.** Create, zip import/export, import from AScript (`/sdcard/airscript/model`), an on-device editor, run logs, and the floating stop button.
 - **Cloud control.** The device dials out to a WebSocket relay and serves the same API through it, so it works behind NAT.
-- **Cursor MCP** (`xscript-mcp`). Screenshots, UI tree, file upload, run/stop, logs, eval, and an API catalog. Eval runs in its own process, which is killed on timeout.
+- **Cursor MCP** (`xscript-mcp`). Screenshots, UI tree, file upload, run/stop, logs, eval, run options, schedules, and an API catalog. Eval runs in its own process, which is killed on timeout.
 - **Developer tools in the browser** at `http://<ip>:<port>/tools/`, served by the app:
   - **图色工具**: freeze a screenshot, pick colors with a zoom loupe, build multi-point color strings, select regions, save template crops into a project, and test find-color / compare-color / find-image / OCR on that frame.
   - **标注工具**: add screenshots or uploads to a dataset, draw and label boxes, and export a YOLO training set (`images/`, `labels/`, `data.yaml`).

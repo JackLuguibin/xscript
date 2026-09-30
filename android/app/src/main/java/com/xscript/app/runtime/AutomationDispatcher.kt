@@ -85,5 +85,5 @@ object AutomationDispatcher {
     }
 
     fun control(op: String, arg: String): String =
-        if (local) MainControl.handle(op, arg) else rpc()?.control(op, arg).orEmpty()
+        if (local) MainControl.safeHandle(op, arg) else rpc()?.control(op, arg).orEmpty()
 }

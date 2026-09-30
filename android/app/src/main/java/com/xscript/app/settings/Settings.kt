@@ -34,6 +34,16 @@ object Settings {
         get() = prefs().getString("last_project", "") ?: ""
         set(value) = prefs().edit().putString("last_project", value).apply()
 
+    /** Project started after boot (AScript `Config.set_auto_run`). Only one project can run at a time. */
+    var bootProject: String
+        get() = prefs().getString("boot_project", "") ?: ""
+        set(value) = prefs().edit().putString("boot_project", value.trim()).apply()
+
+    /** Projects re-run when they exit on their own or crash (AScript `Config.set_stop_re_run`). */
+    var rerunProjects: Set<String>
+        get() = prefs().getStringSet("rerun_projects", emptySet())?.toSet() ?: emptySet()
+        set(value) = prefs().edit().putStringSet("rerun_projects", value.toSet()).apply()
+
     fun runModeLabel(mode: String = runMode): String = when (mode) {
         MODE_ACCESSIBILITY -> "仅无障碍"
         MODE_ROOT -> "仅Root"

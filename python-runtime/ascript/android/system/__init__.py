@@ -3,7 +3,6 @@
 import json
 import os
 import sys
-import time
 from abc import ABC
 
 from ascript._compat import warn_once
@@ -102,9 +101,8 @@ def exit():  # noqa: A001
 
 
 def reboot(delay_time=0):
-    warn_once("reboot", "system.reboot re-runs the project in a fresh script process")
-    time.sleep(max(0, delay_time) / 1000.0)
-    raise SystemExit(0)
+    """Restart the project in a fresh script process after `delay_time` ms (not a device reboot)."""
+    _xs.reboot(max(0, delay_time) / 1000.0)
 
 
 def open(name_or_package):  # noqa: A001
@@ -141,13 +139,17 @@ def get_version():
 
 
 class Config:
+    """Run options of the current project (the switches on its screen in the app)."""
+
     @staticmethod
     def set_stop_re_run(is_open):
-        return None
+        """停止后重新运行: re-run this project when it exits or crashes (not after a user stop)."""
+        return _xs.Config.set_stop_re_run(bool(is_open))
 
     @staticmethod
     def set_auto_run(is_open):
-        return None
+        """开机自启: start this project after the device boots."""
+        return _xs.Config.set_auto_run(bool(is_open))
 
 
 def refresh_and_find_module(module_name):
@@ -371,8 +373,18 @@ class KeyValue:
 
 class Notification:
     @staticmethod
-    def listen(call):
-        warn_once("notif", "Notification.listen is not supported by XScript")
+    def listen(call, package=None):
+        """call(event) for each notification (event.package / title / text / time / send()).
+
+        Needs 通知使用权 for full data; without it, accessibility notification events are used.
+        Pass call=None to stop.
+        """
+        from xscript.android import event as _ev
+
+        _ev.off(event_type=_ev.NOTIFICATION)
+        if call is None:
+            return None
+        return _ev.on(_ev.NOTIFICATION, call, package=package)
 
 
 class Control:

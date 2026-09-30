@@ -109,6 +109,12 @@ object Bridge {
     @JvmStatic
     fun control(op: String, arg: String): String = AutomationDispatcher.control(op, arg)
 
+    // ---- events (pushed by the main process into the script process)
+    /** Next subscribed event as JSON, or "" after [timeoutMs]. */
+    @JvmStatic
+    fun pollEvent(timeoutMs: Long): String =
+        ScriptService.events.poll(timeoutMs.coerceAtLeast(0L), java.util.concurrent.TimeUnit.MILLISECONDS).orEmpty()
+
     // ---- logs ----
     @JvmStatic
     fun appendLog(stream: String, line: String) {

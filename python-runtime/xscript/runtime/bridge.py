@@ -77,6 +77,9 @@ class _MissingJava(object):
     def control(self, op, arg=""):
         return ""
 
+    def poll_event(self, timeout_ms):
+        return ""
+
     def append_log(self, stream, line):
         return None
 
@@ -161,7 +164,12 @@ class _JavaBridge(object):
         return str(self._j.system(str(op), str(arg)))
 
     def control(self, op, arg=""):
+        if isinstance(arg, dict):
+            arg = json.dumps(arg, ensure_ascii=False)
         return str(self._j.control(str(op), str(arg)))
+
+    def poll_event(self, timeout_ms):
+        return str(self._j.pollEvent(int(timeout_ms)))
 
     def append_log(self, stream, line):
         self._j.appendLog(str(stream), str(line))

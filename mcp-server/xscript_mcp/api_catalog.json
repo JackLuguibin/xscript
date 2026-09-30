@@ -27,30 +27,13 @@
     },
     {
       "name": "xscript.android.node",
-      "description": "Accessibility node selector (text/id/desc/type/state filters, relations, xpath-style paths).",
+      "description": "Accessibility node selector (text/id/desc/type/state filters, relations) and XPath 1.0 queries.",
       "functions": [
         {"name": "dump", "signature": "dump(mode=0) -> dict", "doc": "Raw tree. mode 0 simple, 1 full."}
       ],
       "classes": [
-        {
-          "name": "Selector",
-          "signature": "Selector(mode=0)",
-          "doc": "Chain filters then find(). String filters are exact unless regex() or *_contains is used.",
-          "methods": [
-            "regex(enabled=True)", "text(v)", "text_contains(v)", "text_matches(pattern)", "id(v)", "desc(v)", "desc_contains(v)",
-            "type(v)", "hint(v)", "package(v)", "class_path(v)", "path(v)",
-            "clickable() long_clickable() editable() enabled() visible() checkable() checked() focusable() focused() scrollable() selected()",
-            "depth(*v)", "child_count(*v)", "filter(fn)",
-            "parent(*which)", "child(*which)", "brother(*which)", "descendant()", "within(node)",
-            "find(timeout=5) -> Node | None", "find_all(timeout=0, limit=0) -> list[Node]", "exists(timeout=0) -> bool", "wait_gone(timeout=10) -> bool",
-            "click()", "long_click()", "input(text)", "scroll(forward=True)"
-          ]
-        },
-        {
-          "name": "Node",
-          "doc": "Fields: path, id, text, desc, type, rect, clickable, editable, enabled; left/top/right/bottom/width/height/center_x/center_y.",
-          "methods": ["click()", "long_click()", "set_text(text)", "scroll(forward=True)", "children()", "find(selector)", "find_all(selector)", "to_dict()"]
-        }
+        {"name": "Selector", "signature": "Selector(mode=0, xpath=None)", "doc": "Chain filters then find(). String filters are exact unless regex() or *_contains is used. xpath: //TextView[@text='设置'], contains()/starts-with()/matches(), and/or/not(), [1]/[last()], (//Button)[1], ancestor::/following-sibling::, //A | //B, //LinearLayout[.//Switch]. Attributes: text, resource-id, content-desc, class, package, hint, bounds, index, clickable, checked, ...", "methods": ["regex(enabled=True)", "text(v)", "text_contains(v)", "text_matches(pattern)", "id(v)", "desc(v)", "desc_contains(v)", "type(v)", "hint(v)", "package(v)", "class_path(v)", "path(v)", "clickable() long_clickable() editable() enabled() visible() checkable() checked() focusable() focused() scrollable() selected()", "depth(*v)", "child_count(*v)", "filter(fn)", "parent(*which)", "child(*which)", "brother(*which)", "descendant()", "within(node)", "find(timeout=5) -> Node | None", "find_all(timeout=0, limit=0) -> list[Node]", "exists(timeout=0) -> bool", "wait_gone(timeout=10) -> bool", "click()", "long_click()", "input(text)", "scroll(forward=True)"]},
+        {"name": "Node", "doc": "Fields: path, id, text, desc, type, rect, clickable, editable, enabled; left/top/right/bottom/width/height/center_x/center_y.", "methods": ["click()", "long_click()", "set_text(text)", "scroll(forward=True)", "children()", "find(selector)", "find_all(selector)", "to_dict()"]}
       ]
     },
     {
@@ -78,7 +61,7 @@
     },
     {
       "name": "xscript.android.system",
-      "description": "Apps, device info, shell (root), clipboard, key-value store, resources (R), toast/vibrate/tts.",
+      "description": "Apps, device info, shell (root), clipboard, key-value store, resources (R), toast/vibrate/tts, run options and 定时任务.",
       "functions": [
         {"name": "open", "signature": "open(name_or_package) -> bool", "doc": "Launch an app by label or package."},
         {"name": "browser", "signature": "browser(url)", "doc": "Open a URL."},
@@ -92,11 +75,14 @@
         {"name": "has_root", "signature": "has_root() -> bool", "doc": "Root available."},
         {"name": "vibrate / speak / toast", "signature": "toast(msg, dur=2000)", "doc": "Feedback."},
         {"name": "project_dir", "signature": "project_dir() -> str", "doc": "Running project folder."},
-        {"name": "exit", "signature": "exit(code=0)", "doc": "Stop the script."}
+        {"name": "exit", "signature": "exit(code=0)", "doc": "Stop the script."},
+        {"name": "reboot", "signature": "reboot(delay=0)", "doc": "End this run and start the project again in a fresh script process after delay seconds."}
       ],
       "classes": [
         {"name": "KeyValue", "doc": "Persistent key-value store.", "methods": ["save(key, value)", "get(key, default=None)", "remove(key)"]},
-        {"name": "R", "doc": "Project paths.", "methods": ["root(*parts)", "res(*parts)", "img(*parts)", "ui(*parts)", "sd(*parts)"]}
+        {"name": "R", "doc": "Project paths.", "methods": ["root(*parts)", "res(*parts)", "img(*parts)", "ui(*parts)", "sd(*parts)"]},
+        {"name": "Config", "doc": "Run options of a project (default: the running one), same as the switches on the project screen.", "methods": ["get(project=None) -> dict", "set_auto_run(on=True, project=None)  # 开机自启, one boot project per device", "set_stop_re_run(on=True, project=None)  # 停止后重新运行, not after a user stop"]},
+        {"name": "Schedule", "doc": "定时任务 (device-local time). One script runs at a time; if_running='skip' | 'restart'.", "methods": ["daily(time, weekdays=None, project=None, if_running='skip', wake=True)  # '08:30', weekdays 1=Mon..7=Sun", "every(minutes, window='', project=None, if_running='skip', wake=True)  # window '08:00-23:00'", "once(at, project=None, ...)  # epoch seconds, datetime or 'yyyy-MM-dd HH:mm'", "list(project=None)  # project='*' for all", "update(schedule_id, **fields)", "remove(schedule_id)", "clear(project=None)"]}
       ]
     },
     {
@@ -115,6 +101,25 @@
       ]
     },
     {
+      "name": "xscript.android.event",
+      "description": "Event listeners: physical keys, view click/long_click/scroll, notifications, toasts, raw accessibility events. Handlers run one at a time on a daemon thread; keep the script alive with a loop or event.loop(). Keys/touch/toast/a11y need 无障碍; notifications use 通知使用权 when granted (else accessibility, less data).",
+      "functions": [
+        {"name": "on", "signature": "on(event_type, fn=None, **filters) -> token", "doc": "event_type: key | touch | notification | toast | a11y. Filters match fields (value, list of values, or callable). Decorator without fn."},
+        {"name": "off", "signature": "off(token=None, event_type=None)", "doc": "Remove one handler, a type, or everything."},
+        {"name": "wait", "signature": "wait(event_type, timeout=None, **filters) -> Event | None", "doc": "Block for the next matching event."},
+        {"name": "loop", "signature": "loop()", "doc": "Sleep while handlers are registered."},
+        {"name": "on_key", "signature": "@on_key(key_code=None, action=None)", "doc": "e.key_code (24 vol+, 25 vol-, 4 back), e.action 'down'/'up'. Observed, never consumed."},
+        {"name": "on_touch", "signature": "@on_touch(action=None)", "doc": "e.action click/long_click/scroll, e.x, e.y (view center), e.package, e.text."},
+        {"name": "on_notification", "signature": "@on_notification(package=None)", "doc": "e.package, e.title, e.text, e.time; e.send() opens it."},
+        {"name": "on_toast", "signature": "@on_toast(package=None)", "doc": "e.package, e.text."},
+        {"name": "on_accessibility", "signature": "@on_accessibility(mask=0, package=None)", "doc": "e.event_type, e.event_name, e.package, e.class, e.text."},
+        {"name": "status", "signature": "status() -> dict", "doc": "Subscribed types and whether 通知使用权 is connected."}
+      ],
+      "classes": [
+        {"name": "Event", "doc": "Fields as attributes and keys; e.type is the kind.", "methods": ["get(key, default=None)", "to_dict()", "send()  # notifications"]}
+      ]
+    },
+    {
       "name": "ascript.android",
       "description": "AScript compatibility package (modelled on ascript-tip 1.3.0). Existing AScript projects run unchanged; import with `from ascript.android import action, node, screen, system, ui, media`.",
       "functions": [
@@ -128,12 +133,26 @@
         {"name": "screen.CodeScanner", "signature": "CodeScanner.scan(rect=None)", "doc": "QR codes via OpenCV."},
         {"name": "system.*", "signature": "system.open(pkg); system.shell(cmd); system.R.img('a.png')", "doc": "Device, Clipboard, KeyValue, R, Config, shell, open, browser, get_foreground_app, ..."},
         {"name": "ui.*", "signature": "ui.WebWindow(html).show(); ui.Dialog.toast(msg)", "doc": "WebWindow, Dialog, Loger, FloatWindow, ImageWindow, Canvas."},
-        {"name": "media.*", "signature": "media.vibrate(200); media.talk(msg)", "doc": "Volume, brightness, vibrate, TTS, play."}
+        {"name": "media.*", "signature": "media.vibrate(200); media.talk(msg)", "doc": "Volume, brightness, vibrate, TTS, play."},
+        {"name": "event.KeyEvent / TouchEvent / NotificationEvent", "signature": "@KeyEvent.on(key_code=24) / @NotificationEvent.on(package=...) / X.stop()", "doc": "Same fields as AScript; NotificationEvent event.send() opens the notification, event.raw is None."},
+        {"name": "node.Selector.on_event / system.Notification.listen", "signature": "Selector.on_event(fn) / Notification.listen(fn)", "doc": "Accessibility events (getEventType/getPackageName/getText) and notifications; pass None to stop."},
+        {"name": "system.Config / reboot", "signature": "Config.set_auto_run(True); Config.set_stop_re_run(True); reboot(delay_ms)", "doc": "开机自启, 停止后重新运行, and re-running the project in a fresh process."},
+        {"name": "node.Selector(xpath=...)", "signature": "Selector(xpath=\"//TextView[contains(@text,'设置')]\").find()", "doc": "XPath 1.0 subset, see xscript.android.node."}
       ],
       "unsupported": [
-        "action.Hid (hardware HID)", "screen.YoLov5", "screen.OcrX and Ocr.matrix (font libraries)", "screen.gp files from AScript's 图色工具",
-        "FindImages method='smart' (falls back to template)", "node.WebSelector", "Selector.on_event / event listeners",
-        "sms", "plug", "bluetooth", "location", "sensor", "system.Control (AScript cloud control)", "system.Notification.listen", "media.recode / send_email / AliTts"
+        "action.Hid (hardware HID)",
+        "screen.YoLov5",
+        "screen.OcrX and Ocr.matrix (font libraries)",
+        "screen.gp files from AScript's 图色工具",
+        "FindImages method='smart' (falls back to template)",
+        "node.WebSelector",
+        "sms",
+        "plug",
+        "bluetooth",
+        "location",
+        "sensor",
+        "system.Control (AScript cloud control)",
+        "media.recode / send_email / AliTts"
       ]
     },
     {

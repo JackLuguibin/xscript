@@ -27,7 +27,45 @@ STATE = {
     "settings": {"run_mode": "auto", "float_on_run": True, "keep_screen_on": False, "cloud_url": ""},
     "snapshots": {},   # id -> png bytes
     "datasets": {},    # name -> {"classes": [...], "items": {id: {"image": bytes, "label": dict|None}}}
+    "schedules": {},   # id -> schedule dict
+    "boot_project": "",
+    "rerun": set(),
 }
+
+
+def _config(name):
+    return {"project": name, "auto_run": STATE["boot_project"] == name, "stop_re_run": name in STATE["rerun"],
+            "boot_project": STATE["boot_project"]}
+
+
+def _schedule_from(body, existing=None):
+    """Validate like Schedule.fromRequest (subset); raises ValueError with the device's messages."""
+    s = dict(existing or {})
+    s.update({k: v for k, v in body.items() if k != "id"})
+    if s.get("project") not in STATE["projects"]:
+        raise ValueError("missing project %s" % s.get("project"))
+    kind = s.get("kind")
+    if kind == "daily":
+        t = str(s.get("time", ""))
+        parts = t.split(":")
+        if len(parts) != 2 or not all(p.isdigit() for p in parts) or int(parts[0]) > 23 or int(parts[1]) > 59:
+            raise ValueError("time must be HH:mm")
+        if any(not 1 <= int(d) <= 7 for d in s.get("weekdays") or []):
+            raise ValueError("weekdays are 1 (Mon) .. 7 (Sun)")
+    elif kind == "interval":
+        if not 1 <= int(s.get("every") or 0) <= 10080:
+            raise ValueError("every must be 1..10080 minutes")
+    elif kind == "once":
+        if not s.get("at"):
+            raise ValueError("at is required for kind=once")
+    else:
+        raise ValueError("kind must be daily, interval or once")
+    if s.get("if_running", "skip") not in ("skip", "restart"):
+        raise ValueError("if_running must be skip or restart")
+    s.setdefault("if_running", "skip")
+    s.setdefault("enabled", True)
+    s.setdefault("next", 0)
+    return s
 
 # 1x1 pixel, color #336699, for snapshot / vision tests.
 SNAP_PNG = (
@@ -207,6 +245,15 @@ class Handler(BaseHTTPRequestHandler):
         if parsed.path == "/":
             self._send(200, "text/plain", b"XScript mock device")
             return
+        if parsed.path == "/schedules":
+            project = q.get("project")
+            items = [s for _, s in sorted(STATE["schedules"].items()) if not project or s["project"] == project]
+            self._json(200, {"schedules": items, "exact_alarms": True})
+            return
+        if parsed.path.startswith("/schedules/"):
+            s = STATE["schedules"].get(unquote(parsed.path[len("/schedules/"):]))
+            self._json(200 if s else 404, s or {"error": "missing schedule"})
+            return
         asset = WEBSITE_ALIASES.get(parsed.path)
         if asset or parsed.path in ("/tools", "/tools/") or parsed.path.startswith("/tools/ui/"):
             self._asset(asset or ("index.html" if parsed.path in ("/tools", "/tools/") else parsed.path[len("/tools/ui/"):]))
@@ -277,6 +324,9 @@ class Handler(BaseHTTPRequestHandler):
                 else:
                     self._json(200, {"path": rel, "encoding": "base64", "content": base64.b64encode(data).decode()})
                 return
+            if sub == "/config":
+                self._json(200, _config(name))
+                return
             if sub == "/zip":
                 buf = io.BytesIO()
                 with zipfile.ZipFile(buf, "w") as zf:
@@ -317,7 +367,33 @@ class Handler(BaseHTTPRequestHandler):
                     STATE["settings"][k] = body[k]
             self._json(200, STATE["settings"])
             return
+        if path.startswith("/schedules/"):
+            sid = unquote(path[len("/schedules/"):])
+            if sid not in STATE["schedules"]:
+                self._json(404, {"error": "missing schedule"})
+                return
+            try:
+                STATE["schedules"][sid] = _schedule_from(self._body(), STATE["schedules"][sid])
+            except ValueError as e:
+                self._json(400, {"error": str(e)})
+                return
+            self._json(200, STATE["schedules"][sid])
+            return
         name, sub = self._project_route()
+        if name is not None and sub == "/config":
+            if name not in STATE["projects"]:
+                self._json(404, {"error": "missing project"})
+                return
+            body = self._body()
+            if "auto_run" in body:
+                if body["auto_run"]:
+                    STATE["boot_project"] = name
+                elif STATE["boot_project"] == name:
+                    STATE["boot_project"] = ""
+            if "stop_re_run" in body:
+                (STATE["rerun"].add if body["stop_re_run"] else STATE["rerun"].discard)(name)
+            self._json(200, _config(name))
+            return
         if name is not None and sub == "/files":
             body = self._body()
             items = body.get("files") if isinstance(body.get("files"), list) else [body]
@@ -415,6 +491,29 @@ class Handler(BaseHTTPRequestHandler):
                 STATE["datasets"][to] = STATE["datasets"].pop(name)
                 self._json(200, _describe(to))
                 return
+        if path == "/schedules":
+            try:
+                s = _schedule_from(self._body())
+            except ValueError as e:
+                self._json(400, {"error": str(e)})
+                return
+            STATE["seq"] = STATE.get("seq", 0) + 1
+            s["id"] = "s%04d" % STATE["seq"]
+            STATE["schedules"][s["id"]] = s
+            self._json(200, s)
+            return
+        if path.startswith("/schedules/") and path.endswith("/run"):
+            s = STATE["schedules"].get(unquote(path[len("/schedules/"):-len("/run")]))
+            if s is None:
+                self._json(404, {"error": "missing schedule"})
+                return
+            if STATE["running"]:
+                result = "skipped" if s["if_running"] == "skip" else "queued"
+            else:
+                STATE["running"] = s["project"]
+                result = "started"
+            self._json(200, {"result": result})
+            return
         if path == "/eval":
             body = self._body()
             self._json(200, {"ok": True, "result": "mock:" + (body.get("code") or "")[:20], "error": ""})
@@ -499,10 +598,18 @@ class Handler(BaseHTTPRequestHandler):
                 return
             self._json(404, {"error": "not found"})
             return
+        if path.startswith("/schedules/"):
+            self._json(200, {"ok": STATE["schedules"].pop(unquote(path[len("/schedules/"):]), None) is not None})
+            return
         name, sub = self._project_route()
         if name is not None and sub == "":
             if STATE["running"] == name:
                 STATE["running"] = None
+            for sid in [i for i, s in STATE["schedules"].items() if s["project"] == name]:
+                del STATE["schedules"][sid]
+            if STATE["boot_project"] == name:
+                STATE["boot_project"] = ""
+            STATE["rerun"].discard(name)
             self._json(200, {"ok": STATE["projects"].pop(name, None) is not None})
             return
         if name is not None and sub == "/file":

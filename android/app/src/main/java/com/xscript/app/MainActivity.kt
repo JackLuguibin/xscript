@@ -60,6 +60,7 @@ class MainActivity : AppCompatActivity() {
     private lateinit var rowCapture: UiKit.Row
     private lateinit var rowCloud: UiKit.Row
     private lateinit var rowProjects: UiKit.Row
+    private lateinit var rowNotif: UiKit.Row
     private lateinit var rowStorage: UiKit.Row
     private lateinit var rowBattery: UiKit.Row
     private lateinit var runTitle: TextView
@@ -112,6 +113,9 @@ class MainActivity : AppCompatActivity() {
         val sys = UiKit.card(col)
         rowA11y = UiKit.row(sys, "◉", 0xFFF59E0B.toInt(), "辅助权限管理") {
             startActivity(Intent(AndroidSettings.ACTION_ACCESSIBILITY_SETTINGS))
+        }
+        rowNotif = UiKit.row(sys, "✉", 0xFF10A37F.toInt(), "通知使用权") {
+            startActivity(Intent(AndroidSettings.ACTION_NOTIFICATION_LISTENER_SETTINGS))
         }
         rowStorage = UiKit.row(sys, "▤", 0xFF6B7785.toInt(), "文件访问权限") { requestStorage() }
         rowBattery = UiKit.row(sys, "⚡", 0xFF6B7785.toInt(), "后台运行") { requestBattery() }
@@ -193,6 +197,8 @@ class MainActivity : AppCompatActivity() {
         rowCloud.value(cloud, if (CloudClient.state == CloudClient.State.CONNECTED) UiKit.GREEN else UiKit.MUTED)
 
         rowProjects.value("${ProjectStore(this).list().size} 个")
+        val notif = hasNotificationAccess()
+        rowNotif.value(if (notif) "已授权" else "未授权", if (notif) UiKit.GREEN else UiKit.MUTED)
         rowStorage.value(if (hasStorage()) "已授权" else "未授权", if (hasStorage()) UiKit.GREEN else UiKit.MUTED)
         rowBattery.value(if (isIgnoringBattery()) "不受限" else "受限", if (isIgnoringBattery()) UiKit.GREEN else UiKit.MUTED)
 
@@ -334,6 +340,9 @@ class MainActivity : AppCompatActivity() {
         ) ?: return false
         return enabled.split(':').any { it.equals(expected, ignoreCase = true) }
     }
+
+    private fun hasNotificationAccess(): Boolean =
+        androidx.core.app.NotificationManagerCompat.getEnabledListenerPackages(this).contains(packageName)
 
     private fun isIgnoringBattery(): Boolean {
         val pm = getSystemService(POWER_SERVICE) as PowerManager

@@ -6,6 +6,7 @@ import android.os.IBinder
 import android.os.ParcelFileDescriptor
 import android.util.Log
 import com.xscript.app.IAutomation
+import com.xscript.app.IEventSink
 import com.xscript.app.a11y.AccessibilityEngine
 import com.xscript.app.capture.CaptureEngine
 import com.xscript.app.ui.FloatControl
@@ -74,8 +75,11 @@ class AutomationService : Service() {
             return Pipes.send(bytes)
         }
 
-        override fun control(op: String, arg: String): String =
-            safe("control:$op", "") { MainControl.handle(op, arg) }
+        override fun control(op: String, arg: String): String = MainControl.safeHandle(op, arg)
+
+        override fun attachScript(project: String, sink: IEventSink) {
+            safe("attachScript", Unit) { ScriptSupervisor.attach(project, sink) }
+        }
     }
 
     override fun onBind(intent: Intent?): IBinder = binder

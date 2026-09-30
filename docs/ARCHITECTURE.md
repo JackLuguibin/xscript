@@ -104,7 +104,24 @@ App 有三个进程，这是整个架构最核心的设计：
 
 `:eval` 和 `:script` 一样通过 `IAutomation` 访问主进程的自动化能力，因此 eval 里的代码与脚本里的代码行为一致。
 
-`XscriptApp.onCreate` 通过进程名判断 `isMainProcess`，只有主进程会探测 root、启动 `AutomationService` 并自动连接云控。
+`XscriptApp.onCreate` 通过进程名判断 `isMainProcess`，只有主进程会探测 root、启动 `AutomationService`、自动连接云控，并重新挂上下一个定时任务的闹钟。
+
+### 4.1.1 运行监管、开机自启与定时任务
+
+`ScriptSupervisor`（主进程）负责脚本的生命周期：
+
+- 每次运行开始时，`:script` 进程调用 `IAutomation.attachScript(project, IEventSink)`。主进程对这个 Binder 执行 `linkToDeath`，脚本进程无论是正常退出、崩溃还是被杀，主进程都能收到通知。正常结束时脚本还会通过 `script_finished` 上报退出码，用来区分“崩溃”和“正常退出”。
+- **停止后重新运行**：用户停止（界面、悬浮按钮、HTTP、MCP，都经过 `ScriptService.stop`）会打上 `userStop` 标记，不会触发重跑。其它情况下，如果工程开启了该选项，3 秒后重跑。连续 5 次在 10 秒内退出就暂停重跑，直到下一次手动启动，防止崩溃循环。`system.reboot(delay)` 也走这条路径。
+- **开机自启**：`Scheduler.Receiver` 收到 `BOOT_COMPLETED` 后，先重新挂闹钟，再按需启动 `DeviceHttpService`，然后等无障碍或 root 就绪（最多 60 秒）并启动开机工程。
+- **定时任务**：`Schedule`（纯数据，含下次触发时间的计算，有 JVM 单测）加 `ScheduleStore`（`filesDir/schedules.json`）。`Scheduler` 只挂一个 AlarmManager 闹钟，对应最早的下一次触发；闹钟触发后运行到期任务、推进时间、再挂下一个。有精确闹钟授权时用 `setExactAndAllowWhileIdle`，否则用 `setAndAllowWhileIdle`。时间调整、时区变化、应用更新后都会重新计算。同一时间只运行一个工程，`if_running=restart` 的任务通过 `launch(restart=true)` 先停掉当前工程，等它的进程死亡后再启动。
+
+### 4.1.2 事件
+
+`EventHub`（主进程）从无障碍服务（按键过滤、控件点击 / 长按 / 滚动、Toast、通知、原始事件）和 `XscriptNotificationListener`（通知使用权）收集事件，只把脚本订阅了的类型序列化成 JSON，通过 `IEventSink.onEvent`（oneway）推到 `:script` 进程。那边放进一个有界队列，Python 用 `Bridge.pollEvent` 取出，在守护线程里分发。
+
+- 订阅为空时事件完全不做处理。
+- 按键过滤（`FLAG_REQUEST_FILTER_KEY_EVENTS`）只在有脚本监听按键时打开，并且从不消费按键。
+- 通知的 `contentIntent` 保存在 LRU 缓存里，供 `event.send()` 使用。
 
 ### 4.2 跨进程通信
 
@@ -173,7 +190,8 @@ sequenceDiagram
 | 分类 | 接口 |
 | --- | --- |
 | 设备 | `GET /status`、`GET /screen`（png / jpg）、`GET /ui-tree?mode=`、`POST /action`、`GET/PUT /settings` |
-| 工程 | `GET /projects`、`POST/DELETE /projects/{name}`、`GET/PUT /projects/{name}/files`、`GET/DELETE /projects/{name}/file`、`GET/PUT /projects/{name}/zip`、`POST /projects/{name}/run`、`POST /projects/{name}/stop` |
+| 工程 | `GET /projects`、`POST/DELETE /projects/{name}`、`GET/PUT /projects/{name}/files`、`GET/DELETE /projects/{name}/file`、`GET/PUT /projects/{name}/zip`、`POST /projects/{name}/run`、`POST /projects/{name}/stop`、`GET/PUT /projects/{name}/config`（开机自启 / 停止后重新运行） |
+| 定时任务 | `GET/POST /schedules`、`GET/PUT/DELETE /schedules/{id}`、`POST /schedules/{id}/run` |
 | AScript 迁移 | `GET /ascript/projects`、`POST /ascript/import`（从 `/sdcard/airscript/model` 导入） |
 | 调试 | `GET/DELETE /logs`、`POST /eval` |
 | 开发工具 | `GET /tools/`（网页）、`/tools/snapshots`、`POST /tools/vision`、`/tools/datasets/...`、`GET /screen/stream`（投屏） |
@@ -263,6 +281,8 @@ flowchart TB
 
 - `bridge.py` 是 Python 与 Java 之间唯一的接触面。导入 Java 类失败（即在 PC 上）时自动换成 `_MissingJava`，所有调用返回“不可用”的值，单测再对它打 monkeypatch。
 - `tree.py` 是纯 Python 的节点查询引擎：对 dump 出来的树建立父子 / 兄弟索引，按“过滤 → 关系（parent / child / brother）→ 过滤 …”的流水线求值。`node.Selector` 每次查找都重新 dump 一次整棵树，在 Python 侧匹配。
+- `xpath.py` 是在同一棵索引树上运行的 XPath 1.0 子集，由分词器、递归下降解析器和求值器组成，解析结果会缓存。它支持轴、谓词、函数、分组和并集，属性名沿用 uiautomator 的叫法。
+- `event.py` 负责事件订阅与分发，见 4.1.2。
 - `image.py`（约 900 行）是图色核心，`xscript.android.screen` 和 `ascript.android.screen` 共用：原始帧 → numpy BGR、多点找色、带 alpha 掩码的多尺度模板匹配（OpenCV，含降采样粗筛 + 局部精修）、OCR 结果封装。
 - `ascript/` 按 ascript-tip 1.3.0 的 API 形状实现，已有 AScript 工程无需修改即可运行。暂不支持的接口通过 `_compat.warn_once` 提示。
 
@@ -288,7 +308,8 @@ sequenceDiagram
 ```
 
 - 同一时间只运行一个工程，重复运行返回 409。
-- 停止：`POST /stop` 或悬浮按钮 → `ScriptService` 收到 `ACTION_STOP` → 杀进程。
+- 停止：`POST /stop` 或悬浮按钮 → `ScriptService` 收到 `ACTION_STOP` → 杀进程。这属于用户停止，不会触发“停止后重新运行”。
+- 进程结束后 `ScriptSupervisor` 通过 Binder 死亡通知决定下一步：启动排队中的工程、按选项重跑，或者什么都不做（见 4.1.1）。
 - `_wait_for_threads` 模拟 CPython 退出时 join 非守护线程的行为。在 Chaquopy 下解释器的“主线程”是 Android UI Looper，永远不会结束，所以显式跳过它和 `_DummyThread`。
 
 ### 5.3 `/eval`
@@ -309,6 +330,7 @@ sequenceDiagram
 
 - 设备：`connect_device`、`get_device_status`、`screen_capture`（返回 MCP Image）、`dump_ui_tree`、`device_action`
 - 工程：`list_projects`、`list_project_files`、`read_project_file`、`upload_file`、`upload_directory`（本地打 zip 后上传，跳过 `.git`、`__pycache__` 等）、`delete_project`、`run_project`、`stop_project`、`get_run_log`
+- 运行选项与定时任务：`project_run_options`、`list_schedules`、`add_schedule`、`update_schedule`、`delete_schedule`、`run_schedule_now`
 - 调试：`eval_python`（拒绝包含 `while True` 的代码）
 - 文档：`get_module_apis`、`search_api`，查询本地 `api_catalog.json`
 

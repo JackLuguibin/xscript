@@ -18,7 +18,9 @@ Call `screen.size()` rather than assuming portrait. Games often run landscape.
 
 - New scripts use `xscript.android.*`. Look up exact signatures with `get_module_apis` / `search_api`.
 - AScript projects use `ascript.android.*`. Keep their imports as they are. Do not port them to `xscript.*` unless asked.
-- Unsupported AScript features (HID, YOLO, OcrX, WebSelector, event listeners, sms, plug, AScript cloud control, gp files) raise `NotImplementedError`. Replace them with supported calls instead of retrying.
+- Unsupported AScript features (HID, YOLO, OcrX, WebSelector, sms, plug, AScript cloud control, gp files) raise `NotImplementedError`. Replace them with supported calls instead of retrying.
+- React to keys, notifications and toasts with `xscript.android.event` (or AScript's `ascript.android.event`) instead of polling. Handlers run on a daemon thread, so the script must keep running.
+- For unattended runs, use the `project_run_options` and `add_schedule` MCP tools (or `system.Config` / `system.Schedule` in a script). Do not write a `while True` loop that sleeps until a certain time.
 
 ## Long loops live in the device script
 

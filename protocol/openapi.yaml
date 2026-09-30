@@ -294,10 +294,126 @@ paths:
     parameters:
       - $ref: "#/components/parameters/ProjectName"
     post:
-      summary: Kill the script process
+      summary: Kill the script process (a user stop, so 停止后重新运行 does not trigger)
       responses:
         "200":
           description: Stopped
+  /projects/{name}/config:
+    parameters:
+      - $ref: "#/components/parameters/ProjectName"
+    get:
+      summary: Run options (开机自启 / 停止后重新运行)
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ProjectConfig"
+    put:
+      summary: Change run options; omitted flags stay as they are
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                auto_run: { type: boolean }
+                stop_re_run: { type: boolean }
+      responses:
+        "200":
+          description: Updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ProjectConfig"
+        "404":
+          description: Missing project
+  /schedules:
+    get:
+      summary: 定时任务
+      parameters:
+        - name: project
+          in: query
+          schema: { type: string }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  schedules:
+                    type: array
+                    items: { $ref: "#/components/schemas/Schedule" }
+                  exact_alarms: { type: boolean }
+    post:
+      summary: Add a schedule
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/Schedule"
+      responses:
+        "200":
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Schedule"
+        "400":
+          description: Invalid schedule or missing project
+  /schedules/{id}:
+    parameters:
+      - name: id
+        in: path
+        required: true
+        schema: { type: string }
+    get:
+      summary: One schedule
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Schedule"
+        "404":
+          description: Missing schedule
+    put:
+      summary: Update fields of a schedule
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/Schedule"
+      responses:
+        "200":
+          description: Updated
+        "400":
+          description: Invalid
+        "404":
+          description: Missing schedule
+    delete:
+      summary: Remove a schedule
+      responses:
+        "200":
+          description: "{ok: bool}"
+  /schedules/{id}/run:
+    parameters:
+      - name: id
+        in: path
+        required: true
+        schema: { type: string }
+    post:
+      summary: Run the schedule's project now
+      responses:
+        "200":
+          description: "{result: started | skipped | queued | missing}"
+        "404":
+          description: Missing schedule
   /ascript/projects:
     get:
       summary: AScript projects found on the device (/sdcard/airscript/model)
@@ -613,11 +729,66 @@ components:
           description: Channel currently used for gestures and node actions
         capture: { type: boolean }
         capture_source: { type: string }
+        notification_listener:
+          type: boolean
+          description: 通知使用权 granted and connected (full notification events)
+        exact_alarms:
+          type: boolean
+          description: Schedules use exact alarms (Android 12+ needs the 闹钟和提醒 grant)
         running: { type: boolean }
         project:
           type: string
           nullable: true
         version: { type: string }
+    ProjectConfig:
+      type: object
+      properties:
+        project: { type: string }
+        auto_run:
+          type: boolean
+          description: 开机自启. One boot project per device; enabling it here clears the previous one.
+        stop_re_run:
+          type: boolean
+          description: 停止后重新运行. Re-run on exit or crash, not after a user stop. Pauses after 5 exits within 10 s.
+        boot_project: { type: string }
+    Schedule:
+      type: object
+      properties:
+        id: { type: string, readOnly: true }
+        project: { type: string }
+        kind:
+          type: string
+          enum: [daily, interval, once]
+        time:
+          type: string
+          description: daily, "HH:mm" device-local
+        weekdays:
+          type: array
+          items: { type: integer, minimum: 1, maximum: 7 }
+          description: daily, 1 = Monday .. 7 = Sunday; empty = every day
+        every:
+          type: integer
+          description: interval, minutes (1..10080), on a fixed grid from creation
+        window:
+          type: string
+          description: interval, optional "HH:mm-HH:mm" (may cross midnight)
+        at:
+          description: once, epoch ms or "yyyy-MM-dd HH:mm" (device-local)
+          oneOf:
+            - { type: integer }
+            - { type: string }
+        if_running:
+          type: string
+          enum: [skip, restart]
+          description: What to do when a script is already running
+        wake: { type: boolean, description: "Turn the screen on before running" }
+        enabled: { type: boolean }
+        created: { type: integer, readOnly: true }
+        last_run: { type: integer, readOnly: true }
+        next:
+          type: integer
+          readOnly: true
+          description: Next fire time (epoch ms), 0 when it will not fire
     Settings:
       type: object
       properties:

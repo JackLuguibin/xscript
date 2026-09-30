@@ -76,12 +76,13 @@ def collect_related(roots, anchor_filters, relation, target_filters, op='exact')
     ...
 
 def parse_xpath(xpath):
-    """Minimal XPath: //Type[@attr='v'][@attr2='v2']/Child... -> list of (axis, type, attrs).
+    """Legacy step parser: //Type[@attr='v']/Child... -> list of (axis, type, attrs).
 
-    axis is 'descendant' for // and 'child' for /. Enough for AScript's documented form
-    `//TextView[@text='开发者']`.
+    Kept for callers that inspect simple paths; evaluation goes through run_xpath, which
+    supports the full subset in xscript.android.xpath.
     """
     ...
 
 def run_xpath(roots, xpath):
+    """Evaluate an XPath expression (see xscript.android.xpath for the supported subset)."""
     ...

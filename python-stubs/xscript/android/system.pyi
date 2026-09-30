@@ -130,3 +130,62 @@ class R(object):
 def exit(code=0):
     """Stop the running script."""
     ...
+
+def reboot(delay=0):
+    """End this run and start the project again in a fresh script process after `delay` seconds."""
+    ...
+
+class Config(object):
+    """Per-project run options, the same switches as the project screen in the app."""
+
+    @staticmethod
+    def get(project=None):
+        """{"project", "auto_run", "stop_re_run", "boot_project"}."""
+        ...
+
+    @staticmethod
+    def set_auto_run(on=True, project=None):
+        """开机自启: start this project after the device boots. Only one project can be the boot project."""
+        ...
+
+    @staticmethod
+    def set_stop_re_run(on=True, project=None):
+        """停止后重新运行: start the project again when it exits or crashes (not when a user stops it)."""
+        ...
+
+class Schedule(object):
+    """定时任务. Times are device-local. One script runs at a time; see `if_running`."""
+
+    @staticmethod
+    def list(project=None):
+        """Schedules for `project` (default: the running project); pass project="*" for all."""
+        ...
+
+    @staticmethod
+    def daily(time, weekdays=None, project=None, if_running='skip', wake=True):
+        """Run at "HH:mm" every day, or on `weekdays` (1 = Monday .. 7 = Sunday)."""
+        ...
+
+    @staticmethod
+    def every(minutes, window='', project=None, if_running='skip', wake=True):
+        """Run every `minutes`, optionally only inside `window` ("08:00-23:00", may cross midnight)."""
+        ...
+
+    @staticmethod
+    def once(at, project=None, if_running='skip', wake=True):
+        """Run once at `at`: epoch seconds, a datetime, or "yyyy-MM-dd HH:mm"."""
+        ...
+
+    @staticmethod
+    def update(schedule_id, **fields):
+        """Change fields of a schedule, e.g. update(id, enabled=False) or update(id, time="09:00")."""
+        ...
+
+    @staticmethod
+    def remove(schedule_id):
+        ...
+
+    @staticmethod
+    def clear(project=None):
+        """Remove every schedule of `project` (default: the running project). Returns the count."""
+        ...

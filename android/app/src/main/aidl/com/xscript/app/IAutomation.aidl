@@ -1,5 +1,7 @@
 package com.xscript.app;
 
+import com.xscript.app.IEventSink;
+
 // Main-process automation surface. The :script process binds this so a crashed or
 // killed script never takes the accessibility service or capture session with it.
 // Large payloads (UI tree JSON, raw frames) travel through pipes to stay under the
@@ -17,4 +19,7 @@ interface IAutomation {
     String captureToFile(String path);
     ParcelFileDescriptor captureFrame(int left, int top, int right, int bottom);
     String control(String op, String arg);
+    // Called once per run by the :script process. The main process watches the sink's
+    // binder for death (crash / kill) and delivers subscribed events through it.
+    void attachScript(String project, IEventSink sink);
 }

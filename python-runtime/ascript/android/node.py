@@ -122,6 +122,38 @@ class _Cache(object):
     payload = {}
 
 
+class _A11yEvent(object):
+    """AccessibilityEvent-style getters over an xscript event dict (Selector.on_event)."""
+
+    def __init__(self, e):
+        self._e = e
+        self.event_type = e.get("event_type", 0)
+        self.package_name = e.get("package", "")
+        self.class_name = e.get("class", "")
+        self.text = list(e.get("text") or [])
+
+    def getEventType(self):
+        return self.event_type
+
+    def getPackageName(self):
+        return self.package_name
+
+    def getClassName(self):
+        return self.class_name
+
+    def getText(self):
+        return self.text
+
+    def getContentDescription(self):
+        return self._e.get("desc", "")
+
+    def getEventTime(self):
+        return self._e.get("event_time", 0)
+
+    def __repr__(self):
+        return "AccessibilityEvent(%s %s %s)" % (self._e.get("event_name"), self.package_name, self.text)
+
+
 class Selector:
     MODE_ACC_SIMPLE = 0
     MODE_ACC_ALL = 1
@@ -148,8 +180,22 @@ class Selector:
             _Cache.payload[int(mode) & 3] = _xn.dump(int(mode) & 3)
 
     @staticmethod
-    def on_event(listener):
-        warn_once("on_event", "Selector.on_event is not supported; poll with find() instead")
+    def on_event(listener, mask=0):
+        """Raw accessibility events (window changes, clicks, toasts, notifications...).
+
+        `listener(e)` gets an event with e.getEventType(), e.getPackageName(), e.getClassName()
+        and e.getText(), like AScript's AccessibilityEvent. Pass listener=None to stop.
+        """
+        from xscript.android import event as _ev
+
+        _ev.off(event_type=_ev.ACCESSIBILITY)
+        if listener is None:
+            return None
+
+        def wrapper(e):
+            listener(_A11yEvent(e))
+
+        return _ev.on_accessibility(mask)(wrapper)
 
     @staticmethod
     def dump(mode=0):

@@ -3,7 +3,6 @@
 import json
 import os
 import sys
-import time
 from abc import ABC
 from ascript._compat import warn_once
 from xscript.android import system as _xs
@@ -45,6 +44,7 @@ def exit():
     ...
 
 def reboot(delay_time=0):
+    """Restart the project in a fresh script process after `delay_time` ms (not a device reboot)."""
     ...
 
 def open(name_or_package):
@@ -72,13 +72,16 @@ def get_version():
     ...
 
 class Config:
+    """Run options of the current project (the switches on its screen in the app)."""
 
     @staticmethod
     def set_stop_re_run(is_open):
+        """停止后重新运行: re-run this project when it exits or crashes (not after a user stop)."""
         ...
 
     @staticmethod
     def set_auto_run(is_open):
+        """开机自启: start this project after the device boots."""
         ...
 
 def refresh_and_find_module(module_name):
@@ -243,7 +246,12 @@ class KeyValue:
 class Notification:
 
     @staticmethod
-    def listen(call):
+    def listen(call, package=None):
+        """call(event) for each notification (event.package / title / text / time / send()).
+
+        Needs 通知使用权 for full data; without it, accessibility notification events are used.
+        Pass call=None to stop.
+        """
         ...
 
 class Control:

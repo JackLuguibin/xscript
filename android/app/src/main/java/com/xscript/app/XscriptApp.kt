@@ -9,6 +9,8 @@ import android.os.Process
 import com.xscript.app.cloud.CloudClient
 import com.xscript.app.root.RootShell
 import com.xscript.app.runtime.AutomationService
+import com.xscript.app.schedule.Scheduler
+import kotlin.concurrent.thread
 
 class XscriptApp : Application() {
     override fun onCreate() {
@@ -19,6 +21,8 @@ class XscriptApp : Application() {
             RootShell.probeAsync()
             startService(Intent(this, AutomationService::class.java))
             CloudClient.autoConnect(this)
+            // Force-stop and app updates drop alarms; arm the next schedule on every start.
+            thread(name = "xscript-rearm") { Scheduler.rearm(this) }
         }
     }
 

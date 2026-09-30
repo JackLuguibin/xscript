@@ -53,13 +53,15 @@ object SystemApi {
             "android_id" -> androidId()
             "clip_put" -> onMain { clipboard().setPrimaryClip(ClipData.newPlainText("xscript", a.optString("v"))); "ok" }
             "clip_get" -> onMain { clipboard().primaryClip?.takeIf { it.itemCount > 0 }?.getItemAt(0)?.coerceToText(ctx)?.toString().orEmpty() }
+            // commit(), not apply(): the script process is killed as soon as a run ends, which
+            // would drop an asynchronous write made just before exit.
             "kv_put" -> {
-                kv().edit().putString(a.getString("key"), a.getString("value")).apply()
+                kv().edit().putString(a.getString("key"), a.getString("value")).commit()
                 "ok"
             }
             "kv_get" -> kv().getString(a.getString("key"), null) ?: "\u0000"
             "kv_remove" -> {
-                kv().edit().remove(a.getString("key")).apply()
+                kv().edit().remove(a.getString("key")).commit()
                 "ok"
             }
             "shell" -> shell(a.optString("cmd"), a.optBoolean("root", true), a.optLong("timeout", 30_000)).toString()

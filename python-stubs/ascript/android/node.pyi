@@ -69,7 +69,12 @@ class Selector:
         ...
 
     @staticmethod
-    def on_event(listener):
+    def on_event(listener, mask=0):
+        """Raw accessibility events (window changes, clicks, toasts, notifications...).
+
+        `listener(e)` gets an event with e.getEventType(), e.getPackageName(), e.getClassName()
+        and e.getText(), like AScript's AccessibilityEvent. Pass listener=None to stop.
+        """
         ...
 
     @staticmethod

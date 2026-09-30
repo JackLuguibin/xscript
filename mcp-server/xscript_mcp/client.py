@@ -206,6 +206,52 @@ class DeviceClient:
             r.raise_for_status()
             return r.content
 
+    # ---- run options and 定时任务 ----
+
+    def project_config(self, project: str) -> dict[str, Any]:
+        return self._get("/projects/%s/config" % self._p(project))
+
+    def set_project_config(self, project: str, **flags: bool) -> dict[str, Any]:
+        with self._client() as client:
+            r = client.put(self._url("/projects/%s/config" % self._p(project)), json=flags)
+            if r.status_code == 404:
+                return r.json()
+            r.raise_for_status()
+            return r.json()
+
+    def list_schedules(self, project: str | None = None) -> dict[str, Any]:
+        return self._get("/schedules", **({"project": project} if project else {}))
+
+    def add_schedule(self, schedule: dict[str, Any]) -> dict[str, Any]:
+        with self._client() as client:
+            r = client.post(self._url("/schedules"), json=schedule)
+            if r.status_code == 400:
+                return r.json()
+            r.raise_for_status()
+            return r.json()
+
+    def update_schedule(self, schedule_id: str, fields: dict[str, Any]) -> dict[str, Any]:
+        with self._client() as client:
+            r = client.put(self._url("/schedules/%s" % quote(schedule_id, safe="")), json=fields)
+            if r.status_code in (400, 404):
+                return r.json()
+            r.raise_for_status()
+            return r.json()
+
+    def delete_schedule(self, schedule_id: str) -> dict[str, Any]:
+        with self._client() as client:
+            r = client.delete(self._url("/schedules/%s" % quote(schedule_id, safe="")))
+            r.raise_for_status()
+            return r.json()
+
+    def run_schedule(self, schedule_id: str) -> dict[str, Any]:
+        with self._client() as client:
+            r = client.post(self._url("/schedules/%s/run" % quote(schedule_id, safe="")))
+            if r.status_code == 404:
+                return r.json()
+            r.raise_for_status()
+            return r.json()
+
     def eval_python(self, code: str, timeout_ms: int = 8000) -> dict[str, Any]:
         wait = max(self.timeout, timeout_ms / 1000.0 + 2)
         with self._client(timeout=wait) as client:
