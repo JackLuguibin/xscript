@@ -1,0 +1,84 @@
+{
+  "name": "xscript-vscode",
+  "displayName": "XScript",
+  "description": "Upload, run and debug XScript / AScript projects on an Android device from VS Code or Cursor",
+  "version": "0.1.0",
+  "publisher": "xscript",
+  "license": "MIT",
+  "private": true,
+  "engines": {
+    "vscode": "^1.90.0"
+  },
+  "categories": [
+    "Other"
+  ],
+  "main": "./out/extension.js",
+  "activationEvents": [
+    "workspaceContains:**/__init__.py"
+  ],
+  "contributes": {
+    "commands": [
+      { "command": "xscript.connect", "title": "Connect to Device", "category": "XScript" },
+      { "command": "xscript.status", "title": "Show Device Status", "category": "XScript" },
+      { "command": "xscript.upload", "title": "Upload Project", "category": "XScript" },
+      { "command": "xscript.run", "title": "Upload and Run Project", "category": "XScript", "icon": "$(play)" },
+      { "command": "xscript.stop", "title": "Stop Project", "category": "XScript", "icon": "$(debug-stop)" },
+      { "command": "xscript.logs", "title": "Follow Run Logs", "category": "XScript" },
+      { "command": "xscript.eval", "title": "Run Selection on Device", "category": "XScript" },
+      { "command": "xscript.screenshot", "title": "Screenshot", "category": "XScript" },
+      { "command": "xscript.openTools", "title": "Open Developer Tools (图色 / 标注 / 投屏)", "category": "XScript" },
+      { "command": "xscript.configureStubs", "title": "Enable API Autocomplete (stubs)", "category": "XScript" }
+    ],
+    "menus": {
+      "editor/title": [
+        { "command": "xscript.run", "when": "resourceLangId == python", "group": "navigation" }
+      ],
+      "explorer/context": [
+        { "command": "xscript.run", "when": "explorerResourceIsFolder", "group": "xscript" },
+        { "command": "xscript.upload", "when": "explorerResourceIsFolder", "group": "xscript" }
+      ],
+      "editor/context": [
+        { "command": "xscript.eval", "when": "editorHasSelection && resourceLangId == python", "group": "xscript" }
+      ]
+    },
+    "keybindings": [
+      { "command": "xscript.run", "key": "f6", "when": "editorLangId == python" },
+      { "command": "xscript.stop", "key": "shift+f6", "when": "editorLangId == python" }
+    ],
+    "configuration": {
+      "title": "XScript",
+      "properties": {
+        "xscript.device": {
+          "type": "string",
+          "default": "127.0.0.1:9860",
+          "description": "Device address shown in the app (开发者地址). Use 127.0.0.1:<port> with `adb forward tcp:9860 tcp:9860`."
+        },
+        "xscript.logPollMs": {
+          "type": "number",
+          "default": 1000,
+          "minimum": 200,
+          "description": "How often run logs are polled while following."
+        },
+        "xscript.evalTimeoutMs": {
+          "type": "number",
+          "default": 8000,
+          "minimum": 200,
+          "maximum": 15000,
+          "description": "Timeout for Run Selection on Device."
+        }
+      }
+    }
+  },
+  "scripts": {
+    "compile": "tsc -p . && node scripts/copy-stubs.js",
+    "watch": "tsc -watch -p .",
+    "test": "node --test \"out/test/**/*.test.js\"",
+    "vscode:prepublish": "npm run compile",
+    "package": "npx --yes @vscode/vsce@3.6.2 package --no-dependencies"
+  },
+  "devDependencies": {
+    "@types/node": "20.19.43",
+    "@types/vscode": "1.90.0",
+    "typescript": "5.9.3"
+  }
+}

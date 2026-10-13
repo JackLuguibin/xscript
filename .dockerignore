@@ -1,0 +1,27 @@
+# Keep the build context small; the slim image only needs backend/ and deploy/.
+.git
+.venv
+.venv-rt
+**/node_modules
+**/__pycache__
+**/*.pyc
+**/.pytest_cache
+**/*.egg-info
+backend/web/dist
+xscript-data
+**/*.pem
+**/*.jks
+deploy/.env
+deploy/secrets
+android/.gradle
+android/build
+android/app/build
+android/app/build-pack
+android/app/build-pack-gen
+android/local.properties
+android/.kotlin
+ide/vscode-extension/out
+**/*.apk
+**/*.vsix
+.cursor
+.DS_Store

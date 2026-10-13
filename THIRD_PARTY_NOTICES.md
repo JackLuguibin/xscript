@@ -2,9 +2,9 @@
 
 ## ascript-tip 1.3.0 (MIT)
 
-The `ascript.android.*` compatibility package in `python-runtime/ascript/` mirrors the public API of
+The `ascript.android.*` compatibility package in `android/python-runtime/ascript/` mirrors the public API of
 [ascript-tip](https://pypi.org/project/ascript-tip/) 1.3.0, which is published under the MIT License.
-The template-matching strategy in `python-runtime/xscript/android/image.py` (grayscale / H+S matching,
+The template-matching strategy in `android/python-runtime/xscript/android/image.py` (grayscale / H+S matching,
 SQDIFF + RMSE scoring for transparent templates, log-spaced scales, coarse-to-fine pass) follows its
 `screen.ascv` module.
 

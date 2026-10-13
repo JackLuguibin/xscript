@@ -25,5 +25,5 @@ export XSCRIPT_BUILD_PYTHON
 
 printf 'sdk.dir=%s\n' "$ANDROID_HOME" > "$ROOT/android/local.properties"
 cd "$ROOT/android"
-# scripts/xscript_pack.py sets XSCRIPT_GRADLE_TASK=:app:assembleRelease for signed builds.
+# backend/xscript_pack.py sets XSCRIPT_GRADLE_TASK=:app:assembleRelease for signed builds.
 exec ./gradlew "${XSCRIPT_GRADLE_TASK:-:app:assembleDebug}" "$@"

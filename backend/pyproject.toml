@@ -1,0 +1,27 @@
+[build-system]
+requires = ["setuptools>=61"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "xscript-server"
+version = "0.4.0"
+description = "XScript 管理后台: 云控, 卡密授权, APK 打包 (FastAPI + React console)"
+requires-python = ">=3.11"  # sqlalchemy 2.1; 代码保护 separately needs a Python 3.10 (see protect.py)
+# Pinned to the versions verified in this repo.
+dependencies = [
+    "fastapi==0.142.2",
+    "uvicorn==0.54.0",
+    "websockets==17.1",
+    "sqlalchemy==2.1.1",
+    "cryptography==50.0.1",
+    "python-multipart==0.0.32",
+]
+
+[project.optional-dependencies]
+test = ["httpx==0.28.1"]
+
+[project.scripts]
+xscript-server = "xscript_server.__main__:main"
+
+[tool.setuptools.packages.find]
+include = ["xscript_server*"]

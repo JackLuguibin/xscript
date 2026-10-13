@@ -21,7 +21,7 @@ class ProjectStore(context: Context) {
 
     fun list(): List<String> {
         val dirs = root.listFiles() ?: return emptyList()
-        return dirs.filter { it.isDirectory && File(it, "__init__.py").isFile }.map { it.name }.sorted()
+        return dirs.filter { it.isDirectory && hasEntry(it) }.map { it.name }.sorted()
     }
 
     fun describe(): JSONArray {
@@ -43,7 +43,7 @@ class ProjectStore(context: Context) {
 
     fun exists(name: String): Boolean {
         if (!isValidName(name)) return false
-        return File(dir(name), "__init__.py").isFile
+        return hasEntry(dir(name))
     }
 
     fun create(name: String): File {
@@ -131,8 +131,7 @@ class ProjectStore(context: Context) {
             val prefix = commonTopFolder(paths)
             val src = if (prefix.isEmpty()) staging else File(staging, prefix.trimEnd('/'))
             // Validate before touching the existing project so a bad zip leaves it intact.
-            val hasEntry = File(src, "__init__.py").isFile || (!replace && File(target, "__init__.py").isFile)
-            require(hasEntry) { "zip has no __init__.py" }
+            require(hasEntry(src) || (!replace && hasEntry(target))) { "zip has no __init__.py" }
             if (replace) target.deleteRecursively()
             target.mkdirs()
             src.walkTopDown().filter { it.isFile }.forEach { f ->
@@ -242,7 +241,7 @@ class ProjectStore(context: Context) {
         val tops = paths.map { it.substringBefore('/') }.toSet()
         if (tops.size != 1) return ""
         val top = tops.first()
-        return if (paths.any { it == "$top/__init__.py" }) "$top/" else ""
+        return if (paths.any { it == "$top/__init__.py" || it == "$top/__init__.pyc" }) "$top/" else ""
     }
 
     private fun lastModified(dir: File): Long =
@@ -265,6 +264,9 @@ class ProjectStore(context: Context) {
 
     companion object {
         const val ASCRIPT_MODEL = "/sdcard/airscript/model"
+
+        /** Entry module: source, or bytecode only for 代码保护 builds. */
+        fun hasEntry(dir: File): Boolean = File(dir, "__init__.py").isFile || File(dir, "__init__.pyc").isFile
 
         private val NAME = Regex("""[\p{L}_][\p{L}\p{N}_]*""")
 

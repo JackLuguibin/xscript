@@ -89,8 +89,8 @@ def run_project(project_dir, launch_params="{}"):
     project_dir = os.path.abspath(project_dir)
     name = os.path.basename(project_dir)
     parent = os.path.dirname(project_dir)
-    entry = os.path.join(project_dir, "__init__.py")
-    if not os.path.isfile(entry):
+    # __init__.pyc alone is a 代码保护 build (sources compiled away); import handles both.
+    if not any(os.path.isfile(os.path.join(project_dir, e)) for e in ("__init__.py", "__init__.pyc")):
         raise RuntimeError("missing __init__.py in %s" % project_dir)
 
     _context["project_dir"] = project_dir

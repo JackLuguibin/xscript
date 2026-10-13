@@ -9,7 +9,7 @@ import java.util.Base64
 
 /**
  * Pure-JVM half of [LicenseManager]: parse a public key and check a token's signature.
- * Kept free of android.* so the JVM unit tests verify tokens made by scripts/xscript_license.py.
+ * Kept free of android.* so the JVM unit tests verify tokens made by backend/xscript_server/licensing.py.
  */
 object LicenseToken {
     fun publicKey(b64: String): PublicKey? = try {

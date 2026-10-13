@@ -6,7 +6,7 @@
     cloud_control.close()
 
 `connect_to_as` targets AScript's official server, which XScript cannot use; point
-`connect_to_ws` at your own server (see docs/CLOUD.md and scripts/xscript_cloud.py).
+`connect_to_ws` at your own server (see docs/CLOUD.md and backend/xscript_server).
 """
 
 from ascript._compat import unsupported

@@ -1,8 +1,8 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="app_name">XScript</string>
-    <string name="a11y_description">XScript reads the screen tree and performs assistive clicks and swipes for user-started automation scripts.</string>
-    <string name="server_channel">XScript device server</string>
-    <string name="server_notify">Listening on %1$s:%2$d</string>
+    <string name="a11y_description">XScript 读取屏幕控件树，为你启动的自动化脚本执行点击和滑动。</string>
+    <string name="server_channel">XScript 设备服务</string>
+    <string name="server_notify">正在监听 %1$s:%2$d</string>
     <string name="pack_notify">后台运行中</string>
 </resources>

@@ -7,7 +7,7 @@ import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
-/** Tokens below were made by `scripts/xscript_license.py issue` (Python `cryptography`). */
+/** Tokens below were made by `backend/xscript_server/licensing.py issue` (Python `cryptography`). */
 class LicenseTokenTest {
     private val pub = "MFkwEwYHKoZIzj0CAQYIKoZIzj0DAQcDQgAEkZj79PhZcDuIk5sR6DSO1qgFYAwzdLbo6/wdL1D1JTkh0XZrAxkAk9ZyfJNMeVpsbzZPUOK1aM/QJKZFb34tXg=="
 

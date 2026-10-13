@@ -6,14 +6,15 @@ plugins {
 }
 
 /*
- * APK 打包: `scripts/xscript_pack.py` builds a standalone app from one project by passing
+ * APK 打包: `backend/xscript_pack.py` builds a standalone app from one project by passing
  * -Pxscript.pack=<pack.properties>. Without it this is the regular XScript developer app.
  *
  * pack.properties keys:
  *   project_dir, project_name, app_id, app_name, version_name, version_code, icon (png),
  *   license_pubkey (base64 DER, enables 卡密), license_server, cloud_url, cloud_group,
  *   dev_server (true/false), autostart (true/false), keystore / keystore_password /
- *   key_alias / key_password (release signing)
+ *   key_alias / key_password (release signing), update_server / update_channel /
+ *   update_pubkey / script_code (热更新)
  */
 val packFile: File? = (project.findProperty("xscript.pack") as String?)?.let { file(it) }
 val pack: Properties = Properties().apply { packFile?.takeIf { it.isFile }?.reader(Charsets.UTF_8)?.use { load(it) } }
@@ -51,6 +52,11 @@ android {
         buildConfigField("boolean", "LICENSE_REQUIRED", (pub.isNotEmpty()).toString())
         buildConfigField("String", "LICENSE_PUBKEY", pub.kotlinQuoted())
         buildConfigField("String", "LICENSE_SERVER", packProp("license_server").kotlinQuoted())
+        // 热更新: newer published versions of the bundled 小程序 (UpdateChecker).
+        buildConfigField("String", "UPDATE_SERVER", packProp("update_server").kotlinQuoted())
+        buildConfigField("String", "UPDATE_CHANNEL", packProp("update_channel").kotlinQuoted())
+        buildConfigField("String", "UPDATE_PUBKEY", packProp("update_pubkey").kotlinQuoted())
+        buildConfigField("int", "PACK_SCRIPT_CODE", packProp("script_code", "0").ifEmpty { "0" }.toInt().toString())
         manifestPlaceholders["appLabel"] = if (packed) "@string/pack_app_name" else "@string/app_name"
         manifestPlaceholders["appIcon"] =
             if (packed && packProp("icon").isNotEmpty()) "@drawable/ic_pack" else "@drawable/ic_launcher"
@@ -117,7 +123,8 @@ val preparePack by tasks.registering {
         copy {
             from(src)
             into(dest)
-            exclude("**/__pycache__/**", "**/.git/**", "**/*.pyc", "**/.DS_Store", "**/.idea/**", "**/.vscode/**")
+            // Top-level .pyc files stay: 代码保护 builds (xscript_pack.py --protect) ship only those.
+            exclude("**/__pycache__/**", "**/.git/**", "**/.DS_Store", "**/.idea/**", "**/.vscode/**")
         }
         val values = File(root, "res/values").apply { mkdirs() }
         val esc = label.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;").replace("'", "\\'").replace("\"", "\\\"")
@@ -136,7 +143,7 @@ if (packed) {
 
 // Chaquopy ships OpenCV wheels up to CPython 3.10, and AScript projects lean on cv2/numpy,
 // so the embedded interpreter is 3.10. The build machine needs a matching python3.10
-// (scripts/build_android.sh finds one via `uv python find 3.10`).
+// (android/build.sh finds one via `uv python find 3.10`).
 val buildPy: String = System.getenv("XSCRIPT_BUILD_PYTHON")
     ?: (project.findProperty("xscript.buildPython") as String?)
     ?: "python3.10"
@@ -162,7 +169,7 @@ chaquopy {
     }
     sourceSets {
         getByName("main") {
-            srcDir("../../python-runtime")
+            srcDir("../python-runtime")
         }
     }
 }

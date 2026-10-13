@@ -26,7 +26,7 @@ object PackInstaller {
         val staging = File(target.parentFile, ".pack-" + System.nanoTime())
         try {
             copyAssets(context, "pack/$project", staging)
-            require(File(staging, "__init__.py").isFile) { "packed project has no __init__.py" }
+            require(ProjectStore.hasEntry(staging)) { "packed project has no __init__.py" }
             // The shipped copy replaces the old one. Scripts keep state in KeyValue, which is
             // stored outside the project directory.
             target.deleteRecursively()
@@ -38,6 +38,8 @@ object PackInstaller {
             staging.deleteRecursively()
         }
         prefs.edit().putLong("installed_version", version).apply()
+        // The APK's copy replaced any 热更新 install; the next check fetches the current version again.
+        UpdateChecker.resetToBundled(context)
         firstRunDefaults(prefs)
     }
 

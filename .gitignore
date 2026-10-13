@@ -23,8 +23,17 @@ android/app/src/main/python/
 android/app/build-pack/
 android/app/build-pack-gen/
 
-# 卡密 signing keys, card databases and 云控 server state (secrets / runtime data)
+# VS Code extension build output
+node_modules/
+ide/vscode-extension/out/
+ide/vscode-extension/stubs/
+*.vsix
+
+# 管理后台 data directory (database, 卡密 signing key, pack jobs) and legacy files
+xscript-data/
 keys/
 *.pem
 licenses.db
 xscript_cloud_state.json
+backend/web/dist/
+*.tsbuildinfo

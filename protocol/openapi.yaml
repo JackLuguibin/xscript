@@ -56,6 +56,13 @@ paths:
             maximum: 100
             default: 80
           description: JPEG quality
+        - name: max
+          in: query
+          schema:
+            type: integer
+            minimum: 64
+            maximum: 4096
+          description: Scale down so the longest side is at most this many pixels (remote control frames)
       responses:
         "200":
           description: Image bytes

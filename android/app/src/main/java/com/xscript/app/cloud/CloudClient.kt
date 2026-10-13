@@ -38,6 +38,9 @@ import java.util.concurrent.TimeUnit
  *   server → device  {"type":"message","data":...}           → scripts (cloud.on_message / system.channel)
  *   device → server  {"type":"data","data":{...}}            ← scripts (cloud.send / cloud_control.send)
  *   device → server  {"type":"status","device":{...}}        on run start / stop and every 60 s
+ *   device → server  {"type":"run_end","project","exit","crashed","time","tail":[{stream,line}]}
+ *   server → device  {"type":"log_cursor","seq":N}            after hello: send log lines with seq > N
+ *   device → server  {"type":"logs","entries":[{seq,ts,stream,line}]}  every 3 s while there are new lines
  *
  * AScript commands (frames with "path"; replies echo "path", "id" and "seq"):
  *   device_info, app_run {id, param, card}, app_stop, screen_shot {max, quality},
@@ -71,6 +74,31 @@ object CloudClient {
 
     init {
         timer.scheduleAtFixedRate({ if (state == State.CONNECTED) pushStatus() }, 60, 60, TimeUnit.SECONDS)
+        timer.scheduleWithFixedDelay({ if (state == State.CONNECTED) pushLogs() }, 3, 3, TimeUnit.SECONDS)
+    }
+
+    /** Last log seq the server has; -1 until the server tells us in "log_cursor" after hello. */
+    @Volatile
+    private var logCursor = -1L
+
+    /**
+     * 运行日志 history: new LogBuffer lines go to the server in batches every 3 s. The server
+     * answers hello with {"type":"log_cursor","seq":N} so lines are neither lost nor re-sent
+     * across reconnects (capped at 500 lines per batch).
+     */
+    private fun pushLogs() {
+        val since = logCursor
+        if (since < 0) return
+        val (entries, next) = com.xscript.app.runtime.LogBuffer.since(XscriptApp.instance, since, 500)
+        if (entries.isEmpty()) {
+            if (next < since) logCursor = next // log was cleared / reset
+            return
+        }
+        val arr = JSONArray()
+        for (e in entries) {
+            arr.put(JSONObject().put("seq", e.seq).put("ts", e.ts).put("stream", e.stream).put("line", e.line.trimEnd('\n')))
+        }
+        if (send(JSONObject().put("type", "logs").put("device_id", deviceId()).put("entries", arr))) logCursor = next
     }
 
     /** Stable per-device id (ANDROID_ID: survives reinstalls of the same signed app). */
@@ -141,6 +169,31 @@ object CloudClient {
     /** Script data for the dashboard (AScript cloud_control.send / Control.send). */
     fun sendData(data: Any): Boolean = send(JSONObject().put("type", "data").put("device_id", deviceId()).put("data", data))
 
+    /**
+     * A run ended: exit code ("0", "stopped", a number, or "died" when the process vanished) and
+     * the last log lines, so the dashboard can show crashes and alert on them.
+     */
+    fun reportRunEnd(project: String, exit: String, userStop: Boolean) {
+        if (state != State.CONNECTED) return
+        worker.execute {
+            val ctx = XscriptApp.instance
+            val (entries, _) = com.xscript.app.runtime.LogBuffer.since(ctx, 0, 40)
+            val tail = JSONArray()
+            for (e in entries) tail.put(JSONObject().put("stream", e.stream).put("line", e.line.trimEnd('\n')))
+            val crashed = !userStop && exit != "0" && exit != "stopped"
+            send(
+                JSONObject()
+                    .put("type", "run_end")
+                    .put("device_id", deviceId(ctx))
+                    .put("project", project)
+                    .put("exit", exit)
+                    .put("crashed", crashed)
+                    .put("time", System.currentTimeMillis() / 1000)
+                    .put("tail", tail),
+            )
+        }
+    }
+
     /** Run started / finished, and a periodic heartbeat. */
     fun pushStatus() {
         if (state != State.CONNECTED) return
@@ -160,6 +213,7 @@ object CloudClient {
         override fun onOpen(webSocket: WebSocket, response: Response) {
             state = State.CONNECTED
             lastError = ""
+            logCursor = -1L // wait for the server's log_cursor (older servers never send one)
             webSocket.send(identity(context).put("type", "hello").toString())
         }
 
@@ -170,6 +224,7 @@ object CloudClient {
                 return
             }
             when {
+                msg.optString("type") == "log_cursor" -> logCursor = msg.optLong("seq", 0L).coerceAtLeast(0L)
                 msg.optString("type") == "request" -> worker.execute { relay(webSocket, msg) }
                 msg.optString("type") == "message" -> deliver(msg.opt("data"))
                 msg.has("path") -> worker.execute {

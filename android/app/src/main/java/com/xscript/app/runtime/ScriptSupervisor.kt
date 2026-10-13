@@ -138,6 +138,7 @@ object ScriptSupervisor {
         if (r.exit == null && !r.userStop) {
             LogBuffer.append(ctx, "stderr", "xscript: script process for ${r.project} died unexpectedly\n")
         }
+        com.xscript.app.cloud.CloudClient.reportRunEnd(r.project, r.exit ?: "died", r.userStop)
         if (queued != null) {
             // Let the dead process leave the process list so startService creates a fresh one.
             main.postDelayed({ drainQueue(ctx, force = true) }, 500)

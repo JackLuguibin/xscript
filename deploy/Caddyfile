@@ -1,0 +1,27 @@
+# XScript 管理后台的 HTTPS 入口。证书由 Caddy 自动申请和续期。
+{$XSCRIPT_DOMAIN} {
+	encode zstd gzip
+
+	# 设备云控 WebSocket、管理后台、REST API、卡密激活、热更新都在同一个端口
+	# Caddy 默认支持 WebSocket 升级且不设读超时；服务端每 30 秒 ping 保活
+	reverse_proxy xscript:8765 {
+		flush_interval -1
+	}
+
+	# 小程序和 APK 上传
+	request_body {
+		max_size 512MB
+	}
+
+	header {
+		Strict-Transport-Security "max-age=31536000"
+		X-Content-Type-Options nosniff
+		Referrer-Policy same-origin
+		-Server
+	}
+
+	log {
+		output stdout
+		format console
+	}
+}

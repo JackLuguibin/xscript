@@ -33,8 +33,8 @@ class CatalogTest(unittest.TestCase):
             self.assertIn(expected, names)
 
     def test_catalog_names_exist_in_runtime_source(self):
-        # Every plain function listed for xscript.android.* must be defined in python-runtime.
-        runtime = Path(__file__).resolve().parents[2] / "python-runtime"
+        # Every plain function listed for xscript.android.* must be defined in android/python-runtime.
+        runtime = Path(__file__).resolve().parents[3] / "android" / "python-runtime"
         for mod in self.catalog["modules"]:
             if not mod["name"].startswith("xscript.android."):
                 continue

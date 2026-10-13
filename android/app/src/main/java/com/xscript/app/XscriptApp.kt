@@ -27,6 +27,7 @@ class XscriptApp : Application() {
             RootShell.probeAsync()
             startService(Intent(this, AutomationService::class.java))
             CloudClient.autoConnect(this)
+            com.xscript.app.pack.UpdateChecker.start(this)
             // Force-stop and app updates drop alarms; arm the next schedule on every start.
             thread(name = "xscript-rearm") { Scheduler.rearm(this) }
         }

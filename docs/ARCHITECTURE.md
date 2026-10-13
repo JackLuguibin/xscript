@@ -61,16 +61,32 @@ flowchart LR
 
 | 目录 | 语言 | 职责 |
 | --- | --- | --- |
-| `android/` | Kotlin | App 本体：HTTP 服务、云控、无障碍/root 引擎、截图、OCR、悬浮窗、Chaquopy 集成 |
+仓库分三部分，另有它们共享的接口契约和开发脚本：
+
+| 目录 | 语言 | 职责 |
+| --- | --- | --- |
+| **`android/`** | | **安卓 App** |
+| `android/app/` | Kotlin | App 本体：HTTP 服务、云控客户端、卡密校验、无障碍/root 引擎、截图、OCR、悬浮窗、Chaquopy 集成 |
 | `android/app/src/main/assets/tools/` | HTML/JS | 设备提供的网页开发工具：图色工具、标注工具、投屏 |
-| `python-runtime/xscript/` | Python | 设备端原生 API：`action`、`node`、`screen`、`system`、`ui`，以及 `runtime`（桥接、运行器） |
-| `python-runtime/ascript/` | Python | AScript（ascript-tip 1.3.0）兼容层，基于 `xscript` 实现 |
-| `python-runtime/tests/` | Python | PC 端单测（使用假的 bridge，不依赖手机） |
-| `python-stubs/` | `.pyi` | 由 `scripts/gen_stubs.py` 生成的类型存根，供 PC 端 IDE 补全 |
-| `protocol/openapi.yaml` | YAML | 设备 HTTP 接口契约 |
-| `mcp-server/` | Python | Cursor MCP 服务 `xscript-mcp` |
-| `scripts/` | Bash/Python | 构建、存根生成、mock 设备、端到端冒烟、本地校验；`xscript_pack.py`（APK 打包）、`xscript_license.py`（卡密）、`xscript_cloud.py`（参考云控服务端） |
+| `android/python-runtime/xscript/` | Python | 设备端原生 API：`action`、`node`、`screen`、`system`、`ui`，以及 `runtime`（桥接、运行器） |
+| `android/python-runtime/ascript/` | Python | AScript（ascript-tip 1.3.0）兼容层，基于 `xscript` 实现 |
+| `android/python-runtime/tests/` | Python | PC 端单测（使用假的 bridge，不依赖手机） |
+| `android/build.sh` | Bash | 定位 JDK / SDK / Python 3.10 后执行 Gradle |
+| **`backend/`** | | **管理后台：云控、打包、授权** |
+| `backend/xscript_server/` | Python | FastAPI 服务：设备连接（`/ws`）、指令下发、HTTP 转发、分组、定时任务、卡密、打包队列、用户与权限、操作日志 |
+| `backend/web/` | TypeScript | React + Ant Design 控制台（Vite 构建，由服务端托管） |
+| `backend/xscript_pack.py` | Python | APK 打包 CLI（后台打包任务也调用它） |
+| `backend/tests/` | Python | 服务端测试（真实 uvicorn + 模拟设备 WebSocket） |
+| **`ide/`** | | **编辑器端** |
+| `ide/vscode-extension/` | TypeScript | VS Code / Cursor 插件：上传运行、日志、运行选中代码、截图、补全 |
+| `ide/mcp-server/` | Python | Cursor MCP 服务 `xscript-mcp` |
+| `ide/python-stubs/` | `.pyi` | 由 `scripts/gen_stubs.py` 生成的类型存根，供 PC 端 IDE 补全 |
+| **共享** | | |
+| `protocol/openapi.yaml` | YAML | 设备 HTTP 接口契约（App 实现；插件、MCP、云控转发使用） |
+| `scripts/` | Bash/Python | 跨部分的开发脚本：存根生成、mock 设备、端到端冒烟、`verify.sh` |
 | `examples/` | Python | 示例工程（原生 API 与 AScript API 各一套） |
+
+依赖方向：`backend/xscript_pack.py` 调用 `android/build.sh` 并读取 `android/python-runtime` 里的 requirements 解析，后台的打包任务再调用 `xscript_pack.py`；`scripts/gen_stubs.py` 从 `android/python-runtime` 生成 `ide/python-stubs`，插件构建时再把存根拷进自身。App 不依赖 `backend/` 和 `ide/` 的代码，只通过 HTTP / WebSocket 协议交互。
 
 ## 3. 技术栈
 
@@ -85,7 +101,7 @@ flowchart LR
 | OCR | Google ML Kit `text-recognition-chinese` 16.0.1（离线模型）；PaddleOCR PP-OCRv5 / v4（ONNX，首次使用时下载） |
 | UI | AndroidX AppCompat + Material，界面为代码构建（`UiKit.kt`），无 Compose |
 | MCP | `mcp 2.2.0`（兼容 1.x FastMCP）、`httpx 0.28.1` |
-| 云控 / 卡密服务端 | `aiohttp 3.14.3`、`cryptography`（ECDSA P-256） |
+| 管理后台 | FastAPI 0.142、uvicorn、SQLAlchemy 2.1（SQLite WAL）、`cryptography`（ECDSA P-256 卡密签名、scrypt 密码）；前端 React 19、Ant Design 6、TanStack Query、Vite |
 
 ## 4. Android 端
 
@@ -217,7 +233,7 @@ sequenceDiagram
 
 设备在 `hello` 和 `status` 帧里上报 `device_id`（`ANDROID_ID`）、分组和包名；运行开始、结束时推一次状态，另外每 60 秒一次。脚本的 `cloud.send()` 经 `IAutomation.control` 到主进程发出 `{"type":"data"}`；服务端的 `message` 经 `EventHub` 以 `cloud` 事件推给脚本。请求由 2 线程的线程池处理，25 秒 ping 保活，断线后 5 秒重连。鉴权完全交给服务端（URL 里带 token）。
 
-`scripts/xscript_cloud.py` 是参考服务端（aiohttp，单文件）：设备表按 `device_id@包名` 区分同一台手机上的多个 App，支持分组（设备上报 + 控制台覆盖）、按设备 / 分组 / 包名批量下发、脚本数据回显、服务端定时任务、网页控制台，以及卡密激活接口。
+服务端是管理后台 `backend/xscript_server`（见 6.4）：设备表按 `device_id@包名` 区分同一台手机上的多个 App，支持分组（设备上报 + 后台覆盖）、按设备 / 分组 / 包名批量下发、脚本数据回显、服务端定时任务，以及卡密激活接口。设备用后台签发的设备密钥连接 `/ws`。
 
 ### 4.6 开发工具（`tools/`：图色、标注、投屏）
 
@@ -371,7 +387,7 @@ Chaquopy 默认只在构建时安装包。这里没有在手机上运行 pip：p
 
 ## 6. PC 端工具链
 
-### 6.1 MCP 服务（`mcp-server/`）
+### 6.1 MCP 服务（`ide/mcp-server/`）
 
 `xscript-mcp` 是一个 stdio MCP 服务，`DeviceClient` 用 httpx 调用设备 HTTP API，目标地址由环境变量 `XSCRIPT_DEVICE` 或 `connect_device` 工具设置。提供的工具：
 
@@ -384,13 +400,32 @@ Chaquopy 默认只在构建时安装包。这里没有在手机上运行 pip：p
 
 `docs/AGENT_RULES.md` 是给 AI 编程时用的约束说明。
 
-### 6.2 存根与校验
+### 6.2 VS Code 插件（`ide/vscode-extension/`）
 
-- `scripts/gen_stubs.py`：用 `ast` 从 `python-runtime/` 生成 `.pyi`，保留签名、docstring 和常量，去掉函数体和私有成员；`--check` 用于检查存根是否过期。
+TypeScript 插件，用 Node 自带的 `fetch` 调设备 HTTP API，请求头 `X-XScript-Client: vscode`（首页“AI 编程连接”据此显示客户端）。工程根目录是从当前文件向上找到的最外层带 `__init__.py` 的目录。上传用 `PUT /projects/{name}/files` 批量接口（跳过规则与 MCP 的 `zip_directory` 相同），运行后轮询 `/logs` 写入 Output 面板，脚本退出后停止轮询。`client.ts` 和 `project.ts` 不依赖 `vscode` 模块，单测用 `node --test` 跑在 `scripts/mock_device.py` 上。构建时 `scripts/copy-stubs.js` 把 `ide/python-stubs` 拷进插件，`XScript: Enable API Autocomplete` 把它加到 `python.analysis.extraPaths`。
+
+### 6.3 管理后台（`backend/xscript_server/` + `backend/web/`）
+
+单进程 FastAPI 服务，前端是 React + Ant Design 的单页应用，构建产物由服务端直接托管（`/` 之外的非 API 路径回退到 `index.html`）。
+
+| 模块 | 职责 |
+| --- | --- |
+| `hub.py` | 在线连接表（内存）、按 `all` / `group:` / `app:` / 设备 id 选目标、AScript 指令（按 `seq` 配对回执）、HTTP 转发（按 `id` 配对）、定时任务调度（每 15 秒检查，先在数据库里认领再执行，避免重复） |
+| `routes/devices.py` | 设备列表（数据库里的历史设备 + 内存里的在线状态）、编辑、指令、转发、设备密钥、`/ws` |
+| `cards.py`、`licensing.py` | 卡密状态机（未使用 → 已激活 → 过期 / 解绑 / 停用）、激活时用条件更新防止两台设备同时抢一张卡、ECDSA 签名与验签（与 `LicenseToken.kt` 同一格式） |
+| `packer.py` | 打包队列：一次一个 Gradle 构建，安全解压工程 zip，子进程调用 `xscript_pack.py`，日志写文件供前端轮询，支持取消（终止进程组）；重启时把中断的任务标为失败、重新排队未开始的任务 |
+| `deps.py`、`security.py` | 会话 Cookie / Bearer 令牌（只存 SHA-256）、角色检查、CSRF 请求头、scrypt 密码、登录限流 |
+| `audit.py` | 操作日志和少量键值设置 |
+
+数据全部在一个数据目录里：SQLite（WAL）、卡密私钥、打包产物。设备在线状态只在内存里，重启后设备会自动重连。阻塞的数据库操作放在线程池里执行，不阻塞 WebSocket 事件循环。
+
+### 6.4 存根与校验
+
+- `scripts/gen_stubs.py`：用 `ast` 从 `android/python-runtime/` 生成 `.pyi`，保留签名、docstring 和常量，去掉函数体和私有成员；`--check` 用于检查存根是否过期。
 - `scripts/mock_device.py`：按 `openapi.yaml` 实现的进程内 HTTP mock。
 - `scripts/vertical_slice.py`：端到端走一遍 status → tree → upload → run → logs → screenshot，可以对 mock 或真机运行。
-- `scripts/verify.sh`：运行时单测（`.venv-rt`，含 numpy / opencv）→ MCP 单测（`.venv`）→ 存根检查 → mock 端到端 → 检查 APK 是否存在。
-- `scripts/build_android.sh`：定位 JDK、Android SDK 和 Python 3.10（可借助 `uv python find 3.10`），然后执行 Gradle 构建。Chaquopy 要求构建机 Python 的次版本号与内嵌解释器一致。
+- `scripts/verify.sh`：运行时单测（`.venv-rt`，含 numpy / opencv）→ 后台单测 → MCP 单测（`.venv`）→ 存根检查 → 插件编译和单测（装过 `node_modules` 时）→ mock 端到端 → 检查 APK 是否存在。
+- `android/build.sh`：定位 JDK、Android SDK 和 Python 3.10（可借助 `uv python find 3.10`），然后执行 Gradle 构建。Chaquopy 要求构建机 Python 的次版本号与内嵌解释器一致。
 
 ## 7. 关键设计取舍
 

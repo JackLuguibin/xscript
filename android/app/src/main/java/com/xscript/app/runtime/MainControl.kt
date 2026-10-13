@@ -160,6 +160,7 @@ object MainControl {
             .put("device_id", com.xscript.app.cloud.CloudClient.deviceId(ctx))
             .put("cloud", com.xscript.app.cloud.CloudClient.label())
             .put("packaged", com.xscript.app.BuildConfig.PACKAGED)
+            .put("update", com.xscript.app.pack.UpdateChecker.status(ctx))
             .put("app_id", ctx.packageName)
     }
 }

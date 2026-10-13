@@ -20,7 +20,7 @@ import kotlin.concurrent.thread
  *
  * Activation: the user types a short card code; the app posts it with its device id to
  * `<LICENSE_SERVER>/license/activate`, which binds the card and returns a signed token.
- * Pasting a full token works offline (tokens issued by `scripts/xscript_license.py issue`).
+ * Pasting a full token works offline (管理后台 → 卡密管理 → 离线授权码).
  * With a server configured the token is re-verified every 6 hours, so revoked cards stop
  * working; a network error keeps the current license.
  *
