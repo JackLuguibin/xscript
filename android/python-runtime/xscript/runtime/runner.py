@@ -83,7 +83,7 @@ def _apply_params(raw):
             setattr(builtins, k, v)
 
 
-def run_project(project_dir, launch_params="{}"):
+def run_project(project_dir, launch_params="{}", debug=False):
     """Import `<parent>/<name>` so __init__.py runs as a package."""
     _apply_params(launch_params)
     project_dir = os.path.abspath(project_dir)
@@ -114,6 +114,9 @@ def run_project(project_dir, launch_params="{}"):
     code = 0
     try:
         _prepare_packages(project_dir)
+        if debug:
+            from xscript.runtime import debugger
+            debugger.start()
         importlib.import_module(name)
         _wait_for_threads()
         print("xscript: finished %s" % name)

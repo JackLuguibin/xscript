@@ -75,6 +75,7 @@ class DeviceHttpService : Service() {
     }
 
     override fun onDestroy() {
+        com.xscript.app.runtime.DapTransport.disconnect()
         server?.stop()
         server = null
         super.onDestroy()

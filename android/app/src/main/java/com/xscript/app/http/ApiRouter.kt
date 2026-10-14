@@ -11,6 +11,8 @@ import com.xscript.app.runtime.LogBuffer
 import com.xscript.app.runtime.MainControl
 import com.xscript.app.runtime.RunState
 import com.xscript.app.runtime.ScriptService
+import com.xscript.app.runtime.DapTransport
+import com.xscript.app.runtime.ScriptSupervisor
 import com.xscript.app.schedule.Scheduler
 import com.xscript.app.settings.Settings
 import org.json.JSONArray
@@ -114,6 +116,16 @@ class ApiRouter(private val context: Context) {
         when {
             m == "GET" && p == "/" -> return home()
             m == "GET" && p == "/status" -> return Reply.json(MainControl.status(context))
+            m == "GET" && p == "/debug/status" -> return Reply.json(DapTransport.status())
+            m == "POST" && p == "/debug/connect" -> return Reply.json(DapTransport.connect())
+            m == "POST" && p == "/debug/request" -> return Reply.json(DapTransport.send(req.json()))
+            m == "GET" && p == "/debug/messages" -> return Reply.json(DapTransport.messages(
+                req.query["since"]?.toLongOrNull() ?: 0L,
+            ))
+            m == "DELETE" && p == "/debug" -> {
+                DapTransport.disconnect()
+                return Reply.json(JSONObject().put("ok", true))
+            }
             m == "GET" && p == "/screen" -> return screen(req)
             m == "GET" && p == "/ui-tree" -> return uiTree(req)
             m == "GET" && p == "/logs" -> return logs(req)
@@ -187,7 +199,9 @@ class ApiRouter(private val context: Context) {
                 Reply.file(tmp, "application/zip", temp = true)
             }
             m == "POST" && sub == "/run" -> runProject(name)
+            m == "POST" && sub == "/debug" -> runProject(name, debug = true)
             m == "POST" && sub == "/stop" -> {
+                DapTransport.disconnect()
                 ScriptService.stop(context)
                 Reply.json(JSONObject().put("ok", true).put("running", false))
             }
@@ -203,7 +217,7 @@ class ApiRouter(private val context: Context) {
             <body style="font-family:sans-serif;background:#f4f5f7;color:#222;padding:16px">
             <h2>XScript</h2>
             <p>http://$ip:${NetworkInfo.PORT}</p>
-            <p><a href="/tools/">开发工具：图色工具 · 标注工具 · 投屏</a></p>
+            <p><a href="/tools/">开发工具：脚本 IDE · 图色工具 · 标注工具 · 投屏</a></p>
             <pre>${s.toString(2)}</pre>
             </body></html>
         """.trimIndent()
@@ -284,14 +298,19 @@ class ApiRouter(private val context: Context) {
         return ext in setOf("py", "txt", "md", "json", "yaml", "yml", "html", "htm", "js", "css", "as", "ini", "cfg", "csv", "xml", "toml")
     }
 
-    private fun runProject(name: String): Reply {
+    private fun runProject(name: String, debug: Boolean = false): Reply {
         if (!store.exists(name)) return Reply.json(JSONObject().put("error", "missing project"), 404)
-        if (RunState.current(context) != null) {
+        if (ScriptSupervisor.isBusy(context)) {
             return Reply.json(JSONObject().put("error", "already running").put("project", RunState.get(context)), 409)
         }
         Settings.lastProject = name
-        ScriptService.run(context, name)
-        return Reply.json(JSONObject().put("ok", true).put("running", true).put("project", name))
+        DapTransport.disconnect()
+        val refusal = ScriptService.run(context, name, debug = debug)
+        if (refusal != null) return Reply.json(JSONObject().put("error", refusal), 403)
+        val result = JSONObject().put("ok", true).put("running", true).put("project", name)
+        if (debug) result.put("debug", JSONObject().put("port", 5678)
+            .put("remote_root", store.dir(name).absolutePath))
+        return Reply.json(result)
     }
 
     /** 定时任务: GET/POST /schedules, GET/PUT/DELETE /schedules/<id>, POST /schedules/<id>/run. */

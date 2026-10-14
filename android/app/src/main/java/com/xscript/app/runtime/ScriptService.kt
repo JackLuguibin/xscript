@@ -70,6 +70,7 @@ class ScriptService : Service() {
                 running = true
                 // This is the :script process; the companion field here is its own copy.
                 launchParams = intent.getStringExtra(EXTRA_PARAMS) ?: "{}"
+                debugRun = intent.getBooleanExtra(EXTRA_DEBUG, false)
                 thread(name = "xscript-project") { runProject(name) }
             }
         }
@@ -78,6 +79,8 @@ class ScriptService : Service() {
 
     @Volatile
     private var running = false
+
+    private var debugRun = false
 
     private fun runProject(name: String) {
         ready.await(5, TimeUnit.SECONDS)
@@ -92,7 +95,7 @@ class ScriptService : Service() {
         var exit = "1"
         try {
             val runner = Python.getInstance().getModule("xscript.runtime.runner")
-            exit = runner.callAttr("run_project", dir.absolutePath, launchParams).toString()
+            exit = runner.callAttr("run_project", dir.absolutePath, launchParams, debugRun).toString()
         } catch (t: Throwable) {
             LogBuffer.append(this, "stderr", (t.message ?: t.toString()) + "\n")
         } finally {
@@ -128,6 +131,7 @@ class ScriptService : Service() {
         const val ACTION_STOP = "com.xscript.app.STOP"
         const val EXTRA_NAME = "name"
         const val EXTRA_PARAMS = "params"
+        const val EXTRA_DEBUG = "debug"
 
         /** Events pushed by the main process, read by Python through [Bridge.pollEvent]. */
         val events = LinkedBlockingQueue<String>(1000)
@@ -144,7 +148,7 @@ class ScriptService : Service() {
          * Returns null when started, or the reason it was refused (packaged app without a
          * valid 卡密 license).
          */
-        fun run(context: Context, name: String, auto: Boolean = false, params: String = "{}"): String? {
+        fun run(context: Context, name: String, auto: Boolean = false, params: String = "{}", debug: Boolean = false): String? {
             val gate = com.xscript.app.license.LicenseManager.check(context)
             if (gate != null) {
                 LogBuffer.append(context, "stderr", "xscript: $name not started: $gate\n")
@@ -156,6 +160,7 @@ class ScriptService : Service() {
                 action = ACTION_RUN
                 putExtra(EXTRA_NAME, name)
                 putExtra(EXTRA_PARAMS, launchParams)
+                putExtra(EXTRA_DEBUG, debug)
             }
             context.startService(intent)
             return null

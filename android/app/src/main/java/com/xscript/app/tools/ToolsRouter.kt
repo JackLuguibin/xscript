@@ -268,6 +268,7 @@ class ToolsRouter(private val context: Context) {
         val WEBSITE_ALIASES = mapOf(
             "/website/src/screen.html" to "color.html",
             "/website/src/label.html" to "label.html",
+            "/website/src/editor.html" to "editor.html",
         )
     }
 }

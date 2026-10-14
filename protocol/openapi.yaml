@@ -38,6 +38,66 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/Status"
+  /debug/status:
+    get:
+      summary: Current loopback DAP transport status (connected, port, error)
+      responses:
+        "200":
+          description: Transport status JSON
+  /debug/connect:
+    post:
+      summary: Connect the HTTP bridge to the explicitly started script debugger on loopback port 5678
+      responses:
+        "200":
+          description: Connected; next cursor is 0
+        "409":
+          description: Debugger not ready or another transport already connected
+  /debug/request:
+    post:
+      summary: Send one DAP JSON request (seq, type=request, command, arguments)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+      responses:
+        "200":
+          description: Frame sent; receive the DAP response through /debug/messages
+        "409":
+          description: Debugger disconnected
+  /debug/messages:
+    get:
+      summary: Poll decoded DAP messages with monotonic cursor
+      parameters:
+        - name: since
+          in: query
+          schema:
+            type: integer
+            minimum: 0
+      responses:
+        "200":
+          description: messages [{id,message}], next, connected, error, dropped_before (oldest retained cursor)
+  /debug:
+    delete:
+      summary: Disconnect DAP transport; does not stop the project process
+      responses:
+        "200":
+          description: Disconnected
+  /projects/{name}/debug:
+    parameters:
+      - $ref: "#/components/parameters/ProjectName"
+    post:
+      summary: Run a saved project with debugging enabled; wait up to 120 seconds for DAP configuration
+      responses:
+        "200":
+          description: Started; debug.port and debug.remote_root identify listener and absolute source root
+        "403":
+          description: License refused the run
+        "404":
+          description: Missing project
+        "409":
+          description: A script is running or starting
   /screen:
     get:
       summary: Full-screen screenshot (PNG by default)
@@ -747,7 +807,7 @@ paths:
         "200": { description: Result (ok=true) }
         "400": { description: Bad request (ok=false, error) }
         "404": { description: Missing snapshot }
-        "408": { description: Timeout; the :eval process was restarted }
+        "408": { description: "Timeout; the :eval process was restarted" }
   /tools/datasets:
     get:
       summary: 标注 datasets with image / labelled counts

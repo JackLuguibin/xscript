@@ -741,6 +741,7 @@ class PixelHud {
 // ---- shared top navigation (every tool page has <header class="xs-appbar" data-page="...">) ----
 
 XS.TOOLS = [
+  { id: "editor", name: "脚本 IDE", icon: "code", href: "/tools/ui/editor.html", desc: "工程文件 · 保存运行 · 实时日志" },
   { id: "color", name: "图色工具", icon: "palette", href: "/tools/ui/color.html", desc: "找色 · 比色 · 找图 · 文字识别" },
   { id: "label", name: "标注工具", icon: "tag", href: "/tools/ui/label.html", desc: "YOLO 数据集标注与导出" },
   { id: "mirror", name: "投屏", icon: "phone", href: "/tools/ui/mirror.html", desc: "实时画面与远程操控" },

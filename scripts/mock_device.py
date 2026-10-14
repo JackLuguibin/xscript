@@ -96,7 +96,7 @@ TEXT_EXT = {"py", "txt", "md", "json", "yaml", "yml", "html", "htm", "js", "css"
 
 # The device serves the web tools from the APK assets; the mock reads the same files.
 ASSETS = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "android", "app", "src", "main", "assets", "tools")
-WEBSITE_ALIASES = {"/website/src/screen.html": "color.html", "/website/src/label.html": "label.html"}
+WEBSITE_ALIASES = {"/website/src/screen.html": "color.html", "/website/src/label.html": "label.html", "/website/src/editor.html": "editor.html"}
 MIME = {"html": "text/html; charset=utf-8", "js": "text/javascript; charset=utf-8", "css": "text/css; charset=utf-8",
         "svg": "image/svg+xml", "png": "image/png"}
 

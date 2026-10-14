@@ -160,6 +160,8 @@ chaquopy {
             install("requests==2.32.3")
             // Version parsing / markers for the runtime installer (xscript.android.pip).
             install("packaging==24.2")
+            // Upstream universal wheel: no Android native extensions or adapter subprocess.
+            install(rootProject.file("wheels/debugpy-1.8.22-py2.py3-none-any.whl").absolutePath)
             // Packed apps can pre-install their requirements.txt at build time (pack key `pip`).
             packProp("pip").split(',').map { it.trim() }.filter { it.isNotEmpty() }.forEach { install(it) }
         }

@@ -1,0 +1,41 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>脚本 IDE · XScript</title>
+<script>(function(){var m=localStorage.getItem('xs-theme');document.documentElement.dataset.theme=m==='dark'||(m!=='light'&&matchMedia('(prefers-color-scheme: dark)').matches)?'dark':'light';})();</script>
+<link rel="stylesheet" href="/tools/ui/tools.css"><link rel="stylesheet" href="/tools/ui/editor.css">
+</head>
+<body class="xs-shell">
+<header class="xs-appbar" data-page="editor"></header>
+<main class="ide">
+ <aside class="ide-sidebar" aria-label="工程与文件">
+  <div class="ide-heading"><strong>工程</strong><button id="new-project" type="button" title="新建工程">新建</button></div>
+  <label class="sr-only" for="projects">选择工程</label><select id="projects"><option value="">选择工程…</option></select>
+  <div class="ide-heading"><strong>文件</strong><div><button id="new-file" type="button">新建</button><button id="refresh" type="button" title="刷新文件列表">刷新</button></div></div>
+  <nav id="files" aria-label="工程文件"></nav>
+  <div class="ide-sidebar-foot"><a href="/tools/ui/color.html">图色工具</a><a href="/tools/ui/mirror.html">查看手机</a></div>
+ </aside>
+ <section class="ide-workspace" aria-label="脚本工作区">
+  <div class="ide-toolbar" role="toolbar" aria-label="编辑与运行">
+   <button id="save" type="button" disabled><i data-i="save"></i> 保存 <kbd>⌘/Ctrl S</kbd></button>
+   <button id="run" class="primary" type="button" disabled><i data-i="play"></i> 保存并运行 <kbd>F6</kbd></button>
+   <button id="debug-run" type="button" disabled>保存并调试</button>
+   <button id="stop" type="button" disabled>停止 <kbd>Shift F6</kbd></button>
+   <span class="spacer"></span><a id="export" class="btn" hidden>导出 ZIP</a><button id="delete-file" type="button" disabled>删除文件</button>
+  </div>
+  <div id="tabs" class="ide-tabs" role="tablist" aria-label="已打开文件"></div>
+  <div class="ide-edit-area"><pre id="line-numbers" aria-hidden="true">1</pre><textarea id="editor" aria-label="文件内容" spellcheck="false" autocapitalize="off" autocomplete="off" wrap="off" disabled placeholder="选择工程和文件，或新建一个 Python 工程。入口为 __init__.py。"></textarea></div>
+  <div class="ide-status"><span id="message" role="status" aria-live="polite">正在读取工程…</span><span id="cursor">行 1，列 1</span></div>
+  <section class="ide-debug" aria-label="断点调试">
+   <div class="ide-heading"><strong>断点调试</strong><span id="debug-state" role="status">未连接</span><span class="spacer"></span>
+   <button id="breakpoint" type="button" disabled>切换当前行断点</button>
+   <button data-debug="continue" type="button" disabled>继续</button><button data-debug="next" type="button" disabled>单步</button><button data-debug="stepIn" type="button" disabled>进入</button><button data-debug="stepOut" type="button" disabled>跳出</button><button data-debug="pause" type="button" disabled>暂停</button>
+   <button id="debug-disconnect" type="button" disabled>断开</button></div>
+   <div class="ide-debug-detail"><div><span id="breakpoint-list">当前文件无断点</span><nav id="debug-stack" aria-label="调用栈"></nav></div><pre id="debug-variables" aria-label="变量"></pre></div>
+  </section>
+  <section class="ide-console" aria-label="运行日志"><div class="ide-heading"><strong>运行日志</strong><span id="run-state">等待设备</span><span class="spacer"></span><label><input type="checkbox" id="follow" checked> 跟随</label><button type="button" id="clear-logs">清空视图</button></div><pre id="logs" tabindex="0" aria-label="日志输出"></pre></section>
+ </section>
+</main>
+<script src="/tools/ui/common.js"></script><script src="/tools/ui/editor-model.js"></script><script src="/tools/ui/editor-debug.js"></script><script src="/tools/ui/editor.js"></script>
+</body></html>
