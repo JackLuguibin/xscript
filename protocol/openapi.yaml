@@ -221,9 +221,29 @@ paths:
       - $ref: "#/components/parameters/ProjectName"
     post:
       summary: Create an empty project with a template __init__.py
+      description: >-
+        The name must be an identifier (Unicode letters, digits, underscore; not starting
+        with a digit). Never overwrites: an existing project is a 409.
       responses:
         "200":
           description: Created
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  ok: { type: boolean }
+                  project: { type: string }
+        "400":
+          description: Invalid project name
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+        "409":
+          description: Project already exists
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
     delete:
       summary: Delete a project (stops it first if running)
       responses:
@@ -254,8 +274,16 @@ paths:
                       properties:
                         path: { type: string }
                         size: { type: integer }
+                  dirs:
+                    type: array
+                    description: Every folder in the project (relative, "/"-separated), including empty ones
+                    items: { type: string }
     put:
       summary: Upload one file, or a batch via {"files":[...]} (creates the project if needed)
+      description: >-
+        With "create": true on a single-file body the write is create-only: the project
+        must exist (404) and the path must not exist yet (409). Missing parent folders
+        are created. Paths with "..", ".", empty segments or a leading "/" are rejected (400).
       requestBody:
         required: true
         content:
@@ -279,6 +307,58 @@ paths:
                 $ref: "#/components/schemas/Ok"
         "400":
           description: Invalid path
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+        "404":
+          description: Project missing (create mode only)
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+        "409":
+          description: Path already exists (create mode only)
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+  /projects/{name}/dir:
+    parameters:
+      - $ref: "#/components/parameters/ProjectName"
+    post:
+      summary: Create a folder (and missing parents) inside the project
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [path]
+              properties:
+                path: { type: string, example: lib/sub }
+      responses:
+        "200":
+          description: Created
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  ok: { type: boolean }
+                  path: { type: string }
+        "400":
+          description: Invalid path
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+        "404":
+          description: Missing project
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+        "409":
+          description: Path already exists
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
   /projects/{name}/file:
     parameters:
       - $ref: "#/components/parameters/ProjectName"
@@ -305,7 +385,8 @@ paths:
         "404":
           description: Missing file
     delete:
-      summary: Delete one file
+      summary: Delete one file, or an empty folder
+      description: The entry point (__init__.py / __init__.pyc) cannot be deleted.
       responses:
         "200":
           description: Deleted
@@ -313,6 +394,21 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/Ok"
+        "400":
+          description: Entry point or invalid path
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+        "404":
+          description: File not found
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+        "409":
+          description: Folder is not empty
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
   /projects/{name}/zip:
     parameters:
       - $ref: "#/components/parameters/ProjectName"
@@ -1063,6 +1159,10 @@ components:
           type: string
           enum: [utf-8, base64]
           default: utf-8
+        create:
+          type: boolean
+          default: false
+          description: Create-only (single-file body); 409 if the path exists, 404 if the project is missing
     ProjectList:
       type: object
       properties:

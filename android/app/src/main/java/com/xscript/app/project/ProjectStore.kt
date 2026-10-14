@@ -16,8 +16,12 @@ import java.util.zip.ZipOutputStream
  * The directory name doubles as the Python package name, so it must be an identifier
  * (Unicode letters allowed, same as AScript).
  */
-class ProjectStore(context: Context) {
-    val root: File = File(context.getExternalFilesDir(null), "projects").apply { mkdirs() }
+class ProjectStore(val root: File) {
+    constructor(context: Context) : this(File(context.getExternalFilesDir(null), "projects"))
+
+    init {
+        root.mkdirs()
+    }
 
     fun list(): List<String> {
         val dirs = root.listFiles() ?: return emptyList()
@@ -64,10 +68,46 @@ class ProjectStore(context: Context) {
         return d
     }
 
+    /**
+     * Strict create for the HTTP API / Web IDE: rejects invalid names (IllegalArgumentException → 400)
+     * and existing projects (IllegalStateException → 409) instead of silently reusing them.
+     */
+    fun createNew(name: String): File {
+        require(isValidName(name)) { "工程名须以字母或下划线开头，仅包含字母、数字、下划线: $name" }
+        check(!hasEntry(dir(name))) { "工程已存在: ${name.trim()}" }
+        return create(name)
+    }
+
     fun delete(name: String): Boolean = dir(name).deleteRecursively()
 
+    /** Create-only file write: fails with 409 when the path already exists (file or folder). */
+    fun createFile(name: String, relativePath: String, content: String, encoding: String): File {
+        if (!exists(name)) throw NoSuchElementException("工程不存在: $name")
+        val target = resolve(name, relativePath)
+        check(!target.exists()) { "文件已存在: ${normalizeRel(relativePath)}" }
+        return writeFile(name, relativePath, content, encoding)
+    }
+
+    /** Create a folder (and parents). Fails with 409 when a file or folder already uses the path. */
+    fun createDir(name: String, relativePath: String): File {
+        if (!exists(name)) throw NoSuchElementException("工程不存在: $name")
+        val target = resolve(name, relativePath)
+        check(!target.exists()) { "路径已存在: ${normalizeRel(relativePath)}" }
+        check(target.mkdirs()) { "无法创建文件夹: ${normalizeRel(relativePath)}" }
+        return target
+    }
+
+    /** Resolve a project-relative path, rejecting anything that escapes the project directory. */
+    fun resolve(name: String, relativePath: String): File {
+        val base = dir(name)
+        val target = File(base, normalizeRel(relativePath))
+        require(target.canonicalPath.startsWith(base.canonicalPath + File.separator)) { "路径须位于工程目录内" }
+        return target
+    }
+
     fun writeFile(name: String, relativePath: String, content: String, encoding: String): File {
-        val target = File(dir(name), normalizeRel(relativePath))
+        val target = resolve(name, relativePath)
+        require(!target.isDirectory) { "路径是文件夹: ${normalizeRel(relativePath)}" }
         target.parentFile?.mkdirs()
         val bytes = if (encoding.equals("base64", ignoreCase = true)) {
             Base64.decode(content, Base64.DEFAULT)
@@ -80,8 +120,32 @@ class ProjectStore(context: Context) {
 
     fun readFile(name: String, relativePath: String): File = File(dir(name), normalizeRel(relativePath))
 
-    fun deleteFile(name: String, relativePath: String): Boolean =
-        File(dir(name), normalizeRel(relativePath)).deleteRecursively()
+    /**
+     * Delete one file, or an empty folder. The entry point cannot be deleted (400), a missing
+     * path is reported as [NoSuchElementException] (404), and a non-empty folder is refused (409).
+     */
+    fun deleteFile(name: String, relativePath: String): Boolean {
+        val rel = normalizeRel(relativePath)
+        require(!isEntry(rel)) { "不能删除工程入口 $rel" }
+        val target = resolve(name, rel)
+        if (!target.exists()) throw NoSuchElementException("文件不存在: $rel")
+        if (target.isDirectory) check(target.list().isNullOrEmpty()) { "文件夹非空: $rel" }
+        check(target.delete()) { "删除失败: $rel" }
+        return true
+    }
+
+    /** Project-relative folders (excluding hidden and __pycache__), so empty folders are visible. */
+    fun dirs(name: String): JSONArray {
+        val base = dir(name)
+        val arr = JSONArray()
+        base.walkTopDown()
+            .onEnter { it == base || (it.name != "__pycache__" && !it.name.startsWith(".")) }
+            .filter { it.isDirectory && it != base }
+            .map { it.relativeTo(base).invariantSeparatorsPath }
+            .sorted()
+            .forEach { arr.put(it) }
+        return arr
+    }
 
     fun files(name: String): JSONArray {
         val base = dir(name)
@@ -281,8 +345,12 @@ class ProjectStore(context: Context) {
         fun normalizeRel(path: String): String {
             val cleaned = path.trim().replace('\\', '/').trimStart('/')
             require(cleaned.isNotEmpty()) { "empty path" }
-            require(!cleaned.split('/').any { it == ".." || it == "" }) { "invalid path" }
+            require(!cleaned.split('/').any { it == ".." || it == "." || it == "" }) { "invalid path" }
+            require(cleaned.none { it == '\u0000' }) { "invalid path" }
             return cleaned
         }
+
+        /** The project entry module (source or protected bytecode). */
+        fun isEntry(rel: String): Boolean = rel == "__init__.py" || rel == "__init__.pyc"
     }
 }

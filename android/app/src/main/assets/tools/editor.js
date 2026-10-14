@@ -2,7 +2,12 @@
 (() => {
   const el = id => document.getElementById(id);
   const model = new EditorModel((...args) => XS.api(...args));
-  let current = null, files = [], pending = false, generation = 0, logCursor = 0, polling = false, closed = false;
+  let current = null, files = [], dirs = [], selected = null, pending = false, generation = 0, logCursor = 0, polling = false, closed = false;
+  // Expanded folders per project survive refreshes, create/delete and project switches.
+  const expandedByProject = new Map();
+  const expanded = () => { if (!expandedByProject.has(model.project)) expandedByProject.set(model.project, new Set()); return expandedByProject.get(model.project); };
+  const reveal = path => { for (const dir of EditorModel.ancestors(path)) expanded().add(dir); };
+  const selectedDir = () => selected && selected.type === "dir" ? selected.path : "";
   const message = (text, error = false) => { el("message").textContent = text; el("message").classList.toggle("error", error); };
   const debuggerClient = new XScriptDebugger((...args) => XS.api(...args), {
     state: text => { el("debug-state").textContent = text; renderDebug(); },
@@ -42,9 +47,11 @@
     renderDebug();
     el("stop").disabled = pending || !model.project;
     el("new-file").disabled = pending || !model.project;
+    el("new-folder").disabled = pending || !model.project;
     el("new-project").disabled = pending;
     el("projects").disabled = pending;
-    el("delete-file").disabled = pending || !current || /^__init__\.pyc?$/.test(current.path);
+    el("delete-file").disabled = pending || (selectedDir() ? false : !current || /^__init__\.pyc?$/.test(current.path));
+    el("delete-file").textContent = selectedDir() ? "删除文件夹" : "删除文件";
     el("export").hidden = !model.project;
     if (model.project) el("export").href = model.projectUrl() + "/zip";
     el("tabs").replaceChildren();
@@ -56,20 +63,101 @@
       tab.onclick = () => show(doc);
       el("tabs").append(tab);
     }
-    el("files").replaceChildren();
-    for (const file of files) {
-      const button = document.createElement("button");
-      button.type = "button"; button.textContent = file.path; button.title = file.path;
-      button.classList.toggle("active", !!current && file.path === current.path);
-      button.onclick = () => load(file.path);
-      el("files").append(button);
-    }
-    if (!files.length) {
-      const note = document.createElement("p"); note.className = "muted";
-      note.textContent = model.project ? "工程内暂无文件" : "新建或选择一个工程";
-      el("files").append(note);
+    renderTree();
+  }
+  // Explorer icons: small inline SVGs (no emoji, no extra assets), VS Code-like shapes and colours.
+  const SVG = (cls, body, box = "0 0 16 16") => '<svg class="' + cls + '" viewBox="' + box + '" aria-hidden="true" focusable="false">' + body + "</svg>";
+  const TREE_ICON = {
+    chevron: SVG("chevron", '<path d="M6 4l4 4-4 4" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>'),
+    folder: SVG("ti folder", '<path d="M1.5 3.5h4.3l1.4 1.5h7.3v8.5h-13z" fill="currentColor"/>'),
+    folderOpen: SVG("ti folder", '<path d="M1.5 3.5h4.3l1.4 1.5h6.3v2H4.2l-1.9 6.5H1.5z" fill="currentColor"/><path d="M4.6 7.5h10.6l-2 6H2.6z" fill="currentColor" opacity=".75"/>'),
+    file: SVG("ti file", '<path d="M3.5 1.5h6l3 3v10h-9z" fill="none" stroke="currentColor"/><path d="M9.5 1.5v3h3" fill="none" stroke="currentColor"/>'),
+    python: SVG("ti python", '<path d="M7.9 1.2c-3 0-2.8 1.3-2.8 1.3v1.4h2.9v.4H3.9S2 4.1 2 7.1s1.7 2.9 1.7 2.9h1V8.6s-.1-1.7 1.6-1.7h2.8s1.6 0 1.6-1.6V2.8S10.9 1.2 7.9 1.2zM6.3 2.1a.5.5 0 1 1 0 1 .5.5 0 0 1 0-1z" fill="#3572a5"/><path d="M8.1 14.8c3 0 2.8-1.3 2.8-1.3v-1.4H8v-.4h4.1s1.9.2 1.9-2.8-1.7-2.9-1.7-2.9h-1v1.4s.1 1.7-1.6 1.7H6.9s-1.6 0-1.6 1.6v2.6s-.2 1.5 2.8 1.5zm1.6-.9a.5.5 0 1 1 0-1 .5.5 0 0 1 0 1z" fill="#f2c94c"/>'),
+  };
+  const INDENT = 12, BASE = 8;           // px per level, left padding of depth 0 (VS Code: 8 + 12*depth)
+  let focusPath = "";                     // roving tabindex: the one row reachable with Tab
+  const treeRows = () => EditorModel.visibleRows(EditorModel.buildTree(files, dirs), expanded());
+  function toggleFolder(path, open) {
+    const set = expanded();
+    if (open === undefined) open = !set.has(path);
+    open ? set.add(path) : set.delete(path);
+  }
+  function activate(node) {
+    if (node.type === "dir") {
+      toggleFolder(node.path);              // VS Code: every click on a folder row toggles it
+      selected = {type: "dir", path: node.path};
+      message("已选中文件夹 " + node.path + "/，新建文件/文件夹将放在此处");
+      render();
+    } else {
+      selected = {type: "file", path: node.path};
+      render(); load(node.path);
     }
   }
+  function renderTree() {
+    const box = el("files"), hadFocus = box.contains(document.activeElement);
+    box.replaceChildren();
+    const rows = treeRows();
+    if (!rows.length) {
+      const note = document.createElement("p"); note.className = "muted tree-empty";
+      note.textContent = model.project ? "工程内暂无文件" : "新建或选择一个工程";
+      box.append(note); return;
+    }
+    const isSelected = node => selected ? selected.type === node.type && selected.path === node.path : node.type === "file" && !!current && current.path === node.path;
+    if (!rows.some(r => r.node.path === focusPath)) focusPath = (rows.find(r => isSelected(r.node)) || rows[0]).node.path;
+    for (const row of rows) {
+      const node = row.node, item = document.createElement("div");
+      item.role = "treeitem"; item.dataset.path = node.path; item.dataset.type = node.type;
+      item.className = "tree-row " + node.type; item.title = node.path + (node.type === "dir" ? "/" : "");
+      item.style.paddingLeft = (BASE + row.depth * INDENT) + "px";
+      item.setAttribute("aria-level", String(row.depth + 1));
+      item.tabIndex = node.path === focusPath ? 0 : -1;
+      for (let d = 0; d < row.depth; d++) {        // indent guides, one per ancestor level
+        const guide = document.createElement("span"); guide.className = "guide";
+        guide.style.left = (BASE + d * INDENT + 7) + "px"; item.append(guide);
+      }
+      const twisty = document.createElement("span"); twisty.className = "twisty";
+      const label = document.createElement("span"); label.className = "label"; label.textContent = node.name;
+      let icon;
+      if (node.type === "dir") {
+        item.setAttribute("aria-expanded", String(row.expanded));
+        twisty.innerHTML = TREE_ICON.chevron; twisty.classList.toggle("open", row.expanded);
+        twisty.title = row.expanded ? "折叠" : "展开";
+        // Twisty only expands/collapses: selection and the open editor stay as they are.
+        twisty.addEventListener("click", e => { e.stopPropagation(); focusPath = node.path; toggleFolder(node.path); render(); });
+        icon = row.expanded ? TREE_ICON.folderOpen : TREE_ICON.folder;
+      } else {
+        icon = /\.pyw?$/.test(node.name) ? TREE_ICON.python : TREE_ICON.file;
+      }
+      const iconBox = document.createElement("span"); iconBox.className = "tree-icon"; iconBox.innerHTML = icon;
+      item.append(twisty, iconBox, label);
+      if (node.type === "file") {
+        const doc = model.documents.get(model.key(node.path));
+        if (doc && model.dirty(doc)) { const dot = document.createElement("span"); dot.className = "dirty"; dot.title = "未保存"; item.append(dot); }
+      }
+      const active = isSelected(node);
+      item.classList.toggle("selected", active);
+      item.setAttribute("aria-selected", String(active));
+      item.addEventListener("click", () => { focusPath = node.path; activate(node); });
+      box.append(item);
+    }
+    if (hadFocus) { const again = box.querySelector('[data-path="' + CSS.escape(focusPath) + '"]'); if (again) again.focus({preventScroll: true}); }
+    const sel = box.querySelector(".tree-row.selected"); if (sel && sel.scrollIntoView) sel.scrollIntoView({block: "nearest"});
+  }
+  el("files").addEventListener("keydown", e => {
+    if (!e.target.classList || !e.target.classList.contains("tree-row") || e.altKey || e.ctrlKey || e.metaKey) return;
+    const rows = treeRows(), step = EditorModel.navigate(rows, e.target.dataset.path, e.key);
+    if (!step.focus) return;
+    e.preventDefault();
+    focusPath = step.focus;
+    if (step.expand) toggleFolder(step.expand, true);
+    if (step.collapse) toggleFolder(step.collapse, false);
+    const node = rows.map(r => r.node).find(n => n.path === step.focus);
+    // Arrows move the selection like an explorer; files open with Enter / Space.
+    if (node) selected = {type: node.type, path: node.path};
+    if (step.open) load(step.open);
+    render();
+    const target = el("files").querySelector('[data-path="' + CSS.escape(focusPath) + '"]'); if (target) target.focus();
+  });
   function cursor() {
     const value = el("editor").value, pos = el("editor").selectionStart;
     const before = value.slice(0, pos).split("\n");
@@ -84,7 +172,7 @@
     el("line-numbers").scrollTop = el("editor").scrollTop;
   }
   function show(doc) {
-    current = doc;
+    current = doc; selected = {type: "file", path: doc.path}; focusPath = doc.path; reveal(doc.path);
     el("editor").disabled = doc.binary;
     el("editor").value = doc.binary ? "此文件为二进制，请导出工程后查看。" : doc.content;
     message(doc.binary ? "二进制文件 · 只读" : doc.path + (model.dirty(doc) ? " · 未保存" : " · 已保存"));
@@ -99,13 +187,19 @@
   }
   async function refreshFiles() {
     const project = model.project;
-    const list = project ? await model.listFiles() : [];
-    if (model.project === project) { files = list; render(); }
+    const tree = project ? await model.listTree(project) : {files: [], dirs: []};
+    if (model.project === project) {
+      files = tree.files; dirs = tree.dirs;
+      // Forget folders/selection that no longer exist (deleted here or elsewhere).
+      for (const dir of [...expanded()]) if (!dirs.includes(dir)) expanded().delete(dir);
+      if (selected && (selected.type === "dir" ? !dirs.includes(selected.path) : !files.some(f => f.path === selected.path))) selected = current && files.some(f => f.path === current.path) ? {type: "file", path: current.path} : null;
+      render();
+    }
   }
   async function selectProject(project) {
     await debuggerClient.close(); el("debug-state").textContent = "未连接";
     el("debug-stack").replaceChildren(); el("debug-variables").textContent = "";
-    ++generation; model.project = project; current = null; files = [];
+    ++generation; model.project = project; current = null; files = []; dirs = []; selected = null;
     el("editor").value = ""; el("editor").disabled = true; render(); cursor();
     await refreshFiles();
     if (model.project !== project) return;
@@ -128,12 +222,39 @@
   }
   el("projects").onchange = () => operation(() => selectProject(el("projects").value));
   el("new-project").onclick = () => {
-    const name = prompt("工程名称（字母、数字、下划线）");
-    if (name && name.trim()) operation(async () => { await model.createProject(name.trim()); await projects(name.trim()); });
+    const name = prompt("新工程名称（以字母或下划线开头，仅字母、数字、下划线；入口为 __init__.py）");
+    if (name === null) return;
+    if (!name.trim()) { message("工程名称不能为空", true); return; }
+    operation(async () => {
+      const target = name.trim();
+      await model.createProject(target);
+      await projects(target);
+      message("已创建工程 " + target + "，入口 __init__.py");
+    });
   };
+  // Default the prompt to the selected empty folder, or the folder of the open file.
+  const folderHint = () => { const dir = EditorModel.folderOf(selected || (current && {type: "file", path: current.path})); return dir ? dir + "/" : ""; };
   el("new-file").onclick = () => {
-    const path = prompt("文件相对路径，例如 utils.py 或 res/config.json");
-    if (path && path.trim()) operation(async () => { const doc = await model.createFile(path.trim()); await refreshFiles(); show(doc); });
+    const path = prompt("文件相对路径，例如 utils.py 或 lib/config.json（不存在的文件夹会自动创建）", folderHint());
+    if (path === null) return;
+    if (!path.trim() || path.trim().endsWith("/")) { message("请输入文件名", true); return; }
+    operation(async () => {
+      const doc = await model.createFile(path.trim());
+      ++generation; reveal(doc.path);
+      await refreshFiles(); show(doc); el("editor").focus();
+      message("已创建 " + doc.path + "，可直接编辑并保存");
+    });
+  };
+  el("new-folder").onclick = () => {
+    const path = prompt("文件夹相对路径，例如 lib 或 res/data", folderHint());
+    if (path === null) return;
+    if (!path.trim()) { message("请输入文件夹名", true); return; }
+    operation(async () => {
+      const dir = await model.createFolder(path.trim());
+      reveal(dir); expanded().add(dir); selected = {type: "dir", path: dir};
+      await refreshFiles(); render();
+      message("已创建文件夹 " + dir + "/，新建文件将放在此处");
+    });
   };
   el("refresh").onclick = () => operation(refreshFiles);
   el("save").onclick = () => operation(async () => {
@@ -162,10 +283,30 @@
   el("run").onclick = () => operation(async () => { await debuggerClient.close(); await model.run(); message("已请求运行 " + model.project); poll(); });
   el("stop").onclick = () => operation(async () => { await model.stop(); await debuggerClient.close(); el("debug-state").textContent = "已停止"; message("已请求停止当前任务"); poll(); });
   el("delete-file").onclick = () => {
+    if (selectedDir()) {
+      const dir = selectedDir(), project = model.project;
+      if (files.some(f => f.path.startsWith(dir + "/")) || dirs.some(d => d.startsWith(dir + "/"))) { message("文件夹 " + dir + "/ 非空，请先删除其中的文件和子文件夹", true); return; }
+      if (confirm("删除空文件夹 " + dir + "/？")) operation(async () => {
+        await model.removeFolder(dir, project); expanded().delete(dir);
+        selected = current ? {type: "file", path: current.path} : null;
+        await refreshFiles(); message("已删除文件夹 " + dir + "/");
+      });
+      return;
+    }
     const doc = current;
-    if (doc && confirm("删除 " + doc.path + "？" + (model.dirty(doc) ? "未保存内容也将丢弃。" : ""))) operation(async () => {
-      await model.remove(doc); current = null; el("editor").value = ""; el("editor").disabled = true;
-      await refreshFiles(); if (files.length) await load(files[0].path); else { render(); cursor(); }
+    if (!doc) return;
+    if (!confirm("确定删除 " + doc.path + "？此操作不可撤销。" + (model.dirty(doc) ? "\n未保存的修改也将丢弃。" : ""))) return;
+    operation(async () => {
+      await model.remove(doc);
+      debuggerClient.breakpoints.delete(doc.project + ":" + doc.path);
+      if (current === doc) { ++generation; current = null; el("editor").value = ""; el("editor").disabled = true; cursor(); }
+      await refreshFiles();
+      if (model.project !== doc.project) return;
+      if (!current) {
+        const next = files.find(f => f.path === "__init__.py") || files[0];
+        if (next) await load(next.path); else render();
+      }
+      message("已删除 " + doc.path);
     });
   };
   el("editor").addEventListener("input", () => { if (!current || current.binary) return; model.edit(current, el("editor").value); message(current.path + " · 未保存"); cursor(); render(); });

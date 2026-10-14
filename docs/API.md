@@ -350,4 +350,16 @@ _result = __import__("xscript.android.screen", fromlist=["x"]).size()
 
 eval 用于一次性探测。循环请放在项目的 `__init__.py` 中。
 
+### 工程与文件（网页 IDE 使用）
+
+| 接口 | 说明 | 错误 |
+|---|---|---|
+| `POST /projects/<name>` | 新建工程（带模板 `__init__.py` 入口）。工程名须以字母或下划线开头，只含字母（含中文）、数字、下划线 | 400 名称非法；409 已存在 |
+| `GET /projects/<name>/files` | 文件列表 `files`，以及文件夹列表 `dirs`（含空文件夹） | |
+| `PUT /projects/<name>/files` | 写入文件（覆盖）。带 `"create": true` 时只新建、不覆盖；中间文件夹自动创建 | 400 路径非法；404 工程不存在（仅 create）；409 已存在（仅 create） |
+| `POST /projects/<name>/dir` | 新建文件夹 `{"path": "lib/sub"}` | 400 路径非法；404 工程不存在；409 已存在 |
+| `DELETE /projects/<name>/file?path=` | 删除一个文件或一个**空**文件夹。不能删除入口 `__init__.py` / `__init__.pyc` | 400 入口或路径非法；404 不存在；409 文件夹非空 |
+
+路径一律相对于工程目录，使用 `/` 分隔；拒绝 `..`、`.`、空段和绝对路径，设备端还会再做一次规范化路径检查，确保不会越出工程目录。错误响应为 `{"error": "..."}`。
+
 **安全：** HTTP 服务和云控 WebSocket 中继没有身份验证。任何能访问该端口的人都可以读取项目，并通过 `/eval` 和 `/projects/<name>/run` 运行任意 Python 代码。请只在可信网络中使用，或通过 USB 使用 `adb forward`。

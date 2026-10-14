@@ -4,17 +4,24 @@ const {EditorModel} = require('../../android/app/src/main/assets/tools/editor-mo
 
 function fixture() {
   const calls = [];
-  const projects = {demo: {'__init__.py':'print(1)', 'utils.py':'old'}};
+  const projects = {demo: {'__init__.py':'print(1)', 'utils.py':'old'}}, dirs = {};
   const api = async (method, url, body) => {
     calls.push({method, url, body});
     if (url === '/projects') return {projects:Object.keys(projects)};
     const match = /^\/projects\/([^/]+)(\/[^?]*)?(?:\?(.*))?$/.exec(url);
     const name = decodeURIComponent(match[1]), sub = match[2] || '', q = new URLSearchParams(match[3]);
     if (!sub && method === 'POST') {projects[name] ||= {'__init__.py':''}; return {ok:true};}
-    if (sub === '/files' && method === 'GET') return {files:Object.keys(projects[name]).map(path=>({path}))};
-    if (sub === '/files' && method === 'PUT') {projects[name][body.path] = body.content; return {ok:true};}
+    if (sub === '/files' && method === 'GET') return {files:Object.keys(projects[name]).map(path=>({path})),dirs:[...(dirs[name]||[])]};
+    if (sub === '/files' && method === 'PUT') {
+      if (body.create && body.path in projects[name]) throw new Error('文件已存在: '+body.path);
+      projects[name][body.path] = body.content; return {ok:true};
+    }
+    if (sub === '/dir' && method === 'POST') {(dirs[name] ||= new Set()).add(body.path); return {ok:true,path:body.path};}
     if (sub === '/file' && method === 'GET') return {content:projects[name][q.get('path')],encoding:'utf-8'};
-    if (sub === '/file' && method === 'DELETE') {delete projects[name][q.get('path')]; return {ok:true};}
+    if (sub === '/file' && method === 'DELETE') {
+      if (!(q.get('path') in projects[name])) throw new Error('文件不存在: '+q.get('path'));
+      delete projects[name][q.get('path')]; return {ok:true};
+    }
     return {ok:true};
   };
   const model = new EditorModel(api); model.project = 'demo';
@@ -68,4 +75,97 @@ test('missing selection and duplicate projects fail without mutation', async()=>
   const {model,projects}=fixture();await assert.rejects(model.createProject('demo'),/已存在/);
   for(const name of ['../bad','with space','9start']) await assert.rejects(model.createProject(name),/工程名/);
   model.project='';await assert.rejects(model.run(),/选择工程/);assert.deepEqual(Object.keys(projects),['demo']);
+});
+test('created file is immediately editable and savable with create-only semantics', async()=>{
+  const {model,calls,projects}=fixture();
+  const doc=await model.createFile(' lib/helpers.py ');
+  assert.equal(doc.path,'lib/helpers.py');assert.equal(model.dirty(doc),false);
+  const put=calls.find(c=>c.method==='PUT');assert.equal(put.body.create,true);
+  model.edit(doc,'X = 1\n');await model.save(doc);assert.equal(projects.demo['lib/helpers.py'],'X = 1\n');
+  assert.equal(await model.open('lib/helpers.py'),doc);
+  for(const bad of ['.hidden.py','__pycache__/x.py','a\\..\\b.py']) await assert.rejects(model.createFile(bad));
+});
+test('create file surfaces a device-side duplicate (race) without overwriting', async()=>{
+  const {model,projects}=fixture();const original=model.listTree.bind(model);
+  model.listTree=async()=>({files:[],dirs:[]});
+  await assert.rejects(model.createFile('utils.py'),/已存在/);assert.equal(projects.demo['utils.py'],'old');
+  model.listTree=original;
+});
+test('folders can be created, are listed, and duplicates are rejected', async()=>{
+  const {model}=fixture();
+  assert.equal(await model.createFolder('res/data/'),'res/data');
+  assert.deepEqual((await model.listTree()).dirs,['res/data']);
+  await assert.rejects(model.createFolder('res/data'),/已存在/);
+  await assert.rejects(model.createFolder('../x'),/工程目录/);
+  await assert.rejects(model.createFolder('utils.py'),/已存在/);
+});
+test('deleting a file drops its document, and an already-missing file is tolerated', async()=>{
+  const {model,projects}=fixture();const doc=await model.open('utils.py');model.edit(doc,'draft');
+  await model.remove(doc);assert.equal('utils.py' in projects.demo,false);
+  assert.equal(model.documents.has('demo:utils.py'),false);assert.equal(model.unsaved().length,0);
+  const ghost={project:'demo',path:'gone.py',content:'',saved:'',binary:false};model.documents.set('demo:gone.py',ghost);
+  await model.remove(ghost);assert.equal(model.documents.has('demo:gone.py'),false);
+  model.api=()=>Promise.reject(new Error('disk busy'));const util=await (async()=>{const d={project:'demo',path:'x.py',content:'',saved:'',binary:false};model.documents.set('demo:x.py',d);return d;})();
+  await assert.rejects(model.remove(util),/disk busy/);assert.equal(model.documents.has('demo:x.py'),true);
+});
+test('buildTree nests files, keeps empty folders, sorts folders before files', ()=>{
+  const tree=EditorModel.buildTree(
+    [{path:'__init__.py'},{path:'zeta.py'},{path:'lib/b.py'},{path:'lib/a.py'},{path:'lib/sub/deep.py'},{path:'Alpha.txt'}],
+    ['assets','assets/empty','lib','lib/sub','res/img']);
+  const shape=n=>n.children.map(c=>c.type==='dir'?{[c.name+'/']:shape(c)}:c.name);
+  assert.deepEqual(shape(tree),[
+    {'assets/':[{'empty/':[]}]},
+    {'lib/':[{'sub/':['deep.py']},'a.py','b.py']},
+    {'res/':[{'img/':[]}]},
+    '__init__.py','Alpha.txt','zeta.py']);
+  const lib=tree.children.find(c=>c.name==='lib');assert.equal(lib.path,'lib');assert.equal(lib.children[0].path,'lib/sub');
+  assert.equal(lib.children[0].children[0].path,'lib/sub/deep.py');
+});
+test('buildTree tolerates missing dirs, string entries, trailing slashes and duplicates', ()=>{
+  const tree=EditorModel.buildTree(['a/b/c.py','a/b/c.py'],['a/','x/']);
+  assert.deepEqual(EditorModel.visibleRows(tree,new Set(['a','a/b'])).map(r=>[r.node.path,r.depth,r.node.type]),
+    [['a',0,'dir'],['a/b',1,'dir'],['a/b/c.py',2,'file'],['x',0,'dir']]);
+  assert.deepEqual(EditorModel.buildTree().children,[]);
+});
+test('visibleRows hides children of collapsed folders and flags empty folders', ()=>{
+  const tree=EditorModel.buildTree([{path:'main.py'},{path:'pkg/m.py'}],['pkg','empty']);
+  const collapsed=EditorModel.visibleRows(tree,new Set());
+  assert.deepEqual(collapsed.map(r=>r.node.path),['empty','pkg','main.py']);
+  assert.equal(collapsed[0].empty,true);assert.equal(collapsed[1].empty,false);assert.equal(collapsed[1].expanded,false);
+  const open=EditorModel.visibleRows(tree,new Set(['pkg','gone/folder']));
+  assert.deepEqual(open.map(r=>[r.node.path,r.depth,r.expanded]),[['empty',0,false],['pkg',0,true],['pkg/m.py',1,false],['main.py',0,false]]);
+});
+test('ancestors and folderOf drive auto-expand and new-item defaults', ()=>{
+  assert.deepEqual(EditorModel.ancestors('a/b/c.py'),['a','a/b']);
+  assert.deepEqual(EditorModel.ancestors('__init__.py'),[]);
+  assert.equal(EditorModel.folderOf({type:'dir',path:'lib/sub'}),'lib/sub');
+  assert.equal(EditorModel.folderOf({type:'file',path:'lib/sub/x.py'}),'lib/sub');
+  assert.equal(EditorModel.folderOf({type:'file',path:'main.py'}),'');
+  assert.equal(EditorModel.folderOf(null),'');
+});
+test('explorer keyboard navigation follows VS Code conventions', ()=>{
+  const tree=EditorModel.buildTree([{path:'main.py'},{path:'pkg/a.py'},{path:'pkg/sub/b.py'}],['pkg','pkg/sub','empty']);
+  const rows=open=>EditorModel.visibleRows(tree,new Set(open));
+  let r=rows([]);
+  assert.deepEqual(r.map(x=>x.node.path),['empty','pkg','main.py']);
+  assert.deepEqual(EditorModel.navigate(r,'empty','ArrowDown'),{focus:'pkg'});
+  assert.deepEqual(EditorModel.navigate(r,'empty','ArrowUp'),{focus:'empty'});
+  assert.deepEqual(EditorModel.navigate(r,'main.py','ArrowDown'),{focus:'main.py'});
+  assert.deepEqual(EditorModel.navigate(r,'pkg','ArrowRight'),{focus:'pkg',expand:'pkg'});
+  assert.deepEqual(EditorModel.navigate(r,'empty','Home'),{focus:'empty'});
+  assert.deepEqual(EditorModel.navigate(r,'empty','End'),{focus:'main.py'});
+  r=rows(['pkg']);
+  assert.deepEqual(EditorModel.navigate(r,'pkg','ArrowRight'),{focus:'pkg/sub'});
+  assert.deepEqual(EditorModel.navigate(r,'pkg','ArrowLeft'),{focus:'pkg',collapse:'pkg'});
+  assert.deepEqual(EditorModel.navigate(r,'pkg/a.py','ArrowLeft'),{focus:'pkg'});
+  assert.deepEqual(EditorModel.navigate(r,'pkg/sub','ArrowLeft'),{focus:'pkg'});
+  assert.deepEqual(EditorModel.navigate(r,'pkg/a.py','Enter'),{focus:'pkg/a.py',open:'pkg/a.py'});
+  assert.deepEqual(EditorModel.navigate(r,'pkg/sub',' '),{focus:'pkg/sub',expand:'pkg/sub'});
+  assert.deepEqual(EditorModel.navigate(r,'pkg','Enter'),{focus:'pkg',collapse:'pkg'});
+  assert.deepEqual(EditorModel.navigate(r,'empty','ArrowRight'),{focus:'empty',expand:'empty'});
+  assert.deepEqual(EditorModel.navigate(rows(['empty']),'empty','ArrowRight'),{focus:'empty'});
+  assert.deepEqual(EditorModel.navigate(r,'main.py','ArrowLeft'),{focus:'main.py'});
+  assert.deepEqual(EditorModel.navigate(r,'gone.py','ArrowDown'),{focus:'empty'});
+  assert.deepEqual(EditorModel.navigate(r,'main.py','x'),{});
+  assert.deepEqual(EditorModel.navigate([],'a','ArrowDown'),{});
 });

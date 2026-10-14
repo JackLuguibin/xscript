@@ -100,6 +100,8 @@ class ApiRouter(private val context: Context) {
         if (req.client.isNotEmpty()) ClientTracker.touch(req.client, req.remote)
         return try {
             route(req)
+        } catch (e: NoSuchElementException) {
+            Reply.json(JSONObject().put("error", e.message ?: "not found"), 404)
         } catch (e: IllegalArgumentException) {
             Reply.json(JSONObject().put("error", e.message ?: "bad request"), 400)
         } catch (e: IllegalStateException) {
@@ -176,10 +178,18 @@ class ApiRouter(private val context: Context) {
                 Reply.json(JSONObject(MainControl.handle("config_set", patch.toString())))
             }
             m == "POST" && sub.isEmpty() -> {
-                store.create(name)
+                // Strict: 400 for an invalid name, 409 when the project already exists.
+                store.createNew(name)
                 Reply.json(JSONObject().put("ok", true).put("project", name))
             }
-            m == "GET" && sub == "/files" -> Reply.json(JSONObject().put("project", name).put("files", store.files(name)))
+            m == "GET" && sub == "/files" -> {
+                Reply.json(JSONObject().put("project", name).put("files", store.files(name)).put("dirs", store.dirs(name)))
+            }
+            m == "POST" && sub == "/dir" -> {
+                val path = req.json().optString("path")
+                store.createDir(name, path)
+                Reply.json(JSONObject().put("ok", true).put("path", ProjectStore.normalizeRel(path)))
+            }
             m == "PUT" && sub == "/files" -> upload(name, req)
             m == "GET" && sub == "/file" -> readFile(name, req)
             m == "DELETE" && sub == "/file" -> Reply.json(JSONObject().put("ok", store.deleteFile(name, req.query["path"].orEmpty())))
@@ -271,7 +281,13 @@ class ApiRouter(private val context: Context) {
             }
             return Reply.json(JSONObject().put("ok", true).put("count", files.length()))
         }
-        store.writeFile(name, body.optString("path"), body.optString("content"), body.optString("encoding", "utf-8"))
+        val path = body.optString("path")
+        if (body.optBoolean("create")) {
+            // Create-only (Web IDE 新建文件): 404 missing project, 409 if the path exists.
+            store.createFile(name, path, body.optString("content"), body.optString("encoding", "utf-8"))
+            return Reply.json(JSONObject().put("ok", true).put("path", ProjectStore.normalizeRel(path)))
+        }
+        store.writeFile(name, path, body.optString("content"), body.optString("encoding", "utf-8"))
         return Reply.json(JSONObject().put("ok", true))
     }
 

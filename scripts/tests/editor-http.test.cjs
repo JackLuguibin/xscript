@@ -32,6 +32,24 @@ test('Web IDE native HTTP contract and packaged asset routes', {timeout:15000}, 
     const logs=await api('GET','/logs?since=0');assert(logs.entries.length>0);assert(logs.next>0);
     assert.deepEqual((await api('GET','/logs?since='+logs.next)).entries,[]);
     await model.stop();assert.equal((await api('GET','/status')).running,false);
+    // 新建工程 / 新建文件 / 新建文件夹 / 删除文件 against the device contract.
+    await assert.rejects(model.createProject('rea_smoke'),/已存在/);
+    await assert.rejects(api('POST','/projects/rea_smoke',{}),/已存在/);
+    await assert.rejects(api('POST','/projects/'+encodeURIComponent('bad name'),{}),/工程名/);
+    await assert.rejects(api('PUT',model.projectUrl()+'/files',{path:'utils.py',content:'x',create:true}),/已存在/);
+    await assert.rejects(api('PUT','/projects/nope/files',{path:'a.py',content:'',create:true}),/不存在/);
+    await assert.rejects(api('PUT',model.projectUrl()+'/files',{path:'../evil.py',content:'',create:true}),/invalid path/);
+    const nested=await model.createFile('pkg/sub/mod.py');model.edit(nested,'Y = 2\n');await model.save(nested);
+    assert.equal((await api('GET',model.projectUrl()+'/file?path=pkg/sub/mod.py')).content,'Y = 2\n');
+    assert.equal(await model.createFolder('assets'),'assets');
+    let tree=await model.listTree();assert(tree.dirs.includes('assets'));assert(tree.dirs.includes('pkg/sub'));
+    await assert.rejects(api('DELETE',model.projectUrl()+'/file?path=__init__.py'),/入口/);
+    await assert.rejects(api('DELETE',model.projectUrl()+'/file?path=pkg'),/非空/);
+    await assert.rejects(api('DELETE',model.projectUrl()+'/file?path=missing.py'),/不存在/);
+    await model.remove(nested);await model.removeFolder('assets');
+    tree=await model.listTree();assert.equal(tree.files.some(f=>f.path==='pkg/sub/mod.py'),false);assert.equal(tree.dirs.includes('assets'),false);
+    await model.createProject('第二个_工程');assert((await model.listProjects()).includes('第二个_工程'));
+    assert.deepEqual((await model.listFiles()).map(f=>f.path),['__init__.py']);
     for(const url of ['/tools/ui/editor.html','/tools/ui/editor.js','/tools/ui/editor-model.js','/tools/ui/editor.css','/website/src/editor.html']){
       const r=await fetch(base+url);assert.equal(r.status,200,url);assert((await r.text()).length>0);
     }

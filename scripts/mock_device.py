@@ -128,7 +128,22 @@ def _describe(name):
 
 
 def _safe_rel(rel):
-    return bool(rel) and not rel.startswith("/") and ".." not in rel.split("/")
+    return (bool(rel) and not rel.startswith("/") and "\\" not in rel and "\0" not in rel
+            and not any(p in ("", ".", "..") for p in rel.split("/")))
+
+
+def _valid_project(name):
+    """Same rule as ProjectStore.isValidName: identifier, Unicode letters allowed."""
+    return bool(name) and (name[0].isalpha() or name[0] == "_") and all(c.isalnum() or c == "_" for c in name)
+
+
+def _dirs(name):
+    """Folders of a project: parents of every file plus explicitly created (possibly empty) ones."""
+    out = set(STATE.setdefault("dirs", {}).get(name, set()))
+    for rel in STATE["projects"].get(name, {}):
+        parts = rel.split("/")[:-1]
+        out.update("/".join(parts[:i + 1]) for i in range(len(parts)))
+    return sorted(out)
 
 
 def _log(line):
@@ -309,7 +324,7 @@ class Handler(BaseHTTPRequestHandler):
             if sub == "/files":
                 self._json(200, {"project": name, "files": [
                     {"path": p, "size": len(c)} for p, c in sorted(files.items())
-                ]})
+                ], "dirs": _dirs(name)})
                 return
             if sub == "/file":
                 rel = q.get("path", "")
@@ -406,6 +421,14 @@ class Handler(BaseHTTPRequestHandler):
                 content = f.get("content") or ""
                 raw = base64.b64decode(content) if f.get("encoding") == "base64" else content.encode("utf-8")
                 decoded.append((rel, raw))
+            if body.get("create"):
+                if name not in STATE["projects"]:
+                    self._json(404, {"error": "工程不存在: " + name})
+                    return
+                rel = decoded[0][0]
+                if rel in STATE["projects"][name] or rel in _dirs(name):
+                    self._json(409, {"error": "文件已存在: " + rel})
+                    return
             proj = STATE["projects"].setdefault(name, {})
             for rel, raw in decoded:
                 proj[rel] = raw
@@ -528,8 +551,28 @@ class Handler(BaseHTTPRequestHandler):
             return
         name, sub = self._project_route()
         if name is not None and sub == "":
-            STATE["projects"].setdefault(name, {"__init__.py": b"print('hello')\n"})
+            if not _valid_project(name):
+                self._json(400, {"error": "工程名须以字母或下划线开头，仅包含字母、数字、下划线: " + name})
+                return
+            if name in STATE["projects"]:
+                self._json(409, {"error": "工程已存在: " + name})
+                return
+            STATE["projects"][name] = {"__init__.py": b"print('hello')\n"}
             self._json(200, {"ok": True, "project": name})
+            return
+        if name is not None and sub == "/dir":
+            rel = (self._body().get("path") or "").strip().strip("/")
+            if name not in STATE["projects"]:
+                self._json(404, {"error": "工程不存在: " + name})
+                return
+            if not _safe_rel(rel):
+                self._json(400, {"error": "invalid path"})
+                return
+            if rel in STATE["projects"][name] or rel in _dirs(name):
+                self._json(409, {"error": "路径已存在: " + rel})
+                return
+            STATE.setdefault("dirs", {}).setdefault(name, set()).add(rel)
+            self._json(200, {"ok": True, "path": rel})
             return
         if name is not None and sub == "/run":
             if name not in STATE["projects"] or "__init__.py" not in STATE["projects"][name]:
@@ -613,8 +656,25 @@ class Handler(BaseHTTPRequestHandler):
             self._json(200, {"ok": STATE["projects"].pop(name, None) is not None})
             return
         if name is not None and sub == "/file":
-            files = STATE["projects"].get(name, {})
-            self._json(200, {"ok": files.pop(self._query().get("path", ""), None) is not None})
+            files = STATE["projects"].get(name)
+            rel = self._query().get("path", "")
+            if files is None:
+                self._json(404, {"error": "工程不存在: " + name})
+            elif not _safe_rel(rel):
+                self._json(400, {"error": "invalid path"})
+            elif rel in ("__init__.py", "__init__.pyc"):
+                self._json(400, {"error": "不能删除工程入口 " + rel})
+            elif rel in files:
+                del files[rel]
+                self._json(200, {"ok": True})
+            elif rel in _dirs(name):
+                if any(p.startswith(rel + "/") for p in files) or any(d.startswith(rel + "/") for d in _dirs(name)):
+                    self._json(409, {"error": "文件夹非空: " + rel})
+                else:
+                    STATE["dirs"][name].discard(rel)
+                    self._json(200, {"ok": True})
+            else:
+                self._json(404, {"error": "文件不存在: " + rel})
             return
         self._json(404, {"error": "not found"})
 
