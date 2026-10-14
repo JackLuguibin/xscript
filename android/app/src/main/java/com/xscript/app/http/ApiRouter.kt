@@ -94,20 +94,15 @@ class ApiRouter(private val context: Context) {
 
     private val store = ProjectStore(context)
     private val tools = com.xscript.app.tools.ToolsRouter(context)
+    private val projectRoutes = ProjectRoutes(store)
     private val projectRoute = Regex("^/projects/([^/]+)(/.*)?$")
 
     fun handle(req: Request): Reply {
         if (req.client.isNotEmpty()) ClientTracker.touch(req.client, req.remote)
         return try {
             route(req)
-        } catch (e: NoSuchElementException) {
-            Reply.json(JSONObject().put("error", e.message ?: "not found"), 404)
-        } catch (e: IllegalArgumentException) {
-            Reply.json(JSONObject().put("error", e.message ?: "bad request"), 400)
-        } catch (e: IllegalStateException) {
-            Reply.json(JSONObject().put("error", e.message ?: "conflict"), 409)
         } catch (e: Exception) {
-            Reply.json(JSONObject().put("error", e.message ?: e.toString()), 500)
+            errorReply(e)
         }
     }
 
@@ -163,6 +158,7 @@ class ApiRouter(private val context: Context) {
         val pm = projectRoute.matchEntire(p) ?: return Reply.json(JSONObject().put("error", "not found"), 404)
         val name = java.net.URLDecoder.decode(pm.groupValues[1], "UTF-8")
         val sub = pm.groupValues[2]
+        projectRoutes.handle(m, name, sub, req)?.let { return it }
         return when {
             m == "DELETE" && sub.isEmpty() -> {
                 if (RunState.current(context) == name) ScriptService.stop(context)
@@ -177,22 +173,6 @@ class ApiRouter(private val context: Context) {
                 for (k in listOf("auto_run", "stop_re_run")) if (body.has(k)) patch.put(k, body.getBoolean(k))
                 Reply.json(JSONObject(MainControl.handle("config_set", patch.toString())))
             }
-            m == "POST" && sub.isEmpty() -> {
-                // Strict: 400 for an invalid name, 409 when the project already exists.
-                store.createNew(name)
-                Reply.json(JSONObject().put("ok", true).put("project", name))
-            }
-            m == "GET" && sub == "/files" -> {
-                Reply.json(JSONObject().put("project", name).put("files", store.files(name)).put("dirs", store.dirs(name)))
-            }
-            m == "POST" && sub == "/dir" -> {
-                val path = req.json().optString("path")
-                store.createDir(name, path)
-                Reply.json(JSONObject().put("ok", true).put("path", ProjectStore.normalizeRel(path)))
-            }
-            m == "PUT" && sub == "/files" -> upload(name, req)
-            m == "GET" && sub == "/file" -> readFile(name, req)
-            m == "DELETE" && sub == "/file" -> Reply.json(JSONObject().put("ok", store.deleteFile(name, req.query["path"].orEmpty())))
             m == "PUT" && sub == "/zip" -> {
                 req.body.stream().use { store.importZip(name, it, replace = req.query["replace"] != "false") }
                 Reply.json(JSONObject().put("ok", true).put("project", name).put("files", store.files(name).length()))
@@ -216,6 +196,16 @@ class ApiRouter(private val context: Context) {
                 Reply.json(JSONObject().put("ok", true).put("running", false))
             }
             else -> Reply.json(JSONObject().put("error", "not found"), 404)
+        }
+    }
+
+    companion object {
+        /** Exception type → HTTP status: 404 missing, 400 invalid input, 409 conflict, else 500. */
+        fun errorReply(e: Exception): Reply = when (e) {
+            is NoSuchElementException -> Reply.json(JSONObject().put("error", e.message ?: "not found"), 404)
+            is IllegalArgumentException -> Reply.json(JSONObject().put("error", e.message ?: "bad request"), 400)
+            is IllegalStateException -> Reply.json(JSONObject().put("error", e.message ?: "conflict"), 409)
+            else -> Reply.json(JSONObject().put("error", e.message ?: e.toString()), 500)
         }
     }
 
@@ -269,49 +259,6 @@ class ApiRouter(private val context: Context) {
         val since = req.query["since"]?.toLongOrNull() ?: 0L
         val (entries, next) = LogBuffer.since(context, since)
         return Reply.json(LogBuffer.toJson(entries, next))
-    }
-
-    private fun upload(name: String, req: Request): Reply {
-        val body = req.json()
-        val files = body.optJSONArray("files")
-        if (files != null) {
-            for (i in 0 until files.length()) {
-                val f = files.getJSONObject(i)
-                store.writeFile(name, f.getString("path"), f.optString("content"), f.optString("encoding", "utf-8"))
-            }
-            return Reply.json(JSONObject().put("ok", true).put("count", files.length()))
-        }
-        val path = body.optString("path")
-        if (body.optBoolean("create")) {
-            // Create-only (Web IDE 新建文件): 404 missing project, 409 if the path exists.
-            store.createFile(name, path, body.optString("content"), body.optString("encoding", "utf-8"))
-            return Reply.json(JSONObject().put("ok", true).put("path", ProjectStore.normalizeRel(path)))
-        }
-        store.writeFile(name, path, body.optString("content"), body.optString("encoding", "utf-8"))
-        return Reply.json(JSONObject().put("ok", true))
-    }
-
-    private fun readFile(name: String, req: Request): Reply {
-        val f = store.readFile(name, req.query["path"].orEmpty())
-        if (!f.isFile) return Reply.json(JSONObject().put("error", "missing file"), 404)
-        val text = isText(f.name)
-        if (req.query["raw"] == "1") {
-            return Reply.file(f, if (text) "text/plain; charset=utf-8" else "application/octet-stream", temp = false)
-        }
-        val bytes = f.readBytes()
-        return if (text) {
-            Reply.json(JSONObject().put("path", req.query["path"]).put("encoding", "utf-8").put("content", String(bytes, Charsets.UTF_8)))
-        } else {
-            Reply.json(
-                JSONObject().put("path", req.query["path"]).put("encoding", "base64")
-                    .put("content", android.util.Base64.encodeToString(bytes, android.util.Base64.NO_WRAP)),
-            )
-        }
-    }
-
-    private fun isText(name: String): Boolean {
-        val ext = name.substringAfterLast('.', "").lowercase()
-        return ext in setOf("py", "txt", "md", "json", "yaml", "yml", "html", "htm", "js", "css", "as", "ini", "cfg", "csv", "xml", "toml")
     }
 
     private fun runProject(name: String, debug: Boolean = false): Reply {

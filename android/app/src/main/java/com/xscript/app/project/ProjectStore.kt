@@ -1,7 +1,6 @@
 package com.xscript.app.project
 
 import android.content.Context
-import android.util.Base64
 import com.xscript.app.root.RootShell
 import org.json.JSONArray
 import org.json.JSONObject
@@ -50,12 +49,17 @@ class ProjectStore(val root: File) {
         return hasEntry(dir(name))
     }
 
-    fun create(name: String): File {
+    fun create(name: String): File = create(name, strict = false)
+
+    private fun create(name: String, strict: Boolean): File {
         val d = dir(name)
         d.mkdirs()
-        File(d, "res/img").mkdirs()
         val init = File(d, "__init__.py")
-        if (!init.exists()) {
+        // createNewFile is atomic: of two concurrent strict creates exactly one wins, the other gets 409.
+        val fresh = init.createNewFile()
+        check(!strict || fresh) { "工程已存在: ${d.name}" }
+        File(d, "res/img").mkdirs()
+        if (fresh) {
             init.writeText(
                 """
                 # ${d.name}: 入口文件
@@ -75,16 +79,20 @@ class ProjectStore(val root: File) {
     fun createNew(name: String): File {
         require(isValidName(name)) { "工程名须以字母或下划线开头，仅包含字母、数字、下划线: $name" }
         check(!hasEntry(dir(name))) { "工程已存在: ${name.trim()}" }
-        return create(name)
+        return create(name, strict = true)
     }
 
-    fun delete(name: String): Boolean = dir(name).deleteRecursively()
+    /** Delete a project. Symlinks inside it are removed, never followed (their targets stay intact). */
+    fun delete(name: String): Boolean = deleteTree(dir(name))
 
     /** Create-only file write: fails with 409 when the path already exists (file or folder). */
     fun createFile(name: String, relativePath: String, content: String, encoding: String): File {
         if (!exists(name)) throw NoSuchElementException("工程不存在: $name")
         val target = resolve(name, relativePath)
         check(!target.exists()) { "文件已存在: ${normalizeRel(relativePath)}" }
+        target.parentFile?.mkdirs()
+        // Atomic claim of the path, so two concurrent creates cannot both succeed.
+        check(target.createNewFile()) { "文件已存在: ${normalizeRel(relativePath)}" }
         return writeFile(name, relativePath, content, encoding)
     }
 
@@ -110,7 +118,7 @@ class ProjectStore(val root: File) {
         require(!target.isDirectory) { "路径是文件夹: ${normalizeRel(relativePath)}" }
         target.parentFile?.mkdirs()
         val bytes = if (encoding.equals("base64", ignoreCase = true)) {
-            Base64.decode(content, Base64.DEFAULT)
+            java.util.Base64.getMimeDecoder().decode(content)
         } else {
             content.toByteArray(Charsets.UTF_8)
         }
@@ -118,7 +126,8 @@ class ProjectStore(val root: File) {
         return target
     }
 
-    fun readFile(name: String, relativePath: String): File = File(dir(name), normalizeRel(relativePath))
+    /** Resolved like writes, so a symlink inside the project cannot expose files outside it. */
+    fun readFile(name: String, relativePath: String): File = resolve(name, relativePath)
 
     /**
      * Delete one file, or an empty folder. The entry point cannot be deleted (400), a missing
@@ -139,7 +148,7 @@ class ProjectStore(val root: File) {
         val base = dir(name)
         val arr = JSONArray()
         base.walkTopDown()
-            .onEnter { it == base || (it.name != "__pycache__" && !it.name.startsWith(".")) }
+            .onEnter { it == base || (it.name != "__pycache__" && !it.name.startsWith(".") && !isLink(it)) }
             .filter { it.isDirectory && it != base }
             .map { it.relativeTo(base).invariantSeparatorsPath }
             .sorted()
@@ -151,7 +160,7 @@ class ProjectStore(val root: File) {
         val base = dir(name)
         val arr = JSONArray()
         base.walkTopDown()
-            .onEnter { it.name != "__pycache__" && !it.name.startsWith(".") || it == base }
+            .onEnter { it == base || (it.name != "__pycache__" && !it.name.startsWith(".") && !isLink(it)) }
             .filter { it.isFile }
             .sortedBy { it.path }
             .forEach { f ->
@@ -196,7 +205,7 @@ class ProjectStore(val root: File) {
             val src = if (prefix.isEmpty()) staging else File(staging, prefix.trimEnd('/'))
             // Validate before touching the existing project so a bad zip leaves it intact.
             require(hasEntry(src) || (!replace && hasEntry(target))) { "zip has no __init__.py" }
-            if (replace) target.deleteRecursively()
+            if (replace) deleteTree(target)
             target.mkdirs()
             src.walkTopDown().filter { it.isFile }.forEach { f ->
                 val out = File(target, f.relativeTo(src).path)
@@ -327,6 +336,14 @@ class ProjectStore(val root: File) {
     }
 
     companion object {
+        private fun isLink(f: File): Boolean = java.nio.file.Files.isSymbolicLink(f.toPath())
+
+        /** Like deleteRecursively, but a symlink (file or folder) is unlinked instead of walked into. */
+        fun deleteTree(f: File): Boolean {
+            if (!isLink(f) && f.isDirectory) f.listFiles()?.forEach { deleteTree(it) }
+            return f.delete() || !f.exists() && !isLink(f)
+        }
+
         const val ASCRIPT_MODEL = "/sdcard/airscript/model"
 
         /** Entry module: source, or bytecode only for 代码保护 builds. */

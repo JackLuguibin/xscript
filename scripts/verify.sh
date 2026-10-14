@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Local checks for every part of the repo:
-#   android/  -> python-runtime tests, APK presence
+#   android/  -> python-runtime tests, Web IDE node + headless-Chrome tests, Kotlin JVM unit tests, APK presence
 #   backend/  -> 管理后台 tests; web console type-check + build (if node_modules)
 #   ide/      -> MCP tests, stubs up to date, VS Code extension compile + tests, mock vertical slice
 # .venv     -> MCP client/server (httpx, mcp) and backend (pip install -e backend)
@@ -41,11 +41,21 @@ echo "== ide: mcp ($PY) =="
 PYTHONPATH=$MCP "$PY" -m unittest discover -s $MCP/tests
 echo "== ide: stubs up to date =="
 "$PY" "$ROOT/scripts/gen_stubs.py" --check
-echo "== android: Web IDE state + HTTP contract =="
+echo "== android: Web IDE state + HTTP contract + browser UI (headless Chrome if found) =="
 if command -v node >/dev/null 2>&1; then
   node --test scripts/tests/*.test.cjs
 else
   echo "skipped (node is required for Web IDE tests)"
+fi
+echo "== android: Kotlin unit tests (JVM) =="
+JBR="/Applications/Android Studio.app/Contents/jbr/Contents/Home"
+if [ "${XS_SKIP_GRADLE:-}" = "1" ]; then
+  echo "skipped (XS_SKIP_GRADLE=1)"
+elif [ -n "${JAVA_HOME:-}" ] || [ -d "$JBR" ] || command -v java >/dev/null 2>&1; then
+  (cd android && JAVA_HOME="${JAVA_HOME:-$([ -d "$JBR" ] && echo "$JBR")}" ./gradlew -q --offline :app:testDebugUnitTest --console=plain)
+  echo "kotlin unit tests ok"
+else
+  echo "skipped (no JDK; set JAVA_HOME)"
 fi
 echo "== ide: vscode extension =="
 if command -v npm >/dev/null 2>&1 && [ -d "$EXT/node_modules" ]; then

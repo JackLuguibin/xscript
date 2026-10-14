@@ -8,6 +8,8 @@
   const expanded = () => { if (!expandedByProject.has(model.project)) expandedByProject.set(model.project, new Set()); return expandedByProject.get(model.project); };
   const reveal = path => { for (const dir of EditorModel.ancestors(path)) expanded().add(dir); };
   const selectedDir = () => selected && selected.type === "dir" ? selected.path : "";
+  // 删除文件 acts on the file selected in the tree (keyboard selection may differ from the open file).
+  const selectedFile = () => selected ? (selected.type === "file" ? selected.path : "") : current ? current.path : "";
   const message = (text, error = false) => { el("message").textContent = text; el("message").classList.toggle("error", error); };
   const debuggerClient = new XScriptDebugger((...args) => XS.api(...args), {
     state: text => { el("debug-state").textContent = text; renderDebug(); },
@@ -50,7 +52,7 @@
     el("new-folder").disabled = pending || !model.project;
     el("new-project").disabled = pending;
     el("projects").disabled = pending;
-    el("delete-file").disabled = pending || (selectedDir() ? false : !current || /^__init__\.pyc?$/.test(current.path));
+    el("delete-file").disabled = pending || (selectedDir() ? false : !selectedFile() || /^__init__\.pyc?$/.test(selectedFile()));
     el("delete-file").textContent = selectedDir() ? "删除文件夹" : "删除文件";
     el("export").hidden = !model.project;
     if (model.project) el("export").href = model.projectUrl() + "/zip";
@@ -311,13 +313,14 @@
       });
       return;
     }
-    const doc = current;
-    if (!doc) return;
+    const path = selectedFile();
+    if (!path) return;
+    const doc = model.documents.get(model.key(path)) || {project: model.project, path, content: "", saved: "", binary: false};
     if (!confirm("确定删除 " + doc.path + "？此操作不可撤销。" + (model.dirty(doc) ? "\n未保存的修改也将丢弃。" : ""))) return;
     operation(async () => {
       await model.remove(doc);
       debuggerClient.breakpoints.delete(doc.project + ":" + doc.path);
-      if (current === doc) { ++generation; current = null; el("editor").value = ""; el("editor").disabled = true; cursor(); }
+      if (current && current.project === doc.project && current.path === doc.path) { ++generation; current = null; el("editor").value = ""; el("editor").disabled = true; cursor(); }
       await refreshFiles();
       if (model.project !== doc.project) return;
       if (!current) {
