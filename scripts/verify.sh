@@ -9,6 +9,10 @@ set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 cd "$ROOT"
 
+# Device/backend integration tests use loopback servers, even when the host has a proxy.
+export NO_PROXY="${NO_PROXY:+$NO_PROXY,}127.0.0.1,localhost"
+export no_proxy="${no_proxy:+$no_proxy,}127.0.0.1,localhost"
+
 if [ -x "$ROOT/.venv-rt/bin/python" ]; then
   RT_PY="$ROOT/.venv-rt/bin/python"
 else
@@ -37,6 +41,12 @@ echo "== ide: mcp ($PY) =="
 PYTHONPATH=$MCP "$PY" -m unittest discover -s $MCP/tests
 echo "== ide: stubs up to date =="
 "$PY" "$ROOT/scripts/gen_stubs.py" --check
+echo "== android: Web IDE state + HTTP contract =="
+if command -v node >/dev/null 2>&1; then
+  node --test scripts/tests/*.test.cjs
+else
+  echo "skipped (node is required for Web IDE tests)"
+fi
 echo "== ide: vscode extension =="
 if command -v npm >/dev/null 2>&1 && [ -d "$EXT/node_modules" ]; then
   (cd "$EXT" && npm run --silent compile && npm test --silent)
