@@ -19,6 +19,7 @@ backend/  管理后台（FastAPI + React）   ←  WebSocket（设备主动连�
   - `system`：应用、shell、设备信息、KeyValue、R 路径。
   - `ui`：对话框、带 JS 桥的 HTML 窗口、画布、悬浮停止按钮。
   - `event`：监听实体按键、控件点击、通知（可 `send()`）、Toast 和原始无障碍事件。
+  - `sms`、`location`、`sensor`：读取短信、GPS/network 定位与加速度/陀螺仪/光线/接近传感器；`permission` 提供实际权限检查与系统申请流程。也可通过对应 `ascript.android.*` 接口调用。
 - **无人值守运行**：开机自启、停止后重新运行（脚本退出或崩溃后重启，带防崩溃循环保护）、定时任务（每天 / 每隔 N 分钟 / 一次）。可以在工程页面、脚本里（`system.Config`、`system.Schedule`）、通过 HTTP 或 MCP 设置。
 - **设备端 AI 识别**：YOLO v5 / v8 / v11 目标检测（`xscript.android.yolo`）和 PaddleOCR PP-OCRv5（`screen.ocr(engine="paddle")`）运行在 ONNX Runtime 上。在标注工具里标注截图，用 Ultralytics 训练，导出 ONNX 后在手机上运行。AScript 的 `YoLov5`、`plug.load("Yolov8Ncnn")` 和 `Ocr.paddleocr` 都映射到这两个引擎。
 - **运行时 pip**：工程里放 `requirements.txt`，第一次运行前自动安装，不用重新打包 APK。纯 Python 包来自 PyPI；带 C 扩展的包（pandas、scipy、lxml、cryptography 等）来自 Chaquopy 的 Android 索引。
@@ -33,6 +34,8 @@ backend/  管理后台（FastAPI + React）   ←  WebSocket（设备主动连�
 - **APK 打包和卡密**：管理后台在后台队列里把工程 zip 或小程序版本打包成 APK（也可以直接运行 `backend/xscript_pack.py`）。每个 App 有自己的包名、名称、图标，可选正式签名、代码保护（只打包字节码）和热更新。打包的 App 可以要求卡密授权：卡密是绑定设备的 ECDSA 签名令牌。卡密在管理后台按批次生成、在线激活，可以停用、解绑、延期、导出，也可以签发离线授权码。打包好的 APK 可以生成带二维码的下载链接分发给用户。见 [docs/PACKAGING.md](docs/PACKAGING.md)。
 - **VS Code / Cursor 插件**（`ide/vscode-extension`）：F6 保存、上传并运行当前工程，同时跟随日志；Shift+F6 停止。还能在设备上运行选中的代码、打开截图和网页工具，并自带 API 补全存根。见 [ide/README.md](ide/README.md)。
 - **Cursor MCP**（`xscript-mcp`）：截图、控件树、上传文件、运行 / 停止、日志、eval、运行选项、定时任务和 API 目录。eval 在独立进程里执行，超时会被杀掉。
+- **浏览器脚本 IDE**：工程创建、多文件编辑、保存并运行、停止、ZIP 导出和实时日志，访问 `/tools/ui/editor.html`，支持 AScript 的 `/website/src/editor.html` 页面地址。
+- **GP 与视觉 AI 兼容**：支持 JSON/data.gp 本地图色流水线；`ascript.android.vlm.asai` 可接自有 `/vision/locate`、`/vision/ask` 服务。范围和剩余缺口见 [基于 APK 的兼容实现](docs/ASCRIPT_RECONSTRUCTION.md)。
 - **浏览器开发工具**：App 内置，地址 `http://<ip>:<port>/tools/`。
   - **图色工具**：冻结一张截图，用放大镜取色，生成多点找色字符串，框选区域，把找图模板裁剪保存到工程里，并在这一帧上测试找色 / 比色 / 找图 / OCR。
   - **标注工具**：把截图或上传的图片加入数据集，画框标注，导出 YOLO 训练集（`images/`、`labels/`、`data.yaml`）。
