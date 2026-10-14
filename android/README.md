@@ -19,6 +19,28 @@ Android 应用，以及它内嵌的 Python 运行时。
 
 `backend/xscript_pack.py` 同样通过 `build.sh` 构建，并传入 `-Pxscript.pack=<pack.properties>`（见 [docs/PACKAGING.md](../docs/PACKAGING.md)）。
 
+### 正式版签名
+
+主应用从 Git 忽略目录中的 `keys/release.properties` 读取签名配置，也可通过
+`-Pxscript.signingFile=/absolute/path/release.properties` 指定文件：
+
+```properties
+storeFile=xscript-release.p12
+storePassword=<密钥库密码>
+keyAlias=xscript-release
+keyPassword=<私钥密码>
+```
+
+`storeFile` 相对于配置文件所在目录解析。构建正式版：
+
+```bash
+XSCRIPT_GRADLE_TASK=:app:assembleRelease ./android/build.sh
+```
+
+未提供签名配置时，Release 构建输出未签名 APK，不能直接安装或发布。
+请安全备份密钥库和密码，后续版本必须使用同一签名才能覆盖升级；不要将它们提交到 Git 或上传到 Release。
+正式签名与 Debug 签名不同，从 Debug 版切换需要先卸载，卸载会清除应用数据，请先导出项目。
+
 ## 运行时测试
 
 ```bash

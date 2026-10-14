@@ -19,6 +19,13 @@ plugins {
 val packFile: File? = (project.findProperty("xscript.pack") as String?)?.let { file(it) }
 val pack: Properties = Properties().apply { packFile?.takeIf { it.isFile }?.reader(Charsets.UTF_8)?.use { load(it) } }
 val packed = packFile != null
+// Private signing credentials stay outside version control (keys/ is ignored).
+val releaseSigningFile = rootProject.file(
+    (project.findProperty("xscript.signingFile") as String?) ?: "../keys/release.properties",
+)
+val releaseSigning = Properties().apply {
+    releaseSigningFile.takeIf { it.isFile }?.reader(Charsets.UTF_8)?.use { load(it) }
+}
 // Each packed app builds into its own directory, so it never mixes outputs with the
 // developer app (or with another packed app) and incremental builds stay valid.
 if (packed) layout.buildDirectory.set(file("build-pack/" + pack.getProperty("app_id", "app").trim()))
@@ -37,8 +44,8 @@ android {
         applicationId = if (packed) packProp("app_id") else "com.xscript.app"
         minSdk = 26
         targetSdk = 34
-        versionCode = if (packed) packProp("version_code", "1").toInt() else 2
-        versionName = if (packed) packProp("version_name", "1.0.0") else "0.2.0"
+        versionCode = if (packed) packProp("version_code", "1").toInt() else 3
+        versionName = if (packed) packProp("version_name", "1.0.0") else "0.2.1"
         ndk {
             abiFilters += (packProp("abis").ifEmpty { "arm64-v8a,x86_64" }).split(',').map { it.trim() }.filter { it.isNotEmpty() }
         }
@@ -63,6 +70,17 @@ android {
     }
 
     signingConfigs {
+        if (!packed && releaseSigningFile.isFile) {
+            create("production") {
+                listOf("storeFile", "storePassword", "keyAlias", "keyPassword").forEach {
+                    require(!releaseSigning.getProperty(it).isNullOrBlank()) { "Missing release signing property: $it" }
+                }
+                storeFile = releaseSigningFile.parentFile.resolve(releaseSigning.getProperty("storeFile"))
+                storePassword = releaseSigning.getProperty("storePassword")
+                keyAlias = releaseSigning.getProperty("keyAlias")
+                keyPassword = releaseSigning.getProperty("keyPassword")
+            }
+        }
         if (packed && packProp("keystore").isNotEmpty()) {
             create("pack") {
                 storeFile = file(packProp("keystore"))
@@ -81,6 +99,7 @@ android {
                 "proguard-rules.pro",
             )
             signingConfigs.findByName("pack")?.let { signingConfig = it }
+            if (!packed) signingConfigs.findByName("production")?.let { signingConfig = it }
         }
     }
 
