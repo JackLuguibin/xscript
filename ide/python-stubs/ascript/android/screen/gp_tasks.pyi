@@ -72,9 +72,14 @@ class Rotate(GPTask):
         ...
 
 class Canny(GPTask):
+    """Detect contours and return local-coordinate measurements in Result.data.
+
+    Offsets remain in Result.offset_x/y, as in the packaged interface. Resize
+    and rotation do not turn them into a screen-coordinate transformation.
+    """
     name = '边缘检测'
 
-    def __init__(self, low_threshold=50, high_threshold=150, **kwargs):
+    def __init__(self, low_threshold=50, high_threshold=150, algo='canny', blur=3, mode=RETR_EXTERNAL, draw=DRAW_ALL, area_range=None, width_range=None, height_range=None, left_range=None, top_range=None, approx=0, detect_shape=False, desc=False, sobel_ksize=3, sobel_dir='xy', block_size=11, c_val=2):
         ...
 
     def run(self, cv_image, offset_x=0, offset_y=0, data=None):
