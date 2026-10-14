@@ -16,11 +16,20 @@
 adb install -r android/app/build/outputs/apk/debug/app-debug.apk
 ```
 
+如果安装时报 `INSTALL_FAILED_UPDATE_INCOMPATIBLE: ... signatures do not match`，说明设备上已有用别的签名打包的 XScript（正式版，或别的电脑打的 Debug 包，Debug 签名默认是每台电脑各自的 `~/.android/debug.keystore`）。只能先卸载：
+
+```bash
+adb uninstall com.xscript.app   # 会清除应用数据：工程、设置、授权
+adb install android/app/build/outputs/apk/debug/app-debug.apk
+```
+
+卸载前请先导出需要的工程（脚本 IDE → **导出 ZIP**，或 `GET /projects/<name>/zip`），重装后重新授予下面的权限。
+
 APK 内置 numpy 1.23.3、opencv 4.5.1.48、pillow 9.2.0、pyyaml、requests、OkHttp 和 ML Kit 中文 OCR，体积约 100 MB。
 
 ## 设备设置
 
-1. 打开 XScript，如有提示，授予通知权限。
+1. 打开 XScript，授予通知权限。**全新安装时必须先授予，HTTP 服务（9860 端口）才会启动**；用 adb 时可执行 `adb shell pm grant com.xscript.app android.permission.POST_NOTIFICATIONS`。
 2. **辅助权限管理** → 开启 XScript 无障碍服务。
 3. **悬浮窗权限** → 允许。悬浮停止按钮、对话框、`ui.Window` 和画布都需要它。
 4. **Root 权限** → 设备已 root 时授予 `su`。授予后可使用 root 模式、`system.shell` 和截图兜底。
@@ -157,12 +166,13 @@ c.run_project("my_proj")
 - **后端测试**（`backend/tests`）：管理后台测试需要在 `.venv` 中执行 `pip install -e backend`，否则跳过。如果已在 `backend/web` 中运行过 `npm ci`，还会构建 Web 控制台。
 - **MCP 测试**（`ide/mcp-server/tests`）。
 - **Stub 是否最新的检查。**
+- **网页 IDE：** `node --test scripts/tests/*.test.cjs`，覆盖编辑器状态、目录树与键盘导航、Python 高亮，以及针对模拟设备的工程/文件接口契约。
 - **VS Code 扩展：** 编译并运行 `node --test`，前提是已在 `ide/vscode-extension` 中运行过 `npm ci`。
 - **模拟设备上的端到端流程（vertical slice）。**
 
 如果还要用真实模型运行 YOLO11n / PP-OCRv5 测试，把 `yolo11n.onnx`、`ch_PP-OCRv5_det_mobile.onnx`、`ch_PP-OCRv5_rec_mobile.onnx` 和 `bus.jpg` 放到一个文件夹中，并设置 `XSCRIPT_TEST_MODELS=<folder>`。
 
-Android JVM 单元测试（日志尾部读取、数据集、快照、定时任务、卡密令牌）：
+Android JVM 单元测试（日志尾部读取、数据集、快照、定时任务、卡密令牌、工程存储的新建/删除规则）：
 
 ```bash
 ./android/build.sh :app:testDebugUnitTest

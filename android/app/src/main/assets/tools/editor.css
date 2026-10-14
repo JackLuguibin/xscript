@@ -14,7 +14,11 @@
 .ide-edit-area { display:flex; min-height:160px; flex:1; overflow:hidden; }
 #line-numbers { flex-shrink:0; min-width:46px; text-align:right; margin:0; padding:16px 10px; overflow:hidden; color:var(--muted); user-select:none; }
 #editor { display:block; resize:none; border:0; outline:0; border-radius:0; width:100%; padding:16px 12px; margin:0; background:var(--bg); color:var(--text-strong); tab-size:4; }
-#line-numbers, #editor { font-family:var(--mono); font-size:13px; line-height:21px; }
+.ide-code { position:relative; flex:1; min-width:0; display:flex; background:var(--bg); }
+#highlight { position:absolute; inset:0; margin:0; padding:16px 12px; overflow:hidden; pointer-events:none; white-space:pre; tab-size:4; color:var(--text-strong); border:0; background:none; }
+#editor.highlighted { position:relative; background:transparent; color:transparent; caret-color:var(--text-strong); -webkit-text-fill-color:transparent; }
+#editor.highlighted::selection { background:var(--accent-soft); }
+#line-numbers, #editor, #highlight { font-family:var(--mono); font-size:13px; line-height:21px; letter-spacing:0; font-variant-ligatures:none; }
 #editor:focus-visible { box-shadow:inset 0 0 0 1px var(--accent-soft); }
 .ide-status { display:flex; justify-content:space-between; gap:16px; padding:6px 12px; border-top:1px solid var(--divider); font-size:11px; color:var(--muted); }
 #message.error { color:var(--bad); }
@@ -54,3 +58,13 @@
 :root[data-theme="dark"] { --tree-sel:#37373d; --tree-sel-focus:#04395e; }
 :root[data-theme="dark"] .tree-row .ti.folder { color:#dcb67a; }
 @media(max-width:720px) { #files { margin:0 -8px; } }
+/* Python tokens: VS Code "Light+/Dark+" palette. */
+#highlight .tok-keyword { color:#0000ff; } #highlight .tok-string { color:#a31515; } #highlight .tok-comment { color:#008000; font-style:italic; }
+#highlight .tok-number { color:#098658; } #highlight .tok-function { color:#795e26; } #highlight .tok-class { color:#267f99; }
+#highlight .tok-builtin { color:#795e26; } #highlight .tok-decorator { color:#af00db; } #highlight .tok-self { color:#001080; font-style:italic; }
+#highlight .tok-operator { color:#000000; }
+:root[data-theme="dark"] #highlight .tok-keyword { color:#569cd6; } :root[data-theme="dark"] #highlight .tok-string { color:#ce9178; }
+:root[data-theme="dark"] #highlight .tok-comment { color:#6a9955; } :root[data-theme="dark"] #highlight .tok-number { color:#b5cea8; }
+:root[data-theme="dark"] #highlight .tok-function, :root[data-theme="dark"] #highlight .tok-builtin { color:#dcdcaa; }
+:root[data-theme="dark"] #highlight .tok-class { color:#4ec9b0; } :root[data-theme="dark"] #highlight .tok-decorator { color:#c586c0; }
+:root[data-theme="dark"] #highlight .tok-self { color:#9cdcfe; } :root[data-theme="dark"] #highlight .tok-operator { color:#d4d4d4; }

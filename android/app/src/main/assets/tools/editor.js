@@ -158,6 +158,23 @@
     render();
     const target = el("files").querySelector('[data-path="' + CSS.escape(focusPath) + '"]'); if (target) target.focus();
   });
+  // Syntax overlay: a <pre> behind the transparent textarea, re-rendered at most once per frame.
+  let paintQueued = false;
+  function paint() {
+    paintQueued = false;
+    const box = el("editor"), pre = el("highlight");
+    const plain = !current || current.binary || box.disabled;
+    el("editor").classList.toggle("highlighted", !plain);
+    // Trailing newline keeps the last (empty) line the same height as in the textarea.
+    pre.innerHTML = plain ? "" : XSyntax.highlight(current.path, box.value) + "\n";
+    syncScroll();
+  }
+  function schedulePaint() { if (!paintQueued) { paintQueued = true; requestAnimationFrame(paint); } }
+  function syncScroll() {
+    const box = el("editor");
+    el("highlight").scrollTop = box.scrollTop; el("highlight").scrollLeft = box.scrollLeft;
+    el("line-numbers").scrollTop = box.scrollTop;
+  }
   function cursor() {
     const value = el("editor").value, pos = el("editor").selectionStart;
     const before = value.slice(0, pos).split("\n");
@@ -170,6 +187,7 @@
       el("line-numbers").append(number);
     }
     el("line-numbers").scrollTop = el("editor").scrollTop;
+    schedulePaint();
   }
   function show(doc) {
     current = doc; selected = {type: "file", path: doc.path}; focusPath = doc.path; reveal(doc.path);
@@ -310,7 +328,8 @@
     });
   };
   el("editor").addEventListener("input", () => { if (!current || current.binary) return; model.edit(current, el("editor").value); message(current.path + " · 未保存"); cursor(); render(); });
-  for (const name of ["click", "keyup", "scroll"]) el("editor").addEventListener(name, cursor);
+  for (const name of ["click", "keyup"]) el("editor").addEventListener(name, cursor);
+  el("editor").addEventListener("scroll", syncScroll);
   el("editor").addEventListener("keydown", e => {
     if (e.key === "Tab" && !e.shiftKey) {
       e.preventDefault(); const box = e.target;

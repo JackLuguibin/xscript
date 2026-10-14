@@ -67,7 +67,7 @@ flowchart LR
 | --- | --- | --- |
 | **`android/`** | | **安卓 App** |
 | `android/app/` | Kotlin | App 本体：HTTP 服务、云控客户端、卡密校验、无障碍/root 引擎、截图、OCR、悬浮窗、Chaquopy 集成 |
-| `android/app/src/main/assets/tools/` | HTML/JS | 设备提供的网页开发工具：图色工具、标注工具、投屏 |
+| `android/app/src/main/assets/tools/` | HTML/JS | 设备提供的网页开发工具：脚本 IDE、图色工具、标注工具、投屏 |
 | `android/python-runtime/xscript/` | Python | 设备端原生 API：`action`、`node`、`screen`、`system`、`ui`，以及 `runtime`（桥接、运行器） |
 | `android/python-runtime/ascript/` | Python | AScript（ascript-tip 1.3.0）兼容层，基于 `xscript` 实现 |
 | `android/python-runtime/tests/` | Python | PC 端单测（使用假的 bridge，不依赖手机） |
@@ -208,13 +208,13 @@ sequenceDiagram
 | 分类 | 接口 |
 | --- | --- |
 | 设备 | `GET /status`、`GET /screen`（png / jpg）、`GET /ui-tree?mode=`、`POST /action`、`GET/PUT /settings` |
-| 工程 | `GET /projects`、`POST/DELETE /projects/{name}`、`GET/PUT /projects/{name}/files`、`GET/DELETE /projects/{name}/file`、`GET/PUT /projects/{name}/zip`、`POST /projects/{name}/run`、`POST /projects/{name}/stop`、`GET/PUT /projects/{name}/config`（开机自启 / 停止后重新运行） |
+| 工程 | `GET /projects`、`POST/DELETE /projects/{name}`、`GET/PUT /projects/{name}/files`（列表含 `dirs`；`create:true` 只新建不覆盖）、`POST /projects/{name}/dir`、`GET/DELETE /projects/{name}/file`、`GET/PUT /projects/{name}/zip`、`POST /projects/{name}/run`、`POST /projects/{name}/stop`、`GET/PUT /projects/{name}/config`（开机自启 / 停止后重新运行） |
 | 定时任务 | `GET/POST /schedules`、`GET/PUT/DELETE /schedules/{id}`、`POST /schedules/{id}/run` |
 | AScript 迁移 | `GET /ascript/projects`、`POST /ascript/import`（从 `/sdcard/airscript/model` 导入） |
 | 调试 | `GET/DELETE /logs`、`POST /eval` |
 | 开发工具 | `GET /tools/`（网页）、`/tools/snapshots`、`POST /tools/vision`、`/tools/datasets/...`、`GET /screen/stream`（投屏） |
 
-异常统一映射：`IllegalArgumentException` → 400，`IllegalStateException` → 409，其它 → 500。
+异常统一映射：`NoSuchElementException` → 404，`IllegalArgumentException` → 400，`IllegalStateException` → 409，其它 → 500。工程存储（`ProjectStore`）按这个约定抛异常：名称或路径非法、删除入口 → 400，工程或文件不存在 → 404，重名、文件夹非空 → 409；所有路径先规范化，再按真实路径确认没有越出工程目录。
 
 `Reply` 可以携带内存字节，也可以携带文件（`Reply.file`）。zip 导出先写临时文件，`?raw=1` 读取工程文件时直接返回原文件，HTTP 层都以流的方式发送。
 
@@ -235,9 +235,9 @@ sequenceDiagram
 
 服务端是管理后台 `backend/xscript_server`（见 6.4）：设备表按 `device_id@包名` 区分同一台手机上的多个 App，支持分组（设备上报 + 后台覆盖）、按设备 / 分组 / 包名批量下发、脚本数据回显、服务端定时任务，以及卡密激活接口。设备用后台签发的设备密钥连接 `/ws`。
 
-### 4.6 开发工具（`tools/`：图色、标注、投屏）
+### 4.6 开发工具（`tools/`：脚本 IDE、图色、标注、投屏）
 
-对应 AScript 网页端的图色工具、YOLO 标注工具和投屏。页面放在 `assets/tools/`（原生 HTML/JS，无构建步骤），由设备的 HTTP 服务直接提供，浏览器打开 `http://<ip>:<端口>/tools/` 即可使用。
+对应 AScript 网页端的脚本 IDE、图色工具、YOLO 标注工具和投屏。页面放在 `assets/tools/`（原生 HTML/JS，无构建步骤），由设备的 HTTP 服务直接提供，浏览器打开 `http://<ip>:<端口>/tools/` 即可使用。
 
 | 组件 | 职责 |
 | --- | --- |
@@ -245,6 +245,7 @@ sequenceDiagram
 | `SnapshotStore` | 把当前屏幕冻结为 PNG（`filesDir/tools/snapshots`，保留最近 20 张），取色、裁剪、测试都基于同一帧，数值前后一致 |
 | `vision.py`（`:eval` 进程） | `POST /tools/vision` 经 `IEval.vision` 在 `:eval` 进程执行 pixel / 找色 / 比色 / 找图 / OCR，复用脚本使用的 `xscript.android.image`，所以工具里测出来的结果与脚本运行时一致；超时同样杀进程 |
 | `DatasetStore` | 标注数据集（外部存储 `datasets/<name>/`：`meta.json`、`images/`、`labels/<id>.json`，框以像素存储）；导出 Ultralytics 格式 zip（`images/`、`labels/` 的 train/val 划分 + `data.yaml`） |
+| 脚本 IDE（`editor*.js`） | `editor-model.js`：工程/文件状态、草稿与保存、目录树构建与键盘导航（纯函数，Node 可测）；`editor.js`：页面与目录树渲染；`editor-syntax.js`：本地 Python 词法高亮（盖在 `<textarea>` 下面的着色层）；`editor-debug.js`：DAP 客户端。全部原生 JS，无第三方依赖 |
 | `ScreenStream` | 投屏：生产线程截图、缩放、JPEG 编码后写入管道，HTTP 以 chunked `multipart/x-mixed-replace` 推给浏览器；客户端断开时写入失败，线程退出；最多 2 路 |
 
 投屏页的点击和拖动按画面比例映射回屏幕像素，再调用 `/action`，因此走的是和脚本相同的自动化通道（无障碍或 root）。帧率取决于截图来源：MuMu 上 root `screencap` 约 2.5 fps，授予图色权限（MediaProjection）后更快。

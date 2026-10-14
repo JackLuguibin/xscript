@@ -30,7 +30,7 @@ cursor --install-extension xscript-vscode-0.1.0.vsix   # 或：code --install-ex
 | XScript: Follow Run Logs | | 开启 / 关闭日志跟踪 |
 | XScript: Run Selection on Device | | 对选中内容（或当前行）调用 `/eval` |
 | XScript: Screenshot | | 在编辑器中打开设备截图 |
-| XScript: Open Developer Tools | | 在浏览器中打开 `/tools/`（图色 / 标注 / 投屏） |
+| XScript: Open Developer Tools | | 在浏览器中打开 `/tools/`（脚本 IDE / 图色 / 标注 / 投屏） |
 | XScript: Enable API Autocomplete | | 把内置存根加入 `python.analysis.extraPaths` |
 
 项目根目录是当前文件之上、含有 `__init__.py` 的最顶层文件夹；该文件夹名就是设备上的项目名。

@@ -70,7 +70,9 @@ adb devices
 adb install -r android/app/build/outputs/apk/debug/app-debug.apk
 ```
 
-在设备上打开 **XScript**，根据使用的功能开启无障碍、悬浮窗或截图权限。Root 为可选通道，不是所有功能的前提。短信、定位和通知等功能需要各自的系统授权。
+> 如果设备上装过用其他签名打包的 XScript（例如正式版，或别的电脑打的 Debug 包），`adb install -r` 会报 `INSTALL_FAILED_UPDATE_INCOMPATIBLE`。只能先 `adb uninstall com.xscript.app` 再安装，**卸载会清除应用数据（工程、设置、授权）**，请先导出需要的工程。
+
+在设备上打开 **XScript**，首次安装后先授予通知权限，否则 HTTP 服务不会启动；再根据使用的功能开启无障碍、悬浮窗或截图权限。Root 为可选通道，不是所有功能的前提。短信、定位和通知等功能需要各自的系统授权。
 
 ### 3. 连接开发工具
 
@@ -85,7 +87,7 @@ curl http://127.0.0.1:19860/status
 
 如果连接了多个设备，为 ADB 命令增加 `-s <设备序列号>`；如果设备端端口不是 `9860`，相应调整转发目标。
 
-在浏览器打开 `http://127.0.0.1:19860/tools/`，进入脚本 IDE，新建工程，编辑 `__init__.py`，保存并运行。
+在浏览器打开 `http://127.0.0.1:19860/tools/`，进入脚本 IDE，新建工程，编辑 `__init__.py`，保存并运行。脚本 IDE 的目录树、文件管理和快捷键见[使用手册](docs/使用手册.md#脚本-ide)。
 
 ### 4. 运行与调试示例
 
@@ -177,7 +179,7 @@ python3 scripts/device_debug_smoke.py --base http://127.0.0.1:19860
 
 项目持续开发中。基本 DAP 调试、短信查询和加速度传感器回调已在 ARM64 Android 17 / API 37 模拟器上验证；不同设备、ROM 和权限策略仍可能影响实际行为。
 
-以下能力尚未完整实现：独立输入法、外部 Java 插件加载、原始 HID 硬件通道、通用 BLE，以及完整 V4 加密脚本运行。网页 IDE 尚未提供 Monaco 语法服务和完整 IDE 的全部调试功能。具体范围见[功能对照](docs/功能对照.md)。
+以下能力尚未完整实现：独立输入法、外部 Java 插件加载、原始 HID 硬件通道、通用 BLE，以及完整 V4 加密脚本运行。网页 IDE 只有轻量的 Python 语法高亮，没有 API 补全、语法诊断和完整 IDE 的全部调试功能。具体范围见[功能对照](docs/功能对照.md)。
 
 ## 文档
 
@@ -190,6 +192,7 @@ python3 scripts/device_debug_smoke.py --base http://127.0.0.1:19860
 - [技术架构](docs/ARCHITECTURE.md)：模块与运行流程。
 - [设备 HTTP 契约](protocol/openapi.yaml)：客户端和设备共用的 API 定义。
 - [路线图](docs/路线图.md)：后续规划。
+- [更新记录](CHANGELOG.md)：各版本面向用户的变化。
 
 ## 贡献
 

@@ -40,6 +40,7 @@ XSCRIPT_GRADLE_TASK=:app:assembleRelease ./android/build.sh
 未提供签名配置时，Release 构建输出未签名 APK，不能直接安装或发布。
 请安全备份密钥库和密码，后续版本必须使用同一签名才能覆盖升级；不要将它们提交到 Git 或上传到 Release。
 正式签名与 Debug 签名不同，从 Debug 版切换需要先卸载，卸载会清除应用数据，请先导出项目。
+Debug 包用的是每台电脑各自的 `~/.android/debug.keystore`，换一台电脑打的 Debug 包同样不能覆盖安装（`INSTALL_FAILED_UPDATE_INCOMPATIBLE`）。全新安装后要先在 App 里授予通知权限，HTTP 服务才会启动。
 
 ## 运行时测试
 
