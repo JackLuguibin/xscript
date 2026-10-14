@@ -37,3 +37,4 @@ licenses.db
 xscript_cloud_state.json
 backend/web/dist/
 *.tsbuildinfo
+ascript_analysis/*
