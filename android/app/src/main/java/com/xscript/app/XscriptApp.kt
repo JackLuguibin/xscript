@@ -3,12 +3,10 @@ package com.xscript.app
 import android.app.ActivityManager
 import android.app.Application
 import android.content.Context
-import android.content.Intent
 import android.os.Build
 import android.os.Process
 import com.xscript.app.cloud.CloudClient
 import com.xscript.app.root.RootShell
-import com.xscript.app.runtime.AutomationService
 import com.xscript.app.schedule.Scheduler
 import kotlin.concurrent.thread
 
@@ -25,7 +23,8 @@ class XscriptApp : Application() {
                 android.util.Log.e("XScript", "pack install failed", t)
             }
             RootShell.probeAsync()
-            startService(Intent(this, AutomationService::class.java))
+            // Script/EvalService bind with BIND_AUTO_CREATE when needed. Starting an
+            // ordinary service here crashes background launches on recent Android.
             CloudClient.autoConnect(this)
             com.xscript.app.pack.UpdateChecker.start(this)
             // Force-stop and app updates drop alarms; arm the next schedule on every start.
