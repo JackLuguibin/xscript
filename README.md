@@ -1,113 +1,218 @@
 # XScript
 
-XScript 是一款仿照 AScript 的 Android Python 自动化 App：在手机上运行 Python 脚本，AScript 的脚本不用改就能跑。在电脑上写脚本（VS Code / Cursor，或者通过 MCP 让 Cursor 的 AI 来写），推送到手机，在手机上运行。
+**面向 Android 的 Python 自动化开发平台。**
 
+XScript 将设备端 Python 运行时、自动化 API、浏览器开发工具和可自托管的管理后台组合在一起。你可以在电脑上编写脚本，将工程上传到手机或模拟器，执行控件操作、图像识别和设备任务，并通过日志与断点调试定位问题。
+
+项目提供原生 `xscript.android.*` API，以及覆盖部分 AScript 公共接口的 `ascript.android.*` 兼容层。XScript 是独立项目，与 AScript 无隶属关系。
+
+[快速开始](#快速开始) · [脚本示例](#脚本示例) · [开发与测试](#开发与测试) · [文档](#文档) · [贡献](#贡献)
+
+## 主要功能
+
+- **Android 自动化**：无障碍与 Root 操作通道，支持点击、滑动、多点手势、按键、文字输入、控件选择器和 XPath 查询。
+- **图像与视觉识别**：截图、取色、找色、模板匹配、OCR、OpenCV 图像处理、GP 图色流水线，以及基于 ONNX Runtime 的 YOLO 和 PaddleOCR 推理。
+- **脚本开发与调试**：浏览器多文件编辑、保存运行、日志、断点、单步、调用栈和变量查看；提供 VS Code / Cursor 扩展、MCP 服务和 Python 类型存根。
+- **设备服务**：权限申请、短信只读查询、定位、传感器、事件监听、通知、剪贴板、KeyValue 存储和 HTML/悬浮界面。
+- **工程与运行管理**：工程导入导出、运行时安装 Python 依赖、开机运行、定时任务和异常重启控制。
+- **自托管管理后台**：设备分组、批量任务、远程操作、屏幕墙、日志、告警、账号角色和操作审计。
+- **应用分发**：脚本版本发布与回滚、独立 APK 打包、签名更新和激活码授权管理。
+
+视觉 AI 客户端支持显式配置自有推理服务；项目不包含视觉大模型服务。YOLO 模型由使用者提供，具体模型与第三方依赖的授权见[第三方声明](THIRD_PARTY_NOTICES.md)。
+
+## 项目结构
+
+```text
+xscript/
+├── android/       Android 应用、设备端 Python 运行时与测试
+├── backend/       FastAPI 管理服务、React 控制台与 APK 打包工具
+├── ide/           VS Code / Cursor 扩展、MCP 服务与类型存根
+├── protocol/      设备 HTTP API 的 OpenAPI 契约
+├── examples/      自动化、设备服务、图色与调试示例
+├── scripts/       验证、存根生成与设备测试脚本
+├── deploy/        容器部署配置
+└── docs/          使用、接口、架构与部署文档
 ```
-ide/      VS Code 插件 / MCP / 浏览器  →  HTTP :9860  →  android/ XScript App  →  无障碍 / Root + Python 3.10 + ONNX Runtime
-backend/  管理后台（FastAPI + React）   ←  WebSocket（设备主动连接） ↗
-          云控 · 卡密 · APK 打包 · 小程序 · 用户 · 操作日志
-```
 
-## 功能
+设备端可以独立使用，管理后台按需部署。电脑端工具通过设备 HTTP API 连接应用；云控采用设备主动建立的 WebSocket 连接。
 
-- **首页**：仿照 AScript，包括开发者地址、AI 编程连接、运行模式、悬浮窗权限、Root 权限、图色权限、云端控制、小程序列表、辅助权限管理、开发者选项。
-- **运行模式**：`auto`、`accessibility`（无障碍）或 `root`。手势、控件树和截图在没有无障碍权限时都会退回 Root；无障碍截到黑屏时截图也会退回 Root。
-- **脚本 API**（`xscript.android.*`）：
-  - `action`：手势、按键和文字输入。
-  - `node`：带层级关系的控件选择器，以及 XPath 1.0 查询（`contains()`、轴、`[last()]`、并集）。
-  - `screen`：多点找色、带遮罩的多尺度找图、ML Kit OCR。
-  - `system`：应用、shell、设备信息、KeyValue、R 路径。
-  - `ui`：对话框、带 JS 桥的 HTML 窗口、画布、悬浮停止按钮。
-  - `event`：监听实体按键、控件点击、通知（可 `send()`）、Toast 和原始无障碍事件。
-  - `sms`、`location`、`sensor`：读取短信、GPS/network 定位与加速度/陀螺仪/光线/接近传感器；`permission` 提供实际权限检查与系统申请流程。也可通过对应 `ascript.android.*` 接口调用。
-- **无人值守运行**：开机自启、停止后重新运行（脚本退出或崩溃后重启，带防崩溃循环保护）、定时任务（每天 / 每隔 N 分钟 / 一次）。可以在工程页面、脚本里（`system.Config`、`system.Schedule`）、通过 HTTP 或 MCP 设置。
-- **设备端 AI 识别**：YOLO v5 / v8 / v11 目标检测（`xscript.android.yolo`）和 PaddleOCR PP-OCRv5（`screen.ocr(engine="paddle")`）运行在 ONNX Runtime 上。在标注工具里标注截图，用 Ultralytics 训练，导出 ONNX 后在手机上运行。AScript 的 `YoLov5`、`plug.load("Yolov8Ncnn")` 和 `Ocr.paddleocr` 都映射到这两个引擎。
-- **运行时 pip**：工程里放 `requirements.txt`，第一次运行前自动安装，不用重新打包 APK。纯 Python 包来自 PyPI；带 C 扩展的包（pandas、scipy、lxml、cryptography 等）来自 Chaquopy 的 Android 索引。
-- **AScript 兼容**（`ascript.android.*`）：按 ascript-tip 1.3.0 的 API 实现，`from ascript.android.screen import FindImages` 这类代码不用改。与 AScript 的逐项对照见 [docs/功能对照.md](docs/功能对照.md)。
-- **工程管理**：新建、zip 导入导出、从 AScript 导入（`/sdcard/airscript/model`）、手机端编辑器、运行日志、悬浮停止按钮。
-- **云控**：设备主动连接 WebSocket 服务器，所以在 NAT 后面也能用。
-  - 支持 AScript 的指令集：带参数的 `app_run`、`app_stop`、`device_info`、`screen_shot`、`device_action`。
-  - 设备的全部 HTTP 接口都可以通过同一条连接转发。
-  - 脚本可以上报数据、接收消息（`cloud.send` / `on_message`、`cloud_control`、`system.channel`）。
-  - 管理后台（`backend/`，FastAPI + React / Ant Design）提供带角色的账号、按渠道发放的设备密钥、分组、批量指令、远程操控和屏幕墙、运行日志和崩溃上报、服务端定时任务、告警通知、备份和操作日志。见 [backend/README.md](backend/README.md) 和 [docs/CLOUD.md](docs/CLOUD.md)。
-- **小程序发布**：在管理后台上传工程版本、发布和回滚，一键下发到云控设备；打包的 App 可以开启热更新自动跟随发布版本。
-- **APK 打包和卡密**：管理后台在后台队列里把工程 zip 或小程序版本打包成 APK（也可以直接运行 `backend/xscript_pack.py`）。每个 App 有自己的包名、名称、图标，可选正式签名、代码保护（只打包字节码）和热更新。打包的 App 可以要求卡密授权：卡密是绑定设备的 ECDSA 签名令牌。卡密在管理后台按批次生成、在线激活，可以停用、解绑、延期、导出，也可以签发离线授权码。打包好的 APK 可以生成带二维码的下载链接分发给用户。见 [docs/PACKAGING.md](docs/PACKAGING.md)。
-- **VS Code / Cursor 插件**（`ide/vscode-extension`）：F6 保存、上传并运行当前工程，同时跟随日志；Shift+F6 停止。还能在设备上运行选中的代码、打开截图和网页工具，并自带 API 补全存根。见 [ide/README.md](ide/README.md)。
-- **Cursor MCP**（`xscript-mcp`）：截图、控件树、上传文件、运行 / 停止、日志、eval、运行选项、定时任务和 API 目录。eval 在独立进程里执行，超时会被杀掉。
-- **浏览器脚本 IDE**：工程创建、多文件编辑、保存并运行、停止、ZIP 导出和实时日志，访问 `/tools/ui/editor.html`，支持 AScript 的 `/website/src/editor.html` 页面地址。
-- **GP 与视觉 AI 兼容**：支持 JSON/data.gp 本地图色流水线；`ascript.android.vlm.asai` 可接自有 `/vision/locate`、`/vision/ask` 服务。范围和剩余缺口见 [基于 APK 的兼容实现](docs/ASCRIPT_RECONSTRUCTION.md)。
-- **浏览器开发工具**：App 内置，地址 `http://<ip>:<port>/tools/`。
-  - **图色工具**：冻结一张截图，用放大镜取色，生成多点找色字符串，框选区域，把找图模板裁剪保存到工程里，并在这一帧上测试找色 / 比色 / 找图 / OCR。
-  - **标注工具**：把截图或上传的图片加入数据集，画框标注，导出 YOLO 训练集（`images/`、`labels/`、`data.yaml`）。
-  - **投屏**：实时 MJPEG 画面。点击画面就是点击手机，拖动就是滑动，另有 返回 / 主页 / 最近任务 按钮。
+## 环境要求
 
-## 仓库结构
+- **运行设备**：Android 8.0 / API 26 或更高版本的手机或模拟器。
+- **Android 构建**：JDK 17+、Android SDK Platform 37 与相应 Build Tools、Python 3.10，以及 Bash 环境。Gradle 通过仓库自带 wrapper 执行。
+- **可选管理后台**：Python 3.11+；构建 Web 控制台需要 Node.js 与 npm。
+- **可选 IDE 工具**：MCP 服务需要 Python 3.10+；编辑器扩展需要 VS Code 1.90+ 或兼容的 Cursor。
 
-仓库分三部分，另外加上它们共用的接口契约和开发脚本。
-
-| 部分 | 路径 | 内容 |
-| --- | --- | --- |
-| **Android App** | [`android/`](android/README.md) | `app/` Kotlin App（HTTP 服务、云控客户端、卡密校验、无障碍 / Root 引擎、截图、OCR、悬浮窗、网页工具、热更新），`python-runtime/` 设备端的 `xscript` 和 `ascript` 包及其电脑端测试，`build.sh` |
-| **管理后台（云控 / 打包 / 授权）** | [`backend/`](backend/README.md) | `xscript_server/` FastAPI 服务，`web/` React + Ant Design 控制台，`xscript_pack.py` APK 打包命令行，`tests/` |
-| **IDE 工具** | [`ide/`](ide/README.md) | `vscode-extension/` VS Code / Cursor 插件，`mcp-server/` Cursor MCP（`xscript-mcp`），`python-stubs/` 生成的 `.pyi` 补全存根 |
-| 共用 | `protocol/openapi.yaml` | 设备 HTTP 接口契约：App 实现，IDE 工具和云控转发使用 |
-| 共用 | `scripts/` | `verify.sh`（运行全部测试）、`gen_stubs.py`、`mock_device.py`、`vertical_slice.py` |
-| 共用 | `examples/` | `settings_search`、`xs_smoke`（原生 API）、`as_demo`（AScript API） |
-| 共用 | `docs/` | [使用手册（各系统入口）](docs/使用手册.md)、[功能对照（与 AScript）](docs/功能对照.md)、[路线图](docs/路线图.md)、[商业化设计](docs/商业化设计.md)、[入门](docs/GETTING_STARTED.md)、[脚本 API](docs/API.md)、[云控](docs/CLOUD.md)、[打包与卡密](docs/PACKAGING.md)、[AI 编程规则](docs/AGENT_RULES.md)、[技术架构](docs/ARCHITECTURE.md) |
+构建脚本默认尝试使用 Android Studio 自带 JBR，并查找 Python 3.10。可以通过 `JAVA_HOME`、`ANDROID_HOME` 和 `XSCRIPT_BUILD_PYTHON` 指定本机安装路径。其他构建细节见 [Android 开发说明](android/README.md)。
 
 ## 快速开始
 
+### 1. 获取源码并构建
+
 ```bash
-./android/build.sh            # needs Android SDK, JDK 17+, and Python 3.10 on the build machine
+git clone https://github.com/JackLuguibin/xscript.git
+cd xscript
+./android/build.sh
+```
+
+调试 APK 输出到：
+
+```text
+android/app/build/outputs/apk/debug/app-debug.apk
+```
+
+### 2. 安装并启动
+
+确认设备已连接 ADB，然后安装：
+
+```bash
+adb devices
 adb install -r android/app/build/outputs/apk/debug/app-debug.apk
 ```
 
-在手机上打开 **XScript**，授予无障碍、悬浮窗权限，有 Root 的话也授予 Root。**开发者地址** 一行显示 `http://<ip>:<port>/`。端口是 9860（AScript 用 9096，两个 App 可以同时运行）；9860 被占用时会依次尝试到 9869。
+在设备上打开 **XScript**，根据使用的功能开启无障碍、悬浮窗或截图权限。Root 为可选通道，不是所有功能的前提。短信、定位和通知等功能需要各自的系统授权。
+
+### 3. 连接开发工具
+
+应用首页显示开发者地址。默认端口为 `9860`，被占用时依次尝试至 `9869`，请以设备实际显示为准。
+
+通过 USB 或 Android Studio 模拟器连接时，可以转发端口：
 
 ```bash
-adb connect 127.0.0.1:16384            # MuMu emulator only
-adb forward tcp:9860 tcp:9860          # use the port shown in the app; add -s <serial> with several devices
-curl http://127.0.0.1:9860/status
+adb forward tcp:19860 tcp:9860
+curl http://127.0.0.1:19860/status
 ```
 
-模拟器或 adb 重启后端口转发会失效，需要重新执行这两条 adb 命令。连接问题的排查见 [连接设备](docs/GETTING_STARTED.md)，MCP 配置、模拟器说明（MuMu）和测试命令见 [docs/GETTING_STARTED.md](docs/GETTING_STARTED.md)。
+如果连接了多个设备，为 ADB 命令增加 `-s <设备序列号>`；如果设备端端口不是 `9860`，相应调整转发目标。
 
-## 脚本结构
+在浏览器打开 `http://127.0.0.1:19860/tools/`，进入脚本 IDE，新建工程，编辑 `__init__.py`，保存并运行。
 
-入口文件是 `__init__.py`。工程目录作为一个包被导入，工作目录就是工程目录。
+### 4. 运行与调试示例
+
+- [基础自动化](examples/settings_search/__init__.py)：通过控件查找完成操作。
+- [断点调试](examples/debug_demo/__init__.py)：设置行断点，观察变量并单步执行。
+- [设备服务](examples/device_services/__init__.py)：短信权限、定位与传感器示例。
+- [GP 流水线](examples/gp_pipeline/__init__.py)：本地图像处理任务编排。
+- [自有视觉服务](examples/as_demo/vlm_custom_service.py)：配置 VLM 客户端。
+
+详细连接排查见[入门指南](docs/GETTING_STARTED.md)，断点与调试生命周期见[调试说明](docs/DEBUGGING.md)。
+
+## 脚本示例
+
+每个工程是一个 Python 包，入口为 `__init__.py`。运行时的工作目录为工程目录。
 
 ```python
-from xscript.android import action, node, screen
+from xscript.android import node
 
-n = node.Selector().text("搜索").find(timeout=5)
-if n:
-    n.click()
-hit = screen.find_image("res/img/ok.png", confidence=0.85)
-if hit:
-    action.click(*hit["result"])
+button = node.Selector().text("搜索").find(timeout=5)
+if button:
+    button.click()
+else:
+    print("当前界面未找到搜索控件")
 ```
 
-现有的 AScript 工程可以直接运行：
+工程可以包含 Python 子模块、资源文件和 `requirements.txt`。第三方依赖是否可用取决于其 Python 版本与 Android 平台支持，并非所有桌面 Python 包都能在设备端安装。
 
-```python
-from ascript.android.screen import FindColors, Ocr
-from ascript.android import action
-p = FindColors.find("#ff4400|12,0,#ffffff")
-if p:
-    action.click(p.x, p.y)
+迁移 AScript 工程时，可以使用 `ascript.android.*` 兼容入口；部分接口仍存在行为差异或尚未实现，请先阅读[功能对照](docs/功能对照.md)和[兼容实现说明](docs/ASCRIPT_RECONSTRUCTION.md)。
+
+## 可选组件
+
+### 管理后台
+
+在独立 Python 3.11+ 环境中安装并初始化：
+
+```bash
+python3.11 -m venv .venv
+.venv/bin/python -m pip install -e ./backend
+(cd backend/web && npm ci && npm run build)
+.venv/bin/python -m xscript_server init --data xscript-data
+.venv/bin/python -m xscript_server serve --data xscript-data --port 8765
 ```
 
-## 安全
+访问 `http://127.0.0.1:8765/`。初始化过程会提示创建管理员账号。容器部署、设备密钥、存储和备份见[后台说明](backend/README.md)。
 
-局域网 HTTP 服务**没有鉴权**。任何能访问这个端口的人都可以上传文件、执行任意 Python（`/eval`、`/projects/<name>/run`）。只在可信网络里使用 XScript，或者通过 USB 加 `adb forward` 使用。服务不发送 CORS 头，所以浏览器里打开的网页读不到接口返回的内容。打包的 App 默认关闭局域网服务，除非打包时加了 `--dev-server`。
+### 编辑器与 MCP
 
-云控连接只由服务端鉴权，用管理后台发放的设备密钥。在公网使用时，管理后台前面要加 TLS（`wss://`、HTTPS）。拿到设备密钥的人就能控制用这个密钥连接的设备；停用密钥会立即断开这些设备。管理后台本身有带角色的账号、哈希存储的会话和 API 令牌、CSRF 防护和操作日志（见 [backend/README.md](backend/README.md)）。
+- [IDE 工具说明](ide/README.md)：安装 VS Code / Cursor 扩展，上传工程并查看日志。
+- [MCP 服务说明](ide/mcp-server/README.md)：为支持 MCP 的客户端配置设备访问。
+- [类型存根](ide/python-stubs/README.md)：配置 `xscript.*` 与 `ascript.*` 自动补全。
 
-卡密校验在 App 内进行，能防止普通复制，但防不住修改 APK 的人。
+## 开发与测试
 
-## 许可
+Python 后台/MCP 测试和设备端运行时测试使用独立环境：
 
-- Chaquopy 17 采用 MIT 许可。
-- AScript 兼容层和找图策略参考了 ascript-tip（MIT）。
-- ML Kit 遵循 Google 的条款。
-- 详见 [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md)。XScript 与 AScript 没有关联。
+```bash
+# 后台与 MCP
+python3.11 -m venv .venv
+.venv/bin/python -m pip install -e './backend[test]' -e ./ide/mcp-server
+
+# 设备端 API 的本机测试
+python3.10 -m venv .venv-rt
+.venv-rt/bin/python -m pip install numpy==1.26.4 opencv-python-headless==4.10.0.84 pillow==10.4.0
+
+# Web 控制台与编辑器扩展
+(cd backend/web && npm ci)
+(cd ide/vscode-extension && npm ci)
+
+# 仓库检查与 Android JVM 测试
+./scripts/verify.sh
+./android/build.sh :app:testDebugUnitTest
+```
+
+`verify.sh` 覆盖 Python 运行时、后台、MCP、类型存根、网页 IDE、编辑器扩展及 mock 集成流程。完整设备行为需要另外连接手机或模拟器验证。
+
+修改公共 Python API 后重新生成类型存根：
+
+```bash
+python3 scripts/gen_stubs.py
+```
+
+设备调试回归测试会创建并清理自己的临时工程，执行前应确保没有其他脚本正在运行：
+
+```bash
+python3 scripts/device_debug_smoke.py --base http://127.0.0.1:19860
+```
+
+## 当前状态与限制
+
+项目持续开发中。基本 DAP 调试、短信查询和加速度传感器回调已在 ARM64 Android 17 / API 37 模拟器上验证；不同设备、ROM 和权限策略仍可能影响实际行为。
+
+以下能力尚未完整实现：独立输入法、外部 Java 插件加载、原始 HID 硬件通道、通用 BLE，以及完整 V4 加密脚本运行。网页 IDE 尚未提供 Monaco 语法服务和完整 IDE 的全部调试功能。具体范围见[功能对照](docs/功能对照.md)。
+
+## 文档
+
+- [使用手册](docs/使用手册.md)：各组件的使用入口。
+- [入门指南](docs/GETTING_STARTED.md)：构建、连接设备和常见问题。
+- [脚本 API](docs/API.md)：设备端接口。
+- [断点调试](docs/DEBUGGING.md)：网页调试与 DAP API。
+- [云控协议](docs/CLOUD.md)：设备连接与指令转发。
+- [打包与授权](docs/PACKAGING.md)：独立 APK、更新与激活码。
+- [技术架构](docs/ARCHITECTURE.md)：模块与运行流程。
+- [设备 HTTP 契约](protocol/openapi.yaml)：客户端和设备共用的 API 定义。
+- [路线图](docs/路线图.md)：后续规划。
+
+## 贡献
+
+欢迎通过 [Issues](https://github.com/JackLuguibin/xscript/issues) 报告问题、提出建议，或提交 Pull Request。
+
+报告问题时请提供 Android 版本、设备/模拟器型号、复现步骤和相关日志；提交代码时请保持改动范围清晰，补充必要的测试与文档，并通过对应检查。
+
+提交信息采用 Conventional Commits，例如：
+
+```text
+feat(vision): add a new image-processing operation
+fix(android): handle service disconnection
+docs: improve setup instructions
+```
+
+## 安全说明
+
+设备开发 HTTP 服务没有鉴权，能够访问端口的客户端可以上传和执行代码。请使用可信网络或 USB/ADB 转发，避免将开发端口直接暴露到公网。打包应用默认关闭开发服务。
+
+自托管后台的公网部署应配置 HTTPS/WSS，并保护设备密钥、管理员凭据和签名私钥。部署与备份要求见[后台说明](backend/README.md)。报告问题时不要附带这些凭据或个人设备数据。
+
+## 许可证与第三方组件
+
+当前仓库尚未提供项目级 `LICENSE` 文件，XScript 整体的授权条款有待明确。第三方组件的许可证和条款分别适用，不构成项目整体的授权声明。
+
+依赖信息见 [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md)；随包提供的 debugpy wheel 来源与许可证见 [android/wheels/README.md](android/wheels/README.md)。
