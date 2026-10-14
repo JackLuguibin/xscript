@@ -127,6 +127,8 @@ def run_project(project_dir, launch_params="{}"):
         traceback.print_exc()
         code = 1
     finally:
+        from xscript.runtime.resources import cleanup
+        cleanup()
         try:
             sys.stdout.flush()
             sys.stderr.flush()

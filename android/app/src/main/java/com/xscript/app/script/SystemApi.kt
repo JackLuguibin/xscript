@@ -36,7 +36,19 @@ object SystemApi {
 
     fun call(op: String, arg: String): String {
         val a = if (arg.startsWith("{")) JSONObject(arg) else JSONObject().put("v", arg)
+        if (op.startsWith("permission_")) return com.xscript.app.permission.PermissionApi.call(op, a)
+        if (op.startsWith("sensor_")) return SensorsApi.call(op, a)
+        if (op.startsWith("location_")) return LocationApi.call(op, a)
+        if (op.startsWith("sms_")) {
+            return try { SmsApi.call(op, a) } catch (e: SecurityException) {
+                JSONObject().put("error", "permission_denied").put("message", e.message ?: "READ_SMS permission required").toString()
+            }
+        }
         return when (op) {
+            "device_resources_close" -> {
+                try { SensorsApi.closeAll() } finally { LocationApi.close() }
+                "ok"
+            }
             "open" -> open(a.optString("v")).toString()
             "browser" -> startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(a.optString("v")))).toString()
             "open_setting" -> startActivity(

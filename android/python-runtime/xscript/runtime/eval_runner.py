@@ -25,3 +25,6 @@ def run(code):
             return {"ok": True, "result": str(result)}
     except Exception:
         return {"ok": False, "result": "", "error": traceback.format_exc()}
+    finally:
+        from xscript.runtime.resources import cleanup
+        cleanup()

@@ -1,5 +1,8 @@
 """Runtime permission helpers (subset). Special grants open the matching settings page."""
 
+import json
+import math
+
 from xscript.runtime.bridge import bridge
 
 CAMERA = "android.permission.CAMERA"
@@ -24,31 +27,40 @@ MANAGE_EXTERNAL_STORAGE = "manage_storage"
 INSTALL_PACKAGES = "install_packages"
 SHIZUKU = "shizuku"
 
-GRANTED = 0
-DENIED = -1
-TIMEOUT = -2
-UNSUPPORTED = -3
+GRANTED = 1
+DENIED = 0
+TIMEOUT = -1
+UNSUPPORTED = -2
 DEFAULT_TIMEOUT = 60
 
 
+def _key(key):
+    if not isinstance(key, str) or not key.strip():
+        raise ValueError("permission key must be a nonempty string")
+    return key.strip()
+
+
 def has(key):
-    if key == OVERLAY:
-        return bridge.ui("can_overlay", {}) == "true"
-    if key == ACCESSIBILITY_SERVICE:
-        return bridge.is_accessibility_on()
-    return False
+    """Check the actual Android grant; undeclared/unknown keys return False."""
+    return str(bridge.system("permission_has", {"key": _key(key)})).lower() == "true"
 
 
 is_granted = has
 
 
 def request(key, timeout=DEFAULT_TIMEOUT):
-    return GRANTED if has(key) else UNSUPPORTED
+    """Runtime grants block for a result; Settings grants open a page and return DENIED."""
+    key = _key(key)
+    if isinstance(timeout, bool) or not isinstance(timeout, (int, float)) or not math.isfinite(timeout) or not 0 < timeout <= 600:
+        raise ValueError("timeout must be in (0, 600] seconds")
+    value = bridge.system("permission_request", {"key": key, "timeout": timeout})
+    return int(value) if value else UNSUPPORTED
 
 
 def ensure(key, timeout=DEFAULT_TIMEOUT):
-    return has(key)
+    return has(key) or request(key, timeout) == GRANTED
 
 
 def list_all():
-    return [OVERLAY, ACCESSIBILITY_SERVICE]
+    raw = bridge.system("permission_list", {})
+    return json.loads(str(raw)) if raw else []

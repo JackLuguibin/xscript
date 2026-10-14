@@ -13,6 +13,10 @@
     <uses-permission android:name="android.permission.REQUEST_IGNORE_BATTERY_OPTIMIZATIONS" />
     <uses-permission android:name="android.permission.SYSTEM_ALERT_WINDOW" />
     <uses-permission android:name="android.permission.VIBRATE" />
+    <uses-permission android:name="android.permission.READ_SMS" />
+    <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
+    <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
+    <uses-permission android:name="android.permission.WRITE_SETTINGS" />
     <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
     <!-- 定时任务: exact alarms need the user's 闹钟和提醒 grant on Android 12+; inexact otherwise. -->
     <uses-permission android:name="android.permission.SCHEDULE_EXACT_ALARM" />
@@ -23,6 +27,12 @@
     <uses-permission
         android:name="android.permission.QUERY_ALL_PACKAGES"
         tools:ignore="QueryAllPackagesPermission" />
+
+    <!-- Optional hardware: development, OCR and scripting also work on tablets. -->
+    <uses-feature android:name="android.hardware.telephony" android:required="false" />
+    <uses-feature android:name="android.hardware.location" android:required="false" />
+    <uses-feature android:name="android.hardware.location.gps" android:required="false" />
+    <uses-feature android:name="android.hardware.location.network" android:required="false" />
 
     <application
         android:name=".XscriptApp"
@@ -53,6 +63,7 @@
             android:name=".ui.PackActivity"
             android:exported="false"
             android:launchMode="singleTop" />
+        <activity android:name=".permission.PermissionActivity" android:exported="false" />
         <activity android:name=".ui.ProjectsActivity" android:exported="false" />
         <activity android:name=".ui.ProjectActivity" android:exported="false" />
         <activity
