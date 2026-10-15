@@ -58,13 +58,21 @@
     el("export").hidden = !model.project;
     if (model.project) el("export").href = model.projectUrl() + "/zip";
     el("tabs").replaceChildren();
-    for (const doc of model.documents.values()) {
-      if (doc.project !== model.project) continue;
+    for (const doc of model.tabs()) {
+      const wrap = document.createElement("div"); wrap.className = "tab" + (doc === current ? " active" : ""); wrap.dataset.path = doc.path;
       const tab = document.createElement("button");
       tab.type = "button"; tab.role = "tab"; tab.textContent = doc.path + (model.dirty(doc) ? " ●" : "");
       tab.setAttribute("aria-selected", String(doc === current));
+      tab.title = doc.path + "（中键或 × 关闭）";
       tab.onclick = () => show(doc);
-      el("tabs").append(tab);
+      const x = document.createElement("button"); x.type = "button"; x.className = "tab-close"; x.textContent = "×";
+      x.setAttribute("aria-label", "关闭 " + doc.path); x.title = "关闭";
+      x.onclick = e => { e.stopPropagation(); closeTabs([doc]); };
+      wrap.addEventListener("auxclick", e => { if (e.button === 1) { e.preventDefault(); closeTabs([doc]); } });
+      wrap.addEventListener("mousedown", e => { if (e.button === 1) e.preventDefault(); });   // no middle-click autoscroll
+      wrap.addEventListener("contextmenu", e => { e.preventDefault(); openTabMenu(e.clientX, e.clientY, doc); });
+      wrap.append(tab, x);
+      el("tabs").append(wrap);
     }
     renderTree();
   }
@@ -232,6 +240,7 @@
     menu.querySelector("button:not(:disabled)")?.focus();
   }
   function closeMenu() { el("tree-menu").hidden = true; }
+  // (tab menu: see closeTabMenu below)
   el("tree-menu").addEventListener("click", e => {
     const act = e.target.closest("button")?.dataset.act; closeMenu();
     if (act === "rename") promptRename();
@@ -322,7 +331,7 @@
   async function selectProject(project) {
     await debuggerClient.close(); el("debug-state").textContent = "未连接";
     el("debug-stack").replaceChildren(); el("debug-variables").textContent = "";
-    ++generation; model.project = project; current = null; files = []; dirs = []; selected = null;
+    ++generation; model.project = project; current = null; files = []; dirs = []; selected = null; search.reset();
     el("editor").value = ""; el("editor").disabled = true; assist.setFile(null); render(); cursor();
     await refreshFiles();
     if (model.project !== project) return;
@@ -337,6 +346,43 @@
     el("projects").value = target;
     await selectProject(target);
   }
+  // ---- closing tabs ----
+  // A tab is just an open document; closing drops it (and its unsaved edits, after a confirm).
+  function closeTabs(docs) {
+    docs = docs.filter(Boolean);
+    if (!docs.length) return false;
+    const dirty = docs.filter(d => model.dirty(d));
+    if (dirty.length && !confirm(dirty.length === 1 ? dirty[0].path + " 有未保存的修改，关闭会丢弃这些修改。仍要关闭？"
+      : dirty.length + " 个文件有未保存的修改（" + dirty.map(d => d.path).join("、") + "），关闭会丢弃这些修改。仍要关闭？")) return false;
+    const tabs = model.tabs(), next = EditorModel.nextTab(tabs, current, docs), closingCurrent = current && docs.includes(current);
+    docs.forEach(d => model.close(d));
+    if (closingCurrent) {
+      ++generation;
+      if (next) show(next);
+      else { current = null; el("editor").value = ""; el("editor").disabled = true; assist.setFile(null); cursor(); message("没有打开的文件"); }
+    }
+    render();
+    return true;
+  }
+  let menuDoc = null;
+  function openTabMenu(x, y, doc) {
+    closeMenu(); menuDoc = doc;
+    const menu = el("tab-menu"), tabs = model.tabs(), i = tabs.indexOf(doc);
+    menu.querySelector('[data-act="others"]').disabled = tabs.length < 2;
+    menu.querySelector('[data-act="right"]').disabled = i < 0 || i === tabs.length - 1;
+    menu.querySelector('[data-act="saved"]').disabled = !tabs.some(t => !model.dirty(t));
+    menu.hidden = false;
+    menu.style.left = Math.max(0, Math.min(x, innerWidth - menu.offsetWidth - 4)) + "px";
+    menu.style.top = Math.max(0, Math.min(y, innerHeight - menu.offsetHeight - 4)) + "px";
+    menu.querySelector("button:not(:disabled)")?.focus();
+  }
+  function closeTabMenu() { el("tab-menu").hidden = true; menuDoc = null; }
+  el("tab-menu").addEventListener("click", e => {
+    const act = e.target.closest("button")?.dataset.act, doc = menuDoc; closeTabMenu();
+    if (act && doc) closeTabs(EditorModel.tabsToClose(model.tabs(), doc, act, d => model.dirty(d)));
+  });
+  el("tab-menu").addEventListener("keydown", e => { if (e.key === "Escape") { closeTabMenu(); el("editor").focus(); } });
+  document.addEventListener("mousedown", e => { if (!el("tab-menu").contains(e.target)) closeTabMenu(); });
   async function operation(fn) {
     if (pending) return;
     pending = true; render();
@@ -443,9 +489,31 @@
       box.setRangeText("    ", box.selectionStart, box.selectionEnd, "end"); box.dispatchEvent(new Event("input"));
     }
   });
+  // Search / replace and screenshot panels (editor-panels.js).
+  const selectionText = () => { const box = el("editor"), t = box.value.slice(box.selectionStart, box.selectionEnd); return t && !/\n/.test(t) && t.length <= 200 ? t : ""; };
+  function syncCurrent() {                      // a replace changed documents behind the editor's back
+    if (!current || current.binary || el("editor").value === current.content) { render(); return; }
+    const box = el("editor"), at = Math.min(box.selectionStart, current.content.length), top = box.scrollTop;
+    box.value = current.content; box.setSelectionRange(at, at); box.scrollTop = top;
+    assist.runCheck(); cursor(); render();
+  }
+  const search = EditorPanels.initSearch({model, message, syncCurrent, refreshFiles: () => refreshFiles().then(render), selectionText,
+    async openMatch(path, m) {
+      await load(path);
+      if (!current || current.path !== path) return;
+      const box = el("editor"); box.focus(); box.setSelectionRange(m.index, m.index + m.length);
+      box.scrollTop = Math.max(0, (m.line - 6) * 21); syncScroll(); cursor();
+    }});
+  EditorPanels.initShot({api: (...args) => XS.api(...args), model, message, refreshFiles: () => refreshFiles().then(render),
+    insertAtCaret(text) {
+      const box = el("editor"); if (box.disabled || !current) return message("先打开一个文件", true);
+      box.focus(); box.setRangeText(text, box.selectionStart, box.selectionEnd, "end"); box.dispatchEvent(new Event("input"));
+    }});
   window.addEventListener("keydown", e => {
     if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "s") { e.preventDefault(); if (!el("save").disabled) el("save").click(); }
     if (e.key === "F6") { e.preventDefault(); el(e.shiftKey ? "stop" : "run").click(); }
+    if ((e.metaKey || e.ctrlKey) && e.shiftKey && e.key.toLowerCase() === "f") { e.preventDefault(); search.open(selectionText()); }
+    if (e.altKey && !e.ctrlKey && !e.metaKey && e.code === "KeyW" && current) { e.preventDefault(); closeTabs([current]); }
   });
   const mayLeave = () => !model.unsaved().length || confirm("存在未保存的文件，确定离开？");
   XS.guardLeave(mayLeave);

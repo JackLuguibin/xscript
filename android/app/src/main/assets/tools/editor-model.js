@@ -195,6 +195,89 @@
       }
       return dst;
     }
+    // ---- tabs ----
+    /** Documents shown as tabs for a project (open order). */
+    tabs(project = this.project) { return Array.from(this.documents.values()).filter(d => d.project === project); }
+    /** Which tabs a close action removes. mode: "one" | "others" | "right" | "saved" | "all". */
+    static tabsToClose(tabs, doc, mode, dirty) {
+      const i = tabs.indexOf(doc);
+      switch (mode) {
+        case "one": return i < 0 ? [] : [doc];
+        case "others": return tabs.filter(t => t !== doc);
+        case "right": return i < 0 ? [] : tabs.slice(i + 1);
+        case "saved": return tabs.filter(t => !dirty(t));
+        case "all": return tabs.slice();
+        default: return [];
+      }
+    }
+    /** The tab to show after closing `closing` while `current` was active (neighbour to the left, else right). */
+    static nextTab(tabs, current, closing) {
+      if (!current || !closing.includes(current)) return current;
+      const i = tabs.indexOf(current);
+      const rest = tabs.filter(t => !closing.includes(t));
+      for (let k = i - 1; k >= 0; k--) if (!closing.includes(tabs[k])) return tabs[k];
+      return rest[0] || null;
+    }
+    close(doc) { this.documents.delete(this.key(doc.path, doc.project)); }
+
+    // ---- project-wide search / replace ----
+    static get search() { return root.EditorSearch || (typeof require === "function" ? require("./editor-search.js").EditorSearch : null); }
+    /**
+     * Search every text file of the project (unsaved editor content wins over the saved file).
+     * opts: {regex, caseSensitive, word, include}. Returns {results:[{path, matches}], files, matches, truncated, skipped}.
+     */
+    async searchProject(query, opts = {}, project = this.project) {
+      const S = EditorModel.search, re = S.compile(query, opts), keep = S.globFilter(opts.include);
+      const tree = await this.listTree(project);
+      const names = tree.files.filter(f => keep(f.path));
+      const results = []; let total = 0, truncated = false, skipped = 0, scanned = 0;
+      const readText = async f => {
+        const open = this.documents.get(this.key(f.path, project));
+        if (open) return open.binary ? null : open.content;
+        if (!S.isSearchable(f.path, f.size)) return null;
+        const file = await this.api("GET", this.projectUrl(project) + "/file?path=" + encodeURIComponent(f.path));
+        if (file.encoding === "base64") return null;
+        return file.content || "";
+      };
+      let next = 0;
+      const worker = async () => {
+        for (;;) {
+          const f = names[next++]; if (!f) return;
+          if (total >= S.MAX_TOTAL) { truncated = true; return; }
+          let text;
+          try { text = await readText(f); } catch (e) { skipped++; continue; }
+          if (text === null) { skipped++; continue; }
+          scanned++;
+          if (text.length > S.MAX_FILE) { skipped++; continue; }
+          const matches = S.find(text, new RegExp(re.source, re.flags));
+          if (!matches.length) continue;
+          if (matches.length >= S.MAX_PER_FILE) truncated = true;
+          total += matches.length; results.push({path: f.path, matches});
+        }
+      };
+      await Promise.all([worker(), worker(), worker(), worker()]);
+      results.sort((a, b) => a.path < b.path ? -1 : 1);
+      return {results, files: results.length, matches: total, truncated, skipped, scanned};
+    }
+    /**
+     * Replace in the given files. A file with no unsaved edits is saved right away; one with unsaved edits is changed
+     * in the editor only and stays unsaved. Returns {files, count, unsaved:[paths]}.
+     */
+    async replaceInFiles(paths, query, replacement, opts = {}, project = this.project) {
+      const S = EditorModel.search, re = S.compile(query, opts);
+      let files = 0, count = 0; const unsaved = [];
+      for (const path of paths) {
+        const doc = await this.open(path, project);
+        if (doc.binary) continue;
+        const r = S.replaceAll(doc.content, new RegExp(re.source, re.flags), replacement, opts);
+        if (!r.count) continue;
+        const wasDirty = this.dirty(doc);
+        this.edit(doc, r.text);
+        if (wasDirty) unsaved.push(path); else await this.save(doc);
+        files++; count += r.count;
+      }
+      return {files, count, unsaved};
+    }
     async run(mode = "run") {
       const project = this.project;
       await this.saveAll(project);

@@ -360,6 +360,132 @@ test('Web IDE explorer, editor and create/delete flows in a real browser', {skip
       await b.eval(() => { const e = document.getElementById('editor'); e.value = 'hello\n'; e.dispatchEvent(new Event('input')); });
     });
 
+
+    await t.test('project search and replace: results, options, jump to match, replace saves clean files and keeps unsaved ones dirty', async () => {
+      await api('PUT', '/projects/dom/files', {files: [
+        {path: 'search/a.py', content: 'needle = 1\nprint(needle)\n'}, {path: 'search/b.py', content: '# NEEDLE\nx = 2\n'}, {path: 'search/c.txt', content: 'no match here\n'}]});
+      await b.eval(click, '#refresh'); await b.waitFor(idle);
+      await confirms([true]);
+      const set = (id, v) => b.eval((i, val) => { const n = document.getElementById(i); n.value = val; n.dispatchEvent(new Event('input')); }, id, v);
+      const summary = () => b.eval(() => document.getElementById('search-summary').textContent);
+      const results = () => b.eval(() => [...document.querySelectorAll('#search-results .sr-file')].map(f => ({path: f.querySelector('.sr-path').textContent, count: f.querySelector('.sr-count').textContent})));
+      await b.eval(click, '#open-search');
+      assert.deepEqual(await b.eval(() => [document.getElementById('search-panel').hidden, document.querySelector('.ide').classList.contains('searching'), getComputedStyle(document.getElementById('files')).display]), [false, true, 'none']);
+      await set('search-q', 'needle'); await b.eval(click, '#search-go');
+      await b.waitFor(() => /3 处匹配/.test(document.getElementById('search-summary').textContent));
+      assert.match(await summary(), /3 处匹配，2 个文件/);
+      assert.deepEqual(await results(), [{path: 'search/a.py', count: '2'}, {path: 'search/b.py', count: '1'}]);
+      await b.eval(click, '#s-case'); await b.waitFor(() => /2 处匹配，1 个文件/.test(document.getElementById('search-summary').textContent));
+      await b.eval(click, '#s-case'); await b.waitFor(() => /3 处匹配/.test(document.getElementById('search-summary').textContent));
+      await set('search-inc', '*.txt'); await b.eval(click, '#search-go');
+      await b.waitFor(() => /没有找到/.test(document.getElementById('search-summary').textContent));
+      await set('search-inc', ''); await b.eval(click, '#s-regex'); await set('search-q', '(');
+      await b.eval(click, '#search-go'); await b.waitFor(() => /正则表达式无效/.test(document.getElementById('search-summary').textContent));
+      assert.equal(await b.eval(() => document.getElementById('search-summary').classList.contains('error')), true);
+      await b.eval(click, '#s-regex'); await set('search-q', 'needle'); await b.eval(click, '#search-go');
+      await b.waitFor(() => /3 处匹配/.test(document.getElementById('search-summary').textContent));
+      // clicking a match opens the file with the match selected
+      await b.eval(() => document.querySelectorAll('#search-results .sr-match')[1].click());
+      await b.waitFor(() => document.getElementById('editor').value === 'needle = 1\nprint(needle)\n');
+      assert.deepEqual(await b.eval(() => { const e = document.getElementById('editor'); return [e.value.slice(e.selectionStart, e.selectionEnd), e.value.slice(0, e.selectionStart).split('\n').length]; }), ['needle', 2]);
+      // b.py gets an unsaved edit; a.py is clean
+      await b.eval(() => document.querySelectorAll('#search-results .sr-match')[2].click());
+      await b.waitFor(() => document.getElementById('editor').value === '# NEEDLE\nx = 2\n');
+      await b.eval(() => { const e = document.getElementById('editor'); e.focus(); e.value = '# NEEDLE\nx = 22\n'; e.dispatchEvent(new Event('input')); });
+      await set('search-r', 'pin'); await b.eval(click, '#replace-all');
+      await b.waitFor(() => /已替换 3 处/.test(document.getElementById('message').textContent));
+      const conf = await b.eval(() => window.__confirms);
+      assert.equal(conf.length, 1); assert.match(conf[0], /2 个文件中的 3 处“needle”替换为“pin”/); assert.match(conf[0], /1 个文件只改编辑器内容/);
+      assert.equal((await api('GET', '/projects/dom/file?path=search/a.py')).content, 'pin = 1\nprint(pin)\n', 'clean file written to the device');
+      assert.equal((await api('GET', '/projects/dom/file?path=search/b.py')).content, '# NEEDLE\nx = 2\n', 'file with unsaved edits is not written');
+      assert.equal(await b.eval(() => document.getElementById('editor').value), '# pin\nx = 22\n', 'open editor shows the replaced text');
+      assert.match(await b.eval(() => document.getElementById('message').textContent), /未保存：search\/b\.py/);
+      assert.equal(await b.eval(() => document.querySelector('#tabs .active [role=tab]').textContent), 'search/b.py ●');
+      // the other direction: Escape returns to the file tree
+      await b.eval(() => document.getElementById('search-q').focus());
+      await b.key('Escape', 'Escape', 27);
+      assert.deepEqual(await b.eval(() => [document.getElementById('search-panel').hidden, getComputedStyle(document.getElementById('files')).display !== 'none']), [true, true]);
+      await b.eval(() => { const e = document.getElementById('editor'); e.value = '# pin\nx = 2\n'; e.dispatchEvent(new Event('input')); });
+      await b.eval(() => document.getElementById('save').click());
+      await b.waitFor(() => document.getElementById('message').textContent.includes('已保存 search/b.py'));
+    });
+
+    await t.test('tabs: × button, middle click, context menu actions, dirty confirm, close all', async () => {
+      await b.eval(click, row('search')).catch(() => {});
+      for (const p of ['search/a.py', 'search/b.py', 'readme.txt']) { await b.waitFor(sel => !!document.querySelector(sel), 2000, row(p)).catch(async () => { await b.eval(click, row('search')); }); await b.eval(click, row(p)); await b.waitFor(path => document.querySelector('#tabs .active').dataset.path === path, 3000, p); }
+      const tabs = () => b.eval(() => [...document.querySelectorAll('#tabs .tab')].map(t => t.dataset.path + (t.classList.contains('active') ? '*' : '')));
+      assert.ok((await tabs()).length >= 3);
+      // make the active tab (readme.txt) dirty, try × and refuse
+      await b.eval(() => { const e = document.getElementById('editor'); e.focus(); e.value = 'hello\nmore\n'; e.dispatchEvent(new Event('input')); });
+      await confirms([false, true]);
+      const before = (await tabs()).length;
+      await b.eval(() => document.querySelector('#tabs .tab.active .tab-close').click());
+      assert.equal((await tabs()).length, before, 'refused: tab stays'); assert.match((await b.eval(() => window.__confirms))[0], /readme\.txt 有未保存的修改/);
+      assert.equal(await b.eval(() => document.getElementById('editor').value), 'hello\nmore\n');
+      await b.eval(() => document.querySelector('#tabs .tab.active .tab-close').click());
+      assert.equal((await tabs()).length, before - 1, 'accepted: tab closed');
+      assert.ok((await tabs()).some(t => t.endsWith('*')), 'a neighbour became active');
+      assert.equal((await b.eval(() => document.getElementById('editor').value)).includes('more'), false);
+      // reopening shows the saved content again
+      await b.eval(click, row('readme.txt')); await b.waitFor(() => document.getElementById('editor').value === 'hello\n');
+      // middle click on a tab closes it
+      const target = await b.eval(() => [...document.querySelectorAll('#tabs .tab:not(.active)')].find(t => !t.textContent.includes('●')).dataset.path);
+      await b.eval(p => document.querySelector('#tabs .tab[data-path="' + p + '"]').dispatchEvent(new MouseEvent('auxclick', {button: 1, bubbles: true, cancelable: true})), target);
+      assert.equal((await tabs()).some(t => t.replace('*', '') === target), false, 'middle click closed it');
+      // context menu: close others
+      await b.eval(click, row('search/a.py')); await b.waitFor(() => document.querySelector('#tabs .active').dataset.path === 'search/a.py');
+      await b.eval(() => document.querySelector('#tabs .tab[data-path="search/a.py"]').dispatchEvent(new MouseEvent('contextmenu', {bubbles: true, cancelable: true, clientX: 300, clientY: 120})));
+      assert.equal(await b.eval(() => !document.getElementById('tab-menu').hidden), true);
+      assert.deepEqual(await b.eval(() => [...document.querySelectorAll('#tab-menu button')].map(x => x.dataset.act)), ['one', 'others', 'right', 'saved', 'all']);
+      await confirms([true]);   // earlier tests left unsaved edits in __init__.py and others: one confirm lists them
+      await b.eval(() => document.querySelector('#tab-menu [data-act=others]').click());
+      assert.match((await b.eval(() => window.__confirms))[0], /^__init__\.py 有未保存的修改/);
+      assert.deepEqual(await tabs(), ['search/a.py*']);
+      // Alt+W closes the active tab; with none left the editor is empty and disabled
+      await b.eval(() => window.dispatchEvent(new KeyboardEvent('keydown', {code: 'KeyW', key: 'w', altKey: true, bubbles: true, cancelable: true})));
+      assert.deepEqual(await tabs(), []);
+      assert.deepEqual(await b.eval(() => [document.getElementById('editor').disabled, document.getElementById('editor').value, document.getElementById('message').textContent]), [true, '', '没有打开的文件']);
+      // close all with a mix of dirty and clean tabs: one confirm listing the dirty files
+      for (const p of ['search/a.py', 'search/b.py']) { await b.eval(click, row(p)); await b.waitFor(path => document.querySelector('#tabs .active')?.dataset.path === path, 3000, p); }
+      await b.eval(() => { const e = document.getElementById('editor'); e.focus(); e.value += '# x\n'; e.dispatchEvent(new Event('input')); });
+      await confirms([false, true]);
+      const menu = () => b.eval(() => { document.querySelector('#tabs .tab').dispatchEvent(new MouseEvent('contextmenu', {bubbles: true, cancelable: true, clientX: 200, clientY: 100})); document.querySelector('#tab-menu [data-act=all]').click(); });
+      await menu(); assert.equal((await tabs()).length, 2, 'refused');
+      assert.match((await b.eval(() => window.__confirms))[0], /search\/b\.py/);
+      await menu(); assert.deepEqual(await tabs(), []);
+      await b.eval(click, row('search/b.py')); await b.waitFor(() => document.getElementById('editor').value === '# pin\nx = 2\n');
+    });
+
+    await t.test('screenshot dock: capture, pick coordinates and colour, insert, save into res/img; clear error without capture permission', async () => {
+      const status = await api('GET', '/status');
+      await b.eval(click, '#shot-toggle');
+      assert.equal(await b.eval(() => !document.getElementById('shot-panel').hidden), true);
+      await b.waitFor(() => /×|权限|失败/.test(document.getElementById('shot-info').textContent), 8000);
+      const info = await b.eval(() => document.getElementById('shot-info').textContent);
+      if (!status.capture) {
+        assert.match(info, /屏幕截取/); assert.equal(await b.eval(() => document.getElementById('shot-info').classList.contains('error')), true);
+        assert.equal(await b.eval(() => document.getElementById('shot-save').disabled), true);
+      } else {
+        assert.match(info, /^\d+×\d+ · /);
+        await b.eval(() => { const c = document.getElementById('shot-canvas'), r = c.getBoundingClientRect(); c.dispatchEvent(new MouseEvent('click', {bubbles: true, clientX: r.left + 1, clientY: r.top + 1})); });
+        assert.match(await b.eval(() => document.getElementById('shot-info').textContent), /^x=\d+，y=\d+ · #[0-9a-f]{6}/);
+        await b.eval(() => { const e = document.getElementById('editor'); e.focus(); e.setSelectionRange(0, 0); });
+        const first = await b.eval(() => document.getElementById('editor').value);
+        await b.eval(click, '#shot-insert');
+        assert.match(await b.eval(() => document.getElementById('editor').value), /^\d+, \d+/);
+        await b.eval(v => { const e = document.getElementById('editor'); e.value = v; e.dispatchEvent(new Event('input')); }, first);   // undo the insertion
+        await b.eval(click, '#shot-save');
+        await b.waitFor(() => /已保存到 res\/img\/shot-\d{8}-\d{6}\.png/.test(document.getElementById('shot-info').textContent), 8000);
+        const saved = (await api('GET', '/projects/dom/files')).files.find(f => /^res\/img\/shot-/.test(f.path));
+        assert.ok(saved, 'screenshot written to the project');
+        const file = await api('GET', '/projects/dom/file?path=' + encodeURIComponent(saved.path));
+        assert.equal(file.encoding, 'base64'); assert.ok(Buffer.from(file.content, 'base64').subarray(1, 4).toString() === 'PNG');
+        await fetch(base + '/projects/dom/file?path=' + encodeURIComponent(saved.path), {method: 'DELETE'});
+      }
+      await b.eval(click, '#shot-close');
+      assert.equal(await b.eval(() => document.getElementById('shot-panel').hidden), true);
+    });
+
     assert.deepEqual(b.errors.filter(e => !/favicon/.test(e)), [], 'no page errors');
 
     await t.test('rename / move: F2, button, context menu and drag; tabs, edits and breakpoints follow', async () => {

@@ -12,12 +12,20 @@ import zipfile
 from http.server import BaseHTTPRequestHandler, HTTPServer
 from urllib.parse import parse_qs, unquote, urlparse
 
-PNG = (
-    b"\x89PNG\r\n\x1a\n\x00\x00\x00\rIHDR\x00\x00\x00\x01"
-    b"\x00\x00\x00\x01\x08\x02\x00\x00\x00\x90wS\xde\x00\x00"
-    b"\x00\x0cIDATx\x9cc\xf8\x0f\x00\x00\x01\x01\x00\x05\x18\xd8N"
-    b"\x00\x00\x00\x00IEND\xaeB`\x82"
-)
+def _make_png(width=24, height=48):
+    """A small valid RGB gradient PNG (browsers can decode it; the old 1x1 stub could not be)."""
+    import struct
+    import zlib
+
+    def chunk(kind, data):
+        return struct.pack(">I", len(data)) + kind + data + struct.pack(">I", zlib.crc32(kind + data) & 0xFFFFFFFF)
+
+    rows = b"".join(b"\x00" + bytes(v for x in range(width) for v in (x * 10 % 256, y * 5 % 256, 128)) for y in range(height))
+    return (b"\x89PNG\r\n\x1a\n" + chunk(b"IHDR", struct.pack(">IIBBBBB", width, height, 8, 2, 0, 0, 0))
+            + chunk(b"IDAT", zlib.compress(rows)) + chunk(b"IEND", b""))
+
+
+PNG = _make_png()
 
 STATE = {
     "projects": {},
