@@ -31,7 +31,7 @@ APK 内置 numpy 1.23.3、opencv 4.5.1.48、pillow 9.2.0、pyyaml、requests、O
 
 1. 打开 XScript，授予通知权限。**全新安装时必须先授予，HTTP 服务（9860 端口）才会启动**；用 adb 时可执行 `adb shell pm grant com.xscript.app android.permission.POST_NOTIFICATIONS`。
 2. **辅助权限管理** → 开启 XScript 无障碍服务。
-3. **悬浮窗权限** → 允许。悬浮停止按钮、对话框、`ui.Window` 和画布都需要它。
+3. **悬浮窗权限** → 允许。后台悬浮窗（显示运行状态，可停止）、对话框、`ui.Window` 和画布都需要它。
 4. **Root 权限** → 设备已 root 时授予 `su`。授予后可使用 root 模式、`system.shell` 和截图兜底。
 5. **运行模式** → 选 `Root或激活模式`（自动），除非需要指定某个通道。
 6. 保持应用运行。**开发者地址** 会显示 `http://<ip>:<port>/`。

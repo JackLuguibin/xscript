@@ -282,7 +282,8 @@ win.show(wait=True)                  # 阻塞直到关闭；js 中调用 xscript
 c = ui.Canvas(); c.show()
 c.rect(100, 100, 400, 300, label="hit"); c.cross(540, 960); c.clear()
 ui.show_image("/sdcard/a.png")
-ui.float_show(); ui.float_hide()     # 悬浮停止按钮
+ui.float_show(); ui.float_hide()     # 悬浮窗：本次运行里强制显示 / 隐藏（设置“关闭”或应用在前台时也显示）
+ui.float_show(x=-1, y=-1, dim=0.8)   # 位置与透明度同 AScript FloatWindow.show：-1 右 / 下边缘，0 左 / 上边缘，0–1 屏幕比例，正数像素；始终贴边
 ```
 
 `ui.Window` 的 HTML 可以调用 `window.xscript.call(key, value)`。AScript 页面使用别名 `window.airscript.call`，同样可用。

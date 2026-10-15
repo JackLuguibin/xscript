@@ -278,7 +278,21 @@ MCP 也提供了对应工具（`take_snapshot`、`vision_test`、`crop_template`
 
 ### 4.9 界面
 
-`LauncherActivity` 是桌面入口：XScript 本身进入 `MainActivity`，打包出来的 App 进入 `PackActivity`（见 4.10）。`MainActivity` 是仿 AScript 的首页（开发者地址、AI 编程连接、运行模式、各项权限、云控、小程序列表等），另有工程列表、工程详情、简易编辑器、日志页。`FloatControl` 是运行时的悬浮停止按钮，放在主进程，这样脚本进程被杀后按钮也能正常收起。
+`LauncherActivity` 是桌面入口：XScript 本身进入 `MainActivity`，打包出来的 App 进入 `PackActivity`（见 4.10）。`MainActivity` 是仿 AScript 的首页（开发者地址、AI 编程连接、运行模式、各项权限、云控、小程序列表等），另有工程列表、工程详情、简易编辑器、日志页。`FloatControl` 是后台悬浮窗（见 4.9.1），放在主进程，这样脚本进程被杀后它也能正常收起。
+
+### 4.9.1 后台悬浮窗（`FloatControl` / `FloatLogic`）
+
+悬浮窗是一个 `TYPE_APPLICATION_OVERLAY`（API 26 以下 `TYPE_PHONE`）窗口，标题 `XScriptFloat`，在主进程里由 `WindowManager` 直接添加，不另起 Service：主进程已经被 `DeviceHttpService` 的前台服务通知保活，悬浮窗不需要自己的通知。`FloatLogic` 是不依赖 Android 类型的纯 Kotlin（JVM 测试覆盖），`FloatControl` 负责窗口和事件。
+
+- **何时可见**：`FloatLogic.decide(permitted, enabled, always, running, appForeground, scriptForce)`。无权限 → 不显示（静默）；脚本 `ui.float_show()` → 显示，`ui.float_hide()` → 隐藏（只对本次运行有效，脚本结束清除）；设置关闭 → 不显示；有 Activity 在前台 → 不显示；否则脚本在运行或设置为“后台一直显示”时显示。
+- **前后台**：`XscriptApp` 里注册 `ActivityLifecycleCallbacks`，数已 `started` 的 Activity（主进程内）。脚本进程里的 `ui.Window` 等是 View 不是 Activity，不算前台。
+- **触发**：`script_started` / `script_finished`（`MainControl`）、`ScriptSupervisor.onDeath`、设置变化、前后台切换都会调 `sync`；窗口显示期间每秒一次 tick，刷新计时，并发现脚本进程已消失、屏幕旋转、权限被撤销。“空闲”需要连续两次确认才收起，避免状态文件读到一半时闪一下。
+- **运行状态和计时**：`RunState`（文件，原子写入）里有工程名，`running-since` 记录开始时间，主进程重启后计时不归零。
+- **位置**：`FloatLogic.Dock(right, yFrac)`——靠左或靠右 + 竖直方向的比例，存在 `Settings`；拖动松手后吸附到近的一侧，换屏幕尺寸或旋转后按比例重新放置，窗口始终完整在屏幕内。展开面板、计时位数变化导致宽度变化时，右侧停靠的窗口自动贴着右边。
+- **展开面板**：点一下切换 `FloatLogic.State.expanded`；运行 / 停止走 `ScriptService.run/stop`（用户停止，不会重跑），日志、打开用 `FLAG_ACTIVITY_NEW_TASK` 拉起 Activity（有可见悬浮窗的应用允许从后台启动）。
+- **重启恢复**：主进程被系统杀掉后 `DeviceHttpService`（`START_STICKY`）重新拉起，`XscriptApp.onCreate` 里 `FloatControl.restore` 延迟 1.5 秒调用 `sync`（避免从桌面冷启动时闪一下），脚本还在运行就恢复悬浮窗。
+- **`/status`**：`overlay` 字段（`enabled / always / mode / permitted / visible / expanded / app_foreground / side / reason`，可见时附 `x / y / width / height`），测试用。
+- **AScript 兼容**：`FloatWindow.show(x, y, dim)` 的 x / y / dim 由 `FloatLogic.resolve` 解释（-1 = 右 / 下，0 = 左 / 上，小数 = 比例，正数 = 像素），但始终贴边。
 
 ### 4.10 APK 打包与卡密
 
@@ -354,11 +368,11 @@ sequenceDiagram
     P->>P: import demo（执行 __init__.py）
     P->>P: 等待脚本创建的非守护线程
     P-->>S: 返回退出码
-    S->>S: RunState 清空，隐藏悬浮窗，killProcess
+    S->>S: RunState 清空，悬浮窗收起（后台悬浮窗，见 4.9.1），killProcess
 ```
 
 - 同一时间只运行一个工程，重复运行返回 409。
-- 停止：`POST /stop` 或悬浮按钮 → `ScriptService` 收到 `ACTION_STOP` → 杀进程。这属于用户停止，不会触发“停止后重新运行”。
+- 停止：`POST /stop` 或悬浮窗里的停止 → `ScriptService` 收到 `ACTION_STOP` → 杀进程。这属于用户停止，不会触发“停止后重新运行”。
 - 进程结束后 `ScriptSupervisor` 通过 Binder 死亡通知决定下一步：启动排队中的工程、按选项重跑，或者什么都不做（见 4.1.1）。
 - `_wait_for_threads` 模拟 CPython 退出时 join 非守护线程的行为。在 Chaquopy 下解释器的“主线程”是 Android UI Looper，永远不会结束，所以显式跳过它和 `_DummyThread`。
 
