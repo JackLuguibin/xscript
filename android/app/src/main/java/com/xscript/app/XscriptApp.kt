@@ -23,6 +23,9 @@ class XscriptApp : Application() {
                 android.util.Log.e("XScript", "pack install failed", t)
             }
             RootShell.probeAsync()
+            // Floating window: shown while the app is in the background; also back after a process restart.
+            com.xscript.app.ui.FloatControl.install(this)
+            com.xscript.app.ui.FloatControl.restore(this)
             // Script/EvalService bind with BIND_AUTO_CREATE when needed. Starting an
             // ordinary service here crashes background launches on recent Android.
             CloudClient.autoConnect(this)

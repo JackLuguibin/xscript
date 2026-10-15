@@ -1068,6 +1068,34 @@ components:
           type: string
           nullable: true
         version: { type: string }
+        overlay:
+          $ref: '#/components/schemas/Overlay'
+    Overlay:
+      type: object
+      description: Floating window (悬浮窗) state of the app. Not mirrored by the mock device's geometry.
+      properties:
+        enabled: { type: boolean, description: "Setting float_on_run (运行时显示悬浮窗)" }
+        always: { type: boolean, description: "Setting float_always (后台一直显示, also while idle)" }
+        mode:
+          type: string
+          enum: [run, always, 'off']
+        permitted: { type: boolean, description: "Overlay grant (悬浮窗权限 / SYSTEM_ALERT_WINDOW)" }
+        visible: { type: boolean, description: "The window is attached right now" }
+        expanded: { type: boolean, description: "The 运行/停止/日志/打开 panel is open" }
+        app_foreground: { type: boolean, description: "One of the app's activities is on screen (the window hides then)" }
+        side:
+          type: string
+          enum: [left, right]
+          description: Edge the window docks to
+        reason:
+          type: string
+          nullable: true
+          enum: [no_permission, disabled, foreground, idle, script_hidden]
+          description: Why it is hidden (null while visible)
+        x: { type: integer, description: "Screen position in px (only while visible)" }
+        y: { type: integer }
+        width: { type: integer }
+        height: { type: integer }
     ProjectConfig:
       type: object
       properties:
@@ -1124,6 +1152,9 @@ components:
           type: string
           enum: [auto, accessibility, root]
         float_on_run: { type: boolean }
+        float_always:
+          type: boolean
+          description: Also show the floating window while no script runs (only in the background)
         keep_screen_on: { type: boolean }
         cloud_url:
           type: string

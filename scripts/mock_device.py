@@ -32,7 +32,7 @@ STATE = {
     "running": None,
     "logs": [],
     "actions": [],
-    "settings": {"run_mode": "auto", "float_on_run": True, "keep_screen_on": False, "cloud_url": ""},
+    "settings": {"run_mode": "auto", "float_on_run": True, "float_always": False, "keep_screen_on": False, "cloud_url": ""},
     "snapshots": {},   # id -> png bytes
     "datasets": {},    # name -> {"classes": [...], "items": {id: {"image": bytes, "label": dict|None}}}
     "schedules": {},   # id -> schedule dict
@@ -226,6 +226,17 @@ class Handler(BaseHTTPRequestHandler):
                 "running": STATE["running"] is not None,
                 "project": STATE["running"],
                 "version": "0.2.0",
+                "overlay": {
+                    "enabled": STATE["settings"]["float_on_run"],
+                    "always": STATE["settings"]["float_always"],
+                    "mode": "off" if not STATE["settings"]["float_on_run"] else ("always" if STATE["settings"]["float_always"] else "run"),
+                    "permitted": True,
+                    "visible": False,
+                    "expanded": False,
+                    "app_foreground": True,
+                    "side": "right",
+                    "reason": "foreground",
+                },
             })
             return
         if parsed.path == "/screen":
@@ -388,7 +399,7 @@ class Handler(BaseHTTPRequestHandler):
             if "run_mode" in body and body["run_mode"] not in ("auto", "accessibility", "root"):
                 self._json(400, {"error": "bad run_mode"})
                 return
-            for k in ("run_mode", "float_on_run", "keep_screen_on"):
+            for k in ("run_mode", "float_on_run", "float_always", "keep_screen_on"):
                 if k in body:
                     STATE["settings"][k] = body[k]
             self._json(200, STATE["settings"])

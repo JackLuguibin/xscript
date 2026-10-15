@@ -177,7 +177,7 @@ class FloatWindow:
 
     @staticmethod
     def show(x=-1, y=-1, dim=1):
-        _xu.float_show()
+        _xu.float_show(x, y, dim)
 
     @staticmethod
     def add_menu(menu_id, menu_ico, menu_click_listener, remove_system=False):

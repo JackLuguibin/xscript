@@ -56,6 +56,7 @@ class MainActivity : AppCompatActivity() {
     private lateinit var rowMode: UiKit.Row
     private lateinit var rowLink: UiKit.Row
     private lateinit var rowOverlay: UiKit.Row
+    private lateinit var rowFloat: UiKit.Row
     private lateinit var rowA11y: UiKit.Row
     private lateinit var rowRoot: UiKit.Row
     private lateinit var rowCapture: UiKit.Row
@@ -102,6 +103,7 @@ class MainActivity : AppCompatActivity() {
         rowAi = UiKit.row(dev, "✦", 0xFF10A37F.toInt(), "AI 编程连接") { showAiHelp() }
         rowMode = UiKit.row(dev, "▶", 0xFF8E44AD.toInt(), "运行模式") { chooseMode() }
         rowLink = UiKit.row(dev, "⇄", 0xFF6366F1.toInt(), "链接启动") { chooseLinkMode() }
+        rowFloat = UiKit.row(dev, "◐", 0xFF34A853.toInt(), "悬浮窗显示") { FloatControl.chooseMode(this) { refresh() } }
         rowOverlay = UiKit.row(dev, "▣", 0xFF34A853.toInt(), "悬浮窗权限") { openOverlaySettings() }
         rowRoot = UiKit.row(dev, ">_", 0xFF2F7CF6.toInt(), "Root 权限") { requestRoot() }
         rowCapture = UiKit.row(dev, "◎", 0xFFE5484D.toInt(), "图色权限") { requestCapture() }
@@ -174,7 +176,8 @@ class MainActivity : AppCompatActivity() {
         rowLink.value(Settings.schemeModeLabel())
 
         val overlay = FloatControl.canShow(this)
-        rowOverlay.value(if (overlay) "已授权" else "未授权", if (overlay) UiKit.GREEN else UiKit.RED)
+        rowOverlay.value(if (overlay) "已授权" else "未授权，点此开启", if (overlay) UiKit.GREEN else UiKit.RED)
+        rowFloat.value(FloatControl.modeSummary(this))
 
         val a11y = AccessibilityEngine.isOn()
         val listed = a11y || isAccessibilityListed()
@@ -282,7 +285,7 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun openOverlaySettings() {
-        startActivity(Intent(AndroidSettings.ACTION_MANAGE_OVERLAY_PERMISSION, Uri.parse("package:$packageName")))
+        startActivity(FloatControl.permissionIntent(this))
     }
 
     private fun requestRoot() {

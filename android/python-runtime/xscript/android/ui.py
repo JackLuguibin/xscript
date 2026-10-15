@@ -284,8 +284,21 @@ def show_image(path):
     _ui("image_show", {"path": str(path)})
 
 
-def float_show():
-    bridge.control("float_show", "")
+def float_show(x=None, y=None, dim=1.0):
+    """Show the floating window (悬浮窗) for this run, even while the app is on screen.
+
+    Same x / y / dim as AScript ``FloatWindow.show``: a positive number is a pixel position, a decimal
+    below 1 is a share of the screen (0.2 = 20%), -1 / 0 mean the far / near edge (right-bottom / left-top).
+    XScript always docks the window to the nearer side edge. ``None`` keeps the position the user dragged it to.
+    ``dim`` is the opacity, 0-1.
+    """
+    import json
+    arg = {"dim": float(dim)}
+    if x is not None:
+        arg["x"] = float(x)
+    if y is not None:
+        arg["y"] = float(y)
+    bridge.control("float_show", json.dumps(arg))
 
 
 def float_hide():

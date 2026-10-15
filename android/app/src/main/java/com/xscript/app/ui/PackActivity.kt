@@ -54,6 +54,7 @@ class PackActivity : AppCompatActivity() {
     private lateinit var rowLicense: UiKit.Row
     private lateinit var rowA11y: UiKit.Row
     private lateinit var rowOverlay: UiKit.Row
+    private lateinit var rowFloat: UiKit.Row
     private lateinit var rowCapture: UiKit.Row
     private lateinit var rowRoot: UiKit.Row
     private var rowCloud: UiKit.Row? = null
@@ -120,8 +121,9 @@ class PackActivity : AppCompatActivity() {
         rowA11y = UiKit.row(perms, "◉", 0xFFF59E0B.toInt(), "无障碍服务") {
             startActivity(Intent(AndroidSettings.ACTION_ACCESSIBILITY_SETTINGS))
         }
+        rowFloat = UiKit.row(perms, "◐", 0xFF34A853.toInt(), "悬浮窗显示") { FloatControl.chooseMode(this) { refresh() } }
         rowOverlay = UiKit.row(perms, "▣", 0xFF34A853.toInt(), "悬浮窗权限") {
-            startActivity(Intent(AndroidSettings.ACTION_MANAGE_OVERLAY_PERMISSION, Uri.parse("package:$packageName")))
+            startActivity(FloatControl.permissionIntent(this))
         }
         rowCapture = UiKit.row(perms, "◎", 0xFFE5484D.toInt(), "截图权限") {
             val mgr = getSystemService(MEDIA_PROJECTION_SERVICE) as MediaProjectionManager
@@ -195,7 +197,8 @@ class PackActivity : AppCompatActivity() {
         val a11y = AccessibilityEngine.isOn() || isAccessibilityListed()
         rowA11y.value(if (a11y) "已开启" else "未开启", if (a11y) UiKit.GREEN else UiKit.RED)
         val overlay = FloatControl.canShow(this)
-        rowOverlay.value(if (overlay) "已授权" else "未授权", if (overlay) UiKit.GREEN else UiKit.MUTED)
+        rowOverlay.value(if (overlay) "已授权" else "未授权，点此开启", if (overlay) UiKit.GREEN else UiKit.MUTED)
+        rowFloat.value(FloatControl.modeSummary(this))
         rowCapture.value(CaptureEngine.sourceLabel(), if (CaptureEngine.available()) UiKit.GREEN else UiKit.MUTED)
         when (RootShell.known()) {
             true -> rowRoot.value("已获取", UiKit.GREEN)

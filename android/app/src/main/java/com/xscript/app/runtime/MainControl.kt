@@ -33,22 +33,23 @@ object MainControl {
             "current_app" -> Automation.currentApp().toString()
             "status" -> status(ctx).toString()
             "float_show" -> {
-                FloatControl.show(ctx, RunState.get(ctx))
+                FloatControl.forceShow(ctx, arg)
                 "ok"
             }
             "float_hide" -> {
-                FloatControl.hide()
+                FloatControl.forceHide(ctx)
                 "ok"
             }
             "script_started" -> {
-                if (Settings.floatOnRun) FloatControl.show(ctx, arg)
+                // Shown when the app is in the background (see ui.FloatLogic.decide).
+                FloatControl.sync(ctx)
                 // RunState is set now, so the 云控 dashboard sees the run.
                 com.xscript.app.cloud.CloudClient.pushStatus()
                 "ok"
             }
             "script_finished" -> {
                 ScriptSupervisor.onFinished(arg)
-                FloatControl.hide()
+                FloatControl.scriptEnded(ctx)
                 com.xscript.app.cloud.CloudClient.pushStatus()
                 "ok"
             }
@@ -162,5 +163,6 @@ object MainControl {
             .put("packaged", com.xscript.app.BuildConfig.PACKAGED)
             .put("update", com.xscript.app.pack.UpdateChecker.status(ctx))
             .put("app_id", ctx.packageName)
+            .put("overlay", FloatControl.status(ctx))
     }
 }

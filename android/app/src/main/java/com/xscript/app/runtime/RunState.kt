@@ -13,8 +13,30 @@ object RunState {
     fun set(context: Context, project: String?) {
         val file = file(context)
         file.parentFile?.mkdirs()
-        file.writeText(project?.trim().orEmpty())
+        val name = project?.trim().orEmpty()
+        val since = File(context.filesDir, "running-since")
+        if (name.isEmpty()) {
+            since.delete()
+        } else if (!since.exists() || get(context) != name) {
+            writeAtomic(since, System.currentTimeMillis().toString())
+        }
+        writeAtomic(file, name)
     }
+
+    /** Readers in the other process never see a half-written (empty) file. */
+    private fun writeAtomic(file: File, text: String) {
+        val tmp = File(file.parentFile, file.name + ".tmp")
+        tmp.writeText(text)
+        if (!tmp.renameTo(file)) file.writeText(text)
+    }
+
+    /** Epoch ms the current run started (for the floating window timer), or null when unknown. */
+    fun since(context: Context): Long? =
+        try {
+            File(context.filesDir, "running-since").takeIf { it.exists() }?.readText()?.trim()?.toLongOrNull()
+        } catch (_: Exception) {
+            null
+        }
 
     fun get(context: Context): String? {
         val file = file(context)

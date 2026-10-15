@@ -378,6 +378,7 @@ class ApiRouter(private val context: Context) {
     private fun settings(): JSONObject = JSONObject()
         .put("run_mode", Settings.runMode)
         .put("float_on_run", Settings.floatOnRun)
+        .put("float_always", Settings.floatAlways)
         .put("keep_screen_on", Settings.keepScreenOn)
         .put("cloud_url", Settings.cloudUrl)
 
@@ -389,6 +390,8 @@ class ApiRouter(private val context: Context) {
             Settings.runMode = mode
         }
         if (a.has("float_on_run")) Settings.floatOnRun = a.getBoolean("float_on_run")
+        if (a.has("float_always")) Settings.floatAlways = a.getBoolean("float_always")
+        com.xscript.app.ui.FloatControl.sync(com.xscript.app.XscriptApp.instance)
         if (a.has("keep_screen_on")) Settings.keepScreenOn = a.getBoolean("keep_screen_on")
         return Reply.json(settings())
     }

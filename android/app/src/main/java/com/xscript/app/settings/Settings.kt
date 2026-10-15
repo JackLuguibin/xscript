@@ -22,6 +22,32 @@ object Settings {
         get() = prefs().getBoolean("float_on_run", true)
         set(value) = prefs().edit().putBoolean("float_on_run", value).apply()
 
+    /** Floating window also shows while no script runs (only when the app is in the background). */
+    var floatAlways: Boolean
+        get() = prefs().getBoolean("float_always", false)
+        set(value) = prefs().edit().putBoolean("float_always", value).apply()
+
+    /** Where the floating window rests: edge + vertical fraction (see ui.FloatLogic.Dock). */
+    var floatDock: com.xscript.app.ui.FloatLogic.Dock
+        get() = com.xscript.app.ui.FloatLogic.Dock(
+            prefs().getBoolean("float_right", com.xscript.app.ui.FloatLogic.DEFAULT_DOCK.right),
+            com.xscript.app.ui.FloatLogic.clampFrac(prefs().getFloat("float_y", com.xscript.app.ui.FloatLogic.DEFAULT_DOCK.yFrac)),
+        )
+        set(value) = prefs().edit().putBoolean("float_right", value.right).putFloat("float_y", value.yFrac).apply()
+
+    /** "run" (default: while a script runs), "always" (whenever the app is in the background) or "off". */
+    var floatMode: String
+        get() = if (!floatOnRun) "off" else if (floatAlways) "always" else "run"
+        set(value) {
+            prefs().edit().putBoolean("float_on_run", value != "off").putBoolean("float_always", value == "always").apply()
+        }
+
+    fun floatModeLabel(mode: String = floatMode): String = when (mode) {
+        "always" -> "后台一直显示"
+        "off" -> "已关闭"
+        else -> "运行时显示"
+    }
+
     var keepScreenOn: Boolean
         get() = prefs().getBoolean("keep_screen_on", false)
         set(value) = prefs().edit().putBoolean("keep_screen_on", value).apply()
