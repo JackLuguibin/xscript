@@ -542,6 +542,15 @@
   }
   const timer = setInterval(poll, 1000);
   window.addEventListener("pagehide", () => { closed = true; clearInterval(timer); debuggerClient.close(); });
+  // Narrow screens (≤600px): the explorer is a drawer opened by ☰ 文件; picking a file, Esc, or tapping the editor closes it.
+  (function drawer() {
+    const ide = document.querySelector(".ide"), btn = el("sidebar-toggle"), side = el("files-drawer");
+    const set = open => { ide.classList.toggle("sidebar-open", open); btn.setAttribute("aria-expanded", String(open)); };
+    btn.addEventListener("click", () => set(!ide.classList.contains("sidebar-open")));
+    side.addEventListener("click", e => { if (e.target.closest('.tree-row[data-type="file"], .sr-match')) setTimeout(() => set(false), 0); });
+    document.querySelector(".ide-workspace").addEventListener("pointerdown", () => { if (ide.classList.contains("sidebar-open")) set(false); }, true);
+    document.addEventListener("keydown", e => { if (e.key === "Escape" && ide.classList.contains("sidebar-open") && el("search-panel").hidden) set(false); });
+  })();
   window.addEventListener("pageshow", e => { if (e.persisted) location.reload(); });
   document.addEventListener("visibilitychange", () => !document.hidden && poll());
   projects(new URLSearchParams(location.search).get("project") || "").catch(e => message(e.message, true));

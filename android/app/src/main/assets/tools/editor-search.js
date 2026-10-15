@@ -6,7 +6,46 @@
   const MAX_PER_FILE = 500, MAX_TOTAL = 2000;   // matches reported
   const BINARY_EXT = /\.(png|jpe?g|gif|webp|bmp|ico|zip|gz|jar|so|dex|apk|pyc|ttf|otf|woff2?|mp[34]|wav|ogg|pdf|bin|db|npy|npz)$/i;
 
+  const TIMEOUT_MS = 2500;                      // one regex run (a file) may take this long before the guard aborts it
+  const MAX_PATTERN = 1000;                     // characters of a regex query
+
   const escapeRegExp = s => s.replace(/[.*+?^${}()|[\]\\\/]/g, "\\$&");
+
+  /**
+   * Static check for the classic catastrophic shapes: a group that is nothing but one atom with an unbounded
+   * repeat, repeated again without bound — (a+)+, (\\w*)*, (.+)*, (?:[ab]+){2,}. Returns a message or "".
+   * Other patterns that can still backtrack badly are stopped by the run-time guard (see guard()).
+   */
+  function riskyRegex(source) {
+    if (source.length > MAX_PATTERN) return "表达式太长（上限 " + MAX_PATTERN + " 个字符）";
+    const unbounded = q => q === "+" || q === "*" || /^\{\d+,\d*\}$/.test(q) && !/^\{\d+,\d{1,2}\}$/.test(q);
+    const quantAt = i => {                       // the quantifier that starts at i, or ""
+      const c = source[i];
+      if (c === "+" || c === "*") return c;
+      if (c === "{") { const m = /^\{\d+(?:,\d*)?\}/.exec(source.slice(i, i + 24)); return m ? m[0] : ""; }
+      return "";
+    };
+    const stack = [];
+    for (let i = 0; i < source.length; i++) {
+      const c = source[i];
+      if (c === "\\") { i++; continue; }
+      if (c === "[") { for (i++; i < source.length && source[i] !== "]"; i++) if (source[i] === "\\") i++; continue; }
+      if (c === "(") { stack.push(i); continue; }
+      if (c === ")") {
+        const open = stack.pop(); if (open === undefined) continue;
+        let body = source.slice(open + 1, i);
+        if (/^\?(?::|<[A-Za-z_]\w*>)/.test(body)) body = body.replace(/^\?(?::|<[A-Za-z_]\w*>)/, "");
+        else if (body.startsWith("?")) continue;   // lookaround: not a repeat of its own
+        const outer = quantAt(i + 1);
+        if (!outer || !unbounded(outer)) continue;
+        const single = /^(?:\\.|\[(?:\\.|[^\]\\])*\]|[^()\\|*+?{}\[])(?:[+*]|\{\d+,\d*\})\??$/.exec(body);
+        if (single && unbounded(single[0].replace(/^(?:\\.|\[(?:\\.|[^\]\\])*\]|[^()\\|*+?{}\[])/, "").replace(/\?$/, ""))) {
+          return "表达式含有嵌套的无限重复（如 (a+)+），可能让浏览器卡死";
+        }
+      }
+    }
+    return "";
+  }
 
   /**
    * Build the search RegExp. Throws Error(中文) for an empty query, invalid regex, or one that matches the empty string.
@@ -14,6 +53,7 @@
    */
   function compile(query, opts = {}) {
     if (!query) throw new Error("请输入要搜索的内容");
+    if (opts.regex) { const risk = riskyRegex(query); if (risk) throw new Error(risk); }
     let source = opts.regex ? query : escapeRegExp(query);
     if (opts.word) source = "(?<![\\p{L}\\p{N}_])(?:" + source + ")(?![\\p{L}\\p{N}_])";
     const flags = "gm" + (opts.caseSensitive ? "" : "i");
@@ -106,7 +146,40 @@
 
   const isSearchable = (path, size) => !BINARY_EXT.test(path) && !(size > MAX_FILE);
 
-  const EditorSearch = {compile, find, replaceAll, expand, globFilter, isSearchable, escapeRegExp, MAX_FILE, MAX_PER_FILE, MAX_TOTAL};
+  /**
+   * Run find / replaceAll with a deadline. Regex mode in a browser executes in a Web Worker that is killed when a
+   * single run exceeds [timeoutMs] (catastrophic backtracking cannot freeze the page); everywhere else (literal
+   * search, Node tests) it runs inline. Calls are serialised. dispose() ends the worker.
+   */
+  function guard(opts = {}, timeoutMs = TIMEOUT_MS) {
+    const useWorker = !!opts.regex && typeof Worker !== "undefined" && typeof window !== "undefined" && !opts.inline;
+    if (!useWorker) {
+      return {find: async (text, re, limit) => find(text, re, limit), replaceAll: async (text, re, rep, o) => replaceAll(text, re, rep, o), dispose() {}, worker: false};
+    }
+    let worker = null, seq = 0, chain = Promise.resolve();
+    const run = (msg, re) => new Promise((resolve, reject) => {
+      if (!worker) {
+        worker = new Worker("/tools/ui/editor-search-worker.js");
+      }
+      const id = ++seq, w = worker;
+      const timer = setTimeout(() => {
+        w.terminate(); if (worker === w) worker = null;
+        reject(new Error("正则表达式运行超时（超过 " + (timeoutMs / 1000) + " 秒，可能存在灾难性回溯），已中止：" + re.source.slice(0, 60)));
+      }, timeoutMs);
+      w.onmessage = e => { if (e.data.id !== id) return; clearTimeout(timer); e.data.error ? reject(new Error(e.data.error)) : resolve(e.data); };
+      w.onerror = e => { clearTimeout(timer); reject(new Error("搜索线程出错：" + (e.message || "未知错误"))); };
+      w.postMessage(Object.assign({id, source: re.source, flags: re.flags}, msg));
+    });
+    const queue = job => { const p = chain.then(job, job); chain = p.catch(() => {}); return p; };
+    return {
+      find: (text, re, limit) => queue(() => run({op: "find", text, limit}, re).then(r => r.matches)),
+      replaceAll: (text, re, rep, o) => queue(() => run({op: "replace", text, replacement: rep, regex: !!(o && o.regex)}, re).then(r => ({text: r.text, count: r.count}))),
+      dispose() { if (worker) { worker.terminate(); worker = null; } },
+      worker: true,
+    };
+  }
+
+  const EditorSearch = {compile, find, replaceAll, expand, globFilter, isSearchable, escapeRegExp, riskyRegex, guard, MAX_FILE, MAX_PER_FILE, MAX_TOTAL, TIMEOUT_MS, MAX_PATTERN};
   if (typeof module !== "undefined" && module.exports) module.exports = { EditorSearch };
   else root.EditorSearch = EditorSearch;
 })(typeof window !== "undefined" ? window : globalThis);

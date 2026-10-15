@@ -75,9 +75,28 @@
         ctx.syncCurrent();
         await ctx.refreshFiles();
         await run();
-        const note = "已替换 " + r.count + " 处（" + r.files + " 个文件）" + (r.unsaved.length ? "；未保存：" + r.unsaved.join("、") : "");
-        summary(note); ctx.message(note);
-      } catch (e) { summary("替换失败：" + e.message, true); ctx.message("替换失败：" + e.message, true); await run().catch(() => {}); }
+        const note = "已替换 " + r.count + " 处（" + r.files + " 个文件）" + (r.unsaved.length ? "；未保存：" + r.unsaved.join("、") : "") + (r.undoable ? "；可点「撤销替换」恢复" : "");
+        summary(note); ctx.message(note); syncUndo();
+      } catch (e) { summary("替换失败：" + e.message, true); ctx.message("替换失败：" + e.message, true); syncUndo(); await run().catch(() => {}); }
+    }
+
+    // 撤销替换: one step, for the latest replace of the current project (files edited since are left alone).
+    function syncUndo() {
+      const last = ctx.model.lastReplace, ok = !!last && last.project === ctx.model.project;
+      $("replace-undo").disabled = !ok;
+      $("replace-undo").title = ok ? "撤销上一次「全部替换」（" + last.changes.length + " 个文件）" : "没有可撤销的替换";
+    }
+    async function undo() {
+      const last = ctx.model.lastReplace; if (!last || last.project !== ctx.model.project) { syncUndo(); return; }
+      const saved = last.changes.filter(c => c.saved).length;
+      if (!confirm("撤销上一次替换（" + last.changes.length + " 个文件）？\n仍保持替换后内容的文件会恢复原样" + (saved ? "，其中 " + saved + " 个会写回设备" : "") + "；替换后又改过的文件不会动。")) return;
+      try {
+        summary("撤销中…");
+        const r = await ctx.model.undoReplace();
+        ctx.syncCurrent(); await ctx.refreshFiles(); await run();
+        const note = "已撤销 " + r.restored.length + " 个文件" + (r.skipped.length ? "；未撤销：" + r.skipped.map(s => s.path + "（" + s.reason + "）").join("、") : "");
+        summary(note, r.skipped.length > 0); ctx.message(note, r.skipped.length > 0); syncUndo();
+      } catch (e) { summary("撤销失败：" + e.message, true); ctx.message("撤销失败：" + e.message, true); syncUndo(); }
     }
 
     $("open-search").addEventListener("click", () => ($("search-panel").hidden ? open(ctx.selectionText()) : close()));
@@ -92,12 +111,14 @@
       if ($("search-q").value) run();
     });
     $("replace-all").addEventListener("click", () => replace());
+    $("replace-undo").addEventListener("click", undo);
+    syncUndo();
     $("search-results").addEventListener("click", e => {
       const rep = e.target.closest(".sr-replace"); if (rep) { replace([rep.dataset.path]); return; }
       const row = e.target.closest(".sr-match"); if (!row) return;
       const group = state.results.find(g => g.path === row.dataset.path); if (group) ctx.openMatch(group.path, group.matches[Number(row.dataset.i)]);
     });
-    function reset() { ++state.token; state.results = []; render(); summary(""); }
+    function reset() { ++state.token; state.results = []; render(); summary(""); syncUndo(); }
     return {open, close, run, reset, state};
   }
 

@@ -410,6 +410,52 @@ test('Web IDE explorer, editor and create/delete flows in a real browser', {skip
       await b.waitFor(() => document.getElementById('message').textContent.includes('已保存 search/b.py'));
     });
 
+    await t.test('replace undo: restores written files, skips files edited since', async () => {
+      const undo = () => b.eval(() => { const n = document.getElementById('replace-undo'); return {disabled: n.disabled, title: n.title}; });
+      assert.equal((await undo()).disabled, false, 'enabled after the replace above');
+      assert.match((await undo()).title, /2 个文件/);
+      await confirms([false]);
+      await b.eval(click, '#replace-undo');
+      assert.equal((await api('GET', '/projects/dom/file?path=search/a.py')).content, 'pin = 1\nprint(pin)\n', 'declined confirm changes nothing');
+      await confirms([true]);
+      await b.eval(click, '#replace-undo');
+      await b.waitFor(() => /已撤销 1 个文件/.test(document.getElementById('message').textContent));
+      const msg = await b.eval(() => document.getElementById('message').textContent);
+      assert.match(msg, /search\/b\.py（替换之后又被修改过）/);
+      assert.equal((await api('GET', '/projects/dom/file?path=search/a.py')).content, 'needle = 1\nprint(needle)\n', 'written back to the device');
+      assert.equal((await api('GET', '/projects/dom/file?path=search/b.py')).content, '# pin\nx = 2\n', 'file edited since is untouched');
+      assert.match((await b.eval(() => window.__confirms))[0], /撤销上一次替换（2 个文件）/);
+    });
+
+    await t.test('ReDoS guard: nested repeats are refused up front; a hidden catastrophic pattern is killed by the worker timeout and the page stays responsive', async () => {
+      await api('PUT', '/projects/dom/files', {files: [{path: 'search/redos.txt', content: 'a'.repeat(60) + 'b\n'}]});
+      await b.eval(click, '#refresh'); await b.waitFor(idle);
+      const set = (id, v) => b.eval((i, val) => { const n = document.getElementById(i); n.value = val; n.dispatchEvent(new Event('input')); }, id, v);
+      const summary = () => b.eval(() => document.getElementById('search-summary').textContent);
+      if (!(await b.eval(() => document.getElementById('s-regex').getAttribute('aria-pressed') === 'true'))) await b.eval(click, '#s-regex');
+      await b.eval(() => { document.getElementById('search-panel').hidden && document.getElementById('open-search').click(); });
+      await set('search-inc', 'search/redos.txt');
+      await set('search-q', '(a+)+$'); await b.eval(click, '#search-go');
+      await b.waitFor(() => /嵌套的无限重复/.test(document.getElementById('search-summary').textContent));
+      // not caught by the static check, still exponential: (a|aa)+$ on 60 a's then b
+      await set('search-q', '(a|aa)+$');
+      const t0 = Date.now();
+      await b.eval(click, '#search-go');
+      // the page must keep answering while the worker spins
+      const ticks = await b.eval(() => new Promise(res => { let n = 0; const id = setInterval(() => n++, 50); setTimeout(() => { clearInterval(id); res(n); }, 1000); }));
+      assert.ok(ticks >= 10, 'main thread stayed responsive during the search (ticks ' + ticks + ')');
+      await b.waitFor(() => /超时/.test(document.getElementById('search-summary').textContent), 15000);
+      const took = Date.now() - t0;
+      assert.ok(took >= 2000 && took < 9000, 'aborted around the 2.5 s limit (took ' + took + ' ms)');
+      assert.match(await summary(), /正则表达式运行超时/);
+      // the guard is reusable afterwards: a normal regex works
+      await set('search-q', 'a{3}b'); await b.eval(click, '#search-go');
+      await b.waitFor(() => /1 处/.test(document.getElementById('search-summary').textContent));
+      await b.eval(click, '#s-regex');   // back to literal for later tests
+      await set('search-inc', '');
+      await b.eval(click, '#search-close');   // back to the file tree for the tests below
+    });
+
     await t.test('tabs: × button, middle click, context menu actions, dirty confirm, close all', async () => {
       await b.eval(click, row('search')).catch(() => {});
       for (const p of ['search/a.py', 'search/b.py', 'readme.txt']) { await b.waitFor(sel => !!document.querySelector(sel), 2000, row(p)).catch(async () => { await b.eval(click, row('search')); }); await b.eval(click, row(p)); await b.waitFor(path => document.querySelector('#tabs .active').dataset.path === path, 3000, p); }
@@ -490,7 +536,7 @@ test('Web IDE explorer, editor and create/delete flows in a real browser', {skip
 
     await t.test('rename / move: F2, button, context menu and drag; tabs, edits and breakpoints follow', async () => {
       const paths = async () => (await api('GET', '/projects/dom/files')).files.map(f => f.path);
-      const msg = text => b.waitFor(m => document.getElementById('message').textContent.includes(m), 5000, text);
+      const msg = text => b.waitFor(m => document.getElementById('message').textContent.includes(m), 5000, text).catch(async e => { throw Error(e.message + ' [wanted ' + JSON.stringify(text) + ', message is ' + JSON.stringify(await b.eval(() => document.getElementById('message').textContent)) + ']'); });
       await api('PUT', '/projects/dom/files', {files: [{path: 'mv/x.py', content: 'X = 1\n'}, {path: 'z.py', content: 'Z\n'}]});
       await b.eval(click, '#refresh'); await settle();
       await b.eval(click, row('mv')); await b.eval(click, row('mv/x.py'));
@@ -537,6 +583,8 @@ test('Web IDE explorer, editor and create/delete flows in a real browser', {skip
       assert.equal(await b.eval(() => document.getElementById('rename').disabled), true, 'entry point cannot be renamed');
       assert.equal(await b.eval(() => document.querySelector('#files .tree-row[data-path="__init__.py"]').draggable), false);
 
+      // opening __init__.py is asynchronous on a real device: let it finish so it cannot re-select itself mid-test
+      await b.waitFor(() => document.querySelector('#tabs .active') && document.querySelector('#tabs .active').dataset.path === '__init__.py' && document.getElementById('editor').value.startsWith('import time'));
       // Right-click menu.
       await b.eval(() => { const n = document.querySelector('#files .tree-row[data-path="z.py"]'); const box = n.getBoundingClientRect(); n.dispatchEvent(new MouseEvent('contextmenu', {bubbles: true, clientX: box.left + 5, clientY: box.top + 5})); });
       assert.equal(await b.eval(() => document.getElementById('tree-menu').hidden), false);

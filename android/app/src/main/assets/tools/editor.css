@@ -94,7 +94,7 @@
 .ide-status .problems.has-problems { color:var(--bad, #d32f2f); }
 .ide-status .auto-complete { display:flex; align-items:center; gap:4px; cursor:pointer; }
 /* Completion popup */
-.ide-complete { position:absolute; z-index:15; margin:0; padding:0; list-style:none; min-width:260px; max-width:min(520px, 92%); max-height:224px; overflow:auto; background:var(--bg, #fff); color:var(--text); border:1px solid var(--border, #ccc); border-radius:6px; box-shadow:0 4px 14px rgba(0,0,0,.2); font-family:var(--mono); font-size:12px; }
+.ide-complete { position:absolute; z-index:15; margin:0; padding:0; list-style:none; min-width:min(260px, 92%); max-width:min(520px, 92%); max-height:224px; overflow:auto; background:var(--bg, #fff); color:var(--text); border:1px solid var(--border, #ccc); border-radius:6px; box-shadow:0 4px 14px rgba(0,0,0,.2); font-family:var(--mono); font-size:12px; }
 .ide-complete[hidden] { display:none; }
 .ide-complete li { display:flex; align-items:baseline; gap:8px; height:22px; padding:0 8px; cursor:pointer; white-space:nowrap; }
 .ide-complete li[aria-selected="true"] { background:var(--tree-sel-focus, #cce4f7); color:var(--text-strong); }
@@ -143,3 +143,24 @@
 .shot-info.error { color:var(--bad); }
 .shot-swatch { width:14px; height:14px; border:1px solid var(--divider); border-radius:3px; }
 .shot-swatch[hidden] { display:none; }
+
+/* Phone layout (≤600px): one column, explorer as a drawer, compact toolbar and panels. */
+#sidebar-toggle { display:none; }
+@media(max-width:600px) {
+  .ide { display:block; position:relative; }
+  .ide-workspace { height:100%; }
+  .ide-sidebar { position:absolute; z-index:30; left:0; top:0; bottom:0; width:min(86%, 320px); box-sizing:border-box; overflow-x:hidden; overflow-y:auto; transform:translateX(-102%); transition:transform .15s; box-shadow:none; visibility:hidden; }
+  .ide.sidebar-open .ide-sidebar { transform:none; visibility:visible; box-shadow:4px 0 18px rgba(0,0,0,.28); }
+  #sidebar-toggle { display:inline-flex; align-items:center; }
+  .ide-toolbar { gap:6px; padding:6px 8px; }
+  .ide-toolbar button, .ide-toolbar .btn { height:30px; padding:0 8px; font-size:12px; }
+  .ide-edit-area { min-height:140px; }
+  #line-numbers { min-width:34px; padding-left:4px; padding-right:6px; }
+  .ide-status { gap:8px; padding:4px 8px; flex-wrap:wrap; }
+  .ide-debug { max-height:110px; }
+  .ide-debug > .ide-heading { padding:4px 8px; gap:4px; }
+  .ide-debug > .ide-heading button { height:26px; padding:0 6px; font-size:12px; }
+  .ide-console { height:110px; min-height:80px; }
+  .ide-shot { max-height:60vh; }
+  .search-actions { flex-wrap:wrap; }
+}

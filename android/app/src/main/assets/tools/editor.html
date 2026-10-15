@@ -9,7 +9,7 @@
 <body class="xs-shell">
 <header class="xs-appbar" data-page="editor"></header>
 <main class="ide">
- <aside class="ide-sidebar" aria-label="工程与文件">
+ <aside class="ide-sidebar" id="files-drawer" aria-label="工程与文件">
   <div class="ide-heading"><strong>工程</strong><button id="new-project" type="button" title="新建工程">新建</button></div>
   <label class="sr-only" for="projects">选择工程</label><select id="projects"><option value="">选择工程…</option></select>
   <div class="ide-heading" id="files-heading"><strong>文件</strong><div><button id="open-search" type="button" aria-pressed="false" title="在工程内搜索和替换（Ctrl/Cmd+Shift+F）">搜索</button><button id="new-file" type="button" title="新建文件，可含子目录，如 lib/util.py">新建</button><button id="new-folder" type="button" title="新建文件夹">文件夹</button><button id="refresh" type="button" title="刷新文件列表">刷新</button></div></div>
@@ -19,7 +19,7 @@
    <div class="search-row"><input id="search-q" type="text" placeholder="搜索" aria-label="搜索内容" autocomplete="off" spellcheck="false"><span class="search-opts"><button id="s-case" type="button" aria-pressed="false" title="区分大小写">Aa</button><button id="s-word" type="button" aria-pressed="false" title="全字匹配">ab</button><button id="s-regex" type="button" aria-pressed="false" title="正则表达式">.*</button></span></div>
    <input id="search-r" type="text" placeholder="替换为（可留空）" aria-label="替换内容" autocomplete="off" spellcheck="false">
    <input id="search-inc" type="text" placeholder="文件：*.py, lib/**, !tests/**" aria-label="包含的文件" autocomplete="off" spellcheck="false">
-   <div class="search-actions"><button id="search-go" type="button" class="primary">搜索</button><button id="replace-all" type="button" disabled title="替换全部结果（Shift+Enter 在替换框内）">全部替换</button></div>
+   <div class="search-actions"><button id="search-go" type="button" class="primary">搜索</button><button id="replace-all" type="button" disabled title="替换全部结果（Shift+Enter 在替换框内）">全部替换</button><button id="replace-undo" type="button" disabled title="没有可撤销的替换">撤销替换</button></div>
    <div id="search-summary" class="search-summary" role="status" aria-live="polite"></div>
    <div id="search-results" class="search-results" aria-label="搜索结果"></div>
   </section>
@@ -29,6 +29,7 @@
  </aside>
  <section class="ide-workspace" aria-label="脚本工作区">
   <div class="ide-toolbar" role="toolbar" aria-label="编辑与运行">
+   <button id="sidebar-toggle" type="button" aria-expanded="false" aria-controls="files-drawer" title="显示/隐藏工程与文件">☰ 文件</button>
    <button id="save" type="button" disabled><i data-i="save"></i> 保存 <kbd>⌘/Ctrl S</kbd></button>
    <button id="run" class="primary" type="button" disabled><i data-i="play"></i> 保存并运行 <kbd>F6</kbd></button>
    <button id="debug-run" type="button" disabled>保存并调试</button>

@@ -221,6 +221,7 @@
     close(doc) { this.documents.delete(this.key(doc.path, doc.project)); }
 
     // ---- project-wide search / replace ----
+    static get MAX_UNDO_CHARS() { return 20 * 1024 * 1024; }
     static get search() { return root.EditorSearch || (typeof require === "function" ? require("./editor-search.js").EditorSearch : null); }
     /**
      * Search every text file of the project (unsaved editor content wins over the saved file).
@@ -228,6 +229,10 @@
      */
     async searchProject(query, opts = {}, project = this.project) {
       const S = EditorModel.search, re = S.compile(query, opts), keep = S.globFilter(opts.include);
+      const guard = S.guard(opts);   // regex runs in a killable worker (timeout), literal searches inline
+      try { return await this.searchWith(guard, S, re, keep, opts, project); } finally { guard.dispose(); }
+    }
+    async searchWith(guard, S, re, keep, opts, project) {
       const tree = await this.listTree(project);
       const names = tree.files.filter(f => keep(f.path));
       const results = []; let total = 0, truncated = false, skipped = 0, scanned = 0;
@@ -239,23 +244,26 @@
         if (file.encoding === "base64") return null;
         return file.content || "";
       };
-      let next = 0;
+      let next = 0, failure = null;
       const worker = async () => {
         for (;;) {
-          const f = names[next++]; if (!f) return;
+          const f = names[next++]; if (!f || failure) return;
           if (total >= S.MAX_TOTAL) { truncated = true; return; }
           let text;
           try { text = await readText(f); } catch (e) { skipped++; continue; }
           if (text === null) { skipped++; continue; }
           scanned++;
           if (text.length > S.MAX_FILE) { skipped++; continue; }
-          const matches = S.find(text, new RegExp(re.source, re.flags));
+          let matches;
+          try { matches = await guard.find(text, new RegExp(re.source, re.flags), S.MAX_PER_FILE); }
+          catch (e) { failure = failure || e; return; }
           if (!matches.length) continue;
           if (matches.length >= S.MAX_PER_FILE) truncated = true;
           total += matches.length; results.push({path: f.path, matches});
         }
       };
       await Promise.all([worker(), worker(), worker(), worker()]);
+      if (failure) throw failure;
       results.sort((a, b) => a.path < b.path ? -1 : 1);
       return {results, files: results.length, matches: total, truncated, skipped, scanned};
     }
@@ -265,18 +273,50 @@
      */
     async replaceInFiles(paths, query, replacement, opts = {}, project = this.project) {
       const S = EditorModel.search, re = S.compile(query, opts);
-      let files = 0, count = 0; const unsaved = [];
-      for (const path of paths) {
-        const doc = await this.open(path, project);
-        if (doc.binary) continue;
-        const r = S.replaceAll(doc.content, new RegExp(re.source, re.flags), replacement, opts);
-        if (!r.count) continue;
-        const wasDirty = this.dirty(doc);
-        this.edit(doc, r.text);
-        if (wasDirty) unsaved.push(path); else await this.save(doc);
-        files++; count += r.count;
+      let files = 0, count = 0; const unsaved = [], changes = [];
+      const guard = S.guard(opts);
+      try {
+        for (const path of paths) {
+          const doc = await this.open(path, project);
+          if (doc.binary) continue;
+          const r = await guard.replaceAll(doc.content, new RegExp(re.source, re.flags), replacement, opts);
+          if (!r.count) continue;
+          const wasDirty = this.dirty(doc), before = doc.content;
+          this.edit(doc, r.text);
+          if (wasDirty) unsaved.push(path); else await this.save(doc);
+          changes.push({path, before, after: r.text, saved: !wasDirty});
+          files++; count += r.count;
+        }
+      } finally { guard.dispose(); this.rememberReplace(project, changes); }
+      return {files, count, unsaved, undoable: !!this.lastReplace};
+    }
+    // One-step undo of the latest 全部替换: the before/after text of every file it changed (bounded memory).
+    rememberReplace(project, changes) {
+      if (!changes.length) return;   // nothing changed: the previous undo still applies
+      const size = changes.reduce((n, c) => n + c.before.length + c.after.length, 0);
+      this.lastReplace = size <= EditorModel.MAX_UNDO_CHARS ? {project, changes, time: Date.now()} : null;
+    }
+    /**
+     * Undo the latest replace. A file is restored only if it still holds exactly what the replace produced; files edited
+     * since, renamed or deleted are left alone and reported. Files the replace had written to the device are written back.
+     * Returns {restored:[paths], skipped:[{path, reason}]}.
+     */
+    async undoReplace() {
+      const last = this.lastReplace;
+      if (!last) throw new Error("没有可撤销的替换");
+      const restored = [], skipped = [], keep = [];
+      for (const c of last.changes) {
+        let doc;
+        try { doc = await this.open(c.path, last.project); } catch (e) { skipped.push({path: c.path, reason: "文件已不存在"}); continue; }
+        if (doc.binary || doc.content !== c.after) { skipped.push({path: c.path, reason: "替换之后又被修改过"}); keep.push(c); continue; }
+        this.edit(doc, c.before);
+        if (c.saved) {
+          try { await this.save(doc); } catch (e) { skipped.push({path: c.path, reason: "写回失败：" + e.message}); keep.push(c); continue; }
+        }
+        restored.push(c.path);
       }
-      return {files, count, unsaved};
+      this.lastReplace = keep.length ? {project: last.project, changes: keep, time: last.time} : null;
+      return {restored, skipped};
     }
     async run(mode = "run") {
       const project = this.project;

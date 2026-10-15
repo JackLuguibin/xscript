@@ -115,3 +115,67 @@ test('tab helpers: which tabs close and which becomes active', () => {
   assert.equal(EditorModel.nextTab(t, t[1], t), null);
   assert.equal(EditorModel.nextTab(t, t[0], [t[2]]), t[0], 'closing another tab keeps the active one');
 });
+
+// ---- ReDoS guard (static part; the worker timeout is exercised in the browser test) ----
+test('riskyRegex flags nested unbounded repeats and over-long patterns, not ordinary ones', () => {
+  for (const bad of ['(a+)+', '(\\w*)*', '(.+)*', '(?:[ab]+){2,}', '(a+)+b', '(?<n>x*)*', '(\\d+)+$']) assert.ok(S.riskyRegex(bad), bad);
+  for (const ok of ['(\\d+\\.)*', '(foo|bar)+', '([a-z]+)\\s', '(?=a+)+', '\\(a+\\)+', '[(a+)+]', '(a+){1,5}', 'a+b*', '(a|aa)+', '(x)+', '(?:ab)+']) assert.equal(S.riskyRegex(ok), '', ok);
+  assert.match(S.riskyRegex('a'.repeat(S.MAX_PATTERN + 1)), /太长/);
+});
+test('compile rejects risky regexes only in regex mode', () => {
+  assert.throws(() => S.compile('(a+)+$', {regex: true}), /嵌套的无限重复/);
+  assert.equal(S.find('(a+)+$ here', S.compile('(a+)+$')).length, 1, 'literal mode escapes it');
+  assert.doesNotThrow(() => S.compile('(foo|bar)+', {regex: true}));
+});
+test('guard runs inline outside a browser and behaves like find / replaceAll', async () => {
+  const g = S.guard({regex: true});
+  assert.equal(g.worker, false);
+  assert.equal((await g.find('a1 b22', S.compile('\\w\\d+', {regex: true}), 10)).length, 2);
+  assert.deepEqual(await g.replaceAll('a=1', S.compile('(\\w)=(\\d)', {regex: true}), '$2=$1', {regex: true}), {text: '1=a', count: 1});
+  g.dispose();
+});
+
+// ---- model: one-step undo of a replace ----
+test('undoReplace restores written files and edited-only files, and leaves files changed since alone', async () => {
+  const d = fakeDevice({'a.py': 'x = old\nold()\n', 'b.py': 'old\n', 'c.py': 'old\n', 'd.py': 'keep\n'});
+  const model = new EditorModel(d.api); model.project = 'p';
+  const b = await model.open('b.py'); model.edit(b, 'old # mine\n');          // unsaved edit: replace only changes the editor
+  const r = await model.replaceInFiles(['a.py', 'b.py', 'c.py', 'd.py'], 'old', 'new', {word: true});
+  assert.equal(r.undoable, true);
+  assert.equal(d.disk.get('a.py'), 'x = new\nnew()\n');
+  const c = await model.open('c.py'); model.edit(c, 'new + mine\n');          // edited after the replace
+  const u = await model.undoReplace();
+  assert.deepEqual(u.restored.sort(), ['a.py', 'b.py']);
+  assert.deepEqual(u.skipped, [{path: 'c.py', reason: '替换之后又被修改过'}]);
+  assert.equal(d.disk.get('a.py'), 'x = old\nold()\n', 'written back to the device');
+  assert.equal(b.content, 'old # mine\n'); assert.ok(model.dirty(b), 'still unsaved: it was unsaved before');
+  assert.equal(d.disk.get('b.py'), 'old\n'); assert.equal(c.content, 'new + mine\n');
+  assert.equal(d.disk.get('d.py'), 'keep\n');
+  assert.ok(model.lastReplace && model.lastReplace.changes.length === 1, 'the skipped file stays undoable');
+  await model.undoReplace().then(x => assert.equal(x.restored.length, 0));
+});
+test('undoReplace is one step: a new replace forgets the old one; nothing to undo throws; missing file is skipped', async () => {
+  const d = fakeDevice({'a.py': 'one\n', 'b.py': 'one\n'});
+  const model = new EditorModel(d.api); model.project = 'p';
+  await assert.rejects(model.undoReplace(), /没有可撤销/);
+  await model.replaceInFiles(['a.py'], 'one', 'two');
+  await model.replaceInFiles(['b.py'], 'one', 'three');
+  assert.deepEqual(model.lastReplace.changes.map(c => c.path), ['b.py'], 'only the latest replace is kept');
+  d.disk.delete('b.py'); model.documents.clear();
+  const u = await model.undoReplace();
+  assert.deepEqual(u, {restored: [], skipped: [{path: 'b.py', reason: '文件已不存在'}]});
+  assert.equal(model.lastReplace, null);
+  assert.equal(d.disk.get('a.py'), 'two\n', 'the earlier replace is not undone');
+});
+test('a replace that changed nothing keeps the previous undo; an oversized one is not remembered', async () => {
+  const d = fakeDevice({'a.py': 'one\n'});
+  const model = new EditorModel(d.api); model.project = 'p';
+  await model.replaceInFiles(['a.py'], 'one', 'two');
+  const keep = model.lastReplace;
+  const r = await model.replaceInFiles(['a.py'], 'zzz', 'y');
+  assert.equal(r.files, 0);
+  assert.equal(model.lastReplace, keep, 'a replace that matched nothing leaves the undo slot alone');
+  model.rememberReplace('p', [{path: 'big', before: 'x'.repeat(EditorModel.MAX_UNDO_CHARS), after: 'y', saved: true}]);
+  assert.equal(model.lastReplace, null);
+  assert.ok(keep);
+});
