@@ -1,17 +1,21 @@
 #!/usr/bin/env bash
-# Install the vsix into an isolated Cursor / VS Code profile and run scripts/host-test inside the real extension host.
-#   scripts/cursor-host-test.sh [/path/to/Cursor|Code binary]   (needs `npm run package` first)
+# Install the vsix into an isolated VS Code profile and run scripts/host-test inside the real extension host.
+#   scripts/vscode-host-test.sh [/path/to/VS Code binary]   (needs `npm run package` first)
 # The command flows (add/scan/edit devices, new project, run + re-run, stop, pull) talk to scripts/mock_device.py by
 # default. Against a real phone / emulator instead:
 #   adb -s emulator-5554 forward tcp:19860 tcp:9860
-#   XS_HOST_TEST_DEVICE=127.0.0.1:19860 XS_HOST_TEST_REAL=1 XS_HOST_TEST_ADB=1 scripts/cursor-host-test.sh
+#   XS_HOST_TEST_DEVICE=127.0.0.1:19860 XS_HOST_TEST_REAL=1 XS_HOST_TEST_ADB=1 scripts/vscode-host-test.sh
 set -euo pipefail
 cd "$(dirname "$0")/.."
 BIN="${1:-}"
 if [ -z "$BIN" ]; then
-  for c in "/Applications/Cursor.app/Contents/MacOS/Cursor" "/Applications/Visual Studio Code.app/Contents/MacOS/Electron"; do [ -x "$c" ] && BIN="$c" && break; done
+  # Real VS Code only (stable build from https://code.visualstudio.com/Download; unzip it anywhere and point
+  # XS_VSCODE at ".../Visual Studio Code.app/Contents/MacOS/Code"). Everything runs in an isolated profile.
+  for c in "${XS_VSCODE:-}" "/tmp/vscode-real/Visual Studio Code.app/Contents/MacOS/Code" "/Applications/Visual Studio Code.app/Contents/MacOS/Code"; do
+    [ -n "$c" ] && [ -x "$c" ] && BIN="$c" && break
+  done
 fi
-[ -x "$BIN" ] || { echo "no Cursor / VS Code binary found"; exit 2; }
+[ -x "$BIN" ] || { echo "no VS Code binary found: download it (curl -L -o vscode.zip https://update.code.visualstudio.com/latest/darwin-arm64/stable), unzip, and pass the Contents/MacOS/Code path or set XS_VSCODE"; exit 2; }
 # the `code` CLI wrapper next to the app installs extensions headlessly (the Electron binary itself would open a window)
 CLI="$(cd "$(dirname "$BIN")/../Resources/app/bin" 2>/dev/null && pwd)/code"
 [ -x "$CLI" ] || { echo "no CLI wrapper at $CLI"; exit 2; }

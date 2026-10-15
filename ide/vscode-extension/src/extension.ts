@@ -602,6 +602,8 @@ export interface XScriptApi {
   store: DeviceStore;
   tree: XScriptTree;
   refreshStatus: () => Promise<void>;
+  /** Text of the status bar item (for the extension-host test). */
+  statusText: () => string;
 }
 
 export function activate(context: vscode.ExtensionContext): XScriptApi {
@@ -664,7 +666,7 @@ export function activate(context: vscode.ExtensionContext): XScriptApi {
   loop();
   context.subscriptions.push({ dispose: () => { disposed = true; if (timer) clearTimeout(timer); } });
   void refreshStatus();
-  return { store, tree, refreshStatus };
+  return { store, tree, refreshStatus, statusText: () => statusItem.text };
 }
 
 export function deactivate(): void {

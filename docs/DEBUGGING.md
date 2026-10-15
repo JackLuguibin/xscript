@@ -74,7 +74,7 @@ node scripts/debug-smoke-advanced.js 127.0.0.1:19861   # 14 项检查：i == 7 �
 在真正的 Cursor 里加载（隔离的临时配置，不动你的 Cursor 设置）：
 
 ```sh
-cd ide/vscode-extension && npm run package && scripts/cursor-host-test.sh
+cd ide/vscode-extension && npm run package && scripts/vscode-host-test.sh
 ```
 
 脚本用 `code` CLI 安装 vsix，以 `--extensionDevelopmentPath` + `--extensionTestsPath` 启动 Cursor 扩展宿主，检查：扩展已安装并激活、11 条命令、`xscript` 调试类型、Alt+F6 快捷键、`xscript.status` 可执行、工作区 `__init__.py`。没有驱动编辑器的调试界面（点断点、点 F10），那一部分只验证了适配器核心。

@@ -4,7 +4,7 @@
 
 | 路径 | 作用 |
 | --- | --- |
-| `vscode-extension/` | VS Code / Cursor 扩展：上传并运行项目、一键断点调试、跟踪日志、在设备上运行选中代码、截图、内置存根 |
+| `vscode-extension/` | VS Code / Cursor 扩展：活动栏设备 / 工程视图、设备扫描、新建工程、增量同步与拉取、运行 / 停止 / 一键断点调试、日志、在设备上运行选中代码、截图、内置存根（对照 AScript 官方扩展，见其 README） |
 | `mcp-server/` | Cursor MCP（`xscript-mcp`），让 AI 能看到屏幕，编写、上传和运行脚本。见 [mcp-server/README.md](mcp-server/README.md) |
 | `python-stubs/` | 生成的 `.pyi` 存根，用于 `xscript.*` / `ascript.*` 自动补全（`scripts/gen_stubs.py`） |
 
@@ -23,16 +23,18 @@ cursor --install-extension xscript-vscode-0.2.0.vsix   # 或：code --install-ex
 
 | 命令 | 默认快捷键 | 作用 |
 | --- | --- | --- |
-| XScript: Connect to Device | 状态栏 | 设置 `xscript.device`（地址见 App 中的“开发者地址”，默认 `127.0.0.1:9860`） |
-| XScript: Upload and Run Project | F6 | 保存并上传当前文件所在的项目，然后运行，并在 输出（Output）→ XScript 中跟踪日志 |
-| XScript: Debug Project on Device | Alt+F6 | 保存并上传项目，以调试方式启动并连接（调试类型 `xscript`，也可用 launch.json） |
-| XScript: Stop Project | Shift+F6 | 停止正在运行的项目 |
-| XScript: Upload Project | | 仅上传 |
-| XScript: Follow Run Logs | | 开启 / 关闭日志跟踪 |
-| XScript: Run Selection on Device | | 对选中内容（或当前行）调用 `/eval` |
-| XScript: Screenshot | | 在编辑器中打开设备截图 |
-| XScript: Open Developer Tools | | 在浏览器中打开 `/tools/`（脚本 IDE / 图色 / 标注 / 投屏） |
-| XScript: Enable API Autocomplete | | 把内置存根加入 `python.analysis.extraPaths` |
+| XScript: 选择运行设备 / 管理设备列表 / 添加 / 扫描设备 | 编辑器右上角手机图标 | 设备列表、ADB + 局域网扫描；当前设备保存在工作区 `xscript.device` |
+| XScript: 新建工程 | | 模板（空 / Hello / AScript 写法），生成 `__init__.py`、`build.as`、`res/` |
+| XScript: 运行（Upload and Run Project） | Ctrl+Shift+R（AScript 同款）、F6 | 先停止正在运行的脚本，再增量同步（遵守 `.vscode/.syncignore`），再运行，日志在 Output → XScript |
+| XScript: 停止 | Shift+F6 | |
+| XScript: 调试当前工程 | Alt+F6 | 保存并上传项目，以调试方式启动并连接（调试类型 `xscript`，也可用 launch.json） |
+| XScript: 上传工程 / 工程同步 / 从设备拉取工程 / 编辑同步忽略规则 | | 上传是全量；拉取先确认会被覆盖的文件 |
+| XScript: 跟踪运行日志 / 显示设备状态 / 连接设备 | 状态栏 | |
+| XScript: 在设备上运行选中代码 | | 对选中内容（或当前行）调用 `/eval` |
+| XScript: 截图 / 打开开发者工具 / 投屏 / ADB 终端 | | 截图在编辑器里打开；开发者工具和投屏在浏览器里打开手机上的页面 |
+| XScript: 启用 API 自动补全 | | 把内置存根加入 `python.analysis.extraPaths` |
+
+活动栏的 **XScript** 视图：设备（在线状态、行内运行 / 停止）、手机上的工程（行内运行 / 拉取）、工具。与 AScript 官方扩展的逐项对照（哪些做了、哪些因为是 AScript 自家服务或格式而不做）见 [vscode-extension/README.md](vscode-extension/README.md)。
 
 项目根目录是当前文件之上、含有 `__init__.py` 的最顶层文件夹；该文件夹名就是设备上的项目名。
 

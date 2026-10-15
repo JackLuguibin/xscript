@@ -6,6 +6,16 @@
 
 ### 新增
 
+- **VS Code 扩展对齐 AScript 官方扩展（0.2.0）**：对照应用市场里的 AScript 扩展 0.3.0（读了它的 vsix 清单和官方文档）补齐：
+  - 活动栏 **XScript** 视图：保存的设备（在线 / 离线、运行状态、行内运行 / 停止）、手机上的工程（行内运行 / 拉取）、工具入口。
+  - **设备管理**：添加 / 编辑 / 删除、选择运行设备（编辑器右上角手机图标，记在工作区设置）、**扫描设备**（ADB 含自动 `adb forward`，加局域网 9860 端口）。
+  - **新建工程**（空 / Hello / AScript 写法模板，生成 `__init__.py` + `build.as` + `res/`）；`build.as` 也被识别为工程。
+  - **同步**：增量上传（按大小 + 内容摘要，只传新增和修改的文件）、`.vscode/.syncignore`（gitignore 风格，和 AScript 同一路径）、从设备拉取工程（有差异先确认）、`工程同步` 菜单。
+  - **运行**：Ctrl+Shift+R（AScript 同款，F6 保留）；再次运行先停止再同步再启动；运行时 ▶ 换成 ■（`xscript.running` 上下文）。
+  - 另有 ADB 终端、投屏、命令中文标题（`package.nls.zh-cn.json`）、设置 `xscript.adbPath` / `xscript.scanLan`；版本 0.2.0。
+  - 不做的（AScript 自家服务或格式、或 XScript 不适用）：Windows 本地运行、iOS、`.was` 导包与上传分发、官网 / 云控入口、自动下载 scrcpy、公网地址 + 密码设备；逐项对照见 `ide/vscode-extension/README.md`。
+  - 验证：38 个单元测试；`scripts/vscode-host-test.sh`（原 `cursor-host-test.sh`，现在只用真实 VS Code 1.142，隔离配置）在 mock 和两台模拟器上各 36 项通过，含经 VS Code 调试 API 在断点处停下并求值、截图、扫描、运行 / 重新运行 / 停止 / 拉取。
+- **修复：调试启动偶发超时**：「等待调试器初始化」的 20 秒超时用了测试里被缩短的 sleep，机器忙时偶尔把握手判成超时（`verify.sh` 里见过一次）；改用真实计时器。
 - **Python 版本统一为 3.10+**：管理后台的 `requires-python` 从 3.11 降到 3.10，和设备（3.10）、MCP 服务（3.10+）一致；3.10 通过环境标记使用 `websockets 16.1.1` / `sqlalchemy 2.0.54`，3.11+ 仍用 `17.1` / `2.1.1`。`scripts/verify.sh` 新增 3.10 检查（`.venv310`，用 uv 自动创建，无 uv 或离线时跳过）。顺带让打包队列的 `asyncio.Queue` 在运行中的事件循环里才创建。不支持 3.9：`mcp` 包本身要求 3.10+。文档补充了 AScript（设备 3.8，电脑 3.9–3.13）和 XScript 的 Python 版本对照。
 - **支持 16KB 页面设备（numpy / OpenCV / Pillow 恢复可用）**：以前在 16KB 页面的设备或模拟器上，内置 numpy 导入失败（`library "libopenblas.so" not found`），OpenCV、Pillow、图片字库（CvFontLib）、`screen.capture_cv()`、OCR 和 YOLO 跟着不可用。根因是 Chaquopy 17 提供的 numpy 1.23.3、opencv-python 4.5.1.48、Pillow 9.2.0 的原生库只按 4KB 对齐，没有可升级的对齐版本。现在清单里开启 `android:pageSizeCompat="enabled"`（系统的 16KB 兼容模式），16KB 和 4KB 页面的模拟器上这些功能都通过（`device_cvfont_e2e.py`、`device_ml_e2e.py`、新的 `device_native_e2e.py`、截图 / 调试 / 链接启动冒烟）。新增 `scripts/check_16kb.py <apk>`（`zipalign -c -P 16`、所有 `.so`（含 pip 轮子里的）的 ELF 对齐、清单属性；`--strict` 要求全部 16KB 对齐）和 `scripts/device_native_e2e.py <设备地址>`。限制：轮子里仍有 4KB 对齐的原生库，兼容模式首次加载稍慢、内存略高，只在 Android 17 模拟器验证过；彻底对齐需要自己用 NDK 重编这些轮子或等 Chaquopy 发布。
 - **网页 IDE：撤销替换、正则防卡死、手机屏幕布局**：
