@@ -63,7 +63,21 @@ adb forward tcp:19860 tcp:9860
 cd ide/vscode-extension && npm run compile && node scripts/debug-smoke.js 127.0.0.1:19860
 ```
 
-该脚本直接驱动适配器核心，在 emulator-5554 上验证了：上传 → 启动 → 断点命中（本地路径）→ 变量 → 单步 → evaluate → 继续 → 输出 → 断开，以及分离后脚本自己跑完。没有在真正的 VS Code / Cursor 界面里加载过扩展；条件断点、命中次数、日志点和修改变量只是声明并原样转发给 debugpy，没有逐项实测。
+该脚本直接驱动适配器核心，在 emulator-5554 上验证了：上传 → 启动 → 断点命中（本地路径）→ 变量 → 单步 → evaluate → 继续 → 输出 → 断开，以及分离后脚本自己跑完。条件断点、命中次数、日志点、修改变量单独用高级脚本在两台模拟器（5554 / 5556）上实测：
+
+```sh
+node scripts/debug-smoke-advanced.js 127.0.0.1:19861   # 14 项检查：i == 7 条件断点、命中次数 4、setVariable 改 x 后 y 随之变化、非法值不破坏变量、日志点不停并输出 10 行
+```
+
+实测发现并修复：适配器以前把 debugpy 的所有 stdout 输出当作重复丢弃，日志点（debugpy 自己产生、带 source / line）的内容因此在调试控制台里看不到；现在带 source / line 的输出会保留并映射成本地路径。注意 debugpy 对 `setVariable` 的非法表达式（如 `1 +`）不报错，而是返回旧值。
+
+在真正的 Cursor 里加载（隔离的临时配置，不动你的 Cursor 设置）：
+
+```sh
+cd ide/vscode-extension && npm run package && scripts/cursor-host-test.sh
+```
+
+脚本用 `code` CLI 安装 vsix，以 `--extensionDevelopmentPath` + `--extensionTestsPath` 启动 Cursor 扩展宿主，检查：扩展已安装并激活、11 条命令、`xscript` 调试类型、Alt+F6 快捷键、`xscript.status` 可执行、工作区 `__init__.py`。没有驱动编辑器的调试界面（点断点、点 F10），那一部分只验证了适配器核心。
 
 ## 同轮短信修正
 

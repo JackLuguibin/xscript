@@ -293,7 +293,8 @@ export class XScriptDebugSession {
       if (!FORWARD_EVENTS.has(msg.event)) return;
       const body = this.map ? this.map.map(msg.body ?? {}, (p) => this.map!.toLocal(p)) : msg.body ?? {};
       // The script's own output reaches the Debug Console through the log poller; skip debugpy's duplicate.
-      if (msg.event === "output" && (body.category === "stdout" || body.category === "stderr")) return;
+      // Logpoint messages are debugpy-only output (they never touch the script's stdout) and carry source/line: keep them.
+      if (msg.event === "output" && (body.category === "stdout" || body.category === "stderr") && !body.source && !body.line) return;
       this.send({ type: "event", event: msg.event, body });
     }
   }

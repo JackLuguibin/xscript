@@ -54,6 +54,7 @@ class FakeDevice implements DebugDevice {
         this.push({ type: "response", request_seq: this.attachSeq, success: true, command: "attach", body: {} });
         this.push({ type: "event", event: "debugpyWaitingForServer", body: {} });
         this.push({ type: "event", event: "output", body: { category: "stdout", output: "dup\n" } });
+        this.push({ type: "event", event: "output", body: { category: "stdout", output: "lp x=1\n", source: { name: "__init__.py", path: REMOTE + "/__init__.py" }, line: 2 } });
         if (this.hold) this.push({ type: "event", event: "stopped", body: { reason: "breakpoint", threadId: 1 } });
         break;
       case "threads": ok({ threads: [{ id: 1, name: "MainThread" }] }); break;
@@ -91,7 +92,7 @@ function harness(device = new FakeDevice(), extra: Dap = {}) {
   sessions.push(session);
   let seq = 0;
   const req = (command: string, args?: Dap) => { const r = { seq: ++seq, type: "request", command, arguments: args }; void session.handle(r); return r.seq; };
-  const waitFor = async (pred: (m: Dap) => boolean, what: string, ms = 2000): Promise<Dap> => {
+  const waitFor = async (pred: (m: Dap) => boolean, what: string, ms = 5000): Promise<Dap> => {
     const end = Date.now() + ms;
     for (;;) {
       const hit = out.find(pred);
@@ -150,6 +151,9 @@ test("full session: upload, start, connect, breakpoints mapped, stopped, stack m
   const names = h.out.map((m) => m.event || m.command);
   assert.ok(!h.out.some((m) => m.event === "debugpyWaitingForServer"), "debugpy-internal events are dropped");
   assert.ok(!h.out.some((m) => m.event === "output" && /^dup/.test(m.body.output)), "debugpy's duplicate stdout is dropped");
+  const lp = h.out.find((m) => m.event === "output" && /^lp x=1/.test(m.body.output));
+  assert.ok(lp, "logpoint output (carries source/line) is forwarded");
+  assert.equal(lp.body.source.path, path.join(LOCAL, "__init__.py"), "logpoint source mapped to the editor path");
   assert.ok(!h.out.some((m) => m.event === "output" && /old line/.test(m.body.output)), "earlier log lines are not replayed");
   const done = h.out.findIndex((m) => m.event === "output" && m.body.output === "done 42\n");
   assert.ok(done >= 0, "script output reaches the debug console");

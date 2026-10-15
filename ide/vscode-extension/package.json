@@ -111,6 +111,7 @@
     "watch": "tsc -watch -p .",
     "test": "node --test \"out/test/**/*.test.js\"",
     "vscode:prepublish": "npm run compile",
+    "host-test": "bash scripts/cursor-host-test.sh",
     "package": "npx --yes @vscode/vsce@3.6.2 package --no-dependencies"
   },
   "devDependencies": {
