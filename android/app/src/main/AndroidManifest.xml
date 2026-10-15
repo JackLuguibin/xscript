@@ -55,6 +55,19 @@
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
         </activity>
+        <!-- xscript://run?name=… and xscript://stop (packaged apps: <application id>://…). Gated by Settings.schemeMode. -->
+        <activity
+            android:name=".link.SchemeActivity"
+            android:exported="true"
+            android:excludeFromRecents="true"
+            android:theme="@android:style/Theme.Translucent.NoTitleBar">
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data android:scheme="${linkScheme}" />
+            </intent-filter>
+        </activity>
         <activity
             android:name=".MainActivity"
             android:exported="false"

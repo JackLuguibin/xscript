@@ -40,6 +40,18 @@ object Settings {
         get() = prefs().getBoolean("dev_server", !com.xscript.app.BuildConfig.PACKAGED)
         set(value) = prefs().edit().putBoolean("dev_server", value).apply()
 
+    /** `xscript://run` links: "confirm" (ask each time, default), "allow" or "off". See link.SchemeLink. */
+    var schemeMode: String
+        get() = prefs().getString("scheme_mode", com.xscript.app.link.SchemeLink.MODE_CONFIRM)
+            ?.takeIf { com.xscript.app.link.SchemeLink.isMode(it) } ?: com.xscript.app.link.SchemeLink.MODE_CONFIRM
+        set(value) = prefs().edit().putString("scheme_mode", value).apply()
+
+    fun schemeModeLabel(mode: String = schemeMode): String = when (mode) {
+        com.xscript.app.link.SchemeLink.MODE_ALLOW -> "直接运行"
+        com.xscript.app.link.SchemeLink.MODE_OFF -> "已关闭"
+        else -> "每次确认"
+    }
+
     var lastProject: String
         get() = prefs().getString("last_project", "") ?: ""
         set(value) = prefs().edit().putString("last_project", value).apply()

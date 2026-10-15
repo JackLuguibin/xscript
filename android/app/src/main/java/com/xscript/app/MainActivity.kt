@@ -54,6 +54,7 @@ class MainActivity : AppCompatActivity() {
     private lateinit var rowEndpoint: UiKit.Row
     private lateinit var rowAi: UiKit.Row
     private lateinit var rowMode: UiKit.Row
+    private lateinit var rowLink: UiKit.Row
     private lateinit var rowOverlay: UiKit.Row
     private lateinit var rowA11y: UiKit.Row
     private lateinit var rowRoot: UiKit.Row
@@ -100,6 +101,7 @@ class MainActivity : AppCompatActivity() {
         rowEndpoint = UiKit.row(dev, "</>", 0xFF2F7CF6.toInt(), "开发者地址") { copyEndpoint() }
         rowAi = UiKit.row(dev, "✦", 0xFF10A37F.toInt(), "AI 编程连接") { showAiHelp() }
         rowMode = UiKit.row(dev, "▶", 0xFF8E44AD.toInt(), "运行模式") { chooseMode() }
+        rowLink = UiKit.row(dev, "⇄", 0xFF6366F1.toInt(), "链接启动") { chooseLinkMode() }
         rowOverlay = UiKit.row(dev, "▣", 0xFF34A853.toInt(), "悬浮窗权限") { openOverlaySettings() }
         rowRoot = UiKit.row(dev, ">_", 0xFF2F7CF6.toInt(), "Root 权限") { requestRoot() }
         rowCapture = UiKit.row(dev, "◎", 0xFFE5484D.toInt(), "图色权限") { requestCapture() }
@@ -169,6 +171,7 @@ class MainActivity : AppCompatActivity() {
         val ai = ClientTracker.active()
         if (ai != null) rowAi.value("已连接", UiKit.GREEN) else rowAi.value("未连接")
         rowMode.value(Settings.runModeLabel())
+        rowLink.value(Settings.schemeModeLabel())
 
         val overlay = FloatControl.canShow(this)
         rowOverlay.value(if (overlay) "已授权" else "未授权", if (overlay) UiKit.GREEN else UiKit.RED)
@@ -248,6 +251,19 @@ class MainActivity : AppCompatActivity() {
                     "USB 连接时执行 adb forward tcp:${NetworkInfo.PORT} tcp:${NetworkInfo.PORT}，并使用 127.0.0.1:${NetworkInfo.PORT}。",
             )
             .setPositiveButton("好", null)
+            .show()
+    }
+
+    private fun chooseLinkMode() {
+        val modes = arrayOf(com.xscript.app.link.SchemeLink.MODE_CONFIRM, com.xscript.app.link.SchemeLink.MODE_ALLOW, com.xscript.app.link.SchemeLink.MODE_OFF)
+        AlertDialog.Builder(this)
+            .setTitle("链接启动（xscript://run?name=…）")
+            .setSingleChoiceItems(modes.map { Settings.schemeModeLabel(it) }.toTypedArray(), modes.indexOf(Settings.schemeMode)) { d, which ->
+                Settings.schemeMode = modes[which]
+                d.dismiss()
+                refresh()
+            }
+            .setNegativeButton("取消", null)
             .show()
     }
 

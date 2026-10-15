@@ -64,6 +64,7 @@ android {
         buildConfigField("String", "UPDATE_CHANNEL", packProp("update_channel").kotlinQuoted())
         buildConfigField("String", "UPDATE_PUBKEY", packProp("update_pubkey").kotlinQuoted())
         buildConfigField("int", "PACK_SCRIPT_CODE", packProp("script_code", "0").ifEmpty { "0" }.toInt().toString())
+        manifestPlaceholders["linkScheme"] = if (packed) packProp("app_id").lowercase() else "xscript"
         manifestPlaceholders["appLabel"] = if (packed) "@string/pack_app_name" else "@string/app_name"
         manifestPlaceholders["appIcon"] =
             if (packed && packProp("icon").isNotEmpty()) "@drawable/ic_pack" else "@drawable/ic_launcher"

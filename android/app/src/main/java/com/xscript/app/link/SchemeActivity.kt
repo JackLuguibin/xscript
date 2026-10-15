@@ -1,0 +1,75 @@
+package com.xscript.app.link
+
+import android.app.Activity
+import android.app.AlertDialog
+import android.content.Intent
+import android.os.Bundle
+import android.widget.Toast
+import com.xscript.app.BuildConfig
+import com.xscript.app.project.ProjectStore
+import com.xscript.app.runtime.DapTransport
+import com.xscript.app.runtime.ScriptService
+import com.xscript.app.runtime.ScriptSupervisor
+import com.xscript.app.settings.Settings
+
+/**
+ * Entry for `xscript://run?name=…` / `xscript://stop` (packaged apps: `<application id>://…`).
+ * Transparent: it either toasts, asks for confirmation or starts the script, then finishes.
+ */
+class SchemeActivity : Activity() {
+    override fun onCreate(savedInstanceState: Bundle?) {
+        super.onCreate(savedInstanceState)
+        handle(intent)
+    }
+
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        handle(intent)
+    }
+
+    private fun handle(intent: Intent) {
+        val link = SchemeLink.parse(intent.dataString, scheme(), if (BuildConfig.PACKAGED) BuildConfig.PACK_PROJECT else "")
+        when (SchemeLink.decide(link, Settings.schemeMode)) {
+            "refuse" -> done(if (link is SchemeLink.Invalid) link.reason else "链接启动已关闭，可在首页「链接启动」里开启")
+            "run" -> execute(link)
+            else -> confirm(link as SchemeLink.Run)
+        }
+    }
+
+    private fun confirm(link: SchemeLink.Run) {
+        val from = referrer?.host?.takeIf { it.isNotBlank() }?.let { "\n来自：$it" } ?: ""
+        AlertDialog.Builder(this)
+            .setTitle("运行小程序")
+            .setMessage("有链接请求运行「${link.project}」。$from\n只运行你信任来源的链接。")
+            .setPositiveButton("运行") { _, _ -> execute(link) }
+            .setNegativeButton("取消") { _, _ -> finish() }
+            .setOnCancelListener { finish() }
+            .show()
+    }
+
+    private fun execute(link: SchemeLink) {
+        when (link) {
+            is SchemeLink.Stop -> {
+                DapTransport.disconnect()
+                ScriptService.stop(this)
+                done("已请求停止当前任务")
+            }
+            is SchemeLink.Run -> {
+                if (!ProjectStore(this).exists(link.project)) return done("工程不存在: ${link.project}")
+                if (ScriptSupervisor.isBusy(this)) return done("已有脚本在运行，请先停止")
+                Settings.lastProject = link.project
+                DapTransport.disconnect()
+                val refusal = ScriptService.run(this, link.project, params = link.params)
+                done(refusal ?: "已启动 ${link.project}")
+            }
+            is SchemeLink.Invalid -> done(link.reason)
+        }
+    }
+
+    private fun done(text: String) {
+        Toast.makeText(this, text, Toast.LENGTH_LONG).show()
+        finish()
+    }
+
+    private fun scheme() = if (BuildConfig.PACKAGED) BuildConfig.APPLICATION_ID.lowercase() else "xscript"
+}
