@@ -206,7 +206,7 @@
       }
       selected = {type: node.type, path: dst}; focusPath = dst; reveal(dst);
       await refreshFiles();
-      if (current && current.project === project) { cursor(); }
+      if (current && current.project === project) { assist.setFile(current.binary ? null : current.path); cursor(); }
       render();
       message("已将 " + from + (node.type === "dir" ? "/" : "") + " 移动为 " + dst + (node.type === "dir" ? "/" : ""));
     });
@@ -255,6 +255,9 @@
     render();
     const target = el("files").querySelector('[data-path="' + CSS.escape(focusPath) + '"]'); if (target) target.focus();
   });
+  // Completion popup + syntax diagnostics (editor-assist.js).
+  const assist = new EditorAssist({box: el("editor"), host: document.querySelector(".ide-code"), popup: el("complete"), layer: el("diag"),
+    problems: el("problems"), toggle: el("auto-complete"), onMarks: () => cursor()});
   // Syntax overlay: a <pre> behind the transparent textarea, re-rendered at most once per frame.
   let paintQueued = false;
   function paint() {
@@ -271,19 +274,23 @@
     const box = el("editor");
     el("highlight").scrollTop = box.scrollTop; el("highlight").scrollLeft = box.scrollLeft;
     el("line-numbers").scrollTop = box.scrollTop;
+    assist.syncScroll();
   }
   function cursor() {
     const value = el("editor").value, pos = el("editor").selectionStart;
     const before = value.slice(0, pos).split("\n");
     el("cursor").textContent = "行 " + before.length + "，列 " + (before[before.length - 1].length + 1);
     const breaks = new Set(current && debuggerClient.breakpoints.get(model.project + ":" + current.path) || []);
+    const marks = assist.marks();
     el("line-numbers").replaceChildren();
     for (let line = 1; line <= value.split("\n").length; line++) {
       const number = document.createElement("span"); number.textContent = (breaks.has(line) ? "● " : "") + line + "\n";
-      number.className = breaks.has(line) ? "breakpoint-line" : "";
+      number.className = (breaks.has(line) ? "breakpoint-line " : "") + (marks.has(line) ? "diag-line" : "");
+      if (marks.has(line)) number.title = marks.get(line);
       el("line-numbers").append(number);
     }
     el("line-numbers").scrollTop = el("editor").scrollTop;
+    assist.renderProblems();
     schedulePaint();
   }
   function show(doc) {
@@ -291,6 +298,7 @@
     el("editor").disabled = doc.binary;
     el("editor").value = doc.binary ? "此文件为二进制，请导出工程后查看。" : doc.content;
     message(doc.binary ? "二进制文件 · 只读" : doc.path + (model.dirty(doc) ? " · 未保存" : " · 已保存"));
+    assist.setFile(doc.binary ? null : doc.path);
     cursor(); render();
   }
   async function load(path) {
@@ -315,7 +323,7 @@
     await debuggerClient.close(); el("debug-state").textContent = "未连接";
     el("debug-stack").replaceChildren(); el("debug-variables").textContent = "";
     ++generation; model.project = project; current = null; files = []; dirs = []; selected = null;
-    el("editor").value = ""; el("editor").disabled = true; render(); cursor();
+    el("editor").value = ""; el("editor").disabled = true; assist.setFile(null); render(); cursor();
     await refreshFiles();
     if (model.project !== project) return;
     const first = files.find(f => f.path === "__init__.py") || files[0];
@@ -415,7 +423,7 @@
     operation(async () => {
       await model.remove(doc);
       debuggerClient.breakpoints.delete(doc.project + ":" + doc.path);
-      if (current && current.project === doc.project && current.path === doc.path) { ++generation; current = null; el("editor").value = ""; el("editor").disabled = true; cursor(); }
+      if (current && current.project === doc.project && current.path === doc.path) { ++generation; current = null; el("editor").value = ""; el("editor").disabled = true; assist.setFile(null); cursor(); }
       await refreshFiles();
       if (model.project !== doc.project) return;
       if (!current) {
@@ -425,10 +433,11 @@
       message("已删除 " + doc.path);
     });
   };
-  el("editor").addEventListener("input", () => { if (!current || current.binary) return; model.edit(current, el("editor").value); message(current.path + " · 未保存"); cursor(); render(); });
+  el("editor").addEventListener("input", e => { if (!current || current.binary) return; model.edit(current, el("editor").value); message(current.path + " · 未保存"); assist.onInput(e); cursor(); render(); });
   for (const name of ["click", "keyup"]) el("editor").addEventListener(name, cursor);
-  el("editor").addEventListener("scroll", syncScroll);
+  el("editor").addEventListener("scroll", () => { syncScroll(); assist.close(); });
   el("editor").addEventListener("keydown", e => {
+    if (assist.onKey(e)) return;
     if (e.key === "Tab" && !e.shiftKey) {
       e.preventDefault(); const box = e.target;
       box.setRangeText("    ", box.selectionStart, box.selectionEnd, "end"); box.dispatchEvent(new Event("input"));

@@ -57,6 +57,8 @@ async function launch(bin) {
   await page('Runtime.enable'); await page('Page.enable');
   return {
     errors,
+    /** Raw DevTools command on the page session (e.g. Page.captureScreenshot). */
+    cmd: (method, params) => page(method, params),
     async goto(url) {
       const loaded = new Promise(resolve => listeners.push(msg => { if (msg.sessionId === sessionId && msg.method === 'Page.loadEventFired') resolve(); }));
       await page('Page.navigate', {url}); await loaded;
@@ -77,6 +79,8 @@ async function launch(bin) {
     async key(key, code = key, keyCode = 0) {
       for (const type of ['keyDown', 'keyUp']) await page('Input.dispatchKeyEvent', {type, key, code, windowsVirtualKeyCode: keyCode});
     },
+    /** Real text input on the focused element (fires a trusted `input` event with inputType "insertText"). */
+    async insertText(text) { await page('Input.insertText', {text}); },
     async close() {
       try { ws.close(); } catch {}
       const gone = new Promise(resolve => child.exitCode !== null ? resolve() : child.once('exit', resolve));

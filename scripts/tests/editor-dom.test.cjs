@@ -258,6 +258,108 @@ test('Web IDE explorer, editor and create/delete flows in a real browser', {skip
       assert.equal(await b.eval(() => document.querySelector('#highlight span')), null, 'non-Python files are not tokenised');
     });
 
+
+    await t.test('completion popup: typing opens it, arrows/Enter/Tab/Esc/click behave, never in strings or comments', async () => {
+      await b.eval(click, row('__init__.py'));
+      await b.waitFor(() => document.getElementById('editor').value.length > 0 && !document.getElementById('editor').disabled);
+      const setup = text => b.eval(txt => { const e = document.getElementById('editor'); e.focus(); e.value = txt; e.setSelectionRange(txt.length, txt.length); e.dispatchEvent(new Event('input')); }, text);
+      const popup = () => b.eval(() => { const p = document.getElementById('complete'); return {open: !p.hidden, labels: [...p.querySelectorAll('li')].map(l => l.dataset.label), selected: [...p.querySelectorAll('li')].findIndex(l => l.getAttribute('aria-selected') === 'true'), expanded: document.getElementById('editor').getAttribute('aria-expanded')}; });
+      const value = () => b.eval(() => document.getElementById('editor').value);
+      await setup('from xscript.android import action\n');
+      await b.insertText('action.cl');
+      await b.waitFor(() => !document.getElementById('complete').hidden);
+      let p = await popup();
+      assert.ok(p.labels.includes('click'), JSON.stringify(p.labels)); assert.equal(p.expanded, 'true'); assert.equal(p.selected, 0);
+      assert.ok(await b.eval(() => { const li = document.querySelector('#complete li[aria-selected=true]'); return document.getElementById('editor').getAttribute('aria-activedescendant') === li.id; }), 'aria-activedescendant');
+      const geo = await b.eval(() => { const p = document.getElementById('complete').getBoundingClientRect(), h = document.querySelector('.ide-code').getBoundingClientRect(); return {inside: p.left >= h.left - 1 && p.right <= h.right + 1 && p.top >= h.top - 1 && p.bottom <= h.bottom + 1, docShown: !!document.querySelector('#complete .cdoc').textContent}; });
+      assert.ok(geo.inside, 'popup stays inside the editor area'); assert.ok(geo.docShown, 'signature/doc line shown');
+      await b.key('ArrowDown', 'ArrowDown', 40);
+      assert.equal((await popup()).selected, 1);
+      await b.key('ArrowUp', 'ArrowUp', 38);
+      const first = (await popup()).labels[0];
+      await b.key('Enter', 'Enter', 13);
+      assert.equal((await popup()).open, false, 'Enter accepts and closes');
+      assert.equal(await value(), 'from xscript.android import action\naction.' + first, 'Enter accepted, no newline inserted');
+      assert.equal(await b.eval(() => document.getElementById('editor').selectionStart === document.getElementById('editor').value.length), true);
+      assert.equal(await b.eval(() => document.getElementById('save').disabled), false, 'accepting counts as an edit');
+      // Tab accepts too (and does not insert spaces); Esc closes without changing text
+      await setup('from xscript.android import action\n');
+      await b.insertText('action.sw');
+      await b.waitFor(() => !document.getElementById('complete').hidden);
+      await b.key('Escape', 'Escape', 27);
+      assert.equal((await popup()).open, false); assert.equal(await value(), 'from xscript.android import action\naction.sw');
+      await b.insertText('i');
+      await b.waitFor(() => !document.getElementById('complete').hidden);
+      await b.key('Tab', 'Tab', 9);
+      assert.equal(await value(), 'from xscript.android import action\naction.swipe');
+      // mouse click on an item
+      await setup('import xscript.android.sc');
+      await b.insertText('r');
+      await b.waitFor(() => !document.getElementById('complete').hidden);
+      await b.eval(() => document.querySelector('#complete li').dispatchEvent(new MouseEvent('mousedown', {bubbles: true, cancelable: true})));
+      assert.match(await value(), /^import xscript\.android\.scr/); assert.equal((await popup()).open, false);
+      assert.equal(await b.eval(() => document.activeElement.id), 'editor', 'focus stays in the editor');
+      // not in comments or strings; not for a bare number
+      for (const text of ['# act', 'x = "act', 'x = 12']) {
+        await setup(text.slice(0, -1)); await b.insertText(text.slice(-1));
+        await new Promise(r => setTimeout(r, 60));
+        assert.equal((await popup()).open, false, text);
+      }
+      // Ctrl+Space forces; deleting never opens; the checkbox turns auto-popup off but Ctrl+Space still works
+      await setup('import time\ntime.');
+      await b.eval(() => document.getElementById('editor').dispatchEvent(new KeyboardEvent('keydown', {key: ' ', code: 'Space', ctrlKey: true, bubbles: true, cancelable: true})));
+      await new Promise(r => setTimeout(r, 30));
+      await setup('import time\nxscript');
+      await b.key('Backspace', 'Backspace', 8);
+      assert.equal((await popup()).open, false, 'backspace does not open');
+      await b.eval(() => { const c = document.getElementById('auto-complete'); c.checked = false; c.dispatchEvent(new Event('change')); });
+      await setup('from xscript.android import action\n'); await b.insertText('action.cl');
+      await new Promise(r => setTimeout(r, 60));
+      assert.equal((await popup()).open, false, 'auto popup disabled');
+      await b.eval(() => document.getElementById('editor').dispatchEvent(new KeyboardEvent('keydown', {key: ' ', code: 'Space', ctrlKey: true, bubbles: true, cancelable: true})));
+      assert.equal((await popup()).open, true, 'Ctrl+Space still opens it');
+      await b.key('Escape', 'Escape', 27);
+      await b.eval(() => { const c = document.getElementById('auto-complete'); c.checked = true; c.dispatchEvent(new Event('change')); });
+    });
+
+    await t.test('syntax diagnostics: wavy underlines, gutter marks, problems button; cleared while typing; Python files only', async () => {
+      await b.eval(click, row('__init__.py'));
+      await b.waitFor(() => document.getElementById('editor').value.length > 0 && !document.getElementById('editor').disabled);
+      await b.eval(() => { const e = document.getElementById('editor'); e.focus(); e.value = 'if x\n    pass\nprint "hi"\nok = (1,\n'; e.setSelectionRange(0, 0); e.dispatchEvent(new Event('input')); });
+      await b.waitFor(() => document.querySelectorAll('#diag .sq').length >= 3);
+      const d = await b.eval(() => ({
+        layer: document.getElementById('diag').textContent.replace(/\n$/, '') === document.getElementById('editor').value,
+        marks: [...document.querySelectorAll('#line-numbers .diag-line')].map(n => n.textContent.trim()),
+        title: document.querySelector('#line-numbers .diag-line').title,
+        count: document.getElementById('problems').dataset.count, text: document.getElementById('problems').textContent, hidden: document.getElementById('problems').hidden,
+        sq: getComputedStyle(document.querySelector('#diag .sq')).textDecorationLine,
+      }));
+      assert.equal(d.layer, true, 'diagnostic layer text matches the textarea (alignment)');
+      assert.deepEqual(d.marks, ['1', '3', '4']); assert.ok(d.title.length > 0);
+      assert.equal(d.count, '3'); assert.equal(d.hidden, false); assert.match(d.text, /第 1 行/); assert.match(d.sq, /underline/);
+      // problems button jumps to the next problem and moves the caret there
+      await b.eval(click, '#problems');
+      assert.equal(await b.eval(() => document.getElementById('editor').value.slice(0, document.getElementById('editor').selectionStart).split('\n').length), 1);
+      await b.eval(click, '#problems');
+      assert.equal(await b.eval(() => document.getElementById('editor').value.slice(0, document.getElementById('editor').selectionStart).split('\n').length), 3);
+      // typing clears stale squiggles immediately, then the check re-runs
+      await b.insertText('x');
+      assert.equal(await b.eval(() => document.querySelectorAll('#diag .sq').length), 0, 'stale marks dropped while typing');
+      await b.waitFor(() => document.querySelectorAll('#diag .sq').length >= 2);   // `xprint "hi"` is no longer a py2 print
+      // fix everything -> clean
+      await b.eval(() => { const e = document.getElementById('editor'); e.value = 'if x:\n    pass\nprint("hi")\nok = (1,)\n'; e.dispatchEvent(new Event('input')); });
+      await b.waitFor(() => document.getElementById('problems').dataset.count === '0');
+      assert.equal(await b.eval(() => document.querySelectorAll('#diag .sq, #line-numbers .diag-line').length), 0);
+      assert.match(await b.eval(() => document.getElementById('problems').textContent), /无语法问题/);
+      // non-Python files are not checked
+      await b.eval(click, row('readme.txt'));
+      await b.waitFor(() => document.getElementById('editor').value === 'hello\n');
+      await b.eval(() => { const e = document.getElementById('editor'); e.value = 'if x\n(((\n'; e.dispatchEvent(new Event('input')); });
+      await new Promise(r => setTimeout(r, 500));
+      assert.deepEqual(await b.eval(() => [document.querySelectorAll('#diag .sq').length, document.getElementById('problems').hidden]), [0, true]);
+      await b.eval(() => { const e = document.getElementById('editor'); e.value = 'hello\n'; e.dispatchEvent(new Event('input')); });
+    });
+
     assert.deepEqual(b.errors.filter(e => !/favicon/.test(e)), [], 'no page errors');
 
     await t.test('rename / move: F2, button, context menu and drag; tabs, edits and breakpoints follow', async () => {

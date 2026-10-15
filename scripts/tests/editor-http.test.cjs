@@ -64,7 +64,7 @@ test('Web IDE native HTTP contract and packaged asset routes', {timeout:15000}, 
     tree=await model.listTree();assert.equal(tree.files.some(f=>f.path==='pkg/sub/mod.py'),false);assert.equal(tree.dirs.includes('assets'),false);
     await model.createProject('第二个_工程');assert((await model.listProjects()).includes('第二个_工程'));
     assert.deepEqual((await model.listFiles()).map(f=>f.path),['__init__.py']);
-    for(const url of ['/tools/ui/editor.html','/tools/ui/editor.js','/tools/ui/editor-model.js','/tools/ui/editor-syntax.js','/tools/ui/editor.css','/website/src/editor.html']){
+    for(const url of ['/tools/ui/editor.html','/tools/ui/editor.js','/tools/ui/editor-model.js','/tools/ui/editor-syntax.js','/tools/ui/editor-api.js','/tools/ui/editor-complete.js','/tools/ui/editor-check.js','/tools/ui/editor-assist.js','/tools/ui/editor.css','/website/src/editor.html']){
       const r=await fetch(base+url);assert.equal(r.status,200,url);assert((await r.text()).length>0);
     }
   } finally {

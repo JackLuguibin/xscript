@@ -41,6 +41,8 @@ echo "== ide: mcp ($PY) =="
 PYTHONPATH=$MCP "$PY" -m unittest discover -s $MCP/tests
 echo "== ide: stubs up to date =="
 "$PY" "$ROOT/scripts/gen_stubs.py" --check
+echo "== android: Web IDE completion index up to date =="
+"$PY" "$ROOT/scripts/gen_completions.py" --check
 echo "== android: Web IDE state + HTTP contract + browser UI (headless Chrome if found) =="
 if command -v node >/dev/null 2>&1; then
   node --test scripts/tests/*.test.cjs

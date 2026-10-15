@@ -195,6 +195,7 @@ python3.10 -m venv .venv-rt
 
 ```bash
 python3 scripts/gen_stubs.py
+python3 scripts/gen_completions.py   # 网页 IDE 的补全索引
 ```
 
 设备调试回归测试会创建并清理自己的临时工程，执行前应确保没有其他脚本正在运行：
@@ -207,7 +208,7 @@ python3 scripts/device_debug_smoke.py --base http://127.0.0.1:19860
 
 项目持续开发中。基本 DAP 调试、短信查询和加速度传感器回调已在 ARM64 Android 17 / API 37 模拟器上验证；不同设备、ROM 和权限策略仍可能影响实际行为。
 
-以下能力尚未完整实现：独立输入法、外部 Java 插件加载、原始 HID 硬件通道、通用 BLE，以及完整 V4 加密脚本运行。网页 IDE 只有轻量的 Python 语法高亮，没有 API 补全、语法诊断和完整 IDE 的全部调试功能。具体范围见[功能对照](docs/功能对照.md)。
+以下能力尚未完整实现：独立输入法、外部 Java 插件加载、原始 HID 硬件通道、通用 BLE，以及完整 V4 加密脚本运行。网页 IDE 的补全和语法检查都是轻量的本地实现：补全覆盖 `xscript.*` / `ascript.*` 和文件内的名字，不做类型推断；语法检查只抓常见的括号、引号、冒号和缩进错误，不能替代运行；没有悬停提示、跳转定义、重构和完整 IDE 的全部调试功能。具体范围见[功能对照](docs/功能对照.md)。
 
 ## 文档
 
