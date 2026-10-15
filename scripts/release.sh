@@ -1,14 +1,22 @@
 #!/usr/bin/env bash
-# Reproducible release flow: App (APK) and VS Code extension (vsix) ship together under one version / one tag.
+# Release flow: App (APK) and VS Code extension (vsix) ship together under one version / one tag / one GitHub Release.
 #
-#   scripts/release.sh check                 versions agree (android versionName == extension version); used by verify.sh
+# PRIMARY PATH = CI: bump with `prepare`, commit + push, wait for the CI run on main to go green, then push the annotated tag
+# vX.Y.Z; .github/workflows/release.yml re-verifies, builds the signed APK (GitHub Secrets) and the vsix, writes SHA256SUMS,
+# checks the signing certificate and 16 KB alignment, and creates the Release. See docs/发布.md.
+#
+#   scripts/release.sh check                 versions agree (android versionName == extension version); used by verify.sh and CI
 #   scripts/release.sh prepare X.Y.Z         bump android versionName (+ versionCode + 1), extension package.json / lock,
 #                                            the README download link, and turn CHANGELOG "未发布" into "vX.Y.Z（date）".
 #                                            Edits files only; review, then commit (chore(release): vX.Y.Z) and push.
-#   scripts/release.sh build [--skip-apk]    dist/release/: xscript-vX.Y.Z-release.apk (signed with keys/release.properties,
-#                                            via android/build.sh), xscript-vscode-X.Y.Z.vsix, SHA256SUMS covering both
-#   scripts/release.sh publish [--yes]       tag vX.Y.Z on the pushed HEAD and `gh release create` with the three files and the
-#                                            CHANGELOG section as notes. Without --yes it only prints what it would do.
+#   scripts/release.sh build [--skip-apk]    dist/release/: xscript-vX.Y.Z-release.apk (signed with keys/release.properties, or the
+#                                            file in $XSCRIPT_SIGNING_FILE, via android/build.sh), xscript-vscode-X.Y.Z.vsix,
+#                                            SHA256SUMS covering both. The APK is verified (verify-apk) before it is accepted.
+#   scripts/release.sh verify-apk <apk> [version]   signature valid, signer cert == the known release cert, versionName (and
+#                                            16 KB readiness via check_16kb.py). Cert: $XSCRIPT_EXPECT_CERT_SHA256 or the default below.
+#   scripts/release.sh notes [vX.Y.Z]        prints the CHANGELOG section (the Release notes)
+#   scripts/release.sh publish [--yes]       LOCAL FALLBACK (CI normally does this): tag vX.Y.Z on the pushed HEAD and
+#                                            `gh release create` with the three files. Without --yes it only prints what it would do.
 #
 # Version policy: the extension version is the App release version (same tag, same Release page), so a vsix named
 # xscript-vscode-0.2.5.vsix always belongs to Release v0.2.5. The extension is not published to the VS Code Marketplace.
@@ -18,10 +26,33 @@ cd "$ROOT"
 GRADLE=android/app/build.gradle.kts
 EXT=ide/vscode-extension
 DIST=dist/release
+# SHA-256 of the release signing certificate (public value; `keytool -list` / `apksigner verify --print-certs`)
+KNOWN_CERT_SHA256=e04b22c87fb67b47f1651f078f6e0640f30a555d63d59fbe8d2b86eb504829ac
 
 app_version() { sed -n 's/.*versionName = if (packed) packProp("version_name", "[^"]*") else "\([^"]*\)".*/\1/p' "$GRADLE"; }
 ext_version() { python3 -c 'import json,sys; print(json.load(open(sys.argv[1]))["version"])' "$EXT/package.json"; }
 sha256() { if command -v sha256sum >/dev/null 2>&1; then sha256sum "$@"; else shasum -a 256 "$@"; fi; }
+sdk_tool() { # newest build-tools binary: sdk_tool apksigner | aapt2 | zipalign
+  local sdk="${ANDROID_HOME:-$HOME/Library/Android/sdk}" f
+  f="$(ls -d "$sdk"/build-tools/*/"$1" 2>/dev/null | sort -V | tail -1)"
+  [ -n "$f" ] || { echo "release: $1 not found under $sdk/build-tools (set ANDROID_HOME)" >&2; return 1; }
+  echo "$f"
+}
+verify_apk() { # verify_apk <apk> [expected versionName]
+  local apk="$1" want="${2:-}" signer out fp name
+  [ -f "$apk" ] || { echo "release: no such APK: $apk" >&2; return 1; }
+  signer="$(sdk_tool apksigner)"
+  out="$("$signer" verify --print-certs "$apk")" || { echo "release: apksigner verify failed (unsigned or tampered APK?)" >&2; return 1; }
+  fp="$(printf '%s\n' "$out" | sed -n 's/^Signer #1 certificate SHA-256 digest: //p' | head -1)"
+  [ "$fp" = "${XSCRIPT_EXPECT_CERT_SHA256:-$KNOWN_CERT_SHA256}" ] \
+    || { echo "release: APK signer certificate $fp is not the release certificate" >&2; return 1; }
+  if [ -n "$want" ]; then
+    name="$("$(sdk_tool aapt2)" dump badging "$apk" | sed -n "s/^package: .* versionName='\([^']*\)'.*/\1/p" | head -1)"
+    [ "$name" = "$want" ] || { echo "release: APK versionName '$name' != '$want'" >&2; return 1; }
+  fi
+  python3 scripts/check_16kb.py "$apk" >/dev/null || { echo "release: APK is not 16 KB ready (scripts/check_16kb.py)" >&2; return 1; }
+  echo "apk ok: signed by the release certificate ($fp)${want:+, versionName $want}, 16 KB ready"
+}
 need_version() { [[ "${1:-}" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]] || { echo "usage: $0 prepare X.Y.Z" >&2; exit 2; }; }
 
 cmd="${1:-}"; shift || true
@@ -72,12 +103,22 @@ build)
   (cd "$EXT" && { [ -d node_modules ] || npm ci --silent; } && rm -f xscript-vscode-*.vsix && npm run --silent package >/dev/null)
   cp "$EXT/xscript-vscode-$V.vsix" "$DIST/"
   if [ "$SKIP_APK" = 0 ]; then
-    [ -f keys/release.properties ] || { echo "keys/release.properties missing: cannot sign the release APK (use --skip-apk to build only the vsix)" >&2; exit 1; }
-    XSCRIPT_GRADLE_TASK=:app:assembleRelease bash android/build.sh >/dev/null
+    SIGN="${XSCRIPT_SIGNING_FILE:-$ROOT/keys/release.properties}"
+    [ -f "$SIGN" ] || { echo "release signing file missing ($SIGN): refusing to build an unsigned APK (use --skip-apk to build only the vsix)" >&2; exit 1; }
+    rm -f android/app/build/outputs/apk/release/*.apk
+    XSCRIPT_GRADLE_TASK=:app:assembleRelease bash android/build.sh "-Pxscript.signingFile=$SIGN" --console=plain >&2
     cp android/app/build/outputs/apk/release/app-release.apk "$DIST/xscript-v$V-release.apk"
+    verify_apk "$DIST/xscript-v$V-release.apk" "$V"
   fi
   (cd "$DIST" && sha256 xscript-* > SHA256SUMS && cat SHA256SUMS)
   echo "built $DIST/"
+  ;;
+verify-apk)
+  verify_apk "${1:?usage: $0 verify-apk <apk> [version]}" "${2:-}"
+  ;;
+notes)
+  TAG="${1:-v$(app_version)}"
+  awk -v h="## ${TAG}（" 'index($0,h)==1{p=1;next} /^## /{p=0} p' CHANGELOG.md | sed -e :a -e '/^\n*$/{$d;N;ba' -e '}' | sed '1{/^$/d;}'
   ;;
 publish)
   bash "$0" check
@@ -100,6 +141,6 @@ publish)
   gh release create "$TAG" --target "$(git rev-parse HEAD)" --title "XScript $TAG" --notes-file "$NOTES" "${FILES[@]}"
   ;;
 *)
-  sed -n '2,16p' "$0" | sed 's/^# \{0,1\}//'; exit 2
+  sed -n '2,26p' "$0" | sed 's/^# \{0,1\}//'; exit 2
   ;;
 esac

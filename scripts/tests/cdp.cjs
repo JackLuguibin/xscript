@@ -33,7 +33,9 @@ async function attach(endpoint) {
 
 async function launch(bin) {
   const profile = fs.mkdtempSync(path.join(os.tmpdir(), 'xs-cdp-'));
-  const child = spawn(bin, ['--headless=new', '--remote-debugging-port=0', '--user-data-dir=' + profile,
+  // GitHub-hosted Ubuntu runners block the unprivileged user namespaces Chrome's sandbox needs
+  const noSandbox = process.env.CI ? ['--no-sandbox'] : [];
+  const child = spawn(bin, [...noSandbox, '--headless=new', '--remote-debugging-port=0', '--user-data-dir=' + profile,
     '--no-first-run', '--no-default-browser-check', '--disable-gpu', '--window-size=1280,900', 'about:blank'],
     {stdio: ['ignore', 'ignore', 'pipe']});
   const wsUrl = await new Promise((resolve, reject) => {

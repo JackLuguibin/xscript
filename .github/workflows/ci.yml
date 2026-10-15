@@ -1,0 +1,165 @@
+# CI: mirrors scripts/verify.sh as far as a GitHub-hosted Ubuntu runner allows.
+# NOT covered here (needs a device / emulator or the Mac toolchain): scripts/device_*_e2e.py, device_screen_smoke.py,
+# emulator_grant_capture.sh, the VS Code host test against a real VS Code (scripts/vscode-host-test.sh), instrumented
+# Android tests, 4 KB vs 16 KB page-size runs on emulators, and the .venv310 uv check (the matrix below runs 3.10 directly).
+name: ci
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_call:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+env:
+  NO_PROXY: 127.0.0.1,localhost
+
+jobs:
+  python:
+    name: backend + MCP (Python ${{ matrix.python }})
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        python: ["3.10", "3.12"]
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: ${{ matrix.python }}
+      - name: Install backend and MCP server
+        run: python -m pip install -e "backend[test]" -e "ide/mcp-server[test]"
+      - name: Backend tests
+        run: PYTHONPATH=backend python -m unittest discover -s backend/tests
+      - name: MCP tests
+        run: PYTHONPATH=ide/mcp-server python -m unittest discover -s ide/mcp-server/tests
+      - name: Generated files are up to date (stubs, Web IDE completion index)
+        if: matrix.python == '3.12'
+        run: |
+          python scripts/gen_stubs.py --check
+          python scripts/gen_completions.py --check
+      - name: Vertical slice against the mock device
+        if: matrix.python == '3.12'
+        run: PYTHONPATH=ide/mcp-server python scripts/vertical_slice.py --mock
+
+  runtime:
+    name: on-device Python runtime tests (3.10)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: "3.10"
+      - name: Install the libraries the tests exercise (same versions as the local .venv-rt)
+        run: python -m pip install numpy==1.26.4 opencv-python-headless==4.10.0.84 pillow==10.4.0 packaging==24.2 onnxruntime==1.22.1
+      - name: Runtime tests
+        run: PYTHONPATH=android/python-runtime:android/python-runtime/tests python -m unittest discover -s android/python-runtime/tests
+
+  web-ide:
+    name: Web IDE (node + headless Chrome)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: "22"
+      - name: Node tests (state, HTTP contract, browser UI)
+        run: |
+          export CHROME="$(command -v google-chrome || command -v chromium-browser || command -v chromium)"
+          echo "Chrome: $CHROME"
+          node --test scripts/tests/*.test.cjs
+
+  vscode-extension:
+    name: VS Code extension (unit tests + vsix)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: "22"
+      - name: Install, compile, test
+        working-directory: ide/vscode-extension
+        run: |
+          npm ci
+          npm run compile
+          npm test
+      - name: Package the vsix
+        working-directory: ide/vscode-extension
+        run: |
+          npm run package
+          ls -l xscript-vscode-*.vsix
+
+  console:
+    name: backend web console (type-check + build)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: "22"
+      - working-directory: backend/web
+        run: |
+          npm ci
+          npm run build
+
+  android:
+    name: Android (Kotlin JVM tests + debug APK + 16 KB check)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-java@b843ebf9b913146b38da2eaa7aeddf76074ae1ad # v6.1.0
+        with:
+          distribution: temurin
+          java-version: "21"
+      # Chaquopy needs a build-machine Python whose minor version matches the embedded one (3.10)
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: "3.10"
+      - uses: android-actions/setup-android@be39fa834029ff78f1a44aa3bb0819b8fc2bd8fd # v4.0.4
+      - name: SDK packages (compileSdk 37, build-tools for zipalign / aapt2 / apksigner)
+        run: sdkmanager "platforms;android-37.0" "build-tools;36.0.0"
+      - uses: gradle/actions/setup-gradle@3f5f9adaf7d9fecd50b5935e54106014257a94e6 # v6.4.0
+        with:
+          gradle-version: wrapper
+      - name: Kotlin unit tests (JVM)
+        working-directory: android
+        run: ./gradlew :app:testDebugUnitTest --console=plain
+      - name: Build the debug APK
+        run: bash android/build.sh --console=plain
+      - name: APK is 16 KB ready (zipalign -P 16, ELF alignment, pageSizeCompat)
+        run: python scripts/check_16kb.py android/app/build/outputs/apk/debug/app-debug.apk
+
+  release-versions:
+    name: release versions agree
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - run: bash scripts/release.sh check
