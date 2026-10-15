@@ -11,6 +11,7 @@ __pycache__/
 *.egg-info/
 .venv/
 .venv-rt/
+.venv310/
 venv/
 dist/
 .pytest_cache/

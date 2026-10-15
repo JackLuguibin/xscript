@@ -2,6 +2,8 @@
 
 XScript 的 PC / 服务器端。这里的内容都不在手机上运行。
 
+**Python 版本**：后台、MCP 服务和构建机统一要求 Python 3.10+（设备上内置的也是 3.10，`ide/python-stubs` 类型存根 3.8 起可用）。3.11 及以上使用 `websockets 17` / `sqlalchemy 2.1`，3.10 由 `pyproject.toml` 的环境标记自动装 `websockets 16.1.1` / `sqlalchemy 2.0.54`；两条路径的后台和 MCP 测试都通过。`scripts/verify.sh` 会在 `.venv310`（uv 自动创建）里用 3.10 再跑一遍。
+
 | 路径 | 作用 |
 | --- | --- |
 | `xscript_server/` | FastAPI 服务：云控设备中心（`/ws`）、命令下发、HTTP 中转与远程操控、分组、服务端定时任务、卡密（卡密、批次、在线激活 `/license/*`、离线令牌）、小程序版本（发布 / 回滚、部署到设备、为打包应用提供热更新 `/pub/update`）、代码保护、APK 打包任务队列与分享链接（`/pub/d/…`）、用户与角色、API 令牌、操作日志 |

@@ -5,6 +5,8 @@
 #   ide/      -> MCP tests, stubs up to date, VS Code extension compile + tests, mock vertical slice
 # .venv     -> MCP client/server (httpx, mcp) and backend (pip install -e backend)
 # .venv-rt  -> python-runtime tests (numpy, opencv, pillow); falls back to python3
+# .venv310  -> backend + MCP tests on the minimum supported Python (3.10), created with uv on first use;
+#              skipped with a message when uv/network is unavailable or XS_SKIP_PY310=1
 set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 cd "$ROOT"
@@ -39,6 +41,24 @@ else
 fi
 echo "== ide: mcp ($PY) =="
 PYTHONPATH=$MCP "$PY" -m unittest discover -s $MCP/tests
+echo "== backend + mcp on the minimum Python (3.10) =="
+if [ "${XS_SKIP_PY310:-}" = "1" ]; then
+  echo "skipped (XS_SKIP_PY310=1)"
+else
+  PY310="$ROOT/.venv310/bin/python"
+  if [ ! -x "$PY310" ] && command -v uv >/dev/null 2>&1; then
+    uv venv -q --python 3.10 "$ROOT/.venv310" >/dev/null 2>&1 \
+      && uv pip install -q --python "$PY310" -e "$ROOT/backend[test]" -e "$ROOT/$MCP" >/dev/null 2>&1 \
+      || { echo "could not create .venv310 (uv python 3.10 / network)"; rm -rf "$ROOT/.venv310"; }
+  fi
+  if [ -x "$PY310" ]; then
+    "$PY310" --version
+    PYTHONPATH=backend "$PY310" -m unittest discover -s backend/tests
+    PYTHONPATH=$MCP "$PY310" -m unittest discover -s $MCP/tests
+  else
+    echo "skipped (no Python 3.10 venv: install uv, or create .venv310 with python3.10)"
+  fi
+fi
 echo "== ide: stubs up to date =="
 "$PY" "$ROOT/scripts/gen_stubs.py" --check
 echo "== android: Web IDE completion index up to date =="

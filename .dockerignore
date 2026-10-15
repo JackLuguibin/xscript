@@ -2,6 +2,7 @@
 .git
 .venv
 .venv-rt
+.venv310
 **/node_modules
 **/__pycache__
 **/*.pyc

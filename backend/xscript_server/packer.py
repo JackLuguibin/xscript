@@ -65,10 +65,18 @@ class Packer:
     def __init__(self, config: Config, db: Database, alerts=None):
         self.config, self.db, self.alerts = config, db, alerts
         self.loop: asyncio.AbstractEventLoop | None = None
-        self.queue: asyncio.Queue[int] = asyncio.Queue()
+        # Created on first use, inside the running loop: before Python 3.10 an asyncio.Queue binds to the loop
+        # current at construction, and create_app() runs before uvicorn starts its own loop (harmless on 3.10+).
+        self._queue: asyncio.Queue[int] | None = None
         self.current: int | None = None
         self.proc: asyncio.subprocess.Process | None = None
         self.cancelled: set[int] = set()
+
+    @property
+    def queue(self) -> asyncio.Queue:
+        if self._queue is None:
+            self._queue = asyncio.Queue()
+        return self._queue
 
     def job_dir(self, job_id: int) -> Path:
         return self.config.pack_dir / str(job_id)
@@ -123,7 +131,7 @@ class Packer:
         return True
 
     def position(self, job_id: int) -> int | None:
-        items = list(self.queue._queue)  # type: ignore[attr-defined]
+        items = list(self._queue._queue) if self._queue is not None else []  # type: ignore[attr-defined]
         return items.index(job_id) + 1 if job_id in items else None
 
     async def run(self) -> None:

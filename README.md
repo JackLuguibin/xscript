@@ -68,7 +68,8 @@ xscript/
 
 - **运行设备**：Android 8.0 / API 26 或更高版本的手机或模拟器；4KB 和 16KB 内存页面的设备都支持（16KB 页面设备靠清单里的 `pageSizeCompat` 兼容模式，已在 Android 17 模拟器验证，详见 [功能对照](docs/功能对照.md)）。
 - **Android 构建**：JDK 17+、Android SDK Platform 37 与相应 Build Tools、Python 3.10，以及 Bash 环境。Gradle 通过仓库自带 wrapper 执行。
-- **可选管理后台**：Python 3.11+；构建 Web 控制台需要 Node.js 与 npm。
+- **可选管理后台**：Python 3.10+；构建 Web 控制台需要 Node.js 与 npm。
+- **Python 版本**：管理后台、MCP 服务和构建机统一要求 Python 3.10+，设备上内置的是 Python 3.10（Chaquopy），`ide/python-stubs` 类型存根 3.8 起即可使用。
 - **可选 IDE 工具**：MCP 服务需要 Python 3.10+；编辑器扩展需要 VS Code 1.90+ 或兼容的 Cursor。
 
 构建脚本默认尝试使用 Android Studio 自带 JBR，并查找 Python 3.10。可以通过 `JAVA_HOME`、`ANDROID_HOME` 和 `XSCRIPT_BUILD_PYTHON` 指定本机安装路径。其他构建细节见 [Android 开发说明](android/README.md)。
@@ -149,10 +150,10 @@ else:
 
 ### 管理后台
 
-在独立 Python 3.11+ 环境中安装并初始化：
+在独立 Python 3.10+ 环境中安装并初始化：
 
 ```bash
-python3.11 -m venv .venv
+python3.10 -m venv .venv
 .venv/bin/python -m pip install -e ./backend
 (cd backend/web && npm ci && npm run build)
 .venv/bin/python -m xscript_server init --data xscript-data
@@ -173,7 +174,7 @@ Python 后台/MCP 测试和设备端运行时测试使用独立环境：
 
 ```bash
 # 后台与 MCP
-python3.11 -m venv .venv
+python3.10 -m venv .venv
 .venv/bin/python -m pip install -e './backend[test]' -e ./ide/mcp-server
 
 # 设备端 API 的本机测试
