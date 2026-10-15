@@ -340,6 +340,7 @@ _template_cache = {}
 _TEMPLATE_CACHE_MAX = 96
 _MAX_WORKERS = 4
 _CF_MIN_TPL_SHORT = 48
+_PYRAMID_MIN_TPL_SHORT = 48
 _CF_MIN_SRC_SHORT = 256
 _CF_DOWNSCALE = 4
 _CF_TOP_K = 5
@@ -504,8 +505,9 @@ def _single(src, tpl, threshold, maxcnt, src_half=None):
     sh, sw = src.shape[:2]
     if sw <= tpl.w or sh <= tpl.h:
         return []
-    # 1/2 pyramid early reject when hunting for several targets.
-    if not (tpl.h < 16 or tpl.w < 16 or sh < tpl.h * 3 or sw < tpl.w * 3 or maxcnt == 1 or tpl.mask is not None):
+    # 1/2 pyramid early reject when hunting for several targets. Only for large templates: halving a thin glyph or
+    # icon (a 1px ring, a digit) wipes out its detail and rejected exact matches (confidence 1.0).
+    if not (tpl.h < _PYRAMID_MIN_TPL_SHORT or tpl.w < _PYRAMID_MIN_TPL_SHORT or sh < tpl.h * 3 or sw < tpl.w * 3 or maxcnt == 1 or tpl.mask is not None):
         half = src_half if src_half is not None else _resize(src, sw // 2, sh // 2)
         r = _do_match(half, _resize(tpl.img, tpl.w // 2, tpl.h // 2), None)
         if cv2.minMaxLoc(r)[1] < max(0.3, threshold - 0.15):

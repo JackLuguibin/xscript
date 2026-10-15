@@ -73,6 +73,16 @@ cd ide/vscode-extension && npm run compile && node scripts/debug-smoke.js 127.0.
 模拟器本地合成短信验证了字段、号码匹配、分页和无授权空结果，未输出号码或正文。测试后 READ_SMS 恢复为原先未授权状态。
 另已验证模拟器加速度传感器的回调和 stop。
 
+## 设备上的端到端脚本
+
+```bash
+adb -s emulator-5556 forward tcp:19861 tcp:9860
+python3 scripts/device_cvfont_e2e.py http://127.0.0.1:19861                      # 图片字库：Pillow 渲染真实字体字形 → 上传工程 → 设备上识别 → 对比
+python3 scripts/device_ml_e2e.py http://127.0.0.1:19861 --models /path/to/models  # 运行时 pip、PaddleOCR v5、YOLO11n（模型目录放 yolo11n.onnx 和 bus.jpg）
+```
+
+两个脚本都建立并删除自己的工程；需要设备上的 numpy / OpenCV，所以用 **4KB 页面**的模拟器（16KB 页面的模拟器上 numpy / OpenCV 无法加载，是 Chaquopy 现有轮子的限制，脚本会给出提示）。`device_ml_e2e.py` 的 pip 和 OCR 步骤要求设备能上网（OCR 模型由设备自己下载并校验 SHA-256）。
+
 ## 在手机自带的 Chrome 里测试网页 IDE
 
 网页 IDE 的浏览器测试默认用本机无头 Chrome。要在手机（或模拟器）自己的 Chrome 里跑，用 DevTools 转发：

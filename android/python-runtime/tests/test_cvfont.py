@@ -6,7 +6,7 @@ import unittest
 import cv2
 import numpy as np
 
-from ascript.android.screen import gp, gp_tasks
+from ascript.android.screen import ascv, gp, gp_tasks
 from ascript.android.screen.gp_tasks import CvFontLib
 
 
@@ -155,3 +155,35 @@ class CvFontLibTest(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class ThinGlyphTest(unittest.TestCase):
+    """Anti-aliased 1px glyphs (real font rendering) used to be lost by the half-scale early reject in template search."""
+
+    @staticmethod
+    def ring(d):
+        c = np.zeros((d + 6, d + 6, 3), np.uint8)
+        cv2.circle(c, (c.shape[1] // 2, c.shape[0] // 2), d // 2, (255, 255, 255), 1, cv2.LINE_AA)
+        ys, xs = np.where(c[:, :, 0] > 0)
+        return c[ys.min():ys.max() + 1, xs.min():xs.max() + 1].copy()
+
+    def test_thin_templates_are_found_at_any_size(self):
+        for d in range(8, 40, 2):
+            tpl = self.ring(d)
+            screen = np.zeros((90, 200, 3), np.uint8)
+            screen[20:20 + tpl.shape[0], 50:50 + tpl.shape[1]] = tpl
+            with self.subTest(diameter=d):
+                found = ascv.find_all_template(screen, tpl, threshold=0.95)
+                self.assertEqual(len(found), 1)
+                self.assertEqual(found[0]["rectangle"][0], (50, 20))
+
+    def test_thin_glyph_row_is_read_completely(self):
+        tpl = {"O": self.ring(16), "o": self.ring(10)}
+        screen = np.zeros((60, 240, 3), np.uint8)
+        x = 10
+        for ch in "OoOOo":
+            g = tpl[ch]
+            screen[20:20 + g.shape[0], x:x + g.shape[1]] = g
+            x += g.shape[1] + 8
+        res = CvFontLib([tpl["O"], tpl["o"]], ["O", "o"], confidence=0.95).run(screen)
+        self.assertEqual(res.data["text"], "OoOOo")
