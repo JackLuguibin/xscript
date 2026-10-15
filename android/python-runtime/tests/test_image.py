@@ -143,6 +143,22 @@ class TemplateTest(unittest.TestCase):
         hits = image.find_templates(bgra, confidence=0.9, maxcnt=1, image=scene)
         self.assertEqual(hits[0]["rect"], [60, 50, 140, 110])
 
+    def test_masked_match_leaves_the_mask_untouched(self):
+        # OpenCV 4.5.1 (the version on Android) rewrites a uint8 mask to 0/1 in place; the template cache
+        # reuses it, so a mutated mask would zero every later score (found on a 4KB-page emulator).
+        scene = self._scene()
+        patch = scene[50:110, 60:140].copy()
+        bgra = cv2.cvtColor(patch, cv2.COLOR_BGR2BGRA)
+        bgra[:20, :, 3] = 0
+        tpl = image._prepare_template(bgra, False)
+        before = tpl.mask.copy()
+        gray = cv2.cvtColor(scene, cv2.COLOR_BGR2GRAY)
+        first = image._do_match(gray, tpl.img, tpl.mask)
+        self.assertTrue(np.array_equal(tpl.mask, before))
+        second = image._do_match(gray, tpl.img, tpl.mask)
+        self.assertEqual(float(first.max()), float(second.max()))
+        self.assertGreater(float(first.max()), 0.99)
+
     def test_ascript_ori_keeps_per_template_hits(self):
         other = os.path.join(self.dir, "c.png")
         cv2.imencode(".png", self.src[120:150, 10:50].copy())[1].tofile(other)

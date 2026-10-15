@@ -406,8 +406,8 @@ def _do_match(src, tpl, mask):
     if mask is None:
         res = cv2.matchTemplate(src, tpl, cv2.TM_CCOEFF_NORMED)
         return np.nan_to_num(res, nan=0.0, posinf=0.0, neginf=0.0)
-    res = cv2.matchTemplate(src, tpl, cv2.TM_SQDIFF, mask=mask)
-    valid = mask > 128
+    valid = mask > 128  # before matching: OpenCV 4.5 (Chaquopy) rewrites a uint8 mask in place to 0/1
+    res = cv2.matchTemplate(src, tpl, cv2.TM_SQDIFF, mask=mask.copy())
     n = float(np.count_nonzero(valid))
     if n < 1:
         return np.zeros_like(res)

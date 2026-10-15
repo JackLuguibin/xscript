@@ -8,12 +8,16 @@
 
 - **网页 IDE：重命名 / 移动文件和文件夹**：目录树里选中后按 F2、点「重命名」、右键菜单，或直接拖到目标文件夹。已打开的标签页、未保存的修改、断点和展开状态跟着走；目标已存在返回冲突，不会覆盖；入口 `__init__.py` 受保护。设备接口新增 `POST /projects/{name}/move`（`{"from","to"}`，400/404/409，单次原子重命名）。
 - **链接启动**：`xscript://run?name=<工程>[&params=<JSON>]` 运行脚本，`xscript://stop` 停止；打包出来的 App 用包名作协议，只能运行自己的小程序。首页新增「链接启动」开关：每次确认（默认）/ 直接运行 / 已关闭。
-- **图片字库（CvFontLib）**：`ascript.android.screen.gp_tasks.CvFontLib(part_img, font_lib, confidence, rect, spacing, rgb)`，用一组字符小图做模板匹配，按行、按左右顺序拼出文字；也可放进 GP 管线，或用 `CvFontLib.recognize(...)` 直接得到文字。已用真实 OpenCV 在主机上测试；设备上暂未验证（见「功能对照」第 7 节：16KB 页面模拟器上内置 numpy 无法导入）。
+- **图片字库（CvFontLib）**：`ascript.android.screen.gp_tasks.CvFontLib(part_img, font_lib, confidence, rect, spacing, rgb)`，用一组字符小图做模板匹配，按行、按左右顺序拼出文字；也可放进 GP 管线，或用 `CvFontLib.recognize(...)` 直接得到文字。已用真实 OpenCV 在主机上测试，并在 4KB 页面的 Android 14 模拟器上用设备内置的 numpy 1.23.3 / OpenCV 4.5.1 跑通同一组 13 个测试。
 - **网页 IDE：多标签页关闭**：标签页右侧有 × 按钮，也支持鼠标中键、Alt+W 和右键菜单（关闭 / 关闭其他 / 关闭右侧 / 关闭已保存 / 全部关闭）；有未保存修改的文件先确认再关闭。
 - **网页 IDE：工程内搜索 / 替换**：Ctrl/Cmd+Shift+F 或「搜索」按钮；区分大小写、全字、正则、文件过滤（`*.py, lib/**, !tests/**`），结果按文件分组、点击跳转；全部替换或按文件替换，替换前确认，没有未保存修改的文件直接写入，有未保存修改的只改编辑器内容。
 - **网页 IDE：手机截图面板**：截取一帧，点击取坐标和颜色，插入坐标到编辑器，保存到工程 `res/img/` 或下载。
 - **网页 IDE：API 补全**：输入时弹出（或 Ctrl/Cmd+空格）`xscript.*` / `ascript.*` 的模块路径、函数、类和成员，带签名和说明；认识 `import`、`from ... import`、别名和 `x = Class()` 实例，也补全文件内的名字、内置函数和关键字；字符串和注释里不弹出。索引由 `scripts/gen_completions.py` 从运行时源码生成，`verify.sh` 检查是否过期，离线可用。
 - **网页 IDE：语法检查**：本地检查括号、字符串、冒号、缩进和 Python 2 `print`，红色波浪线、行号标记和状态栏问题数（点击跳转）；保守设计，用 Python 标准库 1373 个文件和 3000 个随机破坏的样本对照 CPython 验证过零误报。
+
+### 修复
+
+- **中 · 透明模板找图（设备）**：带透明通道的模板在 Android 内置的 OpenCV 4.5.1 上永远找不到。原因是该版本的 `matchTemplate` 会把 uint8 掩码原地改成 0/1，随后「掩码 > 128」得到 0 个有效像素，得分全为 0；主机上的 OpenCV 4.10 不会这样，所以主机测试一直是绿的。现在先计算有效像素再传入掩码副本，并补了回归测试。这是在 4KB 页面模拟器上首次运行 numpy/cv2 相关测试时发现的。
 
 ## v0.2.4（2026-10-14）
 
