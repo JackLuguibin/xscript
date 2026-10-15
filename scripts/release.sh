@@ -43,9 +43,11 @@ verify_apk() { # verify_apk <apk> [expected versionName]
   [ -f "$apk" ] || { echo "release: no such APK: $apk" >&2; return 1; }
   signer="$(sdk_tool apksigner)"
   out="$("$signer" verify --print-certs "$apk")" || { echo "release: apksigner verify failed (unsigned or tampered APK?)" >&2; return 1; }
-  fp="$(printf '%s\n' "$out" | sed -n 's/^Signer #1 certificate SHA-256 digest: //p' | head -1)"
+  # apksigner <= 36.0 prints "Signer #1 certificate SHA-256 digest: <hex>", newer ones "V2 Signer: certificate SHA-256 digest: <hex>"
+  # (one line per signature scheme): every line must be the release certificate, and there must be at least one.
+  fp="$(printf '%s\n' "$out" | sed -n 's/^.*certificate SHA-256 digest: *\([0-9a-fA-F]*\).*$/\1/p' | sort -u | tr '\n' ' ' | sed 's/ $//')"
   [ "$fp" = "${XSCRIPT_EXPECT_CERT_SHA256:-$KNOWN_CERT_SHA256}" ] \
-    || { echo "release: APK signer certificate $fp is not the release certificate" >&2; return 1; }
+    || { echo "release: APK signer certificate '$fp' is not the release certificate; apksigner said:" >&2; printf '%s\n' "$out" | grep -i 'certificate\|signer\|Verifies' >&2; return 1; }
   if [ -n "$want" ]; then
     name="$("$(sdk_tool aapt2)" dump badging "$apk" | sed -n "s/^package: .* versionName='\([^']*\)'.*/\1/p" | head -1)"
     [ "$name" = "$want" ] || { echo "release: APK versionName '$name' != '$want'" >&2; return 1; }
