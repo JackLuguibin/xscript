@@ -5,6 +5,7 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "xscript-stubs"
 version = "0.2.0"
+license = {text = "MIT"}
 description = "PC-only type stubs for the XScript Android runtime (xscript.* and ascript.* compat)"
 requires-python = ">=3.8"
 readme = "README.md"

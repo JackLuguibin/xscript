@@ -244,6 +244,6 @@ docs: improve setup instructions
 
 ## 许可证与第三方组件
 
-当前仓库尚未提供项目级 `LICENSE` 文件，XScript 整体的授权条款有待明确。第三方组件的许可证和条款分别适用，不构成项目整体的授权声明。
+XScript 以 [MIT 许可证](LICENSE) 开源，Copyright (c) 2026 Jack Lu (JackLuguibin)。第三方组件的许可证和条款分别适用。
 
 依赖信息见 [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md)；随包提供的 debugpy wheel 来源与许可证见 [android/wheels/README.md](android/wheels/README.md)。
