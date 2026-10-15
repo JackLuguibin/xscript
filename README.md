@@ -202,6 +202,9 @@ python3 scripts/gen_completions.py   # 网页 IDE 的补全索引
 
 ```bash
 python3 scripts/device_debug_smoke.py --base http://127.0.0.1:19860
+# 截图权限（模拟器上自动点系统授权对话框）和 /screen 缩放检查
+scripts/emulator_grant_capture.sh emulator-5554
+python3 scripts/device_screen_smoke.py http://127.0.0.1:19860
 ```
 
 ## 当前状态与限制

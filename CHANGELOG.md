@@ -24,6 +24,7 @@
   - 版本号低于后台设置的最低版本时必须更新：首页弹出无法关闭的对话框，脚本不能启动（界面、链接启动、定时任务、云控都被拦住）；点「下载并安装」下载 APK、校验大小和 SHA-256，再交给系统安装程序（需要允许安装未知应用）。
   - 不会把用户锁死：后台没有可用的 APK（被清理）时返回「无更新」，限制自动解除；版本号达到最低版本后不再拦截；下载或校验失败可以重试，不会安装。
   - 新增权限 `REQUEST_INSTALL_PACKAGES` 和 FileProvider（只暴露缓存里的 `updates/` 目录）。
+- **模拟器截图权限和 `/screen` 缩放的真机验证**：新增 `scripts/emulator_grant_capture.sh [序列号]`（用 uiautomator 点掉系统的录屏授权对话框，API 34 的「Start now」和 API 37 的「Share entire screen」两种对话框都认）和 `scripts/device_screen_smoke.py <设备地址>`（检查 `/screen` 以及 `?max=`、`?format=jpg&quality=` 的尺寸、格式、不放大、非法值忽略）。两个模拟器（16KB / 4KB 页）都通过。
 - **链接启动**：`xscript://run?name=<工程>[&params=<JSON>]` 运行脚本，`xscript://stop` 停止；打包出来的 App 用包名作协议，只能运行自己的小程序。首页新增「链接启动」开关：每次确认（默认）/ 直接运行 / 已关闭。
 - **图片字库（CvFontLib）**：`ascript.android.screen.gp_tasks.CvFontLib(part_img, font_lib, confidence, rect, spacing, rgb)`，用一组字符小图做模板匹配，按行、按左右顺序拼出文字；也可放进 GP 管线，或用 `CvFontLib.recognize(...)` 直接得到文字。已用真实 OpenCV 在主机上测试，并在 4KB 页面的 Android 14 模拟器上用设备内置的 numpy 1.23.3 / OpenCV 4.5.1 跑通同一组 13 个测试。
 - **网页 IDE：多标签页关闭**：标签页右侧有 × 按钮，也支持鼠标中键、Alt+W 和右键菜单（关闭 / 关闭其他 / 关闭右侧 / 关闭已保存 / 全部关闭）；有未保存修改的文件先确认再关闭。
