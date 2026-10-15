@@ -236,7 +236,7 @@ python3 scripts/device_screen_smoke.py http://127.0.0.1:19860
 - [断点调试](docs/DEBUGGING.md)：网页调试与 DAP API。
 - [云控协议](docs/CLOUD.md)：设备连接与指令转发。
 - [打包与授权](docs/PACKAGING.md)：独立 APK、更新与激活码。
-- [发布流程](docs/发布.md)：App 和 VS Code 插件一起打包、校验、发布。
+- [发布流程](docs/发布.md)：推 tag 由 GitHub Actions 构建签名 APK 和 VS Code 插件并发布 Release；CI 覆盖范围。
 - [技术架构](docs/ARCHITECTURE.md)：模块与运行流程。
 - [设备 HTTP 契约](protocol/openapi.yaml)：客户端和设备共用的 API 定义。
 - [路线图](docs/路线图.md)：后续规划。

@@ -6,6 +6,7 @@
 
 ### 新增
 
+- **GitHub Actions：持续集成 + 推 tag 自动发布**：`.github/workflows/ci.yml`（push / PR 到 main）跑管理后台与 MCP 测试（Python 3.10 和 3.12）、设备端 Python 运行时测试、Web IDE 的 node 测试（无头 Chrome）、VS Code 扩展单元测试 + vsix 打包、Web 控制台构建、Kotlin JVM 测试 + debug APK + 16KB 检查、App 与插件版本一致检查；`release.yml`（tag `vX.Y.Z`）重新跑 CI，检查 tag / versionName / 插件版本 / CHANGELOG，用仓库 Secret 构建签名 APK，打包 vsix，生成 `SHA256SUMS`，校验签名证书和 16KB 对齐，再创建 GitHub Release（缺 Secret 时直接失败，绝不发布未签名 APK）。`scripts/release.sh` 新增 `verify-apk` 和 `notes`。没有覆盖的（设备 / 模拟器端到端、真实 VS Code 宿主测试等）见 `docs/发布.md`。
 - **README 里的 VS Code 插件说明和截图；发布时一起打包 vsix**：根 README 新增「VS Code 插件」一节（侧边栏 + 运行日志、断点调试两张真实截图，真实 VS Code 连模拟器上的演示工程，截图由 `ide/vscode-extension/scripts/vscode-screenshots.sh` 通过 DevTools 协议生成，不需要屏幕录制权限）。新增 `scripts/release.sh`（`check` / `prepare` / `build` / `publish`）和 [发布流程](docs/发布.md)：发布时构建 `xscript-vscode-X.Y.Z.vsix`，和签名 APK 一起放进 `dist/release/`，`SHA256SUMS` 同时覆盖两者，再用 `gh release create` 附到同一个 GitHub Release。插件版本号 = App 发布版本号（现为 0.2.4，原 0.2.0 未发布过），`verify.sh` 检查两者一致；插件暂不上架应用市场。
 - **VS Code 扩展验证不再弹登录**：查明弹出来的是 Welcome 页 + 内置 Copilot Chat 的「Sign in」、内置 GitHub Authentication 读写钥匙串（创建登录钥匙串里的「Code Safe Storage」条目）、Edit Sessions 的云端更改提示，并且会在真实 `~/.vscode` 里写文件。`vscode-host-test.sh` 现在用临时 `HOME`、关掉 GitHub / Microsoft 认证和 Copilot 内置扩展、`--use-mock-keychain`、临时配置里关掉 AI / 欢迎页 / 云端更改 / 遥测 / 更新；新增 `vscode-no-prompt-check.sh` 读取编辑器实际显示的内容和 macOS 窗口来证明没有提示；成功运行自动删除临时目录；重新运行的检查改成轮询状态，不再偶发失败。
 - **VS Code 扩展对齐 AScript 官方扩展**：对照应用市场里的 AScript 扩展 0.3.0（读了它的 vsix 清单和官方文档）补齐：
