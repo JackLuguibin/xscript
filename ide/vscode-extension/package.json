@@ -2,7 +2,7 @@
   "name": "xscript-vscode",
   "displayName": "%xscript.displayName%",
   "description": "%xscript.description%",
-  "version": "0.2.4",
+  "version": "0.2.5",
   "publisher": "xscript",
   "repository": {
     "type": "git",

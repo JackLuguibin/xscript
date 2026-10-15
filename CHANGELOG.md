@@ -4,6 +4,8 @@
 
 ## 未发布
 
+## v0.2.5（2026-10-15）
+
 ### 新增
 
 - **GitHub Actions：持续集成 + 推 tag 自动发布**：`.github/workflows/ci.yml`（push / PR 到 main）跑管理后台与 MCP 测试（Python 3.10 和 3.12）、设备端 Python 运行时测试、Web IDE 的 node 测试（无头 Chrome）、VS Code 扩展单元测试 + vsix 打包、Web 控制台构建、Kotlin JVM 测试 + debug APK + 16KB 检查、App 与插件版本一致检查；`release.yml`（tag `vX.Y.Z`）重新跑 CI，检查 tag / versionName / 插件版本 / CHANGELOG，用仓库 Secret 构建签名 APK，打包 vsix，生成 `SHA256SUMS`，校验签名证书和 16KB 对齐，再创建 GitHub Release（缺 Secret 时直接失败，绝不发布未签名 APK）。`scripts/release.sh` 新增 `verify-apk` 和 `notes`。没有覆盖的（设备 / 模拟器端到端、真实 VS Code 宿主测试等）见 `docs/发布.md`。
