@@ -53,12 +53,14 @@ def create_app(config: Config, start_workers: bool = True) -> FastAPI:
     key = load_signing_key(config)
     alerts = Alerts(db)
     hub = Hub(db, alerts)
+    abuse_monitor = AbuseMonitor()
     with db.session() as s:
+        abuse_monitor.load(s)  # the 24 h abuse windows survive a restart
         boot = get_settings(s)
         hub.offline_minutes = float(boot.get("alert_offline_minutes") or 0)
         hub.log_days = float(boot.get("device_log_days") or 0)
     ctx = Context(config=config, db=db, hub=hub, scheduler=Scheduler(hub, db, config.scheduler_interval),
-                  packer=Packer(config, db, alerts), key=key, pubkey=licensing.public_b64(key), alerts=alerts, abuse=AbuseMonitor(),
+                  packer=Packer(config, db, alerts), key=key, pubkey=licensing.public_b64(key), alerts=alerts, abuse=abuse_monitor,
                   maint=Maintainer(config, db, hub, alerts, config.maintenance_interval),
                   # 热更新 checks every 30 min per device, so 120/min per IP leaves room for NAT'd farms.
                   pub_limiter=RateLimiter(120, 60), apk_limiter=RateLimiter(20, 600))

@@ -23,7 +23,7 @@ import {
   Typography,
 } from "antd";
 import { DownloadOutlined, DownOutlined, KeyOutlined, PlusOutlined } from "@ant-design/icons";
-import { api, download, type AbuseItem, type Batch, type Card as CardT, type CardStats, type Page } from "../api";
+import { api, download, type AbuseItem, type Batch, type Card as CardT, type CardStats, type DeviceBanItem, type Page } from "../api";
 import { useAuth } from "../auth";
 import {
   CARD_STATUS_OPTIONS,
@@ -75,6 +75,27 @@ export default function CardsPage() {
     queryKey: ["card-abuse"],
     queryFn: () => api.get<{ items: AbuseItem[] }>("/api/cards/abuse"),
     enabled: tab === "abuse",
+  });
+  const bans = useQuery({
+    queryKey: ["card-bans"],
+    queryFn: () => api.get<{ items: DeviceBanItem[] }>("/api/cards/bans"),
+    enabled: tab === "bans" || tab === "abuse",
+  });
+  const ban = useMutation({
+    mutationFn: (v: { device: string; reason: string }) => api.post("/api/cards/bans", v),
+    onSuccess: () => {
+      message.success("已加入黑名单");
+      qc.invalidateQueries({ queryKey: ["card-bans"] });
+    },
+    onError: (e) => message.error((e as Error).message),
+  });
+  const unban = useMutation({
+    mutationFn: (device: string) => api.del(`/api/cards/bans/${encodeURIComponent(device)}`),
+    onSuccess: () => {
+      message.success("已移出黑名单");
+      qc.invalidateQueries({ queryKey: ["card-bans"] });
+    },
+    onError: (e) => message.error((e as Error).message),
   });
   const refresh = () => {
     qc.invalidateQueries({ queryKey: ["cards"] });
@@ -442,11 +463,44 @@ export default function CardsPage() {
                             >
                               查看卡密
                             </Button>
+                          ) : r.signal === "device_many_cards" && can("operator") ? (
+                            bans.data?.items.some((b) => b.device === r.subject) ? (
+                              <Tag>已在黑名单</Tag>
+                            ) : (
+                              <Button
+                                type="link"
+                                size="small"
+                                danger
+                                onClick={() =>
+                                  modal.confirm({
+                                    title: "把这台设备加入黑名单？",
+                                    content: `${r.subject}：它将不能再激活卡密，已激活的授权在下次联网复核时失效。`,
+                                    okType: "danger",
+                                    onOk: () => ban.mutateAsync({ device: r.subject, reason: r.label }),
+                                  })
+                                }
+                              >
+                                加入黑名单
+                              </Button>
+                            )
                           ) : null,
                       },
                     ]}
                   />
                 </>
+              ),
+            },
+            {
+              key: "bans",
+              label: "设备黑名单",
+              children: (
+                <BansPanel
+                  items={bans.data?.items}
+                  loading={bans.isLoading}
+                  canEdit={can("operator")}
+                  onAdd={(device, reason) => ban.mutateAsync({ device, reason })}
+                  onRemove={(device) => unban.mutateAsync(device)}
+                />
               ),
             },
           ]}
@@ -762,5 +816,76 @@ function OfflineModal({ open, onClose, onDone }: { open: boolean; onClose: () =>
         </Form.Item>
       </Form>
     </Modal>
+  );
+}
+
+function BansPanel({
+  items,
+  loading,
+  canEdit,
+  onAdd,
+  onRemove,
+}: {
+  items?: DeviceBanItem[];
+  loading: boolean;
+  canEdit: boolean;
+  onAdd: (device: string, reason: string) => Promise<unknown>;
+  onRemove: (device: string) => Promise<unknown>;
+}) {
+  const [form] = Form.useForm<{ device: string; reason: string }>();
+  return (
+    <>
+      <Alert
+        type="info"
+        showIcon
+        style={{ marginBottom: 12 }}
+        title="黑名单里的设备不能再激活卡密，已激活的授权在 App 下次联网复核（最多 6 小时）时失效；离线授权码不受影响。设备 ID 在 App 首页底部、卡密详情里能看到。"
+      />
+      {canEdit && (
+        <Form
+          form={form}
+          layout="inline"
+          style={{ marginBottom: 12 }}
+          onFinish={async (v) => {
+            await onAdd(v.device.trim(), (v.reason ?? "").trim());
+            form.resetFields();
+          }}
+        >
+          <Form.Item name="device" rules={[{ required: true, message: "填设备 ID" }, { pattern: /^[^\s*]\S*$/, message: "设备 ID 不能含空格或为 *" }]}>
+            <Input placeholder="设备 ID" style={{ width: 240 }} />
+          </Form.Item>
+          <Form.Item name="reason">
+            <Input placeholder="原因（可选）" style={{ width: 240 }} maxLength={200} />
+          </Form.Item>
+          <Button type="primary" htmlType="submit">
+            加入黑名单
+          </Button>
+        </Form>
+      )}
+      <Table<DeviceBanItem>
+        rowKey="device"
+        loading={loading}
+        dataSource={items}
+        pagination={false}
+        locale={{ emptyText: "黑名单是空的" }}
+        columns={[
+          { title: "设备 ID", dataIndex: "device", render: (x: string) => <span className="mono">{x}</span> },
+          { title: "原因", dataIndex: "reason" },
+          { title: "操作人", dataIndex: "created_by", width: 120 },
+          { title: "时间", dataIndex: "created_at", width: 160, render: fmtTime },
+          {
+            title: "操作",
+            key: "ops",
+            width: 100,
+            render: (_, r) =>
+              canEdit ? (
+                <Button type="link" size="small" onClick={() => onRemove(r.device)}>
+                  移除
+                </Button>
+              ) : null,
+          },
+        ]}
+      />
+    </>
   );
 }

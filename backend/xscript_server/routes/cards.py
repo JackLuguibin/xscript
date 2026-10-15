@@ -20,7 +20,7 @@ from .. import licensing
 from ..abuse import SIGNALS as ABUSE_SIGNALS
 from ..audit import get_settings
 from ..deps import Principal, admin, client_ip, ctx, db_session, operator, paginate, record, viewer
-from ..models import AuditLog, Card
+from ..models import AuditLog, Card, DeviceBan
 
 log = logging.getLogger("xscript.cards")
 router = APIRouter(prefix="/api/cards", tags=["cards"])
@@ -81,6 +81,43 @@ def abuse_findings(p: Principal = Depends(viewer), s: Session = Depends(db_sessi
                      .limit(min(max(limit, 1), 500)))
     return {"items": [{"time": r.time, "subject": r.target, "ip": r.ip, **(r.detail or {}),
                        "label": ABUSE_SIGNALS.get((r.detail or {}).get("signal"), "")} for r in rows]}
+
+
+class BanIn(BaseModel):
+    device: str = Field(min_length=1, max_length=128, pattern=r"^[^\s*]\S*$")  # "*" would mean every device
+    reason: str = Field(default="", max_length=200)
+
+
+@router.get("/bans")
+def list_bans(p: Principal = Depends(viewer), s: Session = Depends(db_session)):
+    """Devices that may not activate cards (设备黑名单)."""
+    rows = s.scalars(select(DeviceBan).order_by(DeviceBan.created_at.desc()).limit(1000))
+    return {"items": [{"device": b.device, "reason": b.reason, "created_by": b.created_by, "created_at": b.created_at}
+                      for b in rows]}
+
+
+@router.post("/bans")
+def add_ban(body: BanIn, request: Request, p: Principal = Depends(operator), s: Session = Depends(db_session)):
+    device = body.device.strip()
+    row = s.get(DeviceBan, device)
+    if row is None:
+        s.add(DeviceBan(device=device, reason=body.reason, created_by=p.username))
+    else:
+        row.reason = body.reason or row.reason
+    record(request, s, p, "card.ban", device, {"reason": body.reason})
+    s.commit()
+    return {"device": device}
+
+
+@router.delete("/bans/{device}")
+def remove_ban(device: str, request: Request, p: Principal = Depends(operator), s: Session = Depends(db_session)):
+    row = s.get(DeviceBan, device)
+    if row is None:
+        raise HTTPException(404, "这台设备不在黑名单里")
+    s.delete(row)
+    record(request, s, p, "card.unban", device, {})
+    s.commit()
+    return {"ok": True}
 
 
 class BatchIn(BaseModel):
@@ -249,14 +286,14 @@ def _watch(request: Request, s: Session, act: cardsvc.Activation, card: str, dev
     if c.abuse is None:
         return
     try:
-        found = c.abuse.observe(act.code, cardsvc.normalize(card), device, ip, get_settings(s))
+        found = c.abuse.observe(act.code, cardsvc.normalize(card), device, ip, get_settings(s), s=s)
         for f in found:
             record(request, s, "system", "card.abuse", f.subject, f.detail)
             if c.alerts is not None:
                 from_thread.run_sync(c.alerts.emit, "card_abuse", f.signal + ":" + f.subject, f.text)
-        if found:
-            s.commit()
+        s.commit()  # also stores the observation (abuse_events) so a restart keeps the window
     except Exception:  # monitoring must never break activation
+        s.rollback()
         log.exception("abuse check failed")
 
 

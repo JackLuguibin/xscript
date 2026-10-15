@@ -228,6 +228,13 @@ export interface AbuseItem {
   threshold: number;
 }
 
+export interface DeviceBanItem {
+  device: string;
+  reason: string;
+  created_by: string;
+  created_at: number;
+}
+
 export interface CardStats extends Record<CardStatus, number> {
   total: number;
 }

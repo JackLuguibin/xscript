@@ -66,6 +66,12 @@ object LicenseManager {
         return out
     }
 
+    /** Expiry (epoch seconds, 0 = never) of the license the app holds now, or null when it has none / it is invalid. */
+    fun currentExpires(context: Context): Long? {
+        val payload = prefs(context).getString("token", null)?.let { verify(context, it) } ?: return null
+        return payload.optLong("exp", 0L)
+    }
+
     /** Full card code of the current license (AScript R.get_card()). */
     fun card(context: Context): String? =
         prefs(context).getString("token", null)?.let { verify(context, it) }?.optString("card")?.ifEmpty { null }
@@ -103,11 +109,12 @@ object LicenseManager {
         val payload = verify(context, token) ?: return Result(false, "授权码无效或不属于本设备")
         val exp = payload.optLong("exp", 0L)
         if (exp in 1..now(context)) return Result(false, "卡密已过期")
+        val before = currentExpires(context)
         prefs(context).edit()
             .putString("token", token)
             .putLong("checked", System.currentTimeMillis())
             .apply()
-        return Result(true, if (exp == 0L) "已激活（永久）" else "已激活")
+        return Result(true, LicenseToken.describeActivation(before, exp))
     }
 
     /** Payload when the signature, device and app match; null otherwise. */

@@ -12,7 +12,7 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from . import licensing
-from .models import Card, CardDevice, TrialUse
+from .models import Card, CardDevice, DeviceBan, TrialUse
 
 STATUSES = ("unused", "active", "expired", "unbound", "revoked")
 
@@ -102,7 +102,7 @@ def create_batch(s: Session, count: int, days: float, app: str, note: str = "", 
 class Activation:
     token: str | None = None
     error: str | None = None
-    code: str = "ok"  # ok | not_found | revoked | wrong_app | bound_other | limit | trial_used | expired
+    code: str = "ok"  # ok | not_found | revoked | wrong_app | bound_other | limit | trial_used | expired | device_banned
     card: Card | None = None
     new_device: bool = False  # this call bound a device that was not bound before
 
@@ -139,6 +139,8 @@ def activate_ex(s: Session, key, card: str, device: str, app: str, model: str = 
     """Bind the card to `device` and sign a token. Commits when it binds or fails after changes."""
     now = int(now or time.time())
     code = normalize(card)
+    if device != "*" and s.get(DeviceBan, device) is not None:
+        return Activation(error="此设备已被禁止激活卡密", code="device_banned")
     row = s.get(Card, code)
     if row is None:
         return Activation(error="卡密不存在", code="not_found")
@@ -246,6 +248,9 @@ def check_token(s: Session, payload: dict[str, Any]) -> str:
     s.commit()
     if row.revoked:
         return "revoked"
+    dev = payload.get("device")
+    if dev and dev != "*" and s.get(DeviceBan, str(dev)) is not None:
+        return "revoked"  # a banned device loses its licenses at the next re-verification
     bound = bound_devices(row)
     if bound and payload.get("device") not in ("*", *bound):
         return "revoked"

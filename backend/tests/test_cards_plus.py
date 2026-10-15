@@ -17,7 +17,7 @@ from xscript_server import abuse, licensing  # noqa: E402
 from xscript_server import cards as cardsvc  # noqa: E402
 from xscript_server.config import Config  # noqa: E402
 from xscript_server.db import Database  # noqa: E402
-from xscript_server.models import Card, CardDevice, TrialUse  # noqa: E402
+from xscript_server.models import AbuseEvent, AbuseReport, Card, CardDevice, DeviceBan, TrialUse  # noqa: E402
 
 DAY = 86400
 T0 = 1_800_000_000
@@ -241,6 +241,99 @@ class MigrateCardsTest(unittest.TestCase):
             self.assertEqual(list(cardsvc.bound_devices(c)), ["dev"])
 
 
+class BanServiceTest(ServiceTest):
+    def ban(self, device):
+        with self.db.session() as s:
+            s.add(DeviceBan(device=device, reason="test"))
+            s.commit()
+
+    def test_banned_device_cannot_activate_but_others_can(self):
+        a, b = self.make(2)
+        self.ban("bad")
+        r = self.act(a, "bad")
+        self.assertEqual((r.code, r.token), ("device_banned", None))
+        self.assertIsNone(self.row(a).device)  # the card stays unused
+        self.assertEqual(self.act(a, "good").code, "ok")
+
+    def test_ban_revokes_an_existing_license_at_reverification(self):
+        (a,) = self.make(1)
+        r = self.act(a, "dev1")
+        payload = licensing.verify(self.pub, r.token)
+        with self.db.session() as s:
+            self.assertEqual(cardsvc.check_token(s, payload), "ok")
+        self.ban("dev1")
+        with self.db.session() as s:
+            self.assertEqual(cardsvc.check_token(s, payload), "revoked")
+        with self.db.session() as s:
+            s.delete(s.get(DeviceBan, "dev1"))
+            s.commit()
+        with self.db.session() as s:
+            self.assertEqual(cardsvc.check_token(s, payload), "ok")  # lifted
+
+    def test_offline_wildcard_token_is_not_affected(self):
+        payload = {"card": self.make(1, days=0)[0], "device": "*", "app": "*", "exp": 0}
+        self.ban("*x")
+        with self.db.session() as s:
+            self.assertEqual(cardsvc.check_token(s, payload), "ok")
+
+
+class AbusePersistenceTest(unittest.TestCase):
+    """The windows and the report cooldown are written to the database and reloaded after a restart."""
+
+    TH = {"abuse_card_devices": 3, "abuse_device_cards": 3, "abuse_ip_devices": 3, "abuse_ip_failures": 3}
+
+    def setUp(self):
+        cfg = Config.load(tempfile.mkdtemp())
+        cfg.ensure_dirs()
+        self.db = Database(cfg.db_path)
+        self.db.create_all()
+
+    def observe(self, m, code, card, device, now, ip="ip"):
+        with self.db.session() as s:
+            out = m.observe(code, card, device, ip, self.TH, now=now, s=s)
+            s.commit()
+        return out
+
+    def test_window_survives_a_restart(self):
+        m1 = abuse.AbuseMonitor()
+        self.observe(m1, "bound_other", "XS-1", "d1", T0)
+        self.observe(m1, "bound_other", "XS-1", "d2", T0 + 1)
+        m2 = abuse.AbuseMonitor()  # "restart"
+        with self.db.session() as s:
+            self.assertEqual(m2.load(s, now=T0 + 5), 2)
+        out = self.observe(m2, "bound_other", "XS-1", "d3", T0 + 10)
+        self.assertEqual([(f.signal, f.count) for f in out], [("card_shared", 3)])
+
+    def test_cooldown_survives_a_restart(self):
+        m1 = abuse.AbuseMonitor()
+        for i in range(3):
+            out = self.observe(m1, "bound_other", "XS-2", "d%d" % i, T0 + i)
+        self.assertEqual(len(out), 1)
+        m2 = abuse.AbuseMonitor()
+        with self.db.session() as s:
+            m2.load(s, now=T0 + 100)
+        self.assertEqual(self.observe(m2, "bound_other", "XS-2", "d9", T0 + 100), [])  # still cooling down
+
+    def test_old_rows_are_not_restored_and_get_pruned(self):
+        m1 = abuse.AbuseMonitor()
+        self.observe(m1, "bound_other", "XS-3", "d1", T0)
+        m2 = abuse.AbuseMonitor()
+        with self.db.session() as s:
+            self.assertEqual(m2.load(s, now=T0 + abuse.WINDOW_S + 5), 0)
+        # A later observation prunes what fell out of the 24 h window.
+        self.observe(m2, "bound_other", "XS-4", "dX", T0 + abuse.WINDOW_S + 700)
+        with self.db.session() as s:
+            subjects = {e.subject for e in s.query(AbuseEvent)}
+            self.assertEqual(subjects, {"XS-4"})
+            self.assertEqual(s.query(AbuseReport).count(), 0)
+
+    def test_without_a_session_nothing_is_written(self):
+        m = abuse.AbuseMonitor()
+        m.observe("bound_other", "XS-5", "d1", "ip", self.TH, now=T0)
+        with self.db.session() as s:
+            self.assertEqual(s.query(AbuseEvent).count(), 0)
+
+
 class AbuseMonitorTest(unittest.TestCase):
     TH = {"abuse_card_devices": 3, "abuse_device_cards": 3, "abuse_ip_devices": 3, "abuse_ip_failures": 3}
 
@@ -454,6 +547,43 @@ class HttpTest(unittest.IsolatedAsyncioTestCase):
         finally:
             c.alerts.emit = real
             await self.admin.put("/api/settings", json={"abuse_card_devices": 3})
+
+    async def test_device_bans_api_and_effect(self):
+        viewer = await self.make_user("bviewer", "viewer")
+        op = await self.make_user("bop", "operator")
+        try:
+            card = (await self.batch()).json()["cards"][0]
+            self.assertEqual((await viewer.post("/api/cards/bans", json={"device": "banme"})).status_code, 403)
+            self.assertEqual((await viewer.get("/api/cards/bans")).status_code, 200)
+            self.assertEqual((await op.post("/api/cards/bans", json={"device": "*"})).status_code, 422)  # not "everyone"
+            self.assertEqual((await op.post("/api/cards/bans", json={"device": "banme", "reason": "共享"})).status_code, 200)
+            items = (await self.admin.get("/api/cards/bans")).json()["items"]
+            self.assertEqual([(b["device"], b["reason"], b["created_by"]) for b in items if b["device"] == "banme"],
+                             [("banme", "共享", "bop")])
+            async with httpx.AsyncClient(base_url=self.srv.base) as app:
+                r = await self.activate(app, card, "banme")
+                self.assertEqual(r.status_code, 403)
+                self.assertIn("禁止", r.json()["error"])
+                self.assertEqual((await self.activate(app, card, "okdev")).status_code, 200)
+            self.assertEqual((await viewer.delete("/api/cards/bans/banme")).status_code, 403)
+            self.assertEqual((await op.delete("/api/cards/bans/banme")).status_code, 200)
+            self.assertEqual((await op.delete("/api/cards/bans/banme")).status_code, 404)
+            actions = {a["action"] for a in (await self.admin.get("/api/audit")).json()["items"]}
+            self.assertTrue({"card.ban", "card.unban"} <= actions)
+        finally:
+            await viewer.aclose()
+            await op.aclose()
+
+    async def test_abuse_observations_are_persisted(self):
+        from xscript_server.models import AbuseEvent as AE
+        card = (await self.batch()).json()["cards"][0]
+        async with httpx.AsyncClient(base_url=self.srv.base) as app:
+            await self.activate(app, card, "persOwner")
+            await self.activate(app, card, "persOther")
+        c = self.srv.app.state.ctx
+        with c.db.session() as s:
+            rows = [(e.signal, e.member) for e in s.query(AE) if e.subject in (card, "persOwner")]
+        self.assertIn(("card_shared", "persOther"), rows)
 
     async def test_card_abuse_is_a_webhook_event(self):
         r = await self.admin.get("/api/settings")

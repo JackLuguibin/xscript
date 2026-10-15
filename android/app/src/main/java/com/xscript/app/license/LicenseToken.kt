@@ -41,4 +41,19 @@ object LicenseToken {
         val app = payload.optString("app")
         return (device == "*" || device == deviceId) && (app == "*" || app == appId)
     }
+
+    /**
+     * User-facing result of storing a license that expires at [exp] (epoch seconds, 0 = never) while the app
+     * held one expiring at [before] (null = none or invalid): activation, or 续期 when time was added on top.
+     */
+    fun describeActivation(before: Long?, exp: Long, zone: java.util.TimeZone = java.util.TimeZone.getDefault()): String {
+        if (exp == 0L) return if (before != null && before != 0L) "续期成功，已升级为永久" else "已激活（永久）"
+        val fmt = java.text.SimpleDateFormat("yyyy-MM-dd HH:mm", java.util.Locale.CHINA).apply { timeZone = zone }
+        val until = fmt.format(java.util.Date(exp * 1000))
+        if (before == null) return "已激活，有效至 $until"
+        if (before == 0L) return "已激活，有效至 $until（原授权是永久的）"
+        if (exp <= before) return "已激活，有效至 $until"
+        val days = (exp - before + 43200) / 86400
+        return "续期成功，有效至 $until（延长 $days 天）"
+    }
 }

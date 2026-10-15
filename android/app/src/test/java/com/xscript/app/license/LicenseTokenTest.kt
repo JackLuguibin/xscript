@@ -48,4 +48,24 @@ class LicenseTokenTest {
         assertNull(LicenseToken.verify(key, "garbage"))
         assertNull(LicenseToken.publicKey("not a key"))
     }
+
+    private val utc = java.util.TimeZone.getTimeZone("UTC")
+    private val day = 86400L
+
+    @Test
+    fun describesFirstActivationAndRenewal() {
+        val exp = 1_800_000_000L // 2027-01-15 08:00 UTC
+        assertEquals("已激活，有效至 2027-01-15 08:00", LicenseToken.describeActivation(null, exp, utc))
+        assertEquals("续期成功，有效至 2027-01-15 08:00（延长 30 天）", LicenseToken.describeActivation(exp - 30 * day, exp, utc))
+        assertEquals("续期成功，有效至 2027-01-15 08:00（延长 1 天）", LicenseToken.describeActivation(exp - day + 600, exp, utc))
+    }
+
+    @Test
+    fun describesPermanentAndOddCases() {
+        assertEquals("已激活（永久）", LicenseToken.describeActivation(null, 0, utc))
+        assertEquals("续期成功，已升级为永久", LicenseToken.describeActivation(1_800_000_000L, 0, utc))
+        assertEquals("已激活，有效至 2027-01-15 08:00（原授权是永久的）", LicenseToken.describeActivation(0, 1_800_000_000L, utc))
+        // Not later than what the app already had: plain activation, no claim of an extension.
+        assertEquals("已激活，有效至 2027-01-15 08:00", LicenseToken.describeActivation(1_800_000_000L + day, 1_800_000_000L, utc))
+    }
 }

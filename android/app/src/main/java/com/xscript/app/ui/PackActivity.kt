@@ -301,8 +301,11 @@ class PackActivity : AppCompatActivity() {
     }
 
     private fun activateDialog() {
+        // Already licensed: this is 续期. The new card's days are added after the current expiry (server side).
+        val held = LicenseManager.currentExpires(this)?.takeIf { LicenseManager.check(this) == null }
+        val renew = held != null
         val input = EditText(this).apply {
-            hint = "输入卡密"
+            hint = if (renew) "输入新的卡密" else "输入卡密"
             isSingleLine = true
         }
         val box = LinearLayout(this).apply {
@@ -311,10 +314,15 @@ class PackActivity : AppCompatActivity() {
             addView(input, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT))
         }
         AlertDialog.Builder(this)
-            .setTitle("卡密授权")
-            .setMessage("设备 ID：" + CloudClient.deviceId(this))
+            .setTitle(if (renew) "续期" else "卡密授权")
+            .setMessage(
+                (if (renew) {
+                    val until = if (held == 0L) "永久" else java.text.SimpleDateFormat("yyyy-MM-dd HH:mm", java.util.Locale.CHINA).format(java.util.Date(held!! * 1000))
+                    "当前有效至 $until\n输入新的卡密，时长会接在当前到期时间之后。\n"
+                } else "") + "设备 ID：" + CloudClient.deviceId(this),
+            )
             .setView(box)
-            .setPositiveButton("激活") { _, _ ->
+            .setPositiveButton(if (renew) "续期" else "激活") { _, _ ->
                 val code = input.text.toString()
                 thread(name = "xscript-activate") {
                     val res = LicenseManager.activate(this, code)

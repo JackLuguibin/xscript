@@ -291,3 +291,36 @@ class Setting(Base):
 
     key: Mapped[str] = mapped_column(String(64), primary_key=True)
     value: Mapped[Any] = mapped_column(JSON, default=None)
+
+
+class AbuseEvent(Base):
+    """One observation of the 卡密 abuse monitor (the 24 h window survives a restart)."""
+
+    __tablename__ = "abuse_events"
+    __table_args__ = (Index("ix_abuse_events_ts", "ts"),)
+
+    signal: Mapped[str] = mapped_column(String(24), primary_key=True)
+    subject: Mapped[str] = mapped_column(String(160), primary_key=True)
+    member: Mapped[str] = mapped_column(String(200), primary_key=True)
+    ts: Mapped[float] = mapped_column(Float)
+
+
+class AbuseReport(Base):
+    """When a signal was last reported for a subject (the one-per-hour cooldown survives a restart)."""
+
+    __tablename__ = "abuse_reports"
+
+    signal: Mapped[str] = mapped_column(String(24), primary_key=True)
+    subject: Mapped[str] = mapped_column(String(160), primary_key=True)
+    ts: Mapped[float] = mapped_column(Float)
+
+
+class DeviceBan(Base):
+    """A device that may not activate cards; its existing licenses fail the next re-verification."""
+
+    __tablename__ = "device_bans"
+
+    device: Mapped[str] = mapped_column(String(128), primary_key=True)
+    reason: Mapped[str] = mapped_column(String(200), default="")
+    created_by: Mapped[str] = mapped_column(String(64), default="")
+    created_at: Mapped[int] = mapped_column(Integer, default=now)
