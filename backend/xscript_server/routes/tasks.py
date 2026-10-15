@@ -37,6 +37,12 @@ class TaskIn(BaseModel):
         return self
 
 
+def _require_deploy_rights(p: Principal, command: dict[str, Any]) -> None:
+    """Scheduled deploys ship code to devices, so only admins may create, run, change or delete them."""
+    if command.get("path") == "script_deploy" and not p.at_least("admin"):
+        raise HTTPException(403, "定时下发小程序需要管理员权限")
+
+
 class TaskPatch(BaseModel):
     enabled: bool | None = None
     name: str | None = Field(default=None, max_length=64)
@@ -59,8 +65,7 @@ def list_tasks(p: Principal = Depends(viewer), s: Session = Depends(db_session))
 def create_task(body: TaskIn, request: Request, p: Principal = Depends(operator), s: Session = Depends(db_session)):
     if body.command.get("path") == "script_deploy":
         # Scheduled deploys ship code to devices, like the deploy button.
-        if not p.at_least("admin"):
-            raise HTTPException(403, "定时下发小程序需要管理员权限")
+        _require_deploy_rights(p, body.command)
         if not s.get(Script, int(body.command.get("script_id") or 0)):
             raise HTTPException(400, "小程序不存在")
     # An "every" task waits one interval before its first run; a daily task runs at the next HH:MM.
@@ -80,6 +85,7 @@ def update_task(task_id: int, body: TaskPatch, request: Request, p: Principal = 
     t = s.get(Task, task_id)
     if t is None:
         raise HTTPException(404, "任务不存在")
+    _require_deploy_rights(p, t.command or {})
     if body.enabled is not None:
         t.enabled = body.enabled
     if body.name is not None:
@@ -94,6 +100,7 @@ def delete_task(task_id: int, request: Request, p: Principal = Depends(operator)
     t = s.get(Task, task_id)
     if t is None:
         raise HTTPException(404, "任务不存在")
+    _require_deploy_rights(p, t.command or {})
     s.delete(t)
     record(request, s, p, "task.delete", str(task_id))
     s.commit()
@@ -112,4 +119,5 @@ async def run_task(task_id: int, request: Request, p: Principal = Depends(operat
     found = await run_in_threadpool(_load)
     if found is None:
         raise HTTPException(404, "任务不存在")
+    _require_deploy_rights(p, found[1])
     return await c.scheduler.run_task(task_id, found[0], found[1], by=p.username)

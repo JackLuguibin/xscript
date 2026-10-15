@@ -121,7 +121,12 @@ def run_project(project_dir, launch_params="{}", debug=False):
         _wait_for_threads()
         print("xscript: finished %s" % name)
     except SystemExit as exc:
-        code = exc.code if isinstance(exc.code, int) else 0
+        # CPython semantics: None -> 0, int -> itself, anything else is printed and exits with 1.
+        if exc.code is None or isinstance(exc.code, int):
+            code = exc.code or 0
+        else:
+            print(exc.code, file=sys.stderr)
+            code = 1
         print("xscript: exit %s" % code)
     except KeyboardInterrupt:
         print("xscript: interrupted")

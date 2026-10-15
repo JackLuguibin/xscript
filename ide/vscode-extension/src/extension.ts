@@ -1,7 +1,7 @@
 import * as fs from "fs";
 import * as path from "path";
 import * as vscode from "vscode";
-import { DeviceClient, HttpError, parseTarget } from "./client";
+import { DeviceClient, currentSeq as latestSeq, describeError, followTick, parseTarget } from "./client";
 import { collectFiles, findProjectRoot, isProjectDir } from "./project";
 
 let client: DeviceClient;
@@ -17,13 +17,7 @@ function makeClient(): DeviceClient {
   return new DeviceClient(parseTarget(config().get<string>("device", "127.0.0.1:9860")));
 }
 
-function describe(err: unknown): string {
-  if (err instanceof HttpError) return err.message;
-  const e = err as { name?: string; message?: string; cause?: { code?: string } };
-  if (e?.name === "TimeoutError") return "timed out";
-  if (e?.cause?.code) return e.cause.code; // ECONNREFUSED etc.
-  return e?.message ?? String(err);
-}
+const describe = describeError;
 
 async function guard<T>(what: string, fn: () => PromiseLike<T>): Promise<T | undefined> {
   try {
@@ -106,18 +100,10 @@ async function startFollowing(since: number): Promise<void> {
     if (busy || follow !== state) return;
     busy = true;
     try {
-      const r = await client.logs(state.since);
-      for (const e of r.entries) output.append(e.line.endsWith("\n") ? e.line : e.line + "\n");
-      state.since = r.next ?? state.since;
-      state.idle = r.entries.length ? 0 : state.idle + 1;
-      // Every few quiet polls, stop once the script has exited.
-      if (state.idle > 0 && state.idle % 3 === 0) {
-        const s = await client.status(3000);
-        if (!s.running) {
-          output.appendLine("[xscript] script finished");
-          stopFollowing();
-          void refreshStatus();
-        }
+      if ((await followTick(client, state, (text) => output.append(text))) === "done") {
+        output.appendLine("[xscript] script finished");
+        stopFollowing();
+        void refreshStatus();
       }
     } catch (err) {
       output.appendLine("[xscript] log polling stopped: " + describe(err));
@@ -129,14 +115,8 @@ async function startFollowing(since: number): Promise<void> {
 }
 
 /** Latest log seq, so following shows only lines from the next run. */
-async function currentSeq(): Promise<number> {
-  let since = 0;
-  for (let i = 0; i < 100; i++) {
-    const r = await client.logs(since);
-    if (!r.entries.length || r.next === since) break;
-    since = r.next;
-  }
-  return since;
+function currentSeq(): Promise<number> {
+  return latestSeq(client);
 }
 
 const commands: Record<string, (...args: any[]) => unknown> = {

@@ -328,6 +328,9 @@ class Handler(BaseHTTPRequestHandler):
                 return
             if sub == "/file":
                 rel = q.get("path", "")
+                if not _safe_rel(rel):  # same as the device (ProjectStore.resolve): 400, not 404
+                    self._json(400, {"error": "invalid path"})
+                    return
                 if rel not in files:
                     self._json(404, {"error": "missing file"})
                     return

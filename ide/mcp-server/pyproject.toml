@@ -13,6 +13,9 @@ dependencies = [
     "mcp==2.2.0",
 ]
 
+[project.optional-dependencies]
+test = ["coverage>=7.6"]
+
 [project.scripts]
 xscript-mcp = "xscript_mcp.server:main"
 

@@ -32,29 +32,97 @@ export interface EvalResult {
   error?: string;
 }
 
-/** Accepts "host", "host:port" or "http://host:port/". */
+/** Accepts "host", "host:port", "http://host:port/path", "[ipv6]:port" or a bare IPv6 address. */
 export function parseTarget(value: string): DeviceTarget {
   let text = (value || "").trim();
   if (!text) return { host: "127.0.0.1", port: DEFAULT_PORT };
   if (text.includes("://")) text = text.split("://", 2)[1];
-  text = text.replace(/\/+$/, "");
+  text = text.split("/", 1)[0]; // drop any path, e.g. http://ip:9860/tools/
+  const port = (s: string): number => {
+    if (s === "") return DEFAULT_PORT;
+    const n = Number(s);
+    if (!/^\d+$/.test(s) || n <= 0 || n > 65535) throw new Error("invalid port in device address: " + value);
+    return n;
+  };
+  if (text.startsWith("[")) {
+    const end = text.indexOf("]");
+    if (end < 0) throw new Error("invalid device address: " + value);
+    const rest = text.slice(end + 1);
+    return { host: text.slice(1, end) || "::1", port: port(rest.startsWith(":") ? rest.slice(1) : "") };
+  }
+  if ((text.match(/:/g) || []).length > 1) return { host: text, port: DEFAULT_PORT }; // bare IPv6
   const i = text.lastIndexOf(":");
   if (i < 0) return { host: text, port: DEFAULT_PORT };
-  const port = Number(text.slice(i + 1));
-  if (!Number.isInteger(port) || port <= 0 || port > 65535) {
-    throw new Error("invalid port in device address: " + value);
-  }
-  return { host: text.slice(0, i) || "127.0.0.1", port };
+  return { host: text.slice(0, i) || "127.0.0.1", port: port(text.slice(i + 1)) };
 }
 
 export function baseUrl(t: DeviceTarget): string {
-  return "http://" + t.host + ":" + t.port;
+  return "http://" + (t.host.includes(":") ? "[" + t.host + "]" : t.host) + ":" + t.port;
 }
 
 export class HttpError extends Error {
+  /** The device's own `error` text when the body is JSON (e.g. "工程已存在: demo"), else the raw body. */
+  public detail: string;
   constructor(public status: number, public body: string) {
-    super("HTTP " + status + (body ? ": " + body.slice(0, 200) : ""));
+    const detail = HttpError.detailOf(body);
+    super("HTTP " + status + (detail ? ": " + detail : ""));
+    this.detail = detail;
   }
+  private static detailOf(body: string): string {
+    try {
+      const data = JSON.parse(body);
+      if (data && typeof data === "object" && (data.error || data.msg)) return String(data.error || data.msg);
+    } catch {
+      /* not JSON */
+    }
+    return (body || "").slice(0, 200);
+  }
+}
+
+/** Short reason for a failed device call, for messages and the output channel. */
+export function describeError(err: unknown): string {
+  if (err instanceof HttpError) return err.message;
+  const e = err as { name?: string; message?: string; cause?: { code?: string } };
+  if (e?.name === "TimeoutError") return "timed out";
+  if (e?.cause?.code) return e.cause.code; // ECONNREFUSED etc.
+  return e?.message ?? String(err);
+}
+
+/** Latest log seq, so following shows only lines from the next run. */
+export async function currentSeq(client: Pick<DeviceClient, "logs">, maxPages = 100): Promise<number> {
+  let since = 0;
+  for (let i = 0; i < maxPages; i++) {
+    const r = await client.logs(since);
+    if (!r.entries.length || r.next === since) break;
+    since = r.next;
+  }
+  return since;
+}
+
+export interface FollowState {
+  since: number;
+  idle: number;
+}
+
+/**
+ * One log-follow poll: appends new lines, advances `since`, and every third quiet poll asks the
+ * device whether the script is still running. Returns "done" once it has finished.
+ */
+export async function followTick(
+  client: Pick<DeviceClient, "logs" | "status">,
+  state: FollowState,
+  write: (text: string) => void,
+): Promise<"more" | "done"> {
+  const r = await client.logs(state.since);
+  for (const e of r.entries) write(e.line.endsWith("\n") ? e.line : e.line + "\n");
+  // The device log may have been cleared (next < since): restart from its cursor.
+  state.since = typeof r.next === "number" ? r.next : state.since;
+  state.idle = r.entries.length ? 0 : state.idle + 1;
+  if (state.idle > 0 && state.idle % 3 === 0) {
+    const s = await client.status(3000);
+    if (!s.running) return "done";
+  }
+  return "more";
 }
 
 interface RequestOptions {

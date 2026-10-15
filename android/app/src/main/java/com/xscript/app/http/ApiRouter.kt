@@ -227,24 +227,17 @@ class ApiRouter(private val context: Context) {
     private fun screen(req: Request): Reply {
         val bitmap = CaptureEngine.captureBitmap()
             ?: return Reply.json(JSONObject().put("error", "capture_unavailable"), 503)
-        val fmt = req.query["format"].orEmpty()
-        val quality = req.query["quality"]?.toIntOrNull()?.coerceIn(1, 100) ?: 80
-        // Optional longest-side limit, for live remote control over 云控 (small JPEG frames).
-        val max = req.query["max"]?.toIntOrNull()?.coerceIn(64, 4096)
-        val w = bitmap.width
-        val h = bitmap.height
-        val scale = if (max != null) minOf(1.0, max.toDouble() / maxOf(w, h)) else 1.0
-        val img = if (scale < 1.0) {
-            Bitmap.createScaledBitmap(bitmap, (w * scale).toInt().coerceAtLeast(1), (h * scale).toInt().coerceAtLeast(1), true)
+        val opt = ScreenOptions.parse(req.query, bitmap.width, bitmap.height)
+        val img = if (opt.width != bitmap.width || opt.height != bitmap.height) {
+            Bitmap.createScaledBitmap(bitmap, opt.width, opt.height, true)
         } else {
             bitmap
         }
         val bytes = ByteArrayOutputStream()
-        val jpeg = fmt == "jpg" || fmt == "jpeg"
-        img.compress(if (jpeg) Bitmap.CompressFormat.JPEG else Bitmap.CompressFormat.PNG, if (jpeg) quality else 100, bytes)
+        img.compress(if (opt.jpeg) Bitmap.CompressFormat.JPEG else Bitmap.CompressFormat.PNG, opt.quality, bytes)
         if (img !== bitmap) img.recycle()
         bitmap.recycle()
-        return Reply(200, if (jpeg) "image/jpeg" else "image/png", bytes.toByteArray())
+        return Reply(200, opt.mime, bytes.toByteArray())
     }
 
     private fun uiTree(req: Request): Reply {

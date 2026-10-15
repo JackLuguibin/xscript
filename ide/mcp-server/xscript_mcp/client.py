@@ -17,6 +17,28 @@ CLIENT_HEADER = {"X-XScript-Client": "mcp"}
 SKIP_DIRS = {"__pycache__", ".git", ".mypy_cache", ".pytest_cache", ".venv", "venv", ".idea", ".vscode", "node_modules"}
 
 
+class DeviceError(httpx.HTTPStatusError):
+    """HTTP error from the device, carrying the device's own `error` text (e.g. 工程已存在: demo)."""
+
+    def __init__(self, response: httpx.Response):
+        detail = ""
+        try:
+            body = response.json()
+            if isinstance(body, dict):
+                detail = str(body.get("error") or body.get("msg") or "")
+        except ValueError:
+            detail = response.text[:200]
+        self.status_code = response.status_code
+        self.detail = detail
+        msg = "device %s %s -> %d" % (response.request.method, response.request.url.path, response.status_code)
+        super().__init__(msg + (": " + detail if detail else ""), request=response.request, response=response)
+
+
+def _check(r: httpx.Response) -> None:
+    if r.is_error:
+        raise DeviceError(r)
+
+
 @dataclass
 class DeviceTarget:
     host: str = "127.0.0.1"
@@ -24,7 +46,8 @@ class DeviceTarget:
 
     @property
     def base_url(self) -> str:
-        return "http://%s:%d" % (self.host, self.port)
+        host = "[%s]" % self.host if ":" in self.host else self.host
+        return "http://%s:%d" % (host, self.port)
 
     @classmethod
     def parse(cls, value: str) -> "DeviceTarget":
@@ -33,10 +56,16 @@ class DeviceTarget:
             return cls()
         if "://" in text:
             text = text.split("://", 1)[1]
-        text = text.rstrip("/")
+        text = text.split("/", 1)[0]  # drop any path, e.g. http://ip:9860/tools/
+        if text.startswith("["):  # [IPv6]:port
+            host, _, rest = text[1:].partition("]")
+            port_s = rest[1:] if rest.startswith(":") else ""
+            return cls(host=host or "::1", port=int(port_s) if port_s else DEFAULT_PORT)
+        if text.count(":") > 1:  # bare IPv6 address, no port
+            return cls(host=text, port=DEFAULT_PORT)
         if ":" in text:
             host, port_s = text.rsplit(":", 1)
-            return cls(host=host or "127.0.0.1", port=int(port_s))
+            return cls(host=host or "127.0.0.1", port=int(port_s) if port_s else DEFAULT_PORT)
         return cls(host=text, port=DEFAULT_PORT)
 
 
@@ -80,7 +109,7 @@ class DeviceClient:
         # `route` is positional-only so query params may be named `path` (e.g. read_file).
         with self._client() as client:
             r = client.get(self._url(route), params=params or None)
-            r.raise_for_status()
+            _check(r)
             return r.json()
 
     def status(self) -> dict[str, Any]:
@@ -89,13 +118,13 @@ class DeviceClient:
     def screen_png(self) -> bytes:
         with self._client() as client:
             r = client.get(self._url("/screen"))
-            r.raise_for_status()
+            _check(r)
             return r.content
 
     def screen_jpeg(self, quality: int = 70) -> bytes:
         with self._client() as client:
             r = client.get(self._url("/screen"), params={"format": "jpg", "quality": int(quality)})
-            r.raise_for_status()
+            _check(r)
             return r.content
 
     def ui_tree(self, mode: int = 0) -> dict[str, Any]:
@@ -116,7 +145,7 @@ class DeviceClient:
                 self._url("/projects/%s/files" % self._p(project)),
                 json={"path": path, "content": content, "encoding": encoding},
             )
-            r.raise_for_status()
+            _check(r)
             return r.json()
 
     def upload_zip(self, project: str, data: bytes, replace: bool = True) -> dict[str, Any]:
@@ -127,7 +156,7 @@ class DeviceClient:
                 content=data,
                 headers={"Content-Type": "application/zip"},
             )
-            r.raise_for_status()
+            _check(r)
             return r.json()
 
     def upload_directory(self, project: str, path: str | os.PathLike, replace: bool = True) -> dict[str, Any]:
@@ -136,7 +165,7 @@ class DeviceClient:
     def delete_project(self, project: str) -> dict[str, Any]:
         with self._client() as client:
             r = client.delete(self._url("/projects/%s" % self._p(project)))
-            r.raise_for_status()
+            _check(r)
             return r.json()
 
     def run_project(self, project: str) -> dict[str, Any]:
@@ -144,13 +173,13 @@ class DeviceClient:
             r = client.post(self._url("/projects/%s/run" % self._p(project)))
             if r.status_code == 409:
                 return r.json()
-            r.raise_for_status()
+            _check(r)
             return r.json()
 
     def stop_project(self, project: str) -> dict[str, Any]:
         with self._client() as client:
             r = client.post(self._url("/projects/%s/stop" % self._p(project)))
-            r.raise_for_status()
+            _check(r)
             return r.json()
 
     def logs(self, since: int = 0) -> dict[str, Any]:
@@ -159,7 +188,7 @@ class DeviceClient:
     def action(self, payload: dict[str, Any]) -> dict[str, Any]:
         with self._client() as client:
             r = client.post(self._url("/action"), json=payload)
-            r.raise_for_status()
+            _check(r)
             return r.json()
 
     # ---- tools: snapshots, 图色 checks, 标注 datasets ----
@@ -167,13 +196,13 @@ class DeviceClient:
     def snapshot(self) -> dict[str, Any]:
         with self._client() as client:
             r = client.post(self._url("/tools/snapshots"))
-            r.raise_for_status()
+            _check(r)
             return r.json()
 
     def snapshot_png(self, snapshot_id: str) -> bytes:
         with self._client() as client:
             r = client.get(self._url("/tools/snapshots/%s.png" % quote(snapshot_id, safe="")))
-            r.raise_for_status()
+            _check(r)
             return r.content
 
     def vision(self, request: dict[str, Any]) -> dict[str, Any]:
@@ -184,7 +213,7 @@ class DeviceClient:
             r = client.post(self._url("/tools/vision"), json=request)
             if r.status_code in (400, 404, 408):
                 return r.json()
-            r.raise_for_status()
+            _check(r)
             return r.json()
 
     def crop_snapshot(self, snapshot_id: str, rect: list[int], project: str, path: str) -> dict[str, Any]:
@@ -193,7 +222,7 @@ class DeviceClient:
                 self._url("/tools/snapshots/%s/crop" % quote(snapshot_id, safe="")),
                 json={"rect": rect, "project": project, "path": path},
             )
-            r.raise_for_status()
+            _check(r)
             return r.json()
 
     def list_datasets(self) -> list[dict[str, Any]]:
@@ -205,7 +234,7 @@ class DeviceClient:
     def export_dataset(self, name: str) -> bytes:
         with self._client(timeout=max(self.timeout, 120)) as client:
             r = client.get(self._url("/tools/datasets/%s/export" % self._p(name)))
-            r.raise_for_status()
+            _check(r)
             return r.content
 
     # ---- run options and 定时任务 ----
@@ -218,7 +247,7 @@ class DeviceClient:
             r = client.put(self._url("/projects/%s/config" % self._p(project)), json=flags)
             if r.status_code == 404:
                 return r.json()
-            r.raise_for_status()
+            _check(r)
             return r.json()
 
     def list_schedules(self, project: str | None = None) -> dict[str, Any]:
@@ -229,7 +258,7 @@ class DeviceClient:
             r = client.post(self._url("/schedules"), json=schedule)
             if r.status_code == 400:
                 return r.json()
-            r.raise_for_status()
+            _check(r)
             return r.json()
 
     def update_schedule(self, schedule_id: str, fields: dict[str, Any]) -> dict[str, Any]:
@@ -237,13 +266,13 @@ class DeviceClient:
             r = client.put(self._url("/schedules/%s" % quote(schedule_id, safe="")), json=fields)
             if r.status_code in (400, 404):
                 return r.json()
-            r.raise_for_status()
+            _check(r)
             return r.json()
 
     def delete_schedule(self, schedule_id: str) -> dict[str, Any]:
         with self._client() as client:
             r = client.delete(self._url("/schedules/%s" % quote(schedule_id, safe="")))
-            r.raise_for_status()
+            _check(r)
             return r.json()
 
     def run_schedule(self, schedule_id: str) -> dict[str, Any]:
@@ -251,7 +280,7 @@ class DeviceClient:
             r = client.post(self._url("/schedules/%s/run" % quote(schedule_id, safe="")))
             if r.status_code == 404:
                 return r.json()
-            r.raise_for_status()
+            _check(r)
             return r.json()
 
     # ---- models (YOLO / PaddleOCR) and runtime packages ----
@@ -264,13 +293,13 @@ class DeviceClient:
         with self._client(timeout=max(self.timeout, 300)) as client:
             r = client.put(self._url("/models/" + quote(remote_path.lstrip("/"), safe="/")), content=data,
                            headers={"Content-Type": "application/octet-stream"})
-            r.raise_for_status()
+            _check(r)
             return r.json()
 
     def delete_model(self, remote_path: str) -> dict[str, Any]:
         with self._client() as client:
             r = client.delete(self._url("/models/" + quote(remote_path.lstrip("/"), safe="/")))
-            r.raise_for_status()
+            _check(r)
             return r.json()
 
     def list_packages(self) -> dict[str, Any]:
@@ -287,7 +316,7 @@ class DeviceClient:
             r = client.post(self._url("/packages"), json=body)
             if r.status_code in (400, 408):
                 return r.json()
-            r.raise_for_status()
+            _check(r)
             return r.json()
 
     def eval_python(self, code: str, timeout_ms: int = 8000) -> dict[str, Any]:
@@ -296,5 +325,5 @@ class DeviceClient:
             r = client.post(self._url("/eval"), json={"code": code, "timeout_ms": int(timeout_ms)})
             if r.status_code == 408:
                 return {"ok": False, "error": "timeout"}
-            r.raise_for_status()
+            _check(r)
             return r.json()

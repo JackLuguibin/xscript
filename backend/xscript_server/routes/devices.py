@@ -262,8 +262,14 @@ def _relay_allowed(p: Principal, method: str, path: str) -> bool:
         return True
     if (method, path) in OPERATOR_RELAY:
         return True
-    return any(method == m and path.startswith(pre) and path.endswith(sfx)
-               for m, pre, sfxs in OPERATOR_RELAY_PREFIX for sfx in sfxs)
+    # Exactly /projects/<name>/<action>: a bare "/projects/run" would hit the device's create-project route.
+    for m, pre, sfxs in OPERATOR_RELAY_PREFIX:
+        if method != m or not path.startswith(pre):
+            continue
+        name, _, action = path[len(pre):].partition("/")
+        if name and "/" + action in sfxs:
+            return True
+    return False
 
 
 @router.post("/devices/{dev_id}/http")

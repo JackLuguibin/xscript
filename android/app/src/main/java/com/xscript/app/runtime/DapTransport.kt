@@ -19,12 +19,15 @@ object DapTransport {
     private var error = ""
     private val records = ArrayDeque<Record>()
 
+    /** debugpy's port in the script process; tests point it at a fake debuggee. */
+    @Volatile internal var port = 5678
+
     @Synchronized
     fun connect(): JSONObject {
         check(socket == null) { "debugger already connected" }
         val s = Socket()
         try {
-            s.connect(InetSocketAddress("127.0.0.1", 5678), 1500)
+            s.connect(InetSocketAddress("127.0.0.1", port), 1500)
             s.tcpNoDelay = true
         } catch (e: Exception) {
             s.close()
@@ -85,7 +88,7 @@ object DapTransport {
 
     @Synchronized
     fun status(): JSONObject = JSONObject().put("connected", socket != null)
-        .put("port", 5678).put("error", error)
+        .put("port", port).put("error", error)
 
     @Synchronized
     fun disconnect() {
