@@ -169,6 +169,42 @@ class TrialUse(Base):
     used_at: Mapped[int] = mapped_column(Integer, default=now)
 
 
+class Announcement(Base):
+    """公告 shown by packaged apps at start-up (plain text). app is a package name or * for every app."""
+
+    __tablename__ = "announcements"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    app: Mapped[str] = mapped_column(String(128), default="*", index=True)
+    title: Mapped[str] = mapped_column(String(120), default="")
+    body: Mapped[str] = mapped_column(Text, default="")
+    level: Mapped[str] = mapped_column(String(8), default="info")  # info | warning | urgent
+    enabled: Mapped[bool] = mapped_column(Boolean, default=True)
+    starts_at: Mapped[int | None] = mapped_column(Integer, default=None)
+    ends_at: Mapped[int | None] = mapped_column(Integer, default=None)
+    created_by: Mapped[str] = mapped_column(String(64), default="")
+    created_at: Mapped[int] = mapped_column(Integer, default=now)
+    updated_at: Mapped[int] = mapped_column(Integer, default=now)
+
+
+class AppUpdate(Base):
+    """APK 更新策略 per packed app: the newest version, the oldest one still allowed (强制更新) and where to get it."""
+
+    __tablename__ = "app_updates"
+
+    app: Mapped[str] = mapped_column(String(128), primary_key=True)
+    latest_code: Mapped[int] = mapped_column(Integer, default=0)
+    latest_name: Mapped[str] = mapped_column(String(32), default="")
+    min_code: Mapped[int] = mapped_column(Integer, default=0)  # clients below this must update (0 = nobody)
+    job_id: Mapped[int | None] = mapped_column(ForeignKey("pack_jobs.id", ondelete="SET NULL"), default=None)
+    url: Mapped[str] = mapped_column(String(512), default="")  # external download page / file when no job
+    sha256: Mapped[str] = mapped_column(String(64), default="")
+    size: Mapped[int] = mapped_column(Integer, default=0)
+    notes: Mapped[str] = mapped_column(Text, default="")
+    updated_by: Mapped[str] = mapped_column(String(64), default="")
+    updated_at: Mapped[int] = mapped_column(Integer, default=now)
+
+
 class AuditLog(Base):
     __tablename__ = "audit_log"
 

@@ -16,7 +16,7 @@ from sqlalchemy.orm import Session
 from .. import scripts as scripts_store
 from ..audit import get_settings
 from ..deps import Principal, apk_limit, ctx, db_session, operator, paginate, pub_limit, record, viewer
-from ..models import DeviceKey, PackJob, Script, ScriptVersion, ShareLink
+from ..models import AppUpdate, DeviceKey, PackJob, Script, ScriptVersion, ShareLink
 from ..packer import APP_ID, PROJECT_NAME
 from ..security import new_secret, token_hash
 
@@ -131,6 +131,8 @@ def delete_job(job_id: int, request: Request, p: Principal = Depends(operator), 
         raise HTTPException(404, "任务不存在")
     if j.status in ("queued", "running"):
         raise HTTPException(400, "先取消任务")
+    if s.scalar(select(AppUpdate).where(AppUpdate.job_id == job_id)) is not None:
+        raise HTTPException(400, "这个任务的 APK 正在作为应用更新使用，先在「应用运营」里更换或清除更新策略")
     s.delete(j)
     record(request, s, p, "pack.delete", j.app_id, {"job": job_id})
     s.commit()

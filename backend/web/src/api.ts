@@ -306,6 +306,9 @@ export interface Settings {
   abuse_device_cards: number;
   abuse_ip_devices: number;
   abuse_ip_failures: number;
+  login_ip_allowlist: string[];
+  login_ip_allowlist_on: boolean;
+  your_ip: string;
 }
 
 export interface MaintenanceInfo {

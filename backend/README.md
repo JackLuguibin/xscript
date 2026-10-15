@@ -31,7 +31,7 @@ XScript 的 PC / 服务器端。这里的内容都不在手机上运行。
 | `pack/<job>/` | 每个打包任务上传的项目、构建日志和 APK |
 | `scripts/<id>/<version>/` | 小程序版本：上传的 `source.zip`，以及由它构建、用于部署 / 热更新的包 |
 
-其他命令行命令：`device-key --name X`（输出一个新的设备密钥）、`reset-password <user>`、`import-legacy`（从旧的 `xscript_cloud.py` / `licenses.db` / `private.pem` 导入；见 `--help`）、`backup [--out file]`、`restore <file> [--force]`。
+其他命令行命令：`device-key --name X`（输出一个新的设备密钥）、`reset-password <user>`、`reset-allowlist`（清空登录 IP 白名单）、`import-legacy`（从旧的 `xscript_cloud.py` / `licenses.db` / `private.pem` 导入；见 `--help`）、`backup [--out file]`、`restore <file> [--force]`。
 
 ### 备份、升级与存储
 
@@ -66,6 +66,8 @@ PYTHONPATH=backend .venv/bin/python -m unittest discover -s backend/tests
 生产部署推荐用 Docker（后台 + Caddy 自动 HTTPS），见 [docs/部署.md](../docs/部署.md)。
 
 - **两步验证。** 账号可以开启 TOTP 两步验证（「账号与令牌」页扫码），系统设置里可以要求所有管理员必须开启。手机丢失时由其他管理员在「用户」页重置，或运行 `reset-password <user> --totp-only`。
+- **登录 IP 白名单**（系统设置 → 安全，管理员设置）：名单非空时，只有名单内的 IP 能登录后台、使用会话和 API 令牌；`/ws`、`/license/*`、`/pub/*` 不受影响。保存时不允许把自己的 IP 排除在外；被锁在外面时在服务器上运行 `reset-allowlist`。放在反向代理后面时必须 `--behind-proxy`，否则判断的是代理的 IP。
+- **应用公告 / 强制更新**：`/api/app-notices`（查看：只读；增删改：操作员）、`/api/app-updates`（查看：只读；设置 / 清除：管理员）；公开接口 `GET /pub/app-notices`、`GET /pub/app-update`、`GET /pub/app-update/apk`（按 IP 限流，APK 下载与分发链接同一档）。被引用的打包任务不能删除。App 端尚未接入。
 - **设备运行日志** 由设备每 3 秒批量上传，保存 `device_log_days` 天（默认 7，0 = 不保存），设备离线后仍可在「运行日志 → 历史」里搜索和导出。
 - **HTTPS。** 在前面部署 nginx 或 Caddy，并以 `--behind-proxy` 启动（信任来自 `--forwarded-allow-ips` 的 `X-Forwarded-*`，默认 127.0.0.1）。通过 HTTPS 访问时，会话 cookie 会带上 `Secure`。此时设备使用 `wss://`。除非传入 `--host`，服务器只绑定 127.0.0.1。
 - **账号。** 密码使用 scrypt 哈希；会话（12 小时滑动过期，`XSCRIPT_SESSION_HOURS`）和 API 令牌以 SHA-256 哈希存储。登录按 IP + 用户名限流（失败 5 次锁定 5 分钟）。基于 cookie 认证的写操作需要 `X-XScript-Csrf` 请求头，cookie 为 `SameSite=Strict`。服务器不发送 CORS 头，并设置严格的 CSP。

@@ -24,7 +24,7 @@ from . import __version__
 from .config import Config
 from .db import Database
 from .migrate import LATEST
-from .models import AuditLog, DeviceLog, PackJob, ShareLink
+from .models import AppUpdate, AuditLog, DeviceLog, PackJob, ShareLink
 
 MANIFEST = "xscript-backup.json"
 
@@ -212,7 +212,10 @@ def run_retention(cfg: Config, db: Database, policy: dict[str, Any], now: float 
         if keep_jobs > 0:
             done = list(s.scalars(select(PackJob).where(PackJob.status.in_(("succeeded", "failed", "cancelled")))
                                   .order_by(PackJob.id.desc())))
+            in_use = set(s.scalars(select(AppUpdate.job_id).where(AppUpdate.job_id.is_not(None))))
             for j in done[keep_jobs:]:
+                if j.id in in_use:
+                    continue  # the APK that installed apps are told to update to
                 # Keep the row (history, audit) but drop the files.
                 d = cfg.pack_dir / str(j.id)
                 if d.exists():

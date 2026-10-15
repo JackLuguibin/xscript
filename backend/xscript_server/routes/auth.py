@@ -12,7 +12,7 @@ from sqlalchemy.orm import Session
 
 from .. import totp
 from ..audit import get_settings
-from ..deps import SESSION_COOKIE, Principal, client_ip, ctx, current_user, db_session, record, viewer
+from ..deps import SESSION_COOKIE, Principal, client_ip, ctx, current_user, db_session, ip_allowed, record, viewer
 from ..models import AuthToken, User
 from ..security import DUMMY_HASH, check_password_policy, hash_password, new_secret, token_hash, verify_password
 
@@ -62,6 +62,13 @@ def _require_totp(s: Session) -> bool:
 def login(body: LoginIn, request: Request, response: Response, s: Session = Depends(db_session)):
     c = ctx(request)
     ip = client_ip(request)
+    if not ip_allowed(s, ip):
+        # Before any password check, so the list also stops guessing from outside. Audit rows are capped per IP by the login limiter.
+        if c.limiter.blocked("ipdeny|" + ip) == 0:
+            c.limiter.fail("ipdeny|" + ip)
+            record(request, s, body.username, "auth.ip_denied", ip)
+            s.commit()
+        raise HTTPException(403, "当前 IP 不在登录白名单内")
     key = ip + "|" + body.username.lower()
     wait = c.limiter.blocked(key)
     if wait:

@@ -128,6 +128,7 @@ AScript 写法照常可用：`cloud_control.connect_to_ws(url)`、`cloud_control
 | `POST /api/scripts/<id>/deploy` `{"target","version_id","run","params"}` | 通过云控把版本安装到设备（`PUT /projects/<工程名>/zip`），可选立即启动（管理员）。单个工程上限约 11 MB |
 | `POST /api/pack/jobs/<id>/shares` `{"days"}`、`DELETE /api/pack/shares/<id>` | 分发链接，公开下载页 `/d/<token>` |
 | `GET /pub/update?channel=&code=`、`GET /pub/bundle/<channel>/<code>.zip` | 热更新（打包 App 调用，不需要登录）：签名清单 + 当前发布版本的工程 zip |
+| `GET /pub/app-notices?app=&version_code=`、`GET /pub/app-update?app=&version_code=`、`GET /pub/app-update/apk?app=` | App 公告和 APK 更新检查 / 下载（不需要登录；`/api/app-notices`、`/api/app-updates` 管理）。App 端尚未接入 |
 | `POST /license/activate`、`POST /license/verify` | 卡密激活 / 复核（App 调用，不需要登录，见 [PACKAGING.md](PACKAGING.md)） |
 
 ```bash

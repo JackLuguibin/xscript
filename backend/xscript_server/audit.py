@@ -29,6 +29,8 @@ DEFAULT_SETTINGS: dict[str, Any] = {
     "abuse_device_cards": 5,       # cards activated by one device
     "abuse_ip_devices": 10,        # devices activated from one IP
     "abuse_ip_failures": 5,        # unknown card codes tried from one IP
+    # 登录 IP 白名单: IPs / CIDR ranges allowed to use the console and API ([] = anyone)
+    "login_ip_allowlist": [],
 }
 
 ALERT_EVENTS = {

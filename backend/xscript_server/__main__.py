@@ -90,6 +90,19 @@ def cmd_reset_password(cfg: Config, a) -> int:
     return 0
 
 
+def cmd_reset_allowlist(cfg: Config, a) -> int:
+    """Back door when the 登录 IP 白名单 locks everyone out."""
+    from .audit import set_setting
+
+    db = _db(cfg)
+    with db.session() as s:
+        set_setting(s, "login_ip_allowlist", [])
+        audit(s, "cli", "settings.update", "login_ip_allowlist", {"login_ip_allowlist": []})
+        s.commit()
+    print("已清空登录 IP 白名单，所有 IP 都可以登录")
+    return 0
+
+
 def cmd_device_key(cfg: Config, a) -> int:
     db = _db(cfg)
     value = new_secret("xsd_")
@@ -223,6 +236,8 @@ def main(argv: list[str] | None = None) -> int:
     rp.add_argument("--reset-totp", action="store_true", help="同时关闭两步验证")
     rp.add_argument("--totp-only", action="store_true", help="只关闭两步验证（手机丢失时），不改密码")
 
+    ra = sub.add_parser("reset-allowlist", help="清空登录 IP 白名单（白名单把自己锁在外面时）")
+
     dk = sub.add_parser("device-key", help="生成设备连接密钥")
     dk.add_argument("--name", default="默认")
 
@@ -240,12 +255,12 @@ def main(argv: list[str] | None = None) -> int:
     rs.add_argument("--force", action="store_true", help="覆盖已有的数据库")
 
     # --data is accepted before or after the subcommand.
-    for p in (sv, i, rp, dk, il, bk, rs):
+    for p in (sv, i, rp, ra, dk, il, bk, rs):
         p.add_argument("--data", default=argparse.SUPPRESS, help=argparse.SUPPRESS)
 
     a = ap.parse_args(argv)
     cfg = Config.load(getattr(a, "data", None), getattr(a, "web", None))
-    handlers = {"serve": cmd_serve, "init": cmd_init, "reset-password": cmd_reset_password,
+    handlers = {"serve": cmd_serve, "init": cmd_init, "reset-password": cmd_reset_password, "reset-allowlist": cmd_reset_allowlist,
                 "device-key": cmd_device_key, "import-legacy": cmd_import_legacy, "backup": cmd_backup,
                 "restore": cmd_restore}
     try:

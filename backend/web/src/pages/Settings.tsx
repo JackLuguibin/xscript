@@ -1,4 +1,4 @@
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useNavigate } from "react-router-dom";
 import { Alert, App, Button, Card, Descriptions, Form, Input, InputNumber, Space, Switch, Tabs, Tag, Typography } from "antd";
@@ -101,6 +101,47 @@ function AbuseSettings({ settings }: { settings?: Settings }) {
           保存
         </Button>
       </Form>
+    </Card>
+  );
+}
+
+/** 登录 IP 白名单: only these addresses can log in or use a session / API token. */
+function AllowlistSettings({ settings }: { settings?: Settings }) {
+  const { message } = App.useApp();
+  const qc = useQueryClient();
+  const [text, setText] = useState("");
+  useEffect(() => {
+    if (settings) setText((settings.login_ip_allowlist ?? []).join("\n"));
+  }, [settings]);
+  const save = useMutation({
+    mutationFn: (list: string[]) => api.put<Settings>("/api/settings", { login_ip_allowlist: list }),
+    onSuccess: (s) => {
+      qc.setQueryData(["settings"], s);
+      message.success(s.login_ip_allowlist_on ? "白名单已生效" : "白名单已关闭");
+    },
+    onError: (e) => message.error((e as Error).message),
+  });
+  const list = text.split(/[\s,;]+/).filter(Boolean);
+  return (
+    <Card title="登录 IP 白名单" style={{ maxWidth: 880 }} loading={!settings}>
+      <Typography.Paragraph type="secondary">
+        每行一个 IP 或网段（如 <span className="mono">203.0.113.7</span>、<span className="mono">10.0.0.0/8</span>、
+        <span className="mono">2001:db8::/32</span>）。设置后只有名单内的 IP 能登录后台、使用已登录的会话和 API 令牌；留空 = 不限制。
+        设备云控连接、卡密激活和 App 的公开接口不受影响。你当前的 IP 是 <span className="mono">{settings?.your_ip}</span>，
+        名单不包含它时无法保存。如果仍被锁在外面，在服务器上执行 <span className="mono">xscript-server reset-allowlist</span>。
+        在反向代理后面时，需要用 <span className="mono">--behind-proxy</span> 启动，否则看到的都是代理的 IP。
+      </Typography.Paragraph>
+      <Input.TextArea rows={5} value={text} onChange={(e) => setText(e.target.value)} className="mono" placeholder={"203.0.113.7\n10.0.0.0/8"} />
+      <Space style={{ marginTop: 12 }}>
+        <Button type="primary" loading={save.isPending} onClick={() => save.mutate(list)}>
+          保存
+        </Button>
+        {settings && (
+          <Button onClick={() => setText(((settings.login_ip_allowlist ?? []).concat(list.includes(settings.your_ip) ? [] : [settings.your_ip])).join("\n"))}>
+            加入我的 IP
+          </Button>
+        )}
+      </Space>
     </Card>
   );
 }
@@ -220,6 +261,7 @@ export default function SettingsPage() {
                   children: (
                     <Space orientation="vertical" size="large" style={{ width: "100%" }}>
                       <SecuritySettings settings={s} />
+                      <AllowlistSettings settings={s} />
                       <AbuseSettings settings={s} />
                     </Space>
                   ),

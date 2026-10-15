@@ -11,6 +11,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from .audit import audit
+from . import netcheck
 from .models import AuthToken, Setting, User
 from .security import ROLES, LoginLimiter, token_hash
 
@@ -71,6 +72,12 @@ def client_ip(request: Request) -> str:
     return request.client.host if request.client else ""
 
 
+def ip_allowed(s: Session, ip: str) -> bool:
+    """登录 IP 白名单 (system setting); an empty list lets everyone in."""
+    row = s.get(Setting, "login_ip_allowlist")
+    return netcheck.allowed(ip, row.value if row is not None else [])
+
+
 def _credentials(request: Request) -> tuple[str, str]:
     auth = request.headers.get("authorization", "")
     if auth[:7].lower() == "bearer ":
@@ -90,6 +97,8 @@ def current_user(request: Request) -> Principal:
     c = ctx(request)
     now = int(time.time())
     with c.db.session() as s:
+        if not ip_allowed(s, client_ip(request)):
+            raise HTTPException(403, "当前 IP 不在登录白名单内")
         row = s.scalar(select(AuthToken).where(AuthToken.token_hash == token_hash(token)))
         if row is None or row.kind != via or (row.expires_at and row.expires_at <= now):
             raise HTTPException(401, "登录已失效")

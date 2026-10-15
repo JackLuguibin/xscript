@@ -15,10 +15,10 @@ from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 from starlette.concurrency import run_in_threadpool
 
-from .. import __version__, maintenance
+from .. import __version__, maintenance, netcheck
 from .. import cards as cardsvc
 from ..audit import ALERT_EVENTS, get_settings, set_setting
-from ..deps import Principal, admin, ctx, db_session, paginate, record, viewer
+from ..deps import Principal, admin, client_ip, ctx, db_session, paginate, record, viewer
 from ..models import AuditLog, Device, PackJob, Script, Task, User
 
 router = APIRouter(prefix="/api", tags=["system"])
@@ -98,8 +98,11 @@ def read_settings(request: Request, p: Principal = Depends(viewer), s: Session =
     hooks = out.get("alert_webhooks") or []
     out["alert_webhooks"] = [{**{k: v for k, v in w.items() if k != "secret"}, "has_secret": bool(w.get("secret")),
                               **({} if p.at_least("admin") else {"url": ""})} for w in hooks]
+    out["login_ip_allowlist_on"] = bool(out.get("login_ip_allowlist"))
+    if not p.at_least("admin"):
+        out["login_ip_allowlist"] = []  # network layout is for admins
     out.update(version=__version__, license_public_key=c.pubkey, release_signing=c.config.release_signing,
-               alert_events=ALERT_EVENTS)
+               alert_events=ALERT_EVENTS, your_ip=client_ip(request))
     return out
 
 
@@ -135,6 +138,7 @@ class SettingsIn(BaseModel):
     abuse_device_cards: int | None = Field(default=None, ge=0, le=1000)
     abuse_ip_devices: int | None = Field(default=None, ge=0, le=10000)
     abuse_ip_failures: int | None = Field(default=None, ge=0, le=10000)
+    login_ip_allowlist: list[str] | None = Field(default=None, max_length=100)
 
 
 @router.put("/settings")
@@ -148,6 +152,15 @@ def write_settings(body: SettingsIn, request: Request, p: Principal = Depends(ad
         for w in changes["alert_webhooks"]:
             if not w.get("secret") and old.get(w["url"], {}).get("secret"):
                 w["secret"] = old[w["url"]]["secret"]
+    if "login_ip_allowlist" in changes:
+        try:
+            entries = netcheck.normalize(changes["login_ip_allowlist"])
+        except ValueError as e:
+            raise HTTPException(400, str(e)) from None
+        # Refuse a list that shuts the saving admin out; the CLI `reset-allowlist` is the way back in.
+        if entries and not netcheck.allowed(client_ip(request), entries):
+            raise HTTPException(400, "你当前的 IP（%s）不在名单里，保存后会把你自己锁在外面" % client_ip(request))
+        changes["login_ip_allowlist"] = entries
     if changes.get("require_totp_admin"):
         me = s.get(User, p.id)
         if not me.totp_enabled:

@@ -6,6 +6,7 @@ import type { MenuProps } from "antd";
 import {
   ApiOutlined,
   AppstoreOutlined,
+  NotificationOutlined,
   AuditOutlined,
   BorderInnerOutlined,
   BuildOutlined,
@@ -34,6 +35,7 @@ const DevicesPage = lazy(() => import("./pages/Devices"));
 const DeviceKeysPage = lazy(() => import("./pages/DeviceKeys"));
 const TasksPage = lazy(() => import("./pages/Tasks"));
 const CardsPage = lazy(() => import("./pages/Cards"));
+const AppOpsPage = lazy(() => import("./pages/AppOps"));
 const PackPage = lazy(() => import("./pages/Pack"));
 const ScriptsPage = lazy(() => import("./pages/Scripts"));
 const DownloadPage = lazy(() => import("./pages/Download"));
@@ -61,6 +63,7 @@ const NAV: NavItem[] = [
   { path: "/tasks", label: "定时任务", icon: <ClockCircleOutlined />, role: "viewer", group: "云控" },
   { path: "/device-keys", label: "设备密钥", icon: <KeyOutlined />, role: "admin", group: "云控" },
   { path: "/cards", label: "卡密管理", icon: <SafetyCertificateOutlined />, role: "viewer", group: "授权" },
+  { path: "/app-ops", label: "应用运营", icon: <NotificationOutlined />, role: "viewer", group: "发布" },
   { path: "/scripts", label: "小程序", icon: <AppstoreOutlined />, role: "viewer", group: "发布" },
   { path: "/pack", label: "APK 打包", icon: <BuildOutlined />, role: "viewer", group: "发布" },
   { path: "/users", label: "用户", icon: <TeamOutlined />, role: "admin", group: "系统" },
@@ -296,6 +299,7 @@ export default function App() {
                   }
                 />
                 <Route path="/cards" element={<CardsPage />} />
+                <Route path="/app-ops" element={<AppOpsPage />} />
                 <Route path="/pack" element={<PackPage />} />
                 <Route
                   path="/users"
