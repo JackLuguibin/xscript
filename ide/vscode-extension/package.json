@@ -14,7 +14,9 @@
   ],
   "main": "./out/extension.js",
   "activationEvents": [
-    "workspaceContains:**/__init__.py"
+    "workspaceContains:**/__init__.py",
+    "onDebugResolve:xscript",
+    "onDebugDynamicConfigurations:xscript"
   ],
   "contributes": {
     "commands": [
@@ -22,6 +24,7 @@
       { "command": "xscript.status", "title": "Show Device Status", "category": "XScript" },
       { "command": "xscript.upload", "title": "Upload Project", "category": "XScript" },
       { "command": "xscript.run", "title": "Upload and Run Project", "category": "XScript", "icon": "$(play)" },
+      { "command": "xscript.debug", "title": "Debug Project on Device", "category": "XScript", "icon": "$(debug-alt)" },
       { "command": "xscript.stop", "title": "Stop Project", "category": "XScript", "icon": "$(debug-stop)" },
       { "command": "xscript.logs", "title": "Follow Run Logs", "category": "XScript" },
       { "command": "xscript.eval", "title": "Run Selection on Device", "category": "XScript" },
@@ -31,11 +34,13 @@
     ],
     "menus": {
       "editor/title": [
-        { "command": "xscript.run", "when": "resourceLangId == python", "group": "navigation" }
+        { "command": "xscript.run", "when": "resourceLangId == python", "group": "navigation" },
+        { "command": "xscript.debug", "when": "resourceLangId == python", "group": "navigation" }
       ],
       "explorer/context": [
         { "command": "xscript.run", "when": "explorerResourceIsFolder", "group": "xscript" },
-        { "command": "xscript.upload", "when": "explorerResourceIsFolder", "group": "xscript" }
+        { "command": "xscript.upload", "when": "explorerResourceIsFolder", "group": "xscript" },
+        { "command": "xscript.debug", "when": "explorerResourceIsFolder", "group": "xscript" }
       ],
       "editor/context": [
         { "command": "xscript.eval", "when": "editorHasSelection && resourceLangId == python", "group": "xscript" }
@@ -43,7 +48,39 @@
     },
     "keybindings": [
       { "command": "xscript.run", "key": "f6", "when": "editorLangId == python" },
-      { "command": "xscript.stop", "key": "shift+f6", "when": "editorLangId == python" }
+      { "command": "xscript.stop", "key": "shift+f6", "when": "editorLangId == python" },
+      { "command": "xscript.debug", "key": "alt+f6", "when": "editorLangId == python" }
+    ],
+    "breakpoints": [
+      { "language": "python" }
+    ],
+    "debuggers": [
+      {
+        "type": "xscript",
+        "label": "XScript (device)",
+        "languages": ["python"],
+        "configurationAttributes": {
+          "launch": {
+            "properties": {
+              "projectRoot": { "type": "string", "default": "${workspaceFolder}", "description": "Local project folder (contains __init__.py). Default: the project of the active file." },
+              "project": { "type": "string", "description": "Project name on the device. Default: the folder name." },
+              "device": { "type": "string", "description": "Device address; default is the xscript.device setting." },
+              "upload": { "type": "boolean", "default": true, "description": "Upload the project to the device before debugging." },
+              "justMyCode": { "type": "boolean", "default": true, "description": "Only step through the project's own code." }
+            }
+          }
+        },
+        "initialConfigurations": [
+          { "type": "xscript", "request": "launch", "name": "XScript: Debug on device", "projectRoot": "${workspaceFolder}" }
+        ],
+        "configurationSnippets": [
+          {
+            "label": "XScript: Debug on device",
+            "description": "Upload the project and debug it on the connected device",
+            "body": { "type": "xscript", "request": "launch", "name": "XScript: Debug on device", "projectRoot": "^\"\\${workspaceFolder}\"" }
+          }
+        ]
+      }
     ],
     "configuration": {
       "title": "XScript",

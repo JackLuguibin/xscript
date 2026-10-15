@@ -3,6 +3,7 @@ import * as path from "path";
 import * as vscode from "vscode";
 import { DeviceClient, currentSeq as latestSeq, describeError, followTick, parseTarget } from "./client";
 import { collectFiles, findProjectRoot, isProjectDir } from "./project";
+import { registerDebugger, startDebugging } from "./debugAdapter";
 
 let client: DeviceClient;
 let output: vscode.OutputChannel;
@@ -170,6 +171,13 @@ const commands: Record<string, (...args: any[]) => unknown> = {
     await startFollowing(since);
   },
 
+  "xscript.debug": async (uri?: vscode.Uri) => {
+    const root = await resolveProject(uri);
+    if (!root) return;
+    output.show(true);
+    if (!(await startDebugging(root))) vscode.window.showWarningMessage("XScript: the debug session did not start (see the XScript output)");
+  },
+
   "xscript.stop": async (uri?: vscode.Uri) => {
     const s = await guard("status", () => client.status());
     if (!s) return;
@@ -248,6 +256,7 @@ export function activate(context: vscode.ExtensionContext): void {
       vscode.commands.registerCommand(id, (...args: unknown[]) => (needsContext.has(id) ? fn(context) : fn(...args))),
     );
   }
+  registerDebugger(context, output, () => config().get<string>("device", "127.0.0.1:9860"));
   context.subscriptions.push(
     vscode.workspace.onDidChangeConfiguration((e) => {
       if (e.affectsConfiguration("xscript.device")) {

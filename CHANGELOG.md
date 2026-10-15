@@ -7,6 +7,7 @@
 ### 新增
 
 - **网页 IDE：重命名 / 移动文件和文件夹**：目录树里选中后按 F2、点「重命名」、右键菜单，或直接拖到目标文件夹。已打开的标签页、未保存的修改、断点和展开状态跟着走；目标已存在返回冲突，不会覆盖；入口 `__init__.py` 受保护。设备接口新增 `POST /projects/{name}/move`（`{"from","to"}`，400/404/409，单次原子重命名）。
+- **VS Code / Cursor 扩展：一键调试**：在 Python 文件里按 **Alt+F6**（或编辑器右上角的调试按钮、资源管理器里右键工程文件夹 **Debug Project on Device**）：自动保存并上传工程、在手机上启动调试器、连接并进入 VS Code 自带的调试界面；行断点、条件 / 命中次数断点、日志点、单步、调用栈、变量、监视 / 调试控制台求值都走标准调试协议，经设备已有的 `/debug/*` 接口转发，不用改手机端。也可以在 `launch.json` 里写 `{"type":"xscript","request":"launch","projectRoot":"${workspaceFolder}"}`。电脑上的文件路径和手机上的路径自动互相转换；停止调试会终止手机上的脚本，「断开但不终止」则让它继续跑完。
 - **链接启动**：`xscript://run?name=<工程>[&params=<JSON>]` 运行脚本，`xscript://stop` 停止；打包出来的 App 用包名作协议，只能运行自己的小程序。首页新增「链接启动」开关：每次确认（默认）/ 直接运行 / 已关闭。
 - **图片字库（CvFontLib）**：`ascript.android.screen.gp_tasks.CvFontLib(part_img, font_lib, confidence, rect, spacing, rgb)`，用一组字符小图做模板匹配，按行、按左右顺序拼出文字；也可放进 GP 管线，或用 `CvFontLib.recognize(...)` 直接得到文字。已用真实 OpenCV 在主机上测试，并在 4KB 页面的 Android 14 模拟器上用设备内置的 numpy 1.23.3 / OpenCV 4.5.1 跑通同一组 13 个测试。
 - **网页 IDE：多标签页关闭**：标签页右侧有 × 按钮，也支持鼠标中键、Alt+W 和右键菜单（关闭 / 关闭其他 / 关闭右侧 / 关闭已保存 / 全部关闭）；有未保存修改的文件先确认再关闭。

@@ -47,6 +47,24 @@ python3 scripts/device_debug_smoke.py --base http://127.0.0.1:19860
 
 debugpy wheel 来源、哈希与许可证见 `android/wheels/README.md`。
 
+## VS Code / Cursor 一键调试
+
+扩展注册了调试类型 `xscript`（内联调试适配器，不起子进程）：把 VS Code 的调试协议（DAP）经上面的 `/debug/*` 接口转给手机上的 debugpy。启动流程：保存全部文件 → 上传工程 → `POST /projects/{name}/debug` → 轮询 `POST /debug/connect` 直到 debugpy 监听 → 发 attach（带路径映射）→ 回 `initialized` → 设置断点 → `configurationDone`。
+
+- 路径映射：本地工程目录 ⇄ `remote_root`；栈帧、断点来源和输出里的路径都转换回本地文件，所以 VS Code 能直接跳转。
+- 日志：脚本输出来自 `/logs`，在 `terminated` 事件前补齐；debugpy 自己转发的重复 stdout 会被丢弃。
+- 结束：停止调试 = DAP disconnect（终止）+ 停止手机脚本 + `DELETE /debug`；`terminateDebuggee=false` 只分离，脚本继续运行。设备断线会给出提示并结束会话。
+- 调试配置见 `ide/vscode-extension/package.json`（`projectRoot` / `project` / `device` / `upload` / `justMyCode`）。
+
+测试：`ide/vscode-extension/src/test/dap.test.ts`（10 个，用假设备覆盖握手、路径映射、重试、断开、超时、断线）；真机检查：
+
+```sh
+adb forward tcp:19860 tcp:9860
+cd ide/vscode-extension && npm run compile && node scripts/debug-smoke.js 127.0.0.1:19860
+```
+
+该脚本直接驱动适配器核心，在 emulator-5554 上验证了：上传 → 启动 → 断点命中（本地路径）→ 变量 → 单步 → evaluate → 继续 → 输出 → 断开，以及分离后脚本自己跑完。没有在真正的 VS Code / Cursor 界面里加载过扩展；条件断点、命中次数、日志点和修改变量只是声明并原样转发给 debugpy，没有逐项实测。
+
 ## 同轮短信修正
 
 已匹配原版 Java 契约：read 为布尔值，包含 subject；地址绑定 LIKE 包含匹配；按 date 排序；负 offset 按 0、非正 limit 不限；无权限/查询失败返回 []，首条助手返回 None。

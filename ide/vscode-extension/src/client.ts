@@ -26,6 +26,21 @@ export interface Logs {
   next: number;
 }
 
+export interface DebugStartResult {
+  ok?: boolean;
+  error?: string;
+  project?: string;
+  debug?: { port: number; remote_root: string };
+}
+
+export interface DebugMessages {
+  messages?: { id: number; message: Record<string, any> }[];
+  next: number;
+  connected?: boolean;
+  error?: string;
+  dropped_before?: number;
+}
+
 export interface EvalResult {
   ok: boolean;
   result?: string;
@@ -207,6 +222,31 @@ export class DeviceClient {
     });
     if (r.status === 408) return { ok: false, error: "timeout" };
     return (await r.json()) as EvalResult;
+  }
+
+  // ---- debugging: DAP over the device HTTP bridge (docs/DEBUGGING.md) ----
+  /** Starts the saved project with debugpy waiting for a client. 403/404/409 come back as data ({error}). */
+  debugStart(project: string): Promise<DebugStartResult> {
+    return this.json("POST", "/projects/" + DeviceClient.p(project) + "/debug", {
+      passStatuses: [403, 404, 409],
+      timeoutMs: Math.max(this.timeoutMs, 30000),
+    });
+  }
+
+  debugConnect(): Promise<Record<string, unknown>> {
+    return this.json("POST", "/debug/connect", { json: {}, passStatuses: [409] });
+  }
+
+  debugRequest(message: Record<string, unknown>): Promise<Record<string, unknown>> {
+    return this.json("POST", "/debug/request", { json: message });
+  }
+
+  debugMessages(since: number): Promise<DebugMessages> {
+    return this.json("GET", "/debug/messages", { query: { since } });
+  }
+
+  debugClose(): Promise<Record<string, unknown>> {
+    return this.json("DELETE", "/debug");
   }
 
   async screenPng(): Promise<Buffer> {

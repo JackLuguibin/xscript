@@ -4,7 +4,7 @@
 
 | 路径 | 作用 |
 | --- | --- |
-| `vscode-extension/` | VS Code / Cursor 扩展：上传并运行项目、跟踪日志、在设备上运行选中代码、截图、内置存根 |
+| `vscode-extension/` | VS Code / Cursor 扩展：上传并运行项目、一键断点调试、跟踪日志、在设备上运行选中代码、截图、内置存根 |
 | `mcp-server/` | Cursor MCP（`xscript-mcp`），让 AI 能看到屏幕，编写、上传和运行脚本。见 [mcp-server/README.md](mcp-server/README.md) |
 | `python-stubs/` | 生成的 `.pyi` 存根，用于 `xscript.*` / `ascript.*` 自动补全（`scripts/gen_stubs.py`） |
 
@@ -25,6 +25,7 @@ cursor --install-extension xscript-vscode-0.1.0.vsix   # 或：code --install-ex
 | --- | --- | --- |
 | XScript: Connect to Device | 状态栏 | 设置 `xscript.device`（地址见 App 中的“开发者地址”，默认 `127.0.0.1:9860`） |
 | XScript: Upload and Run Project | F6 | 保存并上传当前文件所在的项目，然后运行，并在 输出（Output）→ XScript 中跟踪日志 |
+| XScript: Debug Project on Device | Alt+F6 | 保存并上传项目，以调试方式启动并连接（调试类型 `xscript`，也可用 launch.json） |
 | XScript: Stop Project | Shift+F6 | 停止正在运行的项目 |
 | XScript: Upload Project | | 仅上传 |
 | XScript: Follow Run Logs | | 开启 / 关闭日志跟踪 |
