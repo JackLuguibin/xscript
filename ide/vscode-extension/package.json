@@ -458,6 +458,7 @@
     "test": "node --test \"out/test/**/*.test.js\"",
     "vscode:prepublish": "npm run compile",
     "host-test": "bash scripts/vscode-host-test.sh",
+    "no-prompt-check": "bash scripts/vscode-no-prompt-check.sh",
     "package": "npx --yes @vscode/vsce@3.6.2 package --no-dependencies"
   },
   "devDependencies": {

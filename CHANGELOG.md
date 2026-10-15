@@ -6,6 +6,7 @@
 
 ### 新增
 
+- **VS Code 扩展验证不再弹登录**：查明弹出来的是 Welcome 页 + 内置 Copilot Chat 的「Sign in」、内置 GitHub Authentication 读写钥匙串（创建登录钥匙串里的「Code Safe Storage」条目）、Edit Sessions 的云端更改提示，并且会在真实 `~/.vscode` 里写文件。`vscode-host-test.sh` 现在用临时 `HOME`、关掉 GitHub / Microsoft 认证和 Copilot 内置扩展、`--use-mock-keychain`、临时配置里关掉 AI / 欢迎页 / 云端更改 / 遥测 / 更新；新增 `vscode-no-prompt-check.sh` 读取编辑器实际显示的内容和 macOS 窗口来证明没有提示；成功运行自动删除临时目录；重新运行的检查改成轮询状态，不再偶发失败。
 - **VS Code 扩展对齐 AScript 官方扩展（0.2.0）**：对照应用市场里的 AScript 扩展 0.3.0（读了它的 vsix 清单和官方文档）补齐：
   - 活动栏 **XScript** 视图：保存的设备（在线 / 离线、运行状态、行内运行 / 停止）、手机上的工程（行内运行 / 拉取）、工具入口。
   - **设备管理**：添加 / 编辑 / 删除、选择运行设备（编辑器右上角手机图标，记在工作区设置）、**扫描设备**（ADB 含自动 `adb forward`，加局域网 9860 端口）。

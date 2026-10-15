@@ -109,7 +109,8 @@ async function flows(ext, check, folder) {
     await sleep(real ? 4000 : 800);
     const remote = (await http(base, "GET", "/projects/" + name + "/file?path=__init__.py")).json;
     check(remote && /host-test-second/.test(remote.content || ""), "re-run synced only the changed file and restarted", String(remote && remote.content).slice(0, 60));
-    st = (await http(base, "GET", "/status")).json;
+    // the restart is stop -> idle -> upload -> start; on a loaded emulator that can take longer than the fixed wait
+    for (let i = 0; i < 20 && !(st.running === true && st.project === name); i++) { await sleep(1000); st = (await http(base, "GET", "/status")).json; }
     check(st.running === true && st.project === name, "project runs again after the re-run");
     if (real) {
       const logs = (await http(base, "GET", "/logs?since=0")).json;

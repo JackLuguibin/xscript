@@ -79,4 +79,8 @@ XS_VSCODE="/path/to/Visual Studio Code.app/Contents/MacOS/Code" bash scripts/vsc
 XS_HOST_TEST_DEVICE=127.0.0.1:19860 XS_HOST_TEST_REAL=1 XS_HOST_TEST_ADB=1 bash scripts/vscode-host-test.sh
 ```
 
+### 验证不会弹登录
+
+`scripts/vscode-env.sh` 给两个脚本一份「永远不要登录」的临时配置：临时 `HOME`（不碰 `~/.vscode`、不碰你的钥匙串和账号）、临时 `--user-data-dir` / `--extensions-dir`、关闭 GitHub 认证 / Copilot 等内置扩展、`--use-mock-keychain`、`settings.json` 里关 AI、欢迎页、云端更改、遥测、更新、工作区信任。`bash scripts/vscode-no-prompt-check.sh` 读取编辑器真实显示的内容和 macOS 窗口，证明没有任何登录 / 钥匙串 / 欢迎页。原因和排查过程见 `docs/DEBUGGING.md`。成功的运行会删掉临时目录；失败时保留（或设 `XS_HOST_TEST_KEEP=1`）方便看日志。
+
 扩展宿主测试里覆盖：激活、27 个命令、活动栏视图和树节点、快捷键、状态栏文字、添加 / 编辑 / 删除设备、ADB 和局域网扫描、新建工程、运行（`.syncignore`、再次运行先停止并只同步改动）、停止、拉取、截图在编辑器里打开、通过 VS Code 调试 API 在断点处停下并求值。验证只在真实 VS Code 1.142.0（官方稳定版，隔离配置）里做过，Cursor 没有测。没有覆盖：真实按键、图标和视图的外观、选择菜单 / 输入框（用带参数的命令代替）、中文显示语言下的标题。

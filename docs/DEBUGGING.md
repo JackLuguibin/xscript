@@ -71,13 +71,28 @@ node scripts/debug-smoke-advanced.js 127.0.0.1:19861   # 14 项检查：i == 7 �
 
 实测发现并修复：适配器以前把 debugpy 的所有 stdout 输出当作重复丢弃，日志点（debugpy 自己产生、带 source / line）的内容因此在调试控制台里看不到；现在带 source / line 的输出会保留并映射成本地路径。注意 debugpy 对 `setVariable` 的非法表达式（如 `1 +`）不报错，而是返回旧值。
 
-在真正的 Cursor 里加载（隔离的临时配置，不动你的 Cursor 设置）：
+在真实 VS Code 里加载（官方稳定版，隔离的临时配置，不动你自己的 VS Code / Cursor 设置、账号和钥匙串）：
 
 ```sh
 cd ide/vscode-extension && npm run package && scripts/vscode-host-test.sh
 ```
 
-脚本用 `code` CLI 安装 vsix，以 `--extensionDevelopmentPath` + `--extensionTestsPath` 启动 Cursor 扩展宿主，检查：扩展已安装并激活、11 条命令、`xscript` 调试类型、Alt+F6 快捷键、`xscript.status` 可执行、工作区 `__init__.py`。没有驱动编辑器的调试界面（点断点、点 F10），那一部分只验证了适配器核心。
+脚本用 `code` CLI 安装 vsix，以 `--extensionDevelopmentPath` + `--extensionTestsPath` 启动 VS Code 扩展宿主，检查：扩展已安装并激活、11 条命令、`xscript` 调试类型、Alt+F6 快捷键、`xscript.status` 可执行、工作区 `__init__.py`。没有驱动编辑器的调试界面（点断点、点 F10），那一部分只验证了适配器核心。
+
+### 验证时 VS Code 要求登录？
+
+以前每次跑都会弹登录相关的东西，原因（看临时配置里的日志和编辑器界面文字查出来的，不是猜的）：
+
+1. **欢迎页 + 内置 Copilot Chat 面板**：首次启动的空白配置会打开 Welcome 页，右侧聊天面板显示「Sign in to use GitHub Copilot / Continue with GitHub」。这是最显眼的「要登录」。
+2. **内置 GitHub Authentication 扩展**启动时读取 keychain（日志 `Reading sessions from keychain...`），VS Code 因此在 macOS 登录钥匙串里创建 / 读取「Code Safe Storage」条目，钥匙串锁定时会弹钥匙串密码框。第一轮验证就在你的钥匙串里留下了这个条目（`security find-generic-password -s 'Code Safe Storage'`，创建于第一次运行），还创建了真实的 `~/.vscode`（`argv.json`、`cli`）。
+3. **Edit Sessions 的「启用云端更改」提示**（`editSessions.log`: Prompting to enable cloud changes）；设置同步本身默认关闭（`[AutoSync] Disabled`）。
+4. Gatekeeper：下载的 VS Code 通过了公证（`spctl`：Notarized Developer ID），没有隔离标记，不是原因；脚本仍会在被下载的副本带 `com.apple.quarantine` 时清掉它。
+
+另：Mac 上若看到「universalAccessAuthWarn」这个辅助功能授权窗口，那是别的应用（不是 VS Code）在要辅助功能权限。
+
+修复在 `ide/vscode-extension/scripts/vscode-env.sh`（两个脚本共用）：临时 `HOME`（`~/.vscode`、`~/Library` 都不再被碰；adb 仍用真实的 `ANDROID_USER_HOME`）、`--user-data-dir` / `--extensions-dir` 临时目录、`--disable-extension` 关掉 GitHub 认证 / GitHub / Microsoft 认证 / Copilot、`--use-mock-keychain`（macOS 上 Chromium 的开关；`--password-store=basic` 只对 Linux 有效，一并传了也无害）、`--disable-workspace-trust --disable-telemetry --disable-updates --skip-welcome --skip-release-notes`，以及临时配置里的 `settings.json`（`scripts/host-test/settings.json`：关 AI 功能、欢迎页、云端更改、遥测、更新、信任提示等）。
+
+证明：`bash scripts/vscode-no-prompt-check.sh` 启动同样的配置，通过 `--remote-debugging-port` 读取编辑器真实显示的内容（通知、对话框、欢迎页、聊天面板、「Sign in」文字），并列出 macOS 上的窗口（SecurityAgent / 钥匙串 / Gatekeeper 窗口），有任何一项就失败。修复前同一个检查看到 Welcome 页和 Copilot 登录；修复后空白，只有 VS Code 自己的窗口。
 
 ## 同轮短信修正
 
