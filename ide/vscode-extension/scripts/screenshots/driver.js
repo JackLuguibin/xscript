@@ -1,0 +1,80 @@
+// Runs INSIDE the VS Code extension host (--extensionTestsPath): puts the editor into the states shown in the README
+// screenshots (run + sidebar + log panel, debugger stopped at a breakpoint), and for each one writes <XS_SHOT_DIR>/ready-<name> then waits for done-<name> (capture.js takes the
+// picture through the DevTools protocol in between). Needs a real device: XS_SHOT_DEVICE=127.0.0.1:<forwarded port>.
+const fs = require("fs");
+const path = require("path");
+const vscode = require("vscode");
+
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+const dir = process.env.XS_SHOT_DIR;
+const shot = async (name) => {
+  fs.writeFileSync(path.join(dir, "ready-" + name), "");
+  for (let i = 0; i < 120 && !fs.existsSync(path.join(dir, "done-" + name)); i++) await sleep(500);
+};
+async function http(base, method, route) {
+  const r = await fetch(base + route, { method });
+  try { return await r.json(); } catch { return {}; }
+}
+
+exports.run = async function run() {
+  const addr = process.env.XS_SHOT_DEVICE;
+  const base = "http://" + addr;
+  const folder = vscode.workspace.workspaceFolders[0];
+  const root = folder.uri.fsPath;
+  const project = path.basename(root);
+  const file = path.join(root, "__init__.py");
+  try {
+    const ext = vscode.extensions.getExtension("xscript.xscript-vscode");
+    await ext.activate();
+    await vscode.workspace.getConfiguration("xscript").update("device", addr, vscode.ConfigurationTarget.Workspace);
+    await vscode.commands.executeCommand("xscript.addDevice", { name: "Android 模拟器", address: addr, quiet: true });
+    await vscode.window.showTextDocument(vscode.Uri.file(file), { preview: false });
+    const cmd = (c) => vscode.commands.executeCommand(c);
+    await cmd("workbench.view.extension.xscript");
+    await cmd("workbench.action.focusSideBar");
+    for (let i = 0; i < 3; i++) await cmd("workbench.action.increaseViewSize");   // wide enough for the device row
+    await sleep(1500);
+
+    // run: uploads, starts, streams the device log into the XScript output channel
+    await vscode.commands.executeCommand("xscript.run", vscode.Uri.file(file));
+    await sleep(4300);
+    await ext.exports.refreshStatus();
+    await cmd("xscript.refreshView");
+    await cmd("workbench.action.focusActiveEditorGroup");
+    await sleep(800);
+    await shot("run");
+    await vscode.commands.executeCommand("xscript.stop", vscode.Uri.file(file));
+    await sleep(2500);
+
+    // debug: stop at the breakpoint on `total += i`
+    const lines = fs.readFileSync(file, "utf8").split("\n");
+    const at = lines.findIndex((l) => l.includes("total += i"));
+    const bp = new vscode.SourceBreakpoint(new vscode.Location(vscode.Uri.file(file), new vscode.Position(at, 0)));
+    vscode.debug.addBreakpoints([bp]);
+    await vscode.debug.startDebugging(folder, { type: "xscript", request: "launch", name: "XScript: Debug Project", projectRoot: root });
+    let item;
+    for (let i = 0; i < 80 && !item; i++) { item = vscode.debug.activeStackItem; if (!item) await sleep(500); }
+    await cmd("workbench.view.debug");
+    await sleep(2500);
+    // expand the paused thread's frames and the Locals scope so the picture shows real debugger state
+    await cmd("workbench.debug.action.focusCallStackView");
+    await cmd("list.focusFirst"); await cmd("list.focusDown"); await cmd("list.expand");
+    await sleep(800);
+    await cmd("workbench.debug.action.focusVariablesView");
+    await cmd("list.focusFirst"); await cmd("list.expand");
+    await sleep(800);
+    await cmd("workbench.action.focusActiveEditorGroup");
+    await sleep(1200);
+    await shot("debug");
+    await vscode.debug.stopDebugging();
+    vscode.debug.removeBreakpoints([bp]);
+    await sleep(1000);
+    fs.writeFileSync(path.join(dir, "result"), "ok");
+  } catch (e) {
+    fs.writeFileSync(path.join(dir, "result"), "error: " + (e && e.stack || e));
+  } finally {
+    await http(base, "POST", "/projects/" + project + "/stop").catch(() => {});
+    await http(base, "DELETE", "/projects/" + project).catch(() => {});
+    await vscode.commands.executeCommand("xscript.removeDevice", { address: addr, name: "Android 模拟器", quiet: true }).catch(() => {});
+  }
+};

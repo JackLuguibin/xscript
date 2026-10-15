@@ -46,6 +46,20 @@ XScript 将设备端 Python 运行时、自动化 API、浏览器开发工具和
 - ⌘/Ctrl+S 保存，**保存并运行**（F6）在手机上运行，**停止**（Shift+F6）结束；**保存并调试** 支持断点、单步和变量查看。
 - **删除文件**：入口 `__init__.py` 不能删，文件夹要先清空。右上角可切换深色主题。
 
+### VS Code 插件
+
+不想用网页 IDE 时，可以在 VS Code（或 Cursor）里写脚本：从 [GitHub Release](https://github.com/JackLuguibin/xscript/releases/latest) 下载 `xscript-vscode-<版本>.vsix`（版本号和 App 相同，校验值在 `SHA256SUMS`），然后 `code --install-extension xscript-vscode-<版本>.vsix`（v0.2.4 及更早的 Release 没有 vsix，可以先按[插件说明](ide/vscode-extension/README.md)自己打包）。装好后左侧活动栏出现 **XScript** 图标：
+
+![VS Code 插件：左侧是设备、手机上的工程和工具，底部 Output → XScript 实时显示运行日志](docs/images/vscode-run.png)
+
+- **设备**：**扫描设备**（ADB 和局域网）或 **添加设备** 填 App 里的开发者地址；点设备即设为当前设备。
+- **运行**：打开 `__init__.py`，按 **Ctrl+Shift+R**（或编辑器右上角 ▶）：只把改动的文件同步到手机并运行，日志实时输出；再按一次先停止再重新运行，**Shift+F6** 停止。`.vscode/.syncignore` 控制哪些文件不上传。
+- **新建工程**、从手机 **拉取工程**、截图、ADB 终端、投屏也在这个视图里。
+
+![一键调试：Alt+F6 上传并在手机上启动 debugpy，在断点处停下，查看变量、调用栈，在调试控制台求值](docs/images/vscode-debug.png)
+
+和 AScript 官方扩展的逐项对照、没做的功能见[插件说明](ide/vscode-extension/README.md)。
+
 更多说明（快捷键、错误提示、图色和标注工具、VS Code 插件、管理后台）见[使用手册](docs/使用手册.md)。
 
 ## 项目结构
@@ -222,6 +236,7 @@ python3 scripts/device_screen_smoke.py http://127.0.0.1:19860
 - [断点调试](docs/DEBUGGING.md)：网页调试与 DAP API。
 - [云控协议](docs/CLOUD.md)：设备连接与指令转发。
 - [打包与授权](docs/PACKAGING.md)：独立 APK、更新与激活码。
+- [发布流程](docs/发布.md)：App 和 VS Code 插件一起打包、校验、发布。
 - [技术架构](docs/ARCHITECTURE.md)：模块与运行流程。
 - [设备 HTTP 契约](protocol/openapi.yaml)：客户端和设备共用的 API 定义。
 - [路线图](docs/路线图.md)：后续规划。

@@ -3,10 +3,21 @@
 把 XScript / AScript 风格的工程上传到 Android 手机，运行、停止、调试，看日志。通过设备 HTTP API（`protocol/openapi.yaml`，默认端口 9860）通信，没有登录。只指向可信网络中的手机，或用 `adb forward` 指向 `127.0.0.1`。
 
 ```bash
-cd ide/vscode-extension
-npm ci && npm run package       # xscript-vscode-0.2.0.vsix
-cursor --install-extension xscript-vscode-0.2.0.vsix    # VS Code：code --install-extension ...
+# 方式一：从 GitHub Release 下载（v0.2.4 及更早的 Release 没有，从下一个发布起附带） xscript-vscode-<版本>.vsix（和 App 同一个 Release，版本号相同，校验值在 SHA256SUMS 里）
+code --install-extension xscript-vscode-<版本>.vsix      # Cursor：cursor --install-extension ...
+# 方式二：自己打包
+cd ide/vscode-extension && npm ci && npm run package     # 生成 xscript-vscode-<版本>.vsix
 ```
+
+扩展版本号 = App 发布版本号（同一个 Git 标签、同一个 Release 页面），不上架 VS Code 应用市场。发布流程见 `scripts/release.sh` 和 [docs/发布.md](../../docs/发布.md)。
+
+## 截图
+
+![XScript 活动栏：设备、手机上的工程、工具；运行后 Output → XScript 实时输出日志](../../docs/images/vscode-run.png)
+
+![一键调试：在断点处停下，左侧是变量、调用栈和断点，底部是调试控制台](../../docs/images/vscode-debug.png)
+
+（真实 VS Code 1.142、隔离配置，连着一台 Android 模拟器的演示工程；`bash scripts/vscode-screenshots.sh` 可重新生成。）
 
 ## 使用
 
@@ -45,7 +56,7 @@ cursor --install-extension xscript-vscode-0.2.0.vsix    # VS Code：code --insta
 - 官方文档 <https://www.ascript.cn/docs/android/devtools/vscode/>。
 - 这些信息之外的实际界面（图标、网页面板的外观）没有在真实 AScript 扩展里运行过，所以下表只比较命令、菜单、行为描述，不比较像素。
 
-| AScript 扩展 0.3.0 | XScript 扩展 0.2.0 | 状态 |
+| AScript 扩展 0.3.0 | XScript 扩展（与 App 同版本） | 状态 |
 | --- | --- | --- |
 | `新建 AScript 工程`（网页面板；Android 工程要从设备拉取；生成 `build.as`、`__init__.py`、`res/`） | `新建 XScript 工程`：模板 + 父目录 + 名字，本地生成同样的三项；不需要先连设备 | ✅ 对齐（体验不同） |
 | `选择运行设备`（编辑器右上角手机图标；设备记在 `.vscode/settings.json`） | 同名图标、同样记在工作区设置（`xscript.device`） | ✅ |

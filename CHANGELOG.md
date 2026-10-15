@@ -6,14 +6,15 @@
 
 ### 新增
 
+- **README 里的 VS Code 插件说明和截图；发布时一起打包 vsix**：根 README 新增「VS Code 插件」一节（侧边栏 + 运行日志、断点调试两张真实截图，真实 VS Code 连模拟器上的演示工程，截图由 `ide/vscode-extension/scripts/vscode-screenshots.sh` 通过 DevTools 协议生成，不需要屏幕录制权限）。新增 `scripts/release.sh`（`check` / `prepare` / `build` / `publish`）和 [发布流程](docs/发布.md)：发布时构建 `xscript-vscode-X.Y.Z.vsix`，和签名 APK 一起放进 `dist/release/`，`SHA256SUMS` 同时覆盖两者，再用 `gh release create` 附到同一个 GitHub Release。插件版本号 = App 发布版本号（现为 0.2.4，原 0.2.0 未发布过），`verify.sh` 检查两者一致；插件暂不上架应用市场。
 - **VS Code 扩展验证不再弹登录**：查明弹出来的是 Welcome 页 + 内置 Copilot Chat 的「Sign in」、内置 GitHub Authentication 读写钥匙串（创建登录钥匙串里的「Code Safe Storage」条目）、Edit Sessions 的云端更改提示，并且会在真实 `~/.vscode` 里写文件。`vscode-host-test.sh` 现在用临时 `HOME`、关掉 GitHub / Microsoft 认证和 Copilot 内置扩展、`--use-mock-keychain`、临时配置里关掉 AI / 欢迎页 / 云端更改 / 遥测 / 更新；新增 `vscode-no-prompt-check.sh` 读取编辑器实际显示的内容和 macOS 窗口来证明没有提示；成功运行自动删除临时目录；重新运行的检查改成轮询状态，不再偶发失败。
-- **VS Code 扩展对齐 AScript 官方扩展（0.2.0）**：对照应用市场里的 AScript 扩展 0.3.0（读了它的 vsix 清单和官方文档）补齐：
+- **VS Code 扩展对齐 AScript 官方扩展**：对照应用市场里的 AScript 扩展 0.3.0（读了它的 vsix 清单和官方文档）补齐：
   - 活动栏 **XScript** 视图：保存的设备（在线 / 离线、运行状态、行内运行 / 停止）、手机上的工程（行内运行 / 拉取）、工具入口。
   - **设备管理**：添加 / 编辑 / 删除、选择运行设备（编辑器右上角手机图标，记在工作区设置）、**扫描设备**（ADB 含自动 `adb forward`，加局域网 9860 端口）。
   - **新建工程**（空 / Hello / AScript 写法模板，生成 `__init__.py` + `build.as` + `res/`）；`build.as` 也被识别为工程。
   - **同步**：增量上传（按大小 + 内容摘要，只传新增和修改的文件）、`.vscode/.syncignore`（gitignore 风格，和 AScript 同一路径）、从设备拉取工程（有差异先确认）、`工程同步` 菜单。
   - **运行**：Ctrl+Shift+R（AScript 同款，F6 保留）；再次运行先停止再同步再启动；运行时 ▶ 换成 ■（`xscript.running` 上下文）。
-  - 另有 ADB 终端、投屏、命令中文标题（`package.nls.zh-cn.json`）、设置 `xscript.adbPath` / `xscript.scanLan`；版本 0.2.0。
+  - 另有 ADB 终端、投屏、命令中文标题（`package.nls.zh-cn.json`）、设置 `xscript.adbPath` / `xscript.scanLan`。
   - 不做的（AScript 自家服务或格式、或 XScript 不适用）：Windows 本地运行、iOS、`.was` 导包与上传分发、官网 / 云控入口、自动下载 scrcpy、公网地址 + 密码设备；逐项对照见 `ide/vscode-extension/README.md`。
   - 验证：38 个单元测试；`scripts/vscode-host-test.sh`（原 `cursor-host-test.sh`，现在只用真实 VS Code 1.142，隔离配置）在 mock 和两台模拟器上各 36 项通过，含经 VS Code 调试 API 在断点处停下并求值、截图、扫描、运行 / 重新运行 / 停止 / 拉取。
 - **修复：调试启动偶发超时**：「等待调试器初始化」的 20 秒超时用了测试里被缩短的 sleep，机器忙时偶尔把握手判成超时（`verify.sh` 里见过一次）；改用真实计时器。

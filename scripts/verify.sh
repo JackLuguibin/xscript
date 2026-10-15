@@ -41,6 +41,8 @@ else
 fi
 echo "== ide: mcp ($PY) =="
 PYTHONPATH=$MCP "$PY" -m unittest discover -s $MCP/tests
+echo "== release: App and extension versions agree =="
+bash scripts/release.sh check
 echo "== backend + mcp on the minimum Python (3.10) =="
 if [ "${XS_SKIP_PY310:-}" = "1" ]; then
   echo "skipped (XS_SKIP_PY310=1)"
