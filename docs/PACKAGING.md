@@ -31,6 +31,7 @@ python backend/xscript_pack.py examples/xs_smoke \
 | `--bundle-requirements` | 构建时就装好 `requirements.txt` 里的包（原生包必须在 Chaquopy 的索引里）。不加时首次运行联网安装 |
 | `--dev-server` | 保留局域网调试接口（端口 9860 起），只用于调试 |
 | `--protect` | 代码保护：工程编译成 Python 3.10 字节码后再打包，APK 里没有 `.py` 源码。构建机需要 `python3.10`（或 `XSCRIPT_BUILD_PYTHON`）。字节码仍可能被反编译，只能防止直接复制和修改 |
+| `--ops-server` | 公告和 APK 强制更新：App 打开首页时向 `<ops-server>/pub/app-notices`、`/pub/app-update` 查询（不给时回退到 `--update-server`，再回退到 `--license-server`；后台打包自动填写）。后台「应用运营」里设置公告和最低版本，见[使用手册](使用手册.md) |
 | `--update-server`、`--update-channel`、`--update-pubkey`、`--script-code` | 热更新：App 启动时和之后每 30 分钟向 `<update-server>/pub/update` 查询这个频道的发布版本。清单用卡密同一把私钥签名，App 用内置公钥验签并校验 zip 的 sha256 后才替换工程；脚本运行时不替换，下次启动生效。后台从小程序版本打包时自动填写 |
 | `--keystore`、`--key-alias`、`--store-pass`、`--key-pass` | 用你的签名证书构建 release 包。密码也可以用环境变量 `XSCRIPT_STORE_PASS`、`XSCRIPT_KEY_PASS` |
 

@@ -27,6 +27,8 @@ import com.xscript.app.capture.CaptureEngine
 import com.xscript.app.cloud.CloudClient
 import com.xscript.app.http.DeviceHttpService
 import com.xscript.app.license.LicenseManager
+import com.xscript.app.pack.AppOps
+import com.xscript.app.pack.AppOpsModel
 import com.xscript.app.pack.PackInstaller
 import com.xscript.app.root.RootShell
 import com.xscript.app.runtime.RunState
@@ -55,6 +57,11 @@ class PackActivity : AppCompatActivity() {
     private lateinit var rowCapture: UiKit.Row
     private lateinit var rowRoot: UiKit.Row
     private var rowCloud: UiKit.Row? = null
+    private var rowNotice: UiKit.Row? = null
+    private var rowUpdate: UiKit.Row? = null
+    private var updateDialog: AlertDialog? = null
+    private var coldStart = true
+    private var noticeDialog: AlertDialog? = null
 
     private val notifyPermission = registerForActivityResult(ActivityResultContracts.RequestPermission()) {
         DeviceHttpService.start(this)
@@ -99,6 +106,16 @@ class PackActivity : AppCompatActivity() {
             rowLicense = UiKit.Row(LinearLayout(this), TextView(this), TextView(this))
         }
 
+        if (AppOps.enabled()) {
+            val ops = UiKit.card(col)
+            rowNotice = UiKit.row(ops, "!", 0xFFF59E0B.toInt(), "公告") { showNotices(AppOps.notices(this), all = true) }
+            rowUpdate = UiKit.row(ops, "↑", 0xFF2F7CF6.toInt(), "应用更新") {
+                val u = AppOps.update(this)
+                if (u != null && (AppOps.mustUpdate(this) || AppOps.offerUpdate(this))) showUpdateDialog(u, AppOps.mustUpdate(this))
+                else AppOps.checkAsync(this, force = true) { runOnUiThread { refresh(); afterCheck() } }
+            }
+        }
+
         val perms = UiKit.card(col)
         rowA11y = UiKit.row(perms, "◉", 0xFFF59E0B.toInt(), "无障碍服务") {
             startActivity(Intent(AndroidSettings.ACTION_ACCESSIBILITY_SETTINGS))
@@ -129,6 +146,10 @@ class PackActivity : AppCompatActivity() {
         super.onResume()
         RootShell.probeAsync()
         handler.post(tick)
+        afterCheck()
+        // A cold start always asks the server (a forced update must not wait out the 1-minute throttle).
+        AppOps.checkAsync(this, force = coldStart) { runOnUiThread { refresh(); afterCheck() } }
+        coldStart = false
     }
 
     override fun onPause() {
@@ -138,7 +159,7 @@ class PackActivity : AppCompatActivity() {
 
     private fun refresh() {
         val running = RunState.current(this) != null
-        val gate = LicenseManager.check(this)
+        val gate = AppOps.gate(this) ?: LicenseManager.check(this)
         status.text = when {
             running -> "运行中"
             gate != null -> gate
@@ -149,6 +170,18 @@ class PackActivity : AppCompatActivity() {
         runButton.text = if (running) "停止" else "启动"
         runButton.background = UiKit.ripple(if (running) UiKit.RED else UiKit.GREEN, 22f, this)
 
+        if (AppOps.enabled()) {
+            val n = AppOps.notices(this).size
+            rowNotice?.value(if (n == 0) "暂无" else "$n 条", if (AppOps.unseenNotices(this).isNotEmpty()) UiKit.RED else UiKit.MUTED)
+            rowUpdate?.value(
+                when {
+                    AppOps.mustUpdate(this) -> "必须更新"
+                    AppOps.offerUpdate(this) -> "有新版本"
+                    else -> "已是最新"
+                },
+                if (AppOps.mustUpdate(this)) UiKit.RED else if (AppOps.offerUpdate(this)) UiKit.GREEN else UiKit.MUTED,
+            )
+        }
         if (LicenseManager.required()) {
             val st = LicenseManager.status(this)
             if (st.optBoolean("activated") && gate == null) {
@@ -177,12 +210,94 @@ class PackActivity : AppCompatActivity() {
             ScriptService.stop(this)
             return
         }
+        if (AppOps.mustUpdate(this)) {
+            AppOps.update(this)?.let { showUpdateDialog(it, true) }
+            return
+        }
         if (LicenseManager.check(this) != null) {
             activateDialog()
             return
         }
         val gate = ScriptService.run(this, PackInstaller.project)
         Toast.makeText(this, gate ?: "已启动", Toast.LENGTH_SHORT).show()
+    }
+
+    /** After a check (or on resume): forced update first, then unseen 公告, then an optional update. */
+    private fun afterCheck() {
+        if (isFinishing || !AppOps.enabled()) return
+        val u = AppOps.update(this)
+        if (u != null && AppOps.mustUpdate(this)) {
+            showUpdateDialog(u, true)
+            return
+        }
+        val unseen = AppOps.unseenNotices(this)
+        if (unseen.isNotEmpty()) {
+            showNotices(unseen, all = false)
+            return
+        }
+        if (u != null && AppOps.offerUpdate(this) && AppOps.dismissedCode(this) != u.latestCode) showUpdateDialog(u, false)
+    }
+
+    private fun showNotices(items: List<AppOpsModel.Notice>, all: Boolean) {
+        if (noticeDialog?.isShowing == true || updateDialog?.isShowing == true) return
+        if (items.isEmpty()) {
+            Toast.makeText(this, "暂无公告", Toast.LENGTH_SHORT).show()
+            return
+        }
+        val text = items.joinToString("\n\n") { n ->
+            val tag = when (n.level) { "urgent" -> "【紧急】"; "warning" -> "【提醒】"; else -> "" }
+            tag + n.title + (if (n.body.isNotBlank()) "\n" + n.body else "")
+        }
+        noticeDialog = AlertDialog.Builder(this)
+            .setTitle(if (all) "公告" else "新公告")
+            .setMessage(text)
+            .setPositiveButton("知道了") { _, _ -> AppOps.markSeen(this, items); refresh() }
+            .setOnCancelListener { AppOps.markSeen(this, items); refresh() }
+            .show()
+    }
+
+    private fun showUpdateDialog(u: AppOpsModel.Update, force: Boolean) {
+        if (updateDialog?.isShowing == true) return
+        noticeDialog?.dismiss()
+        val server = AppOps.server()
+        val resolved = AppOpsModel.resolveUrl(server, u.url)
+        val inApp = resolved != null && AppOpsModel.inAppDownload(server, resolved)
+        val msg = buildString {
+            append("当前版本 v").append(XscriptApp.versionName(this@PackActivity)).append("，最新 ").append(u.latestName.ifEmpty { "#" + u.latestCode })
+            if (force) append("\n\n低于最低要求（").append(u.minCode).append("），更新后才能继续使用。")
+            if (u.notes.isNotBlank()) append("\n\n").append(u.notes)
+        }
+        val b = AlertDialog.Builder(this).setTitle(if (force) "必须更新" else "发现新版本").setMessage(msg).setCancelable(!force)
+            .setPositiveButton(if (inApp) "下载并安装" else "打开下载页", null)
+        if (!force) b.setNegativeButton("稍后") { _, _ -> AppOps.dismissUpdate(this, u.latestCode) }
+        val d = b.create()
+        d.setCanceledOnTouchOutside(!force)
+        d.show()
+        updateDialog = d
+        d.getButton(AlertDialog.BUTTON_POSITIVE).setOnClickListener { btn ->
+            if (!inApp) {
+                AppOps.openExternal(this, u)
+                return@setOnClickListener
+            }
+            btn.isEnabled = false
+            d.setMessage(msg + "\n\n下载中 0%")
+            thread(name = "xscript-apk-download") {
+                val r = AppOps.download(this, u) { pct -> runOnUiThread { d.setMessage("$msg\n\n下载中 $pct%") } }
+                runOnUiThread {
+                    val file = r.file
+                    if (file == null) {
+                        d.setMessage(msg + "\n\n" + r.error)
+                        (btn as TextView).text = "重试"
+                        btn.isEnabled = true
+                    } else {
+                        val problem = AppOps.install(this, file)
+                        d.setMessage(msg + "\n\n" + (problem ?: "已下载并校验，请在系统安装界面确认。"))
+                        (btn as TextView).text = "重新安装"
+                        btn.isEnabled = true
+                    }
+                }
+            }
+        }
     }
 
     private fun activateDialog() {

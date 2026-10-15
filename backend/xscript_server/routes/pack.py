@@ -269,6 +269,8 @@ async def create_job(request: Request, options: str = Form(...), project: Upload
                         script_code=v.version_code)
             if o.hot_update:
                 opts.update(update_server=public_url, update_channel=sc.channel, update_pubkey=c.pubkey)
+        if public_url:
+            opts["ops_server"] = public_url  # packed apps read /pub/app-notices and /pub/app-update from here
         if o.license:
             opts["license_pubkey"] = c.pubkey
             opts["license_server"] = public_url

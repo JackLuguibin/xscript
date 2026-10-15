@@ -66,7 +66,7 @@ object PackInstaller {
         for (c in children) copyAssets(context, "$path/$c", File(dest, c))
     }
 
-    private fun versionCode(context: Context): Long {
+    fun versionCode(context: Context): Long {
         val info = context.packageManager.getPackageInfo(context.packageName, 0)
         return if (android.os.Build.VERSION.SDK_INT >= 28) info.longVersionCode else @Suppress("DEPRECATION") info.versionCode.toLong()
     }

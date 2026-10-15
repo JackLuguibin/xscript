@@ -199,6 +199,8 @@ class Packer:
         for flag in ("autostart", "dev_server", "bundle_requirements", "protect"):
             if o.get(flag):
                 args.append("--" + flag.replace("_", "-"))
+        if o.get("ops_server"):
+            args += ["--ops-server", o["ops_server"]]
         if o.get("update_channel"):
             args += ["--update-server", o["update_server"], "--update-channel", o["update_channel"],
                      "--update-pubkey", o["update_pubkey"], "--script-code", str(o.get("script_code") or 0)]

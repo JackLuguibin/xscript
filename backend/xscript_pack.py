@@ -73,6 +73,7 @@ def build_props(a, project_dir, project_name, workdir):
         "cloud_group": a.cloud_group or "",
         "license_server": (a.license_server or "").rstrip("/"),
         "abis": a.abis,
+        "ops_server": (a.ops_server or "").rstrip("/"),
         "update_server": (a.update_server or "").rstrip("/"),
         "update_channel": a.update_channel or "",
         "update_pubkey": (a.update_pubkey or "").strip(),
@@ -131,6 +132,7 @@ def main(argv=None):
                     help="install requirements.txt at build time instead of on first run")
     ap.add_argument("--protect", action="store_true",
                     help="代码保护: ship Python 3.10 bytecode only (needs python3.10 on the build machine)")
+    ap.add_argument("--ops-server", help="公告 / APK 强制更新: 管理后台 base URL serving /pub/app-notices and /pub/app-update")
     ap.add_argument("--update-server", help="热更新: 管理后台 base URL serving /pub/update")
     ap.add_argument("--update-channel", help="热更新: the 小程序 channel id")
     ap.add_argument("--update-pubkey", help="热更新: base64 public key that signs update manifests")

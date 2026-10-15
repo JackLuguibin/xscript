@@ -60,6 +60,8 @@ android {
         buildConfigField("String", "LICENSE_PUBKEY", pub.kotlinQuoted())
         buildConfigField("String", "LICENSE_SERVER", packProp("license_server").kotlinQuoted())
         // 热更新: newer published versions of the bundled 小程序 (UpdateChecker).
+        // 公告 / APK 强制更新 (AppOps): the server whose /pub/app-notices and /pub/app-update the app asks.
+        buildConfigField("String", "OPS_SERVER", packProp("ops_server").kotlinQuoted())
         buildConfigField("String", "UPDATE_SERVER", packProp("update_server").kotlinQuoted())
         buildConfigField("String", "UPDATE_CHANNEL", packProp("update_channel").kotlinQuoted())
         buildConfigField("String", "UPDATE_PUBKEY", packProp("update_pubkey").kotlinQuoted())

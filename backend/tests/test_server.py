@@ -399,6 +399,7 @@ class ServerTest(unittest.IsolatedAsyncioTestCase):
         log = (await self.admin.get("/api/pack/jobs/%d/log" % job["id"])).json()["text"]
         self.assertIn("pubkey", log)
         self.assertIn("--license-server https://cloud.example.com", log)
+        self.assertIn("--ops-server https://cloud.example.com", log)  # packed apps read /pub/app-notices from here
         self.assertIn("XSCRIPT_CLOUD_URL=wss://cloud.example.com/ws?token=***", log)
         self.assertIn("cloudenv wss://cloud.example.com/ws?token=xsd_", log)  # reached the script via env
         self.assertNotIn("--cloud-url", log)

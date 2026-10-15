@@ -149,7 +149,7 @@ class ScriptService : Service() {
          * valid 卡密 license).
          */
         fun run(context: Context, name: String, auto: Boolean = false, params: String = "{}", debug: Boolean = false): String? {
-            val gate = com.xscript.app.license.LicenseManager.check(context)
+            val gate = com.xscript.app.license.LicenseManager.check(context) ?: com.xscript.app.pack.AppOps.gate(context)
             if (gate != null) {
                 LogBuffer.append(context, "stderr", "xscript: $name not started: $gate\n")
                 return gate
