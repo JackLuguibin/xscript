@@ -97,7 +97,7 @@ function harness(device = new FakeDevice(), extra: Dap = {}) {
     for (;;) {
       const hit = out.find(pred);
       if (hit) return hit;
-      if (Date.now() > end) throw new Error("timed out waiting for " + what + "; got " + JSON.stringify(out.map((m) => m.event || m.command + ":" + m.success)));
+      if (Date.now() > end) throw new Error("timed out waiting for " + what + "; got " + JSON.stringify(out.map((m) => m.event || m.command + ":" + m.success + (m.message ? " (" + m.message + ")" : ""))));
       await new Promise((r) => setTimeout(r, 3));
     }
   };

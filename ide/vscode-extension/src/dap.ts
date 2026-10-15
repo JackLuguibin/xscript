@@ -222,7 +222,10 @@ export class XScriptDebugSession {
     // The attach response only arrives after configurationDone, so it must not be awaited here.
     this.launchWaitsForAttach = this.sendDevice({ command: "attach", arguments: { justMyCode: args.justMyCode !== false, name: "XScript", subProcess: false } }, req.seq, "launch");
     this.attached = true;
-    await Promise.race([initialized, this.sleep(20000).then(() => { throw new Error("timed out waiting for the debugger to initialise"); })]);
+    // A real timer: the injected sleep is shortened in tests and would make this timeout race the handshake.
+    let timer: NodeJS.Timeout | undefined;
+    const timeout = new Promise<never>((_, reject) => { timer = setTimeout(() => reject(new Error("timed out waiting for the debugger to initialise")), 20000); });
+    try { await Promise.race([initialized, timeout]); } finally { clearTimeout(timer); }
     this.send({ type: "event", event: "initialized" });
   }
 
