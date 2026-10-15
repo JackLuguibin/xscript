@@ -15,8 +15,8 @@ cd ide/vscode-extension
 npm ci
 npm run compile      # tsc，并把 ../python-stubs 复制到 ./stubs
 npm test             # 用 node --test 对接 scripts/mock_device.py 测试（需要 Python 3）
-npm run package      # xscript-vscode-0.1.0.vsix
-cursor --install-extension xscript-vscode-0.1.0.vsix   # 或：code --install-extension ...
+npm run package      # xscript-vscode-0.2.0.vsix
+cursor --install-extension xscript-vscode-0.2.0.vsix   # 或：code --install-extension ...
 ```
 
 开发时，在 VS Code 中打开 `ide/vscode-extension`，按 F5 启动扩展开发宿主（Extension Development Host）。
