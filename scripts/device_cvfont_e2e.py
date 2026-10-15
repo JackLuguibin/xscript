@@ -4,7 +4,7 @@
 Renders real glyph images with a TrueType font (Pillow, on the host), uploads them as a project, runs a project
 script on the device that recognises several rendered "screens" with CvFontLib (file templates and ndarray
 templates), and compares the text the device read with what was drawn. Needs numpy/OpenCV on the device, so use a
-4 KB-page emulator (a 16 KB-page one fails on the numpy import — the script reports that, it is not a CvFontLib bug).
+a 16 KB- or 4 KB-page emulator (the app enables Android's 16 KB backcompat mode, see docs/功能对照.md).
 
     adb -s emulator-5556 forward tcp:19861 tcp:9860
     python3 scripts/device_cvfont_e2e.py http://127.0.0.1:19861
@@ -179,7 +179,7 @@ def main():
             print("no result from the device script; log:")
             print("\n".join(lines_seen[-25:]))
             if any("dlopen failed" in l or "libgfortran" in l for l in lines_seen):
-                print("(numpy cannot load on a 16 KB-page device: use a 4 KB-page emulator)")
+                print("(numpy cannot load: check the APK with scripts/check_16kb.py and that android:pageSizeCompat is in the manifest)")
             return 2
         bad = 0
         print("%-62s %-14s %-14s %s" % ("case", "expected", "device read", "ms"))

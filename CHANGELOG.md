@@ -6,6 +6,7 @@
 
 ### 新增
 
+- **支持 16KB 页面设备（numpy / OpenCV / Pillow 恢复可用）**：以前在 16KB 页面的设备或模拟器上，内置 numpy 导入失败（`library "libopenblas.so" not found`），OpenCV、Pillow、图片字库（CvFontLib）、`screen.capture_cv()`、OCR 和 YOLO 跟着不可用。根因是 Chaquopy 17 提供的 numpy 1.23.3、opencv-python 4.5.1.48、Pillow 9.2.0 的原生库只按 4KB 对齐，没有可升级的对齐版本。现在清单里开启 `android:pageSizeCompat="enabled"`（系统的 16KB 兼容模式），16KB 和 4KB 页面的模拟器上这些功能都通过（`device_cvfont_e2e.py`、`device_ml_e2e.py`、新的 `device_native_e2e.py`、截图 / 调试 / 链接启动冒烟）。新增 `scripts/check_16kb.py <apk>`（`zipalign -c -P 16`、所有 `.so`（含 pip 轮子里的）的 ELF 对齐、清单属性；`--strict` 要求全部 16KB 对齐）和 `scripts/device_native_e2e.py <设备地址>`。限制：轮子里仍有 4KB 对齐的原生库，兼容模式首次加载稍慢、内存略高，只在 Android 17 模拟器验证过；彻底对齐需要自己用 NDK 重编这些轮子或等 Chaquopy 发布。
 - **网页 IDE：撤销替换、正则防卡死、手机屏幕布局**：
   - **撤销替换**：搜索面板新增「撤销替换」，一步撤销最近一次「全部替换」（含写入设备的文件；替换后又被改过的文件不动并列出）。
   - **正则防卡死**：正则模式下，`(a+)+`、`(\w*)*` 这类嵌套无限重复直接拒绝；其余正则在 Web Worker 里运行，单个文件超过 2.5 秒就中止并提示「正则表达式运行超时」，页面不会卡死；正则最长 1000 个字符。

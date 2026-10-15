@@ -45,6 +45,7 @@
         android:supportsRtl="true"
         android:theme="@style/Theme.Xscript"
         android:requestLegacyExternalStorage="true"
+        android:pageSizeCompat="enabled"
         android:usesCleartextTraffic="true">
 
         <!-- Launcher entry: the developer home, or the packaged app's own screen (LauncherActivity decides). -->

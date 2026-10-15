@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Runtime pip + ONNX Runtime + real model inference on a real device or emulator (needs numpy/OpenCV: use a 4 KB-page emulator).
+"""Runtime pip + ONNX Runtime + real model inference on a real device or emulator (needs numpy/OpenCV; works on 16 KB and 4 KB page devices).
 
     adb -s emulator-5556 forward tcp:19861 tcp:9860
     python3 scripts/device_ml_e2e.py http://127.0.0.1:19861 [--models DIR]   # DIR: yolo11n.onnx + bus.jpg (uploaded over PUT /models)

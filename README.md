@@ -66,7 +66,7 @@ xscript/
 
 ## 环境要求
 
-- **运行设备**：Android 8.0 / API 26 或更高版本的手机或模拟器。
+- **运行设备**：Android 8.0 / API 26 或更高版本的手机或模拟器；4KB 和 16KB 内存页面的设备都支持（16KB 页面设备靠清单里的 `pageSizeCompat` 兼容模式，已在 Android 17 模拟器验证，详见 [功能对照](docs/功能对照.md)）。
 - **Android 构建**：JDK 17+、Android SDK Platform 37 与相应 Build Tools、Python 3.10，以及 Bash 环境。Gradle 通过仓库自带 wrapper 执行。
 - **可选管理后台**：Python 3.11+；构建 Web 控制台需要 Node.js 与 npm。
 - **可选 IDE 工具**：MCP 服务需要 Python 3.10+；编辑器扩展需要 VS Code 1.90+ 或兼容的 Cursor。
