@@ -48,7 +48,9 @@ print(result.offset_x, result.offset_y, result.data)
 
 轮廓 data 的 x/y/w/h/cx/cy 为当前图像局部坐标；offset_x/y 另行保存裁剪原点，不是包含任意缩放或旋转的屏幕变换。脚本点击前需要按其任务链正确处理坐标。
 
-不支持仅含生成 Python 的 `.gp` 包、云插件、自定义任务、CvFontLib/OcrX 或参数中的函数调用（如 `R.img(...)`）。这些情况明确报错。加载 JSON/ZIP 不执行包内 Python。完整示例：`examples/gp_pipeline/__init__.py`。
+`ascript.android.screen.gp_tasks.CvFontLib(part_img, font_lib, confidence=0.95, rect=None, spacing=5, rgb=False)`（图片字库）：`part_img[i]`（文件路径或 BGR 数组）是字符 `font_lib[i]` 的小图，按列表顺序模板匹配，匹配到的区域会涂黑再找下一个字符，所以大图/易混字符放前面；匹配结果按中心 y 相差小于 `spacing` 分行，行内按左边缘排序。`Result.data` 为 `{"text", "words", "group"}`（无匹配为 `None`），`words` 里每项是带 `font` 的模板匹配字典；传入 `rect` 时坐标仍在输入图像坐标系。附带 `sort_and_concatenate_chars`、`group_chars_by_distance` 两个原有辅助函数，以及 XScript 扩展 `CvFontLib.recognize(part_img, font_lib, ..., image=None)`（直接返回文字，默认识别当前截图）。可用于 JSON GP 管线（`structured args`），原 UI 里的字库编辑器未移植。
+
+不支持仅含生成 Python 的 `.gp` 包、云插件、自定义任务、OcrX 或参数中的函数调用（如 `R.img(...)`）。这些情况明确报错。加载 JSON/ZIP 不执行包内 Python。完整示例：`examples/gp_pipeline/__init__.py`。
 
 ## 视觉 AI 客户端
 

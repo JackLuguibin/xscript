@@ -8,6 +8,7 @@
 
 - **网页 IDE：重命名 / 移动文件和文件夹**：目录树里选中后按 F2、点「重命名」、右键菜单，或直接拖到目标文件夹。已打开的标签页、未保存的修改、断点和展开状态跟着走；目标已存在返回冲突，不会覆盖；入口 `__init__.py` 受保护。设备接口新增 `POST /projects/{name}/move`（`{"from","to"}`，400/404/409，单次原子重命名）。
 - **链接启动**：`xscript://run?name=<工程>[&params=<JSON>]` 运行脚本，`xscript://stop` 停止；打包出来的 App 用包名作协议，只能运行自己的小程序。首页新增「链接启动」开关：每次确认（默认）/ 直接运行 / 已关闭。
+- **图片字库（CvFontLib）**：`ascript.android.screen.gp_tasks.CvFontLib(part_img, font_lib, confidence, rect, spacing, rgb)`，用一组字符小图做模板匹配，按行、按左右顺序拼出文字；也可放进 GP 管线，或用 `CvFontLib.recognize(...)` 直接得到文字。已用真实 OpenCV 在主机上测试；设备上暂未验证（见「功能对照」第 7 节：16KB 页面模拟器上内置 numpy 无法导入）。
 
 ## v0.2.4（2026-10-14）
 

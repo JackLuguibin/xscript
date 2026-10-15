@@ -228,8 +228,119 @@ class Canny(GPTask):
         return Result(out, offset_x, offset_y, found)
 
 
+class CvFontLib(GPTask):
+    """图片字库: recognise text by matching one small image per character.
+
+    ``part_img[i]`` (a path or BGR ndarray) is the glyph for ``font_lib[i]``. Glyphs are matched in list
+    order and each match is blanked before the next glyph is searched, so put the larger or more
+    specific glyphs first. Matches are grouped into lines by the vertical centre (``spacing`` pixels)
+    and read left to right, lines top to bottom.
+
+    ``Result.data`` is ``{"text": "12+3", "words": [[match, ...] per glyph], "group": ["12", "+3"]}`` or
+    ``None`` when nothing matched. Match dicts are the usual template results plus ``"font"``; with
+    ``rect`` the coordinates stay in the frame of the incoming image (like ``FindImages``).
+    """
+
+    name = "图片字库"
+    ui_path = "/website/gpui/cvfontlib/"
+
+    def __init__(self, part_img, font_lib, confidence=0.95, rect=None, spacing=5, rgb=False):
+        part_img, font_lib = list(part_img), list(font_lib)
+        if not part_img or len(part_img) != len(font_lib):
+            raise ValueError("part_img and font_lib must be non-empty lists of the same length")
+        if not all(isinstance(c, str) for c in font_lib):
+            raise ValueError("font_lib entries must be strings")
+        if not 0 < float(confidence) <= 1:
+            raise ValueError("confidence must be within (0, 1]")
+        if int(spacing) < 0:
+            raise ValueError("spacing must not be negative")
+        self.part_img, self.font_lib = part_img, font_lib
+        self.confidence, self.spacing, self.rgb = float(confidence), int(spacing), bool(rgb)
+        self.rect = tuple(int(v) for v in rect) if rect else None
+        if self.rect and (len(self.rect) != 4 or self.rect[0] < 0 or self.rect[1] < 0
+                          or self.rect[2] <= self.rect[0] or self.rect[3] <= self.rect[1]):
+            raise ValueError("rect must be [left, top, right, bottom] with positive size")
+
+    @staticmethod
+    def _chars(data):
+        """(left, centre_y, font) of every matched glyph; ``data`` is a list of per-glyph match lists."""
+        return [(m["rectangle"][0][0], (m["rectangle"][0][1] + m["rectangle"][1][1]) / 2.0, m["font"])
+                for matches in data for m in matches]
+
+    @staticmethod
+    def sort_and_concatenate_chars(data):
+        """Text of ``words`` in reading order, using 10px vertical buckets (AScript helper)."""
+        chars = sorted(CvFontLib._chars(data), key=lambda c: (c[1] // 10 * 10, c[0]))
+        return "".join(c[2] for c in chars)
+
+    @staticmethod
+    def group_chars_by_distance(data, threshold=10):
+        """Words split where the left edges of neighbouring glyphs are ``threshold`` or more apart (AScript helper)."""
+        edges = sorted((c[0], c[2]) for c in CvFontLib._chars(data))
+        words, word, start = [], "", None
+        for left, char in edges:
+            if not word or (start is not None and left - start < threshold):
+                word += char
+                start = left if start is None else start
+            else:
+                words.append((start, word))
+                word, start = char, left
+        if word:
+            words.append((start, word))
+        return words
+
+    def sort_group(self, data):
+        """(text, glyphs in reading order, per-line strings)."""
+        groups = []
+        for c in CvFontLib._chars(data):
+            for g in groups:
+                if abs(g[0][1] - c[1]) < self.spacing:
+                    g.append(c)
+                    break
+            else:
+                groups.append([c])
+        groups.sort(key=lambda g: g[0][1])
+        for g in groups:
+            g.sort(key=lambda c: c[0])
+        lines = ["".join(c[2] for c in g) for g in groups]
+        ordered = [c for g in groups for c in g]
+        return "".join(c[2] for c in ordered), ordered, lines
+
+    def run(self, cv_image, offset_x=0, offset_y=0, data=None):
+        from ascript.android.screen import ascv
+
+        base_x = base_y = 0
+        if self.rect:
+            left, top, right, bottom = self.rect
+            h, w = cv_image.shape[:2]
+            if right > w or bottom > h:
+                raise ValueError("CvFontLib rect is outside the image")
+            cv_image = cv_image[top:bottom, left:right]
+            base_x, base_y = left, top
+        work = cv_image.copy()
+        words = []
+        for glyph, font in zip(self.part_img, self.font_lib):
+            found = ascv.find_all_template(work, glyph, rect=self.rect, threshold=self.confidence, rgb=self.rgb) or []
+            for m in found:
+                m["font"] = font
+                (x, y), (r, b) = m["rectangle"][0], m["rectangle"][3]
+                # Blank what this glyph claimed so later (smaller) glyphs cannot match inside it.
+                cv2.rectangle(work, (x - base_x, y - base_y), (r - base_x - 1, b - base_y - 1), (0, 0, 0), -1)
+            words.append(found)
+        text, _, lines = self.sort_group(words)
+        return Result(cv_image, offset_x, offset_y, {"text": text, "words": words, "group": lines} if text else None)
+
+    @staticmethod
+    def recognize(part_img, font_lib, confidence=0.95, rect=None, spacing=5, rgb=False, image=None):
+        """Convenience: run on ``image`` (path / ndarray / Bitmap) or a fresh screenshot; returns the text ("" if none)."""
+        from xscript.android import image as _img
+
+        res = CvFontLib(part_img, font_lib, confidence, rect, spacing, rgb).run(_img.to_bgr(image)).data
+        return res["text"] if res else ""
+
+
 def gp_list():
-    return [Crop, GrayImage, Threshold, Erode, Dilate, MorphClose, MorphOpen, GaussianBlur, Resize, Rotate, Canny]
+    return [Crop, GrayImage, Threshold, Erode, Dilate, MorphClose, MorphOpen, GaussianBlur, Resize, Rotate, Canny, CvFontLib]
 
 
 def gp_list_json():

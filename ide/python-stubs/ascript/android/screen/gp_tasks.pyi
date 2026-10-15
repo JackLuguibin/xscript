@@ -85,6 +85,46 @@ class Canny(GPTask):
     def run(self, cv_image, offset_x=0, offset_y=0, data=None):
         ...
 
+class CvFontLib(GPTask):
+    """图片字库: recognise text by matching one small image per character.
+
+    ``part_img[i]`` (a path or BGR ndarray) is the glyph for ``font_lib[i]``. Glyphs are matched in list
+    order and each match is blanked before the next glyph is searched, so put the larger or more
+    specific glyphs first. Matches are grouped into lines by the vertical centre (``spacing`` pixels)
+    and read left to right, lines top to bottom.
+
+    ``Result.data`` is ``{"text": "12+3", "words": [[match, ...] per glyph], "group": ["12", "+3"]}`` or
+    ``None`` when nothing matched. Match dicts are the usual template results plus ``"font"``; with
+    ``rect`` the coordinates stay in the frame of the incoming image (like ``FindImages``).
+    """
+    name = '图片字库'
+    ui_path = '/website/gpui/cvfontlib/'
+
+    def __init__(self, part_img, font_lib, confidence=0.95, rect=None, spacing=5, rgb=False):
+        ...
+
+    @staticmethod
+    def sort_and_concatenate_chars(data):
+        """Text of ``words`` in reading order, using 10px vertical buckets (AScript helper)."""
+        ...
+
+    @staticmethod
+    def group_chars_by_distance(data, threshold=10):
+        """Words split where the left edges of neighbouring glyphs are ``threshold`` or more apart (AScript helper)."""
+        ...
+
+    def sort_group(self, data):
+        """(text, glyphs in reading order, per-line strings)."""
+        ...
+
+    def run(self, cv_image, offset_x=0, offset_y=0, data=None):
+        ...
+
+    @staticmethod
+    def recognize(part_img, font_lib, confidence=0.95, rect=None, spacing=5, rgb=False, image=None):
+        """Convenience: run on ``image`` (path / ndarray / Bitmap) or a fresh screenshot; returns the text ("" if none)."""
+        ...
+
 def gp_list():
     ...
 
