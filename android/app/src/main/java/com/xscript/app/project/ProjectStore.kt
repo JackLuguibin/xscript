@@ -143,6 +143,36 @@ class ProjectStore(val root: File) {
         return true
     }
 
+    /**
+     * Rename / move a file or folder inside the project (Web IDE 重命名 / 移动). 404 when the project or
+     * source is missing, 400 for invalid paths, moving the entry point, or a folder into itself, 409 when
+     * the destination exists. One rename(2) call (no copy), never replacing; moves are serialized.
+     */
+    fun move(name: String, fromPath: String, toPath: String): String {
+        if (!exists(name)) throw NoSuchElementException("工程不存在: $name")
+        val from = normalizeRel(fromPath)
+        val to = normalizeRel(toPath)
+        require(!isEntry(from)) { "不能移动工程入口 $from" }
+        require(from != to) { "新路径与原路径相同: $to" }
+        require(!to.startsWith("$from/")) { "不能把文件夹移动到它自己里面: $to" }
+        val src = resolve(name, from)
+        val dst = resolve(name, to)
+        synchronized(moveLock) {
+            if (!src.exists() && !isLink(src)) throw NoSuchElementException("文件不存在: $from")
+            check(!dst.exists() && !isLink(dst)) { "目标已存在: $to" }
+            dst.parentFile?.let { parent ->
+                require(!parent.isFile) { "目标上级不是文件夹: ${to.substringBeforeLast('/')}" }
+                parent.mkdirs()
+            }
+            try {
+                java.nio.file.Files.move(src.toPath(), dst.toPath(), java.nio.file.LinkOption.NOFOLLOW_LINKS)
+            } catch (e: java.nio.file.FileAlreadyExistsException) {
+                throw IllegalStateException("目标已存在: $to")
+            }
+        }
+        return to
+    }
+
     /** Project-relative folders (excluding hidden and __pycache__), so empty folders are visible. */
     fun dirs(name: String): JSONArray {
         val base = dir(name)
@@ -336,6 +366,8 @@ class ProjectStore(val root: File) {
     }
 
     companion object {
+        private val moveLock = Any()
+
         private fun isLink(f: File): Boolean = java.nio.file.Files.isSymbolicLink(f.toPath())
 
         /** Like deleteRecursively, but a symlink (file or folder) is unlinked instead of walked into. */

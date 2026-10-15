@@ -46,6 +46,20 @@ test('Web IDE native HTTP contract and packaged asset routes', {timeout:15000}, 
     await assert.rejects(api('DELETE',model.projectUrl()+'/file?path=__init__.py'),/入口/);
     await assert.rejects(api('DELETE',model.projectUrl()+'/file?path=pkg'),/非空/);
     await assert.rejects(api('DELETE',model.projectUrl()+'/file?path=missing.py'),/不存在/);
+    // 重命名 / 移动 (POST /move): open documents follow, conflicts and bad paths are rejected.
+    const mv=await model.open('pkg/sub/mod.py');model.edit(mv,'Y = 3\n');
+    assert.equal(await model.move('pkg/sub/mod.py','pkg/sub/renamed.py'),'pkg/sub/renamed.py');
+    assert.equal(mv.path,'pkg/sub/renamed.py');assert.equal(model.documents.get(model.key('pkg/sub/renamed.py')),mv);assert(model.dirty(mv));
+    assert.equal((await api('GET',model.projectUrl()+'/file?path=pkg/sub/renamed.py')).content,'Y = 2\n');
+    await model.move('pkg','lib/pkg');assert.equal(mv.path,'lib/pkg/sub/renamed.py');
+    tree=await model.listTree();assert(tree.files.some(f=>f.path==='lib/pkg/sub/renamed.py'));assert(tree.dirs.includes('lib/pkg/sub'));assert.equal(tree.dirs.includes('pkg'),false);
+    await assert.rejects(api('POST',model.projectUrl()+'/move',{from:'lib/pkg/sub/renamed.py',to:'utils.py'}),/已存在/);
+    await assert.rejects(api('POST',model.projectUrl()+'/move',{from:'nope.py',to:'x.py'}),/不存在/);
+    await assert.rejects(api('POST',model.projectUrl()+'/move',{from:'__init__.py',to:'main.py'}),/入口/);
+    await assert.rejects(api('POST',model.projectUrl()+'/move',{from:'lib',to:'lib/inner'}),/自己/);
+    await assert.rejects(api('POST',model.projectUrl()+'/move',{from:'utils.py',to:'../out.py'}),/invalid path/);
+    await assert.rejects(api('POST','/projects/nope/move',{from:'a',to:'b'}),/不存在/);
+    await model.move('lib/pkg','pkg');model.documents.delete(model.key(mv.path));
     await model.remove(nested);await model.removeFolder('assets');
     tree=await model.listTree();assert.equal(tree.files.some(f=>f.path==='pkg/sub/mod.py'),false);assert.equal(tree.dirs.includes('assets'),false);
     await model.createProject('第二个_工程');assert((await model.listProjects()).includes('第二个_工程'));

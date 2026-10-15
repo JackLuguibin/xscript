@@ -124,6 +124,52 @@ class ProjectRoutesTest {
     }
 
     @Test
+    fun moveRenamesFilesAndFolders() {
+        call("POST", "p", "")
+        call("PUT", "p", "/files", file("lib/a.py", "A=1"))
+        call("PUT", "p", "/files", file("b.txt", "b"))
+        fun mv(from: String, to: String) = call("POST", "p", "/move", JSONObject().put("from", from).put("to", to))
+
+        val r = mv("lib/a.py", "lib/net.py")
+        assertEquals(200, r.status)
+        assertEquals("lib/net.py", r.json.getString("to"))
+        assertEquals("A=1", call("GET", "p", "/file", query = mapOf("path" to "lib/net.py")).json.getString("content"))
+        assertEquals(404, call("GET", "p", "/file", query = mapOf("path" to "lib/a.py")).status)
+        assertEquals("move into a new folder", 200, mv("b.txt", "docs/deep/b.txt").status)
+        assertEquals("folder move carries its files", 200, mv("lib", "pkg/lib").status)
+        val listed = call("GET", "p", "/files").json
+        assertTrue(listed.getJSONArray("files").toString().contains("pkg/lib/net.py"))
+        assertTrue(listed.getJSONArray("dirs").toString().contains("\"pkg/lib\""))
+
+        assertEquals(404, mv("nope.py", "x.py").status)
+        assertEquals(409, mv("pkg/lib/net.py", "__init__.py").status)
+        assertEquals("existing folder is a conflict too", 409, mv("docs/deep/b.txt", "pkg").status)
+        assertEquals(400, mv("__init__.py", "main.py").status)
+        assertEquals(400, mv("pkg", "pkg/inner").status)
+        assertEquals(400, mv("pkg", "pkg").status)
+        assertEquals(400, mv("pkg/lib/net.py", "../out.py").status)
+        assertEquals(400, mv("../x", "y").status)
+        assertEquals(400, mv("pkg/lib/net.py", "").status)
+        assertEquals("parent is a file", 400, mv("pkg/lib/net.py", "docs/deep/b.txt/x.py").status)
+        assertEquals(404, call("POST", "missing", "/move", JSONObject().put("from", "a").put("to", "b")).status)
+        assertEquals("nothing lost", "A=1", call("GET", "p", "/file", query = mapOf("path" to "pkg/lib/net.py")).json.getString("content"))
+    }
+
+    @Test
+    fun concurrentMovesToOneTargetHaveOneWinner() {
+        call("POST", "p", "")
+        for (i in 0 until 8) call("PUT", "p", "/files", file("f$i.py", "$i"))
+        val pool = java.util.concurrent.Executors.newFixedThreadPool(8)
+        val codes = (0 until 8).map { i ->
+            pool.submit<Int> { call("POST", "p", "/move", JSONObject().put("from", "f$i.py").put("to", "same.py")).status }
+        }.map { it.get() }
+        pool.shutdown()
+        assertEquals(1, codes.count { it == 200 })
+        assertEquals(7, codes.count { it == 409 })
+        assertEquals("7 sources + same.py + __init__.py", 9, call("GET", "p", "/files").json.getJSONArray("files").length())
+    }
+
+    @Test
     fun unrelatedRoutesAreNotHandled() {
         val req = ApiRouter.Request("POST", "/projects/demo/run", emptyMap(), ApiRouter.Body.EMPTY)
         assertNull(routes.handle("POST", "demo", "/run", req))

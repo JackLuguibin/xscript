@@ -172,6 +172,29 @@
     async removeFolder(path, project = this.project) {
       await this.api("DELETE", this.projectUrl(project) + "/file?path=" + encodeURIComponent(path));
     }
+    /** Where `path` ends up after moving `from` to `to` (a file, or a folder with everything inside). */
+    static movedPath(path, from, to) {
+      if (path === from) return to;
+      return path.startsWith(from + "/") ? to + path.slice(from.length) : path;
+    }
+    /** Rename / move a file or folder; open documents (including unsaved edits) follow it. */
+    async move(from, to, project = this.project) {
+      const src = EditorModel.normalizePath(from, "原路径");
+      const dst = EditorModel.normalizePath(to, "新路径");
+      if (src === dst) return dst;
+      if (src === "__init__.py" || src === "__init__.pyc") throw new Error("不能移动工程入口");
+      if (dst.startsWith(src + "/")) throw new Error("不能把文件夹移动到它自己里面");
+      await this.api("POST", this.projectUrl(project) + "/move", {from: src, to: dst});
+      for (const doc of Array.from(this.documents.values())) {
+        if (doc.project !== project) continue;
+        const next = EditorModel.movedPath(doc.path, src, dst);
+        if (next === doc.path) continue;
+        this.documents.delete(this.key(doc.path, project));
+        doc.path = next;
+        this.documents.set(this.key(next, project), doc);
+      }
+      return dst;
+    }
     async run(mode = "run") {
       const project = this.project;
       await this.saveAll(project);

@@ -24,6 +24,11 @@ class ProjectRoutes(private val store: ProjectStore) {
             store.createDir(name, path)
             ApiRouter.Reply.json(JSONObject().put("ok", true).put("path", ProjectStore.normalizeRel(path)))
         }
+        method == "POST" && sub == "/move" -> {
+            val body = req.json()
+            val to = store.move(name, body.optString("from"), body.optString("to"))
+            ApiRouter.Reply.json(JSONObject().put("ok", true).put("from", ProjectStore.normalizeRel(body.optString("from"))).put("to", to))
+        }
         method == "PUT" && sub == "/files" -> upload(name, req)
         method == "GET" && sub == "/file" -> readFile(name, req)
         method == "DELETE" && sub == "/file" ->

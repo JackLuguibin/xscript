@@ -54,6 +54,7 @@
     el("projects").disabled = pending;
     el("delete-file").disabled = pending || (selectedDir() ? false : !selectedFile() || /^__init__\.pyc?$/.test(selectedFile()));
     el("delete-file").textContent = selectedDir() ? "删除文件夹" : "删除文件";
+    el("rename").disabled = pending || !renameTarget();
     el("export").hidden = !model.project;
     if (model.project) el("export").href = model.projectUrl() + "/zip";
     el("tabs").replaceChildren();
@@ -140,12 +141,106 @@
       item.classList.toggle("selected", active);
       item.setAttribute("aria-selected", String(active));
       item.addEventListener("click", () => { focusPath = node.path; activate(node); });
+      item.addEventListener("contextmenu", e => {
+        e.preventDefault(); focusPath = node.path; selected = {type: node.type, path: node.path}; render(); openMenu(e.clientX, e.clientY);
+      });
+      // Drag a row onto a folder (or empty tree space = project root) to move it there.
+      if (!isEntryPath(node.path)) {
+        item.draggable = true;
+        item.addEventListener("dragstart", e => { dragging = node; e.dataTransfer.effectAllowed = "move"; e.dataTransfer.setData("text/plain", node.path); });
+        item.addEventListener("dragend", () => { dragging = null; clearDrop(); });
+      }
+      const dropDir = node.type === "dir" ? node.path : EditorModel.folderOf(node);
+      item.addEventListener("dragover", e => {
+        if (!dragging || !canDrop(dragging, dropDir)) return;
+        e.preventDefault(); e.stopPropagation(); clearDrop();
+        const target = dropDir ? box.querySelector('[data-path="' + CSS.escape(dropDir) + '"]') : null;
+        (target || box).classList.add(target ? "drop-target" : "drop-root");
+      });
+      item.addEventListener("drop", e => { e.preventDefault(); e.stopPropagation(); dropOn(dropDir); });
       box.append(item);
     }
     if (hadFocus) { const again = box.querySelector('[data-path="' + CSS.escape(focusPath) + '"]'); if (again) again.focus({preventScroll: true}); }
     const sel = box.querySelector(".tree-row.selected"); if (sel && sel.scrollIntoView) sel.scrollIntoView({block: "nearest"});
   }
+  // ---- Rename / move (重命名 / 移动): F2, the 重命名 button, the right-click menu, or drag and drop.
+  const isEntryPath = path => /^__init__\.pyc?$/.test(path);
+  let dragging = null;
+  function renameTarget() {
+    const node = selected || (current && {type: "file", path: current.path});
+    return node && node.path && !isEntryPath(node.path) ? node : null;
+  }
+  const baseName = path => path.split("/").pop();
+  const joinPath = (dir, name) => dir ? dir + "/" + name : name;
+  function canDrop(node, dir) {
+    if (!node) return false;
+    const parent = EditorModel.ancestors(node.path).pop() || "";
+    return dir !== parent && dir !== node.path && !(dir + "/").startsWith(node.path + "/");
+  }
+  function clearDrop() {
+    el("files").classList.remove("drop-root");
+    el("files").querySelectorAll(".drop-target").forEach(n => n.classList.remove("drop-target"));
+  }
+  function dropOn(dir) {
+    const node = dragging; dragging = null; clearDrop();
+    if (!canDrop(node, dir)) return;
+    moveItem(node, joinPath(dir, baseName(node.path)));
+  }
+  el("files").addEventListener("dragover", e => { if (dragging && canDrop(dragging, "")) { e.preventDefault(); clearDrop(); el("files").classList.add("drop-root"); } });
+  el("files").addEventListener("dragleave", e => { if (!el("files").contains(e.relatedTarget)) clearDrop(); });
+  el("files").addEventListener("drop", e => { e.preventDefault(); dropOn(""); });
+  /** Move `node` to `to`; tabs, unsaved edits, breakpoints, expanded folders and selection follow. */
+  function moveItem(node, to) {
+    const project = model.project, from = node.path;
+    operation(async () => {
+      const dst = await model.move(from, to, project);
+      if (dst === from || model.project !== project) return;
+      const moved = path => EditorModel.movedPath(path, from, dst);
+      const open = expanded(), again = [...open].map(moved);
+      open.clear(); again.forEach(p => open.add(p));
+      if (node.type === "dir") open.add(dst);
+      for (const [key, lines] of [...debuggerClient.breakpoints]) {
+        if (!key.startsWith(project + ":")) continue;
+        const next = moved(key.slice(project.length + 1));
+        if (project + ":" + next !== key) { debuggerClient.breakpoints.delete(key); debuggerClient.breakpoints.set(project + ":" + next, lines); }
+      }
+      selected = {type: node.type, path: dst}; focusPath = dst; reveal(dst);
+      await refreshFiles();
+      if (current && current.project === project) { cursor(); }
+      render();
+      message("已将 " + from + (node.type === "dir" ? "/" : "") + " 移动为 " + dst + (node.type === "dir" ? "/" : ""));
+    });
+  }
+  function promptRename() {
+    closeMenu();
+    const node = renameTarget();
+    if (!node) { message(selectedFile() && isEntryPath(selectedFile()) ? "不能重命名工程入口 __init__.py" : "请先在目录树中选中文件或文件夹", true); return; }
+    const kind = node.type === "dir" ? "文件夹" : "文件";
+    const to = prompt("重命名" + kind + "：输入新的相对路径（改上级目录即为移动，如 lib/" + baseName(node.path) + "）", node.path);
+    if (to === null || to.trim() === node.path) return;
+    if (!to.trim()) { message("新路径不能为空", true); return; }
+    moveItem(node, to.trim().replace(/\/+$/, ""));
+  }
+  el("rename").onclick = promptRename;
+  function openMenu(x, y) {
+    const menu = el("tree-menu"), node = renameTarget();
+    menu.querySelector('[data-act="rename"]').disabled = !node;
+    menu.querySelector('[data-act="delete"]').disabled = el("delete-file").disabled;
+    menu.hidden = false;
+    menu.style.left = Math.min(x, innerWidth - menu.offsetWidth - 4) + "px";
+    menu.style.top = Math.min(y, innerHeight - menu.offsetHeight - 4) + "px";
+    menu.querySelector("button:not(:disabled)")?.focus();
+  }
+  function closeMenu() { el("tree-menu").hidden = true; }
+  el("tree-menu").addEventListener("click", e => {
+    const act = e.target.closest("button")?.dataset.act; closeMenu();
+    if (act === "rename") promptRename();
+    if (act === "delete") el("delete-file").click();
+  });
+  el("tree-menu").addEventListener("keydown", e => { if (e.key === "Escape") { closeMenu(); el("files").querySelector(".tree-row.selected")?.focus(); } });
+  document.addEventListener("mousedown", e => { if (!el("tree-menu").contains(e.target)) closeMenu(); });
   el("files").addEventListener("keydown", e => {
+    if (e.key === "F2" && e.target.classList && e.target.classList.contains("tree-row")) { e.preventDefault(); promptRename(); return; }
     if (!e.target.classList || !e.target.classList.contains("tree-row") || e.altKey || e.ctrlKey || e.metaKey) return;
     const rows = treeRows(), step = EditorModel.navigate(rows, e.target.dataset.path, e.key);
     if (!step.focus) return;

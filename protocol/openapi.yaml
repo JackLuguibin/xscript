@@ -359,6 +359,47 @@ paths:
           content:
             application/json:
               schema: { $ref: "#/components/schemas/Error" }
+  /projects/{name}/move:
+    parameters:
+      - $ref: "#/components/parameters/ProjectName"
+    post:
+      summary: Rename or move a file or folder inside the project (single atomic rename, never replaces)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [from, to]
+              properties:
+                from: { type: string, example: lib/a.py }
+                to: { type: string, example: pkg/a.py, description: Missing parent folders are created. }
+      responses:
+        "200":
+          description: Moved
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  ok: { type: boolean }
+                  from: { type: string }
+                  to: { type: string }
+        "400":
+          description: Invalid path, same path, the entry point, a folder into itself, or the target's parent is a file
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+        "404":
+          description: Missing project or source
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+        "409":
+          description: Target already exists
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
   /projects/{name}/file:
     parameters:
       - $ref: "#/components/parameters/ProjectName"

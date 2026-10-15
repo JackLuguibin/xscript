@@ -169,3 +169,19 @@ test('explorer keyboard navigation follows VS Code conventions', ()=>{
   assert.deepEqual(EditorModel.navigate(r,'main.py','x'),{});
   assert.deepEqual(EditorModel.navigate([],'a','ArrowDown'),{});
 });
+
+test('movedPath remaps a file, a folder and everything inside it', ()=>{
+  assert.equal(EditorModel.movedPath('a.py','a.py','b.py'),'b.py');
+  assert.equal(EditorModel.movedPath('lib/x/y.py','lib','pkg/lib'),'pkg/lib/x/y.py');
+  assert.equal(EditorModel.movedPath('lib','lib','pkg'),'pkg');
+  assert.equal(EditorModel.movedPath('library/a.py','lib','pkg'),'library/a.py','prefix of a sibling name is untouched');
+  assert.equal(EditorModel.movedPath('other.py','lib','pkg'),'other.py');
+});
+test('move rejects the entry point and moving a folder into itself before calling the device', async()=>{
+  const {model, calls} = fixture();
+  await assert.rejects(model.move('__init__.py','main.py'),/入口/);
+  await assert.rejects(model.move('lib','lib/sub'),/自己/);
+  await assert.rejects(model.move('utils.py','../x.py'),/工程目录内/);
+  assert.equal(await model.move('utils.py','utils.py'),'utils.py','no-op');
+  assert.equal(calls.filter(c=>c.url.endsWith('/move')).length,0);
+});

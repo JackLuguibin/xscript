@@ -357,6 +357,7 @@ eval 用于一次性探测。循环请放在项目的 `__init__.py` 中。
 | `POST /projects/<name>` | 新建工程（带模板 `__init__.py` 入口）。工程名须以字母或下划线开头，只含字母（含中文）、数字、下划线 | 400 名称非法；409 已存在 |
 | `GET /projects/<name>/files` | 文件列表 `files`，以及文件夹列表 `dirs`（含空文件夹） | |
 | `PUT /projects/<name>/files` | 写入文件（覆盖）。带 `"create": true` 时只新建、不覆盖；中间文件夹自动创建 | 400 路径非法；404 工程不存在（仅 create）；409 已存在（仅 create） |
+| `POST /projects/<name>/move` | 重命名/移动文件或文件夹 `{"from": "a.py", "to": "lib/a.py"}`；原子重命名，缺少的上级文件夹自动创建，不覆盖 | 400 路径非法、与原路径相同、移动入口、文件夹移入自身；404 工程或原路径不存在；409 目标已存在 |
 | `POST /projects/<name>/dir` | 新建文件夹 `{"path": "lib/sub"}` | 400 路径非法；404 工程不存在；409 已存在 |
 | `DELETE /projects/<name>/file?path=` | 删除一个文件或一个**空**文件夹。不能删除入口 `__init__.py` / `__init__.pyc` | 400 入口或路径非法；404 不存在；409 文件夹非空 |
 

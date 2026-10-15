@@ -259,6 +259,74 @@ test('Web IDE explorer, editor and create/delete flows in a real browser', {skip
     });
 
     assert.deepEqual(b.errors.filter(e => !/favicon/.test(e)), [], 'no page errors');
+
+    await t.test('rename / move: F2, button, context menu and drag; tabs, edits and breakpoints follow', async () => {
+      const paths = async () => (await api('GET', '/projects/dom/files')).files.map(f => f.path);
+      const msg = text => b.waitFor(m => document.getElementById('message').textContent.includes(m), 5000, text);
+      await api('PUT', '/projects/dom/files', {files: [{path: 'mv/x.py', content: 'X = 1\n'}, {path: 'z.py', content: 'Z\n'}]});
+      await b.eval(click, '#refresh'); await settle();
+      await b.eval(click, row('mv')); await b.eval(click, row('mv/x.py'));
+      await b.waitFor(() => document.getElementById('editor').value === 'X = 1\n');
+      await b.eval(() => { const e = document.getElementById('editor'); e.focus(); e.setSelectionRange(0, 0); });
+      await b.eval(click, '#breakpoint');
+      await b.waitFor(() => document.getElementById('line-numbers').textContent.startsWith('● 1'));
+      await b.eval(() => { const e = document.getElementById('editor'); e.value = 'X = 2\n'; e.dispatchEvent(new Event('input')); });
+
+      // F2 on the tree row; the prompt starts from the current path.
+      await prompts(['mv/y.py']);
+      await b.eval(() => document.querySelector('#files .tree-row[data-path="mv/x.py"]').dispatchEvent(new KeyboardEvent('keydown', {key: 'F2', bubbles: true})));
+      await msg('移动为 mv/y.py'); await settle();
+      assert.deepEqual(await b.eval(() => window.__prompts.map(p => p.def)), ['mv/x.py']);
+      let s = await S();
+      assert.ok(s.tabs.some(x => x.text === 'mv/y.py ●' && x.selected), 'open tab follows the rename and stays dirty');
+      assert.equal(s.tabs.some(x => x.text.startsWith('mv/x.py')), false);
+      assert.equal(s.editor, 'X = 2\n', 'unsaved edit kept');
+      assert.ok(await b.eval(() => document.getElementById('line-numbers').textContent.startsWith('● 1')), 'breakpoint follows');
+      assert.deepEqual((await R()).filter(x => x.selected).map(x => x.path), ['mv/y.py']);
+      let files = await paths();
+      assert.ok(files.includes('mv/y.py') && !files.includes('mv/x.py'));
+      assert.equal((await api('GET', '/projects/dom/file?path=mv/y.py')).content, 'X = 1\n', 'rename does not save');
+      await b.eval(() => window.dispatchEvent(new KeyboardEvent('keydown', {key: 's', ctrlKey: true})));
+      await msg('已保存 mv/y.py');
+      assert.equal((await api('GET', '/projects/dom/file?path=mv/y.py')).content, 'X = 2\n');
+
+      // Folder move with the 重命名 button: children, tab and expanded state follow.
+      await b.eval(click, row('mv')); await settle();
+      await prompts(['pkg/mv']);
+      await b.eval(click, '#rename'); await msg('移动为 pkg/mv/'); await settle();
+      let r = await R();
+      assert.ok(['pkg', 'pkg/mv', 'pkg/mv/y.py'].every(p => r.some(x => x.path === p)), 'moved folder revealed');
+      assert.equal(r.find(x => x.path === 'pkg/mv').expanded, 'true');
+      assert.ok((await S()).tabs.some(x => x.text === 'pkg/mv/y.py'));
+
+      // Conflicts and the entry point.
+      await b.eval(click, row('z.py')); await b.waitFor(() => document.getElementById('editor').value === 'Z\n'); await settle();
+      await prompts(['readme.txt']);
+      await b.eval(click, '#rename'); await settle();
+      s = await S(); assert.equal(s.error, true, s.message); assert.match(s.message, /已存在/);
+      assert.ok((await paths()).includes('z.py'));
+      await b.eval(click, row('__init__.py')); await settle();
+      assert.equal(await b.eval(() => document.getElementById('rename').disabled), true, 'entry point cannot be renamed');
+      assert.equal(await b.eval(() => document.querySelector('#files .tree-row[data-path="__init__.py"]').draggable), false);
+
+      // Right-click menu.
+      await b.eval(() => { const n = document.querySelector('#files .tree-row[data-path="z.py"]'); const box = n.getBoundingClientRect(); n.dispatchEvent(new MouseEvent('contextmenu', {bubbles: true, clientX: box.left + 5, clientY: box.top + 5})); });
+      assert.equal(await b.eval(() => document.getElementById('tree-menu').hidden), false);
+      await prompts(['zz.py']);
+      await b.eval(click, '#tree-menu [data-act="rename"]'); await msg('移动为 zz.py'); await settle();
+      assert.equal(await b.eval(() => document.getElementById('tree-menu').hidden), true);
+
+      // Drag a file onto a folder.
+      await b.eval(() => {
+        const dt = new DataTransfer(), src = document.querySelector('#files .tree-row[data-path="zz.py"]'), dst = document.querySelector('#files .tree-row[data-path="pkg"]');
+        src.dispatchEvent(new DragEvent('dragstart', {bubbles: true, dataTransfer: dt}));
+        dst.dispatchEvent(new DragEvent('dragover', {bubbles: true, cancelable: true, dataTransfer: dt}));
+        dst.dispatchEvent(new DragEvent('drop', {bubbles: true, cancelable: true, dataTransfer: dt}));
+      });
+      await msg('移动为 pkg/zz.py'); await settle();
+      files = await paths();
+      assert.ok(files.includes('pkg/zz.py') && !files.includes('zz.py'));
+    });
   } finally {
     if (browser) await browser.close();
     if (device && base) await fetch(base + '/projects/dom', {method: 'DELETE'}).catch(() => {});

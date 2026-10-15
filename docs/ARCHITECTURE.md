@@ -208,7 +208,7 @@ sequenceDiagram
 | 分类 | 接口 |
 | --- | --- |
 | 设备 | `GET /status`、`GET /screen`（png / jpg）、`GET /ui-tree?mode=`、`POST /action`、`GET/PUT /settings` |
-| 工程 | `GET /projects`、`POST/DELETE /projects/{name}`、`GET/PUT /projects/{name}/files`（列表含 `dirs`；`create:true` 只新建不覆盖）、`POST /projects/{name}/dir`、`GET/DELETE /projects/{name}/file`、`GET/PUT /projects/{name}/zip`、`POST /projects/{name}/run`、`POST /projects/{name}/stop`、`GET/PUT /projects/{name}/config`（开机自启 / 停止后重新运行） |
+| 工程 | `GET /projects`、`POST/DELETE /projects/{name}`、`GET/PUT /projects/{name}/files`（列表含 `dirs`；`create:true` 只新建不覆盖）、`POST /projects/{name}/dir`、`POST /projects/{name}/move`（重命名/移动）、`GET/DELETE /projects/{name}/file`、`GET/PUT /projects/{name}/zip`、`POST /projects/{name}/run`、`POST /projects/{name}/stop`、`GET/PUT /projects/{name}/config`（开机自启 / 停止后重新运行） |
 | 定时任务 | `GET/POST /schedules`、`GET/PUT/DELETE /schedules/{id}`、`POST /schedules/{id}/run` |
 | AScript 迁移 | `GET /ascript/projects`、`POST /ascript/import`（从 `/sdcard/airscript/model` 导入） |
 | 调试 | `GET/DELETE /logs`、`POST /eval` |

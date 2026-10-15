@@ -577,6 +577,41 @@ class Handler(BaseHTTPRequestHandler):
             STATE.setdefault("dirs", {}).setdefault(name, set()).add(rel)
             self._json(200, {"ok": True, "path": rel})
             return
+        if name is not None and sub == "/move":
+            # Same contract as the device's ProjectStore.move.
+            body = self._body()
+            src = (body.get("from") or "").strip().strip("/")
+            dst = (body.get("to") or "").strip().strip("/")
+            files = STATE["projects"].get(name)
+            if files is None:
+                self._json(404, {"error": "工程不存在: " + name})
+                return
+            if not _safe_rel(src) or not _safe_rel(dst):
+                self._json(400, {"error": "invalid path"})
+                return
+            if src in ("__init__.py", "__init__.pyc"):
+                self._json(400, {"error": "不能移动工程入口 " + src})
+                return
+            if src == dst or dst.startswith(src + "/"):
+                self._json(400, {"error": "不能移动到原位置或它自己里面: " + dst})
+                return
+            dirs = _dirs(name)
+            if src not in files and src not in dirs:
+                self._json(404, {"error": "文件不存在: " + src})
+                return
+            if dst in files or dst in dirs:
+                self._json(409, {"error": "目标已存在: " + dst})
+                return
+            parent = dst.rsplit("/", 1)[0] if "/" in dst else ""
+            if parent and any(parent == f or parent.startswith(f + "/") for f in files):
+                self._json(400, {"error": "目标上级不是文件夹: " + parent})
+                return
+            moved = lambda p: dst + p[len(src):] if p == src or p.startswith(src + "/") else p
+            STATE["projects"][name] = {moved(p): v for p, v in files.items()}
+            explicit = STATE.setdefault("dirs", {}).setdefault(name, set())
+            STATE["dirs"][name] = {moved(d) for d in explicit} | ({dst} if src in dirs else set())
+            self._json(200, {"ok": True, "from": src, "to": dst})
+            return
         if name is not None and sub == "/run":
             if name not in STATE["projects"] or "__init__.py" not in STATE["projects"][name]:
                 self._json(404, {"error": "missing project"})

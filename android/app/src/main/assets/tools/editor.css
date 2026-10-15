@@ -68,3 +68,12 @@
 :root[data-theme="dark"] #highlight .tok-function, :root[data-theme="dark"] #highlight .tok-builtin { color:#dcdcaa; }
 :root[data-theme="dark"] #highlight .tok-class { color:#4ec9b0; } :root[data-theme="dark"] #highlight .tok-decorator { color:#c586c0; }
 :root[data-theme="dark"] #highlight .tok-self { color:#9cdcfe; } :root[data-theme="dark"] #highlight .tok-operator { color:#d4d4d4; }
+
+/* Rename / move: drop target highlight and right-click menu */
+.tree-row.drop-target { background:var(--tree-sel-focus, #cce4f7); outline:1px dashed var(--accent, #0a64d8); outline-offset:-1px; }
+#files.drop-root { outline:1px dashed var(--accent, #0a64d8); outline-offset:-2px; }
+.tree-menu { position:fixed; z-index:20; min-width:140px; padding:4px 0; background:var(--bg, #fff); border:1px solid var(--border, #ccc); border-radius:6px; box-shadow:0 4px 14px rgba(0,0,0,.18); }
+.tree-menu button { display:flex; justify-content:space-between; gap:16px; width:100%; padding:4px 12px; border:0; border-radius:0; background:none; color:var(--text); text-align:left; }
+.tree-menu button:hover, .tree-menu button:focus { background:var(--bg-hover); }
+.tree-menu button:disabled { opacity:.45; }
+.tree-menu kbd { font:inherit; opacity:.6; }
