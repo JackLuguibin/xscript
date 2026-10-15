@@ -41,6 +41,11 @@ export interface DebugMessages {
   dropped_before?: number;
 }
 
+export interface RemoteFile {
+  path: string;
+  size: number;
+}
+
 export interface EvalResult {
   ok: boolean;
   result?: string;
@@ -247,6 +252,19 @@ export class DeviceClient {
 
   debugClose(): Promise<Record<string, unknown>> {
     return this.json("DELETE", "/debug");
+  }
+
+  /** Files of a project on the device (path + size); undefined when the project does not exist (404). */
+  async projectFiles(project: string): Promise<RemoteFile[] | undefined> {
+    const r = await this.request("GET", "/projects/" + DeviceClient.p(project) + "/files", { passStatuses: [404] });
+    if (r.status === 404) return undefined;
+    return ((await r.json()) as { files?: RemoteFile[] }).files ?? [];
+  }
+
+  /** Exact bytes of one project file (GET /projects/{name}/file?raw=1). */
+  async readFileRaw(project: string, filePath: string): Promise<Buffer> {
+    const r = await this.request("GET", "/projects/" + DeviceClient.p(project) + "/file", { query: { path: filePath, raw: "1" } });
+    return Buffer.from(await r.arrayBuffer());
   }
 
   async screenPng(): Promise<Buffer> {

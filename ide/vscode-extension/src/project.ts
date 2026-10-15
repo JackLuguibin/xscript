@@ -2,6 +2,7 @@
 import * as fs from "fs";
 import * as path from "path";
 import type { UploadFile } from "./client";
+import { IgnoreRules } from "./sync";
 
 // Same rules as ide/mcp-server/xscript_mcp/client.py zip_directory.
 const SKIP_DIRS = new Set([
@@ -9,9 +10,9 @@ const SKIP_DIRS = new Set([
 ]);
 const TEXT_EXT = new Set([".py", ".txt", ".json", ".md", ".html", ".js", ".css", ".yaml", ".yml", ".ini", ".cfg", ".csv", ".xml"]);
 
-/** A project is a directory with an entry __init__.py. */
+/** A project is a directory with an entry __init__.py, or with AScript's build.as (the device accepts both). */
 export function isProjectDir(dir: string): boolean {
-  return fs.existsSync(path.join(dir, "__init__.py"));
+  return fs.existsSync(path.join(dir, "__init__.py")) || fs.existsSync(path.join(dir, "build.as"));
 }
 
 /**
@@ -34,18 +35,18 @@ export function findProjectRoot(start: string, boundary?: string): string | unde
   return found;
 }
 
-export function collectFiles(root: string): UploadFile[] {
+export function collectFiles(root: string, ignore?: IgnoreRules): UploadFile[] {
   const out: UploadFile[] = [];
   const walk = (dir: string) => {
     for (const ent of fs.readdirSync(dir, { withFileTypes: true })) {
       if (ent.name.startsWith(".")) continue;
       const full = path.join(dir, ent.name);
+      const rel = path.relative(root, full).split(path.sep).join("/");
       if (ent.isDirectory()) {
-        if (!SKIP_DIRS.has(ent.name)) walk(full);
+        if (!SKIP_DIRS.has(ent.name) && !ignore?.ignores(rel, true)) walk(full);
         continue;
       }
-      if (!ent.isFile() || /\.py[co]$/.test(ent.name)) continue;
-      const rel = path.relative(root, full).split(path.sep).join("/");
+      if (!ent.isFile() || /\.py[co]$/.test(ent.name) || ignore?.ignores(rel, false)) continue;
       const data = fs.readFileSync(full);
       if (TEXT_EXT.has(path.extname(ent.name).toLowerCase()) && isUtf8(data)) {
         out.push({ path: rel, content: data.toString("utf-8"), encoding: "utf-8" });
