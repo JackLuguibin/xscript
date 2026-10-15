@@ -52,8 +52,8 @@ PY
 import datetime, re, sys
 v = sys.argv[1]
 s = open("README.md", encoding="utf-8").read()
-s, n = re.subn(r"releases/tag/v\d+\.\d+\.\d+\) 下载 `xscript-v\d+\.\d+\.\d+-release\.apk`",
-               "releases/tag/v%s) 下载 `xscript-v%s-release.apk`" % (v, v), s)
+s, n = re.subn(r"\[GitHub Release v\d+\.\d+\.\d+\]\(([^)]*)/releases/tag/v\d+\.\d+\.\d+\) 下载 `xscript-v\d+\.\d+\.\d+-release\.apk`",
+               lambda m: "[GitHub Release v%s](%s/releases/tag/v%s) 下载 `xscript-v%s-release.apk`" % (v, m.group(1), v, v), s)
 assert n == 1, "README download link not found"
 open("README.md", "w", encoding="utf-8").write(s)
 c = open("CHANGELOG.md", encoding="utf-8").read()
@@ -67,7 +67,7 @@ build)
   SKIP_APK=0; [ "${1:-}" = "--skip-apk" ] && SKIP_APK=1
   bash "$0" check
   V="$(app_version)"
-  grep -q "^## v$V（" CHANGELOG.md || { echo "CHANGELOG.md has no '## v$V（日期）' section (run: $0 prepare $V)" >&2; exit 1; }
+  grep -q "^## v${V}（" CHANGELOG.md || { echo "CHANGELOG.md has no '## v${V}（日期）' section (run: $0 prepare $V)" >&2; exit 1; }
   rm -rf "$DIST"; mkdir -p "$DIST"
   (cd "$EXT" && { [ -d node_modules ] || npm ci --silent; } && rm -f xscript-vscode-*.vsix && npm run --silent package >/dev/null)
   cp "$EXT/xscript-vscode-$V.vsix" "$DIST/"
@@ -86,7 +86,7 @@ publish)
   for f in "${FILES[@]}"; do [ -f "$f" ] || { echo "missing $f (run: $0 build)" >&2; exit 1; }; done
   (cd "$DIST" && sha256 -c SHA256SUMS >/dev/null) || { echo "SHA256SUMS does not match the files in $DIST" >&2; exit 1; }
   NOTES="$(mktemp)"
-  awk -v h="## $TAG（" 'index($0,h)==1{p=1;next} /^## /{p=0} p' CHANGELOG.md > "$NOTES"
+  awk -v h="## ${TAG}（" 'index($0,h)==1{p=1;next} /^## /{p=0} p' CHANGELOG.md > "$NOTES"
   [ -s "$NOTES" ] || { echo "empty CHANGELOG section for $TAG" >&2; exit 1; }
   if [ "${1:-}" != "--yes" ]; then
     echo "dry run (add --yes to do it): tag $TAG on $(git rev-parse --short HEAD), then"

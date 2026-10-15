@@ -4,6 +4,15 @@
   "description": "%xscript.description%",
   "version": "0.2.4",
   "publisher": "xscript",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/JackLuguibin/xscript.git",
+    "directory": "ide/vscode-extension"
+  },
+  "homepage": "https://github.com/JackLuguibin/xscript/tree/main/ide/vscode-extension#readme",
+  "bugs": {
+    "url": "https://github.com/JackLuguibin/xscript/issues"
+  },
   "license": "MIT",
   "private": true,
   "engines": {
