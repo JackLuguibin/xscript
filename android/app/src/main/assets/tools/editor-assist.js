@@ -131,6 +131,24 @@
       const item = this.items[this.index], doc = this.popup.querySelector(".cdoc");
       if (doc) { const text = ((item.detail ? item.label + item.detail + "\n" : "") + (item.doc || "")).trim(); doc.textContent = text; doc.hidden = !text; }
     }
+    /** The textarea scrolled (the browser follows the caret on a narrow screen, or the user scrolled): keep the popup
+     *  next to the caret while the caret is still visible, close it once the caret has scrolled out of view. */
+    onScroll() {
+      if (this.popup.hidden || !this.range) return;
+      const c = this.caretBox();
+      if (c.x < 0 || c.x > c.hostW || c.y < 0 || c.y > c.hostH) this.close(); else this.place();
+    }
+    caretBox() {
+      const box = this.box, value = box.value, pos = this.range.from;
+      const ls = value.lastIndexOf("\n", pos - 1) + 1, row = value.slice(0, pos).split("\n").length - 1;
+      const probe = document.createElement("span"), cs = getComputedStyle(box);
+      probe.style.cssText = "position:absolute;visibility:hidden;white-space:pre;tab-size:4;letter-spacing:0;font-variant-ligatures:none";
+      probe.style.fontFamily = cs.fontFamily; probe.style.fontSize = cs.fontSize; probe.style.fontWeight = cs.fontWeight;
+      probe.textContent = value.slice(ls, pos); this.host.append(probe);
+      const width = probe.getBoundingClientRect().width; probe.remove();
+      const hostBox = this.host.getBoundingClientRect();
+      return {x: PAD_LEFT + width - box.scrollLeft, y: PAD_TOP + (row + 1) * LINE - box.scrollTop, hostW: hostBox.width, hostH: hostBox.height};
+    }
     place() {
       const box = this.box, value = box.value, pos = this.range.from;
       const ls = value.lastIndexOf("\n", pos - 1) + 1, row = value.slice(0, pos).split("\n").length - 1;

@@ -72,3 +72,16 @@ cd ide/vscode-extension && npm run compile && node scripts/debug-smoke.js 127.0.
 
 模拟器本地合成短信验证了字段、号码匹配、分页和无授权空结果，未输出号码或正文。测试后 READ_SMS 恢复为原先未授权状态。
 另已验证模拟器加速度传感器的回调和 stop。
+
+## 在手机自带的 Chrome 里测试网页 IDE
+
+网页 IDE 的浏览器测试默认用本机无头 Chrome。要在手机（或模拟器）自己的 Chrome 里跑，用 DevTools 转发：
+
+```bash
+adb forward tcp:19860 tcp:9860                                   # 设备接口（测试读写工程用）
+adb forward tcp:9222 localabstract:chrome_devtools_remote        # 手机 Chrome 的调试口（先在手机上打开一次 Chrome）
+XS_CDP=http://127.0.0.1:9222 XS_PAGE_URL=http://127.0.0.1:9860 XS_DEVICE_URL=http://127.0.0.1:19860 \
+  node --test scripts/tests/editor-mobile.test.cjs
+```
+
+`XS_PAGE_URL` 是手机上看到的设备地址。这个测试用手机的真实屏幕尺寸和触摸输入，检查抽屉、补全弹窗、搜索面板、撤销替换和正则超时保护。桌面布局的 `editor-dom.test.cjs` 不适合手机屏幕（目录树在抽屉里），在手机上只跑 `editor-mobile`；同一台设备上的测试文件要串行跑（`--test-concurrency=1`），否则互相干扰。

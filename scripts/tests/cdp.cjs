@@ -24,6 +24,13 @@ function find() {
   return candidates.find(p => fs.existsSync(p)) || '';
 }
 
+/** Drive a browser that is already running (e.g. Chrome on an Android emulator via
+ *  `adb forward tcp:9222 localabstract:chrome_devtools_remote`): attach('http://127.0.0.1:9222'). A fresh tab is opened and closed again. */
+async function attach(endpoint) {
+  const info = await (await fetch(endpoint.replace(/\/$/, '') + '/json/version')).json();
+  return session(info.webSocketDebuggerUrl, null, '');
+}
+
 async function launch(bin) {
   const profile = fs.mkdtempSync(path.join(os.tmpdir(), 'xs-cdp-'));
   const child = spawn(bin, ['--headless=new', '--remote-debugging-port=0', '--user-data-dir=' + profile,
@@ -34,6 +41,10 @@ async function launch(bin) {
     child.once('exit', code => { clearTimeout(timer); reject(Error('Chrome exited ' + code + ': ' + err)); });
     child.stderr.on('data', b => { err += b; const m = /DevTools listening on (ws:\/\/\S+)/.exec(err); if (m) { clearTimeout(timer); resolve(m[1]); } });
   });
+  return session(wsUrl, child, profile);
+}
+
+async function session(wsUrl, child, profile) {
   const ws = new WebSocket(wsUrl);
   await new Promise((resolve, reject) => { ws.onopen = resolve; ws.onerror = reject; });
   let id = 0; const waiting = new Map(), listeners = [];
@@ -81,7 +92,9 @@ async function launch(bin) {
     },
     /** Real text input on the focused element (fires a trusted `input` event with inputType "insertText"). */
     async insertText(text) { await page('Input.insertText', {text}); },
+    attached: !child,
     async close() {
+      if (!child) { try { await send('Target.closeTarget', {targetId}); } catch {} try { ws.close(); } catch {} return; }
       try { ws.close(); } catch {}
       const gone = new Promise(resolve => child.exitCode !== null ? resolve() : child.once('exit', resolve));
       child.kill(); await gone;
@@ -90,4 +103,4 @@ async function launch(bin) {
   };
 }
 
-module.exports = {find, launch};
+module.exports = {find, launch, attach};

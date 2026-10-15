@@ -481,7 +481,7 @@
   };
   el("editor").addEventListener("input", e => { if (!current || current.binary) return; model.edit(current, el("editor").value); message(current.path + " · 未保存"); assist.onInput(e); cursor(); render(); });
   for (const name of ["click", "keyup"]) el("editor").addEventListener(name, cursor);
-  el("editor").addEventListener("scroll", () => { syncScroll(); assist.close(); });
+  el("editor").addEventListener("scroll", () => { syncScroll(); assist.onScroll(); });
   el("editor").addEventListener("keydown", e => {
     if (assist.onKey(e)) return;
     if (e.key === "Tab" && !e.shiftKey) {
