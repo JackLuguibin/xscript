@@ -6,7 +6,7 @@ import time
 from typing import Any
 
 from sqlalchemy import JSON, BigInteger, Boolean, Float, ForeignKey, Index, Integer, String, Text, UniqueConstraint
-from sqlalchemy.orm import Mapped, mapped_column
+from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from .db import Base
 
@@ -134,6 +134,39 @@ class Card(Base):
     expires_at: Mapped[int | None] = mapped_column(Integer, default=None)  # 0 = permanent
     revoked: Mapped[bool] = mapped_column(Boolean, default=False)
     last_verified_at: Mapped[int | None] = mapped_column(Integer, default=None)
+    # 体验卡 (trial): one per device and app. Normal cards may stack onto a running one (续期叠加).
+    kind: Mapped[str] = mapped_column(String(8), default="normal")  # normal | trial
+    # 多设备卡: how many devices may share the card. `device` is the first one bound; the rest are in `extras`.
+    max_devices: Mapped[int] = mapped_column(Integer, default=1)
+    stack: Mapped[bool] = mapped_column(Boolean, default=True)
+    extras: Mapped[list["CardDevice"]] = relationship(cascade="all, delete-orphan", lazy="selectin",
+                                                       order_by="CardDevice.id")
+
+
+class CardDevice(Base):
+    """Second and later devices of a 多设备卡 (the first one lives on Card.device)."""
+
+    __tablename__ = "card_devices"
+    __table_args__ = (UniqueConstraint("card", "device"),)
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    card: Mapped[str] = mapped_column(ForeignKey("cards.card", ondelete="CASCADE"), index=True)
+    device: Mapped[str] = mapped_column(String(128), index=True)
+    model: Mapped[str] = mapped_column(String(128), default="")
+    bound_at: Mapped[int] = mapped_column(Integer, default=now)
+
+
+class TrialUse(Base):
+    """A device that has used a 体验卡 for an app; survives 解绑 and deleting the card."""
+
+    __tablename__ = "trial_uses"
+    __table_args__ = (UniqueConstraint("device", "app"),)
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    device: Mapped[str] = mapped_column(String(128))
+    app: Mapped[str] = mapped_column(String(128))
+    card: Mapped[str] = mapped_column(String(40), default="")
+    used_at: Mapped[int] = mapped_column(Integer, default=now)
 
 
 class AuditLog(Base):

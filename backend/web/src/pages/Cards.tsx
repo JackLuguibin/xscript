@@ -11,16 +11,19 @@ import {
   Input,
   InputNumber,
   Modal,
+  Radio,
   Row,
   Select,
   Space,
+  Switch,
   Table,
   Tabs,
+  Tag,
   Tooltip,
   Typography,
 } from "antd";
 import { DownloadOutlined, DownOutlined, KeyOutlined, PlusOutlined } from "@ant-design/icons";
-import { api, download, type Batch, type Card as CardT, type CardStats, type Page } from "../api";
+import { api, download, type AbuseItem, type Batch, type Card as CardT, type CardStats, type Page } from "../api";
 import { useAuth } from "../auth";
 import {
   CARD_STATUS_OPTIONS,
@@ -55,6 +58,7 @@ export default function CardsPage() {
   const [offlineOpen, setOfflineOpen] = useState(false);
   const [extendOpen, setExtendOpen] = useState(false);
   const [created, setCreated] = useState<{ batch: string; cards: string[] } | null>(null);
+  const [devicesOf, setDevicesOf] = useState<string | null>(null);
 
   const stats = useQuery({ queryKey: ["card-stats"], queryFn: () => api.get<CardStats>("/api/cards/stats") });
   const list = useQuery({
@@ -67,6 +71,11 @@ export default function CardsPage() {
     queryFn: () => api.get<{ items: Batch[] }>("/api/cards/batches"),
     enabled: tab === "batches",
   });
+  const abuse = useQuery({
+    queryKey: ["card-abuse"],
+    queryFn: () => api.get<{ items: AbuseItem[] }>("/api/cards/abuse"),
+    enabled: tab === "abuse",
+  });
   const refresh = () => {
     qc.invalidateQueries({ queryKey: ["cards"] });
     qc.invalidateQueries({ queryKey: ["card-stats"] });
@@ -74,7 +83,7 @@ export default function CardsPage() {
   };
 
   const action = useMutation({
-    mutationFn: (v: { cards: string[]; action: string }) => api.post<{ updated: number }>("/api/cards/actions", v),
+    mutationFn: (v: { cards: string[]; action: string; device?: string }) => api.post<{ updated: number }>("/api/cards/actions", v),
     onSuccess: (r) => {
       message.success(`已处理 ${r.updated} 张`);
       setSelected([]);
@@ -87,7 +96,7 @@ export default function CardsPage() {
     const text: Record<string, string> = {
       revoke: "停用后，已激活的 App 最多 6 小时内联网复核时失效。",
       restore: "恢复后卡密可以继续使用。",
-      unbind: "解绑后可以在另一台设备上激活，到期时间不变。",
+      unbind: "解绑后可以在另一台设备上激活，到期时间不变；多设备卡会释放全部设备。",
       delete: "删除后无法恢复，已激活的 App 复核时会失效。",
     };
     const label: Record<string, string> = { revoke: "停用", restore: "恢复", unbind: "解绑", delete: "删除" };
@@ -258,6 +267,18 @@ export default function CardsPage() {
                       { title: "状态", dataIndex: "status", width: 90, render: (st) => <CardStatusTag status={st} /> },
                       { title: "有效期", dataIndex: "days", width: 90, render: fmtDays },
                       {
+                        title: "类型",
+                        dataIndex: "kind",
+                        width: 110,
+                        render: (k: string, c) => (
+                          <Space size={4}>
+                            {k === "trial" && <Tag color="gold">体验卡</Tag>}
+                            {c.max_devices > 1 && <Tag color="blue">{c.max_devices} 台</Tag>}
+                            {k !== "trial" && c.max_devices <= 1 && "-"}
+                          </Space>
+                        ),
+                      },
+                      {
                         title: "应用",
                         dataIndex: "app",
                         width: 160,
@@ -270,8 +291,9 @@ export default function CardsPage() {
                         ellipsis: true,
                         render: (d: string | null, c) =>
                           d ? (
-                            <Tooltip title={c.model}>
+                            <Tooltip title={c.devices.map((x) => x.device + (x.model ? "（" + x.model + "）" : "")).join("\n")}>
                               <span className="mono">{d}</span>
+                              {c.devices.length > 1 && <Tag style={{ marginLeft: 6 }}>+{c.devices.length - 1}</Tag>}
                             </Tooltip>
                           ) : (
                             "-"
@@ -308,7 +330,12 @@ export default function CardsPage() {
                                   停用
                                 </Button>
                               )}
-                              {c.device && (
+                              {c.device && c.max_devices > 1 && (
+                                <Button type="link" size="small" onClick={() => setDevicesOf(c.card)}>
+                                  设备
+                                </Button>
+                              )}
+                              {c.device && c.max_devices <= 1 && (
                                 <Button type="link" size="small" onClick={() => confirmAction([c.card], "unbind")}>
                                   解绑
                                 </Button>
@@ -334,6 +361,16 @@ export default function CardsPage() {
                     { title: "数量", dataIndex: "count" },
                     { title: "已绑定", dataIndex: "bound" },
                     { title: "有效期", dataIndex: "days", render: fmtDays },
+                    {
+                      title: "类型",
+                      dataIndex: "kind",
+                      render: (k: string, b) => (
+                        <Space size={4}>
+                          {k === "trial" ? <Tag color="gold">体验卡</Tag> : "正式卡"}
+                          {b.max_devices > 1 && <Tag color="blue">{b.max_devices} 台</Tag>}
+                        </Space>
+                      ),
+                    },
                     { title: "应用", dataIndex: "app", render: (a: string) => (a === "*" ? "全部应用" : a) },
                     { title: "备注", dataIndex: "note" },
                     { title: "生成时间", dataIndex: "created_at", render: fmtTime },
@@ -369,10 +406,58 @@ export default function CardsPage() {
                 />
               ),
             },
+            {
+              key: "abuse",
+              label: "滥用告警",
+              children: (
+                <>
+                  <Alert
+                    type="info"
+                    showIcon
+                    style={{ marginBottom: 12 }}
+                    title="最近 24 小时内的异常激活：卡密被多台设备尝试、单设备激活大量卡密、单 IP 激活大量设备、暴力猜卡密。阈值和通知渠道在「系统设置」里配置（事件：卡密滥用告警）。"
+                  />
+                  <Table<AbuseItem>
+                    rowKey={(r) => r.time + r.subject + r.signal}
+                    loading={abuse.isLoading}
+                    dataSource={abuse.data?.items}
+                    columns={[
+                      { title: "时间", dataIndex: "time", width: 160, render: fmtTime },
+                      { title: "类型", dataIndex: "label" },
+                      { title: "对象", dataIndex: "subject", render: (x: string) => <span className="mono">{x}</span> },
+                      { title: "次数 / 阈值", key: "n", render: (_, r) => `${r.count} / ${r.threshold}` },
+                      { title: "来源 IP", dataIndex: "ip", render: (x: string) => <span className="mono">{x}</span> },
+                      {
+                        title: "操作",
+                        key: "ops",
+                        render: (_, r) =>
+                          r.signal === "card_shared" ? (
+                            <Button
+                              type="link"
+                              size="small"
+                              onClick={() => {
+                                setTab("cards");
+                                setF({ ...f, q: r.subject, status: "", batch: "", page: 1 });
+                              }}
+                            >
+                              查看卡密
+                            </Button>
+                          ) : null,
+                      },
+                    ]}
+                  />
+                </>
+              ),
+            },
           ]}
         />
       </Card>
 
+      <DevicesModal
+        card={list.data?.items.find((c) => c.card === devicesOf) ?? null}
+        onClose={() => setDevicesOf(null)}
+        onUnbind={(card, device) => action.mutateAsync({ cards: [card], action: "unbind", device })}
+      />
       <CreateModal
         open={createOpen}
         onClose={() => setCreateOpen(false)}
@@ -408,6 +493,7 @@ function CreateModal({
 }) {
   const { message } = App.useApp();
   const [form] = Form.useForm();
+  const kind = Form.useWatch("kind", form);
   const save = useMutation({
     mutationFn: (v: Record<string, unknown>) => api.post<{ batch: string; cards: string[] }>("/api/cards/batches", v),
     onSuccess: onCreated,
@@ -426,9 +512,24 @@ function CreateModal({
         form={form}
         layout="vertical"
         preserve={false}
-        onFinish={save.mutate}
-        initialValues={{ count: 50, days: 30, app: "*", prefix: "XS" }}
+        onFinish={(v) =>
+          save.mutate(
+            v.kind === "trial"
+              ? { count: v.count, kind: "trial", hours: v.hours, app: v.app, note: v.note, prefix: v.prefix }
+              : { count: v.count, kind: "normal", days: v.days, max_devices: v.max_devices, stack: v.stack, app: v.app, note: v.note, prefix: v.prefix },
+          )
+        }
+        initialValues={{ kind: "normal", count: 50, days: 30, hours: 24, max_devices: 1, stack: true, app: "*", prefix: "XS" }}
       >
+        <Form.Item name="kind" label="卡类型">
+          <Radio.Group
+            optionType="button"
+            options={[
+              { value: "normal", label: "正式卡" },
+              { value: "trial", label: "体验卡" },
+            ]}
+          />
+        </Form.Item>
         <Row gutter={12}>
           <Col span={12}>
             <Form.Item name="count" label="数量" rules={[{ required: true }]}>
@@ -436,11 +537,43 @@ function CreateModal({
             </Form.Item>
           </Col>
           <Col span={12}>
-            <Form.Item name="days" label="有效天数" extra="从激活开始算，0 = 永久" rules={[{ required: true }]}>
-              <InputNumber min={0} max={36500} style={{ width: "100%" }} />
-            </Form.Item>
+            {kind === "trial" ? (
+              <Form.Item name="hours" label="有效小时" extra="从激活开始算，最长 720 小时" rules={[{ required: true }]}>
+                <InputNumber min={0.5} max={720} style={{ width: "100%" }} />
+              </Form.Item>
+            ) : (
+              <Form.Item name="days" label="有效天数" extra="从激活开始算，0 = 永久" rules={[{ required: true }]}>
+                <InputNumber min={0} max={36500} style={{ width: "100%" }} />
+              </Form.Item>
+            )}
           </Col>
         </Row>
+        {kind === "trial" ? (
+          <Alert
+            type="info"
+            showIcon
+            style={{ marginBottom: 16 }}
+            title="每台设备在每个应用上只能用一张体验卡（解绑、删除卡也不会重置）；体验卡只绑定一台设备，不参与续期叠加。"
+          />
+        ) : (
+          <Row gutter={12}>
+            <Col span={12}>
+              <Form.Item name="max_devices" label="可绑定设备数" extra="1 = 普通卡；大于 1 为多设备卡，共用同一个到期时间">
+                <InputNumber min={1} max={100} style={{ width: "100%" }} />
+              </Form.Item>
+            </Col>
+            <Col span={12}>
+              <Form.Item
+                name="stack"
+                label="续期叠加"
+                valuePropName="checked"
+                extra="设备已有未到期的卡时，新卡从旧卡到期后开始算（多设备卡不叠加）"
+              >
+                <Switch />
+              </Form.Item>
+            </Col>
+          </Row>
+        )}
         <Form.Item name="app" label="限定应用" extra="打包时的包名；* 表示所有应用都能用" rules={[{ required: true }, APP_RULE]}>
           <Input className="mono" />
         </Form.Item>
@@ -457,6 +590,43 @@ function CreateModal({
           </Col>
         </Row>
       </Form>
+    </Modal>
+  );
+}
+
+function DevicesModal({
+  card,
+  onClose,
+  onUnbind,
+}: {
+  card: CardT | null;
+  onClose: () => void;
+  onUnbind: (card: string, device: string) => Promise<unknown>;
+}) {
+  return (
+    <Modal open={!!card} title={`已绑定设备（${card?.devices.length ?? 0} / ${card?.max_devices ?? 1}）`} onCancel={onClose} footer={null}>
+      <Typography.Paragraph type="secondary">
+        解绑后这台设备的授权在联网复核时失效，空出的名额可以给另一台设备；到期时间不变。
+      </Typography.Paragraph>
+      <Table
+        rowKey="device"
+        size="small"
+        pagination={false}
+        dataSource={card?.devices}
+        columns={[
+          { title: "设备 ID", dataIndex: "device", render: (d: string) => <span className="mono">{d}</span> },
+          { title: "型号", dataIndex: "model" },
+          {
+            title: "操作",
+            key: "ops",
+            render: (_, d) => (
+              <Button type="link" size="small" danger onClick={() => card && onUnbind(card.card, d.device)}>
+                解绑
+              </Button>
+            ),
+          },
+        ]}
+      />
     </Modal>
   );
 }

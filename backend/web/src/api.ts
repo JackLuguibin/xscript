@@ -212,6 +212,20 @@ export interface Card {
   revoked: boolean;
   last_verified_at: number | null;
   status: CardStatus;
+  kind: "normal" | "trial";
+  max_devices: number;
+  stack: boolean;
+  devices: { device: string; model: string }[];
+}
+
+export interface AbuseItem {
+  time: number;
+  subject: string;
+  ip: string;
+  signal: string;
+  label: string;
+  count: number;
+  threshold: number;
 }
 
 export interface CardStats extends Record<CardStatus, number> {
@@ -226,6 +240,8 @@ export interface Batch {
   count: number;
   bound: number;
   created_at: number;
+  kind: "normal" | "trial";
+  max_devices: number;
 }
 
 export type JobStatus = "queued" | "running" | "succeeded" | "failed" | "cancelled";
@@ -286,6 +302,10 @@ export interface Settings {
   alert_events: Record<string, string>;
   require_totp_admin: boolean;
   device_log_days: number;
+  abuse_card_devices: number;
+  abuse_device_cards: number;
+  abuse_ip_devices: number;
+  abuse_ip_failures: number;
 }
 
 export interface MaintenanceInfo {

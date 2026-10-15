@@ -41,7 +41,14 @@ def _v3(conn: Connection) -> None:
     _add_column(conn, "users", "totp_last_step", "INTEGER")
 
 
-STEPS: list[Callable[[Connection], None]] = [_v1, _v2, _v3]
+def _v4(conn: Connection) -> None:
+    """0.6: 体验卡 / 多设备卡 / 续期叠加 columns (card_devices and trial_uses come from create_all)."""
+    _add_column(conn, "cards", "kind", "VARCHAR(8) NOT NULL DEFAULT 'normal'")
+    _add_column(conn, "cards", "max_devices", "INTEGER NOT NULL DEFAULT 1")
+    _add_column(conn, "cards", "stack", "BOOLEAN NOT NULL DEFAULT 1")
+
+
+STEPS: list[Callable[[Connection], None]] = [_v1, _v2, _v3, _v4]
 LATEST = len(STEPS)
 
 

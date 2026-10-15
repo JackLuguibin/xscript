@@ -14,6 +14,7 @@ from starlette.exceptions import HTTPException as StarletteHTTPException
 
 from . import __version__, licensing
 from .config import Config
+from .abuse import AbuseMonitor
 from .alerts import Alerts, RateLimiter
 from .audit import get_settings
 from .db import Database
@@ -57,7 +58,7 @@ def create_app(config: Config, start_workers: bool = True) -> FastAPI:
         hub.offline_minutes = float(boot.get("alert_offline_minutes") or 0)
         hub.log_days = float(boot.get("device_log_days") or 0)
     ctx = Context(config=config, db=db, hub=hub, scheduler=Scheduler(hub, db, config.scheduler_interval),
-                  packer=Packer(config, db, alerts), key=key, pubkey=licensing.public_b64(key), alerts=alerts,
+                  packer=Packer(config, db, alerts), key=key, pubkey=licensing.public_b64(key), alerts=alerts, abuse=AbuseMonitor(),
                   maint=Maintainer(config, db, hub, alerts, config.maintenance_interval),
                   # 热更新 checks every 30 min per device, so 120/min per IP leaves room for NAT'd farms.
                   pub_limiter=RateLimiter(120, 60), apk_limiter=RateLimiter(20, 600))

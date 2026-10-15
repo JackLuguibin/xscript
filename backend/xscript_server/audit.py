@@ -24,6 +24,11 @@ DEFAULT_SETTINGS: dict[str, Any] = {
     "alert_offline_minutes": 5,  # device offline this long → alert (0 = off)
     "require_totp_admin": False,   # admins must enable 两步验证 before using the console
     "device_log_days": 7,          # 运行日志 history kept on the server (0 = don't store)
+    # 卡密滥用告警 thresholds within 24 h (0 = that check is off)
+    "abuse_card_devices": 3,       # distinct devices turned away from one card
+    "abuse_device_cards": 5,       # cards activated by one device
+    "abuse_ip_devices": 10,        # devices activated from one IP
+    "abuse_ip_failures": 5,        # unknown card codes tried from one IP
 }
 
 ALERT_EVENTS = {
@@ -34,6 +39,7 @@ ALERT_EVENTS = {
     "pack_succeeded": "打包成功",
     "task_failed": "定时任务失败",
     "cards_low": "未使用卡密不足",
+    "card_abuse": "卡密滥用告警",
 }
 
 

@@ -21,7 +21,9 @@ export function fmtSize(n?: number | null): string {
 }
 
 export function fmtDays(d: number): string {
-  return d ? (Number.isInteger(d) ? d : d.toFixed(1)) + " 天" : "永久";
+  if (!d) return "永久";
+  if (d < 1) return Math.round(d * 24 * 10) / 10 + " 小时";
+  return (Number.isInteger(d) ? d : d.toFixed(1)) + " 天";
 }
 
 export function fmtDuration(from?: number | null, to?: number | null): string {

@@ -131,6 +131,10 @@ class SettingsIn(BaseModel):
     alert_offline_minutes: int | None = Field(default=None, ge=0, le=1440)
     require_totp_admin: bool | None = None
     device_log_days: int | None = Field(default=None, ge=0, le=365)
+    abuse_card_devices: int | None = Field(default=None, ge=0, le=1000)
+    abuse_device_cards: int | None = Field(default=None, ge=0, le=1000)
+    abuse_ip_devices: int | None = Field(default=None, ge=0, le=10000)
+    abuse_ip_failures: int | None = Field(default=None, ge=0, le=10000)
 
 
 @router.put("/settings")

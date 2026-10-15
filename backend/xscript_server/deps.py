@@ -38,6 +38,7 @@ class Context:
     key: Any  # 卡密 signing key (EC P-256)
     pubkey: str
     alerts: Any = None
+    abuse: Any = None
     maint: Any = None
     limiter: LoginLimiter = field(default_factory=LoginLimiter)
     # Public endpoints (/pub/*): 热更新 checks, bundles, share pages and APKs, per client IP.

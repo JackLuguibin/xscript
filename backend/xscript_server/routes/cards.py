@@ -4,8 +4,11 @@ from __future__ import annotations
 
 import csv
 import io
+import logging
 import time
+from typing import Literal
 
+from anyio import from_thread
 from fastapi import APIRouter, Depends, HTTPException, Request
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, Field
@@ -14,17 +17,22 @@ from sqlalchemy.orm import Session
 
 from .. import cards as cardsvc
 from .. import licensing
+from ..abuse import SIGNALS as ABUSE_SIGNALS
+from ..audit import get_settings
 from ..deps import Principal, admin, client_ip, ctx, db_session, operator, paginate, record, viewer
-from ..models import Card
+from ..models import AuditLog, Card
 
+log = logging.getLogger("xscript.cards")
 router = APIRouter(prefix="/api/cards", tags=["cards"])
 public = APIRouter(prefix="/license", tags=["license"])
 
 APP_PATTERN = r"^(\*|[a-zA-Z][a-zA-Z0-9_]*(\.[a-zA-Z][a-zA-Z0-9_]*)+)$"
 
 
-def _filtered(q: str, status: str, app: str, batch: str):
+def _filtered(q: str, status: str, app: str, batch: str, kind: str = ""):
     stmt = select(Card)
+    if kind:
+        stmt = stmt.where(Card.kind == kind)
     if q:
         like = "%" + q.strip().upper() + "%"
         stmt = stmt.where(or_(Card.card.like(like), Card.device.like("%" + q.strip() + "%"),
@@ -43,8 +51,8 @@ def _filtered(q: str, status: str, app: str, batch: str):
 
 @router.get("")
 def list_cards(p: Principal = Depends(viewer), s: Session = Depends(db_session), q: str = "", status: str = "",
-               app: str = "", batch: str = "", page: int = 1, page_size: int = 50):
-    stmt = _filtered(q, status, app, batch)
+               app: str = "", batch: str = "", kind: str = "", page: int = 1, page_size: int = 50):
+    stmt = _filtered(q, status, app, batch, kind)
     total = s.scalar(select(func.count()).select_from(stmt.subquery())) or 0
     off, size = paginate(page, page_size)
     now = time.time()
@@ -60,10 +68,19 @@ def card_stats(p: Principal = Depends(viewer), s: Session = Depends(db_session))
 @router.get("/batches")
 def list_batches(p: Principal = Depends(viewer), s: Session = Depends(db_session)):
     rows = s.execute(select(Card.batch, Card.app, Card.days, Card.note, func.count(), func.min(Card.created_at),
-                            func.count(Card.device))
+                            func.count(Card.device), func.max(Card.kind), func.max(Card.max_devices))
                      .group_by(Card.batch).order_by(func.min(Card.created_at).desc()).limit(500)).all()
     return {"items": [{"batch": r[0], "app": r[1], "days": r[2], "note": r[3], "count": r[4], "created_at": r[5],
-                       "bound": r[6]} for r in rows]}
+                       "bound": r[6], "kind": r[7] or "normal", "max_devices": r[8] or 1} for r in rows]}
+
+
+@router.get("/abuse")
+def abuse_findings(p: Principal = Depends(viewer), s: Session = Depends(db_session), limit: int = 100):
+    """Recent 卡密滥用告警 findings (also in the audit log as card.abuse)."""
+    rows = s.scalars(select(AuditLog).where(AuditLog.action == "card.abuse").order_by(AuditLog.id.desc())
+                     .limit(min(max(limit, 1), 500)))
+    return {"items": [{"time": r.time, "subject": r.target, "ip": r.ip, **(r.detail or {}),
+                       "label": ABUSE_SIGNALS.get((r.detail or {}).get("signal"), "")} for r in rows]}
 
 
 class BatchIn(BaseModel):
@@ -72,32 +89,45 @@ class BatchIn(BaseModel):
     app: str = Field(default="*", max_length=128, pattern=APP_PATTERN)
     note: str = Field(default="", max_length=255)
     prefix: str = Field(default="XS", min_length=1, max_length=8, pattern=r"^[A-Z0-9]+$")
+    kind: Literal["normal", "trial"] = "normal"  # 体验卡: one per device and app, never stacks
+    hours: float | None = Field(default=None, gt=0, le=720)  # convenient for trials; overrides days
+    max_devices: int = Field(default=1, ge=1, le=100)  # 多设备卡
+    stack: bool = True  # 续期叠加: a new card starts when the device's running card ends
 
 
 @router.post("/batches")
 def create_batch(body: BatchIn, request: Request, p: Principal = Depends(operator), s: Session = Depends(db_session)):
-    batch, codes = cardsvc.create_batch(s, body.count, body.days, body.app, body.note, body.prefix)
-    record(request, s, p, "card.create", batch, {"count": body.count, "days": body.days, "app": body.app})
+    days = body.hours / 24 if body.hours else body.days
+    try:
+        batch, codes = cardsvc.create_batch(s, body.count, days, body.app, body.note, body.prefix, kind=body.kind,
+                                            max_devices=body.max_devices, stack=body.stack)
+    except ValueError as e:
+        raise HTTPException(400, str(e)) from None
+    record(request, s, p, "card.create", batch, {"count": body.count, "days": days, "app": body.app,
+                                                 "kind": body.kind, "max_devices": body.max_devices,
+                                                 "stack": body.stack and body.kind != "trial"})
     s.commit()
     return {"batch": batch, "cards": codes}
 
 
 @router.get("/export")
 def export_cards(request: Request, p: Principal = Depends(operator), s: Session = Depends(db_session),
-                 q: str = "", status: str = "", app: str = "", batch: str = ""):
+                 q: str = "", status: str = "", app: str = "", batch: str = "", kind: str = ""):
     now = time.time()
-    rows = [cardsvc.to_dict(c, now) for c in s.scalars(_filtered(q, status, app, batch).order_by(Card.created_at))]
+    rows = [cardsvc.to_dict(c, now) for c in s.scalars(_filtered(q, status, app, batch, kind).order_by(Card.created_at))]
     record(request, s, p, "card.export", batch or status or "all", {"count": len(rows)})
     s.commit()
     buf = io.StringIO()
     buf.write("\ufeff")  # Excel opens UTF-8 CSV correctly with a BOM
     w = csv.writer(buf)
-    w.writerow(["卡密", "状态", "批次", "天数", "应用", "设备", "型号", "激活时间", "到期时间", "备注"])
+    w.writerow(["卡密", "状态", "批次", "天数", "应用", "设备", "型号", "激活时间", "到期时间", "备注", "类型", "设备数上限",
+                "已绑定设备数"])
     fmt = lambda t: time.strftime("%Y-%m-%d %H:%M", time.localtime(t)) if t else ""  # noqa: E731
     for r in rows:
-        w.writerow([r["card"], r["status"], r["batch"], r["days"] or "永久", r["app"], r["device"] or "",
+        w.writerow([r["card"], r["status"], r["batch"], round(r["days"], 3) if r["days"] else "永久", r["app"], r["device"] or "",
                     r["model"] or "", fmt(r["activated_at"]),
-                    "永久" if r["activated_at"] and not r["expires_at"] else fmt(r["expires_at"]), r["note"]])
+                    "永久" if r["activated_at"] and not r["expires_at"] else fmt(r["expires_at"]), r["note"],
+                    "体验卡" if r["kind"] == "trial" else "正式卡", r["max_devices"], len(r["devices"])])
     name = "cards-%s.csv" % time.strftime("%Y%m%d-%H%M%S")
     return StreamingResponse(iter([buf.getvalue()]), media_type="text/csv; charset=utf-8",
                              headers={"Content-Disposition": 'attachment; filename="%s"' % name})
@@ -106,6 +136,7 @@ def export_cards(request: Request, p: Principal = Depends(operator), s: Session 
 class CardsAction(BaseModel):
     cards: list[str] = Field(min_length=1, max_length=10000)
     action: str = Field(pattern=r"^(revoke|restore|unbind|delete)$")
+    device: str | None = Field(default=None, max_length=128)  # unbind: only this device of a 多设备卡
 
 
 @router.post("/actions")
@@ -121,11 +152,13 @@ def cards_action(body: CardsAction, request: Request, p: Principal = Depends(ope
         elif body.action == "restore":
             c.revoked = False
         elif body.action == "unbind":
-            c.device, c.model = None, None
+            if not cardsvc.unbind(s, c, body.device):
+                continue
         else:
             s.delete(c)
         n += 1
-    record(request, s, p, "card." + body.action, "%d 张" % n, {"cards": codes[:50]})
+    record(request, s, p, "card." + body.action, "%d 张" % n,
+           {"cards": codes[:50], **({"device": body.device} if body.device else {})})
     s.commit()
     return {"updated": n}
 
@@ -198,14 +231,33 @@ def license_activate(body: ActivateIn, request: Request, s: Session = Depends(db
     wait = c.limiter.blocked("license|" + ip)
     if wait:
         raise HTTPException(429, "尝试次数过多，请稍后再试")
-    token, err = cardsvc.activate(s, c.key, card, device, body.app or "*", body.model)
-    if err:
-        if err == "卡密不存在":
-            c.limiter.fail("license|" + ip)
-        raise HTTPException(403, err)
-    record(request, s, "app:" + (body.app or "*"), "card.activate", cardsvc.normalize(card), {"device": device})
+    act = cardsvc.activate_ex(s, c.key, card, device, body.app or "*", body.model)
+    if act.code == "not_found":
+        c.limiter.fail("license|" + ip)
+    _watch(request, s, act, card, device, ip)
+    if act.error:
+        raise HTTPException(403, act.error)
+    if act.new_device:
+        record(request, s, "app:" + (body.app or "*"), "card.activate", cardsvc.normalize(card), {"device": device})
     s.commit()
-    return {"token": token}
+    return {"token": act.token}
+
+
+def _watch(request: Request, s: Session, act: cardsvc.Activation, card: str, device: str, ip: str) -> None:
+    """Feed the attempt to the abuse monitor; a finding is audited and pushed to the card_abuse webhooks."""
+    c = ctx(request)
+    if c.abuse is None:
+        return
+    try:
+        found = c.abuse.observe(act.code, cardsvc.normalize(card), device, ip, get_settings(s))
+        for f in found:
+            record(request, s, "system", "card.abuse", f.subject, f.detail)
+            if c.alerts is not None:
+                from_thread.run_sync(c.alerts.emit, "card_abuse", f.signal + ":" + f.subject, f.text)
+        if found:
+            s.commit()
+    except Exception:  # monitoring must never break activation
+        log.exception("abuse check failed")
 
 
 @public.post("/verify")

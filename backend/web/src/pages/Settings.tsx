@@ -1,7 +1,7 @@
 import { useEffect } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useNavigate } from "react-router-dom";
-import { Alert, App, Button, Card, Descriptions, Form, Input, Space, Switch, Tabs, Tag, Typography } from "antd";
+import { Alert, App, Button, Card, Descriptions, Form, Input, InputNumber, Space, Switch, Tabs, Tag, Typography } from "antd";
 import { api, type Settings } from "../api";
 import { useAuth } from "../auth";
 import { CopyText, PageHeader } from "../components";
@@ -51,6 +51,56 @@ function SecuritySettings({ settings }: { settings?: Settings }) {
           }
         />
       )}
+    </Card>
+  );
+}
+
+/** 卡密滥用告警 thresholds (0 turns a check off). */
+function AbuseSettings({ settings }: { settings?: Settings }) {
+  const { message } = App.useApp();
+  const qc = useQueryClient();
+  const [form] = Form.useForm();
+  useEffect(() => {
+    if (settings) form.setFieldsValue(settings);
+  }, [settings, form]);
+  const save = useMutation({
+    mutationFn: (v: Partial<Settings>) => api.put<Settings>("/api/settings", v),
+    onSuccess: (s) => {
+      qc.setQueryData(["settings"], s);
+      message.success("已保存");
+    },
+    onError: (e) => message.error((e as Error).message),
+  });
+  const field = (name: keyof Settings, label: string, extra: string) => (
+    <Form.Item name={name} label={label} extra={extra}>
+      <InputNumber min={0} max={10000} style={{ width: 160 }} />
+    </Form.Item>
+  );
+  return (
+    <Card title="卡密滥用告警" style={{ maxWidth: 880 }} loading={!settings}>
+      <Typography.Paragraph type="secondary">
+        统计窗口 24 小时，填 0 关闭对应检查。命中后写入审计日志和「卡密 → 滥用告警」，并通过告警通知里订阅了「卡密滥用告警」的渠道发出（同一对象每小时最多一次）。
+      </Typography.Paragraph>
+      <Form
+        form={form}
+        layout="vertical"
+        onFinish={(v) =>
+          save.mutate({
+            abuse_card_devices: v.abuse_card_devices,
+            abuse_device_cards: v.abuse_device_cards,
+            abuse_ip_devices: v.abuse_ip_devices,
+            abuse_ip_failures: v.abuse_ip_failures,
+          })
+        }
+      >
+        {field("abuse_card_devices", "同一张卡被多少台不同设备尝试（被拒绝）", "卡密疑似被转卖或共享")}
+        {field("abuse_device_cards", "同一台设备激活多少张卡密", "可能在刷卡或薅体验卡")}
+        {field("abuse_ip_devices", "同一个 IP 为多少台设备激活卡密", "可能是脚本批量激活；NAT 出口较多的机房可适当调高")}
+        {field("abuse_ip_failures", "同一个 IP 输入多少次不存在的卡密", "暴力猜卡密；接口本身已对该 IP 限流")}
+        <Button type="primary" htmlType="submit" loading={save.isPending}>
+          保存
+        </Button>
+      </Form>
     </Card>
   );
 }
@@ -164,7 +214,16 @@ export default function SettingsPage() {
                     </div>
                   ),
                 },
-                { key: "security", label: "安全", children: <SecuritySettings settings={s} /> },
+                {
+                  key: "security",
+                  label: "安全",
+                  children: (
+                    <Space orientation="vertical" size="large" style={{ width: "100%" }}>
+                      <SecuritySettings settings={s} />
+                      <AbuseSettings settings={s} />
+                    </Space>
+                  ),
+                },
                 {
                   key: "storage",
                   label: "备份与存储",
