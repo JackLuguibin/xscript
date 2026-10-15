@@ -468,7 +468,7 @@
     "vscode:prepublish": "npm run compile",
     "host-test": "bash scripts/vscode-host-test.sh",
     "no-prompt-check": "bash scripts/vscode-no-prompt-check.sh",
-    "package": "npx --yes @vscode/vsce@3.6.2 package --no-dependencies"
+    "package": "npx --yes @vscode/vsce@3.6.2 package --no-dependencies --baseImagesUrl https://github.com/JackLuguibin/xscript/raw/main/ide/vscode-extension --baseContentUrl https://github.com/JackLuguibin/xscript/blob/main/ide/vscode-extension"
   },
   "devDependencies": {
     "@types/node": "20.19.43",
