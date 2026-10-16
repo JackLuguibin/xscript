@@ -358,31 +358,70 @@ def catch_click(msg=None, shine=True):
 
 
 class Ime:
-    """XScript has no custom IME; input goes through accessibility SET_TEXT or root."""
+    """AScript action.Ime on XScript 输入法 (xscript.android.ime). When it is not the active IME, input falls back to
+    accessibility SET_TEXT / root, keys to key events, as before."""
 
     @staticmethod
     def is_active():
-        return False
+        from xscript.android import ime
+
+        return ime.is_active()
+
+    @staticmethod
+    def switch():
+        from xscript.android import ime
+
+        return ime.switch()
+
+    @staticmethod
+    def restore():
+        from xscript.android import ime
+
+        return ime.restore()
+
+    @staticmethod
+    def _try(fn, *args):
+        from xscript.android import ime
+
+        if not ime.is_active():
+            return None
+        try:
+            return bool(getattr(ime, fn)(*args))
+        except ime.ImeNotActive:
+            return None
 
     @staticmethod
     def input(info):
-        return _xa.input(info)
+        """Insert text at the cursor (IME), or set the field's text through accessibility."""
+        r = Ime._try("commit", info)
+        return _xa.input(info) if r is None else r
 
     @staticmethod
     def input_clear():
-        return _xa.input("")
+        r = Ime._try("clear")
+        return _xa.input("") if r is None else r
+
+    @staticmethod
+    def delete(count=1):
+        r = Ime._try("delete", int(count), 0)
+        if r is None:
+            Ime.keys([67] * int(count))
+            return True
+        return r
 
     @staticmethod
     def keys(keys, duration=20):
         if isinstance(keys, int):
             keys = [keys]
         for k in keys:
-            _xa.Key.code(int(k))
+            if Ime._try("key", int(k)) is None:
+                _xa.Key.code(int(k))
             time.sleep(max(0, duration) / 1000.0)
 
     @staticmethod
     def enter():
-        Ime.keys(66)
+        if Ime._try("enter") is None:
+            _xa.Key.code(66)
 
 
 def simulate_interpolated_swipe_smooth(start_x, start_y, end_x, end_y, total_duration_ms, interpolator=None):
