@@ -40,6 +40,16 @@ def default_data_dir() -> Path:
     return Path(os.environ.get("XDG_DATA_HOME") or Path.home() / ".local" / "share") / "xscript"
 
 
+ICON_PATH = Path(__file__).resolve().parent / "resources" / "icon.svg"
+
+
+def app_icon():
+    """The XScript app icon (needs a QApplication)."""
+    from PySide6.QtGui import QIcon
+
+    return QIcon(str(ICON_PATH))
+
+
 def main(argv: list[str] | None = None) -> int:
     args = parse_args(argv)
     logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s: %(message)s")
@@ -62,6 +72,7 @@ def main(argv: list[str] | None = None) -> int:
     register_scheme()  # before QApplication
     app = QApplication([sys.argv[0]])
     app.setApplicationName("XScript")
+    app.setWindowIcon(app_icon())  # window title bar + macOS Dock / Windows taskbar
     runtime = AsyncRuntime().start()
     data_dir = Path(args.data_dir) if args.data_dir else default_data_dir()
     ctx = AppContext(adb=AdbService(args.adb), data_dir=None if args.selftest else data_dir)
