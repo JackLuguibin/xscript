@@ -41,6 +41,7 @@ object SystemApi {
         if (op.startsWith("location_mock_")) return MockLocationApi.call(op, a)
         if (op.startsWith("location_")) return LocationApi.call(op, a)
         if (op.startsWith("record_")) return AudioRecordApi.call(op, a)
+        if (op.startsWith("bt_") || op.startsWith("ble_")) return BluetoothApi.call(op, a)
         if (op.startsWith("sms_")) {
             return try { SmsApi.call(op, a) } catch (e: SecurityException) {
                 JSONObject().put("error", "permission_denied").put("message", e.message ?: "READ_SMS permission required").toString()
@@ -48,7 +49,10 @@ object SystemApi {
         }
         return when (op) {
             "device_resources_close" -> {
-                try { SensorsApi.closeAll() } finally { try { LocationApi.close() } finally { try { AudioRecordApi.close() } finally { MockLocationApi.stop() } } }
+                // every closer runs even when an earlier one throws; the first failure is rethrown
+                val closers = listOf<() -> Unit>({ SensorsApi.closeAll() }, { LocationApi.close() }, { AudioRecordApi.close() },
+                    { MockLocationApi.stop() }, { BluetoothApi.closeAll() })
+                closers.mapNotNull { runCatching(it).exceptionOrNull() }.firstOrNull()?.let { throw it }
                 "ok"
             }
             "open" -> open(a.optString("v")).toString()
