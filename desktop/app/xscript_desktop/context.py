@@ -67,6 +67,11 @@ class AppContext:
             raise RpcError("device.not_found", "device has no client: %s" % rec.id)
         return rec.client
 
+    async def _push_state(self, device_id: str) -> None:
+        """After run/stop: re-read /status and push it (refresh only emits on online/offline changes, not on running/project)."""
+        rec = await self.devices.refresh(device_id)
+        self.dispatcher.emit("device.state", rec.to_dict())
+
     async def shutdown(self) -> None:
         await self.devices.shutdown()
 
@@ -173,14 +178,14 @@ class AppContext:
         @_map_errors
         async def project_run(params: dict[str, Any]) -> dict[str, Any]:
             out = await self._client(params).run_project(param(params, "project", str))
-            await self.devices.refresh(param(params, "id", str))  # push the new running/project state right away
+            await self._push_state(param(params, "id", str))
             return out
 
         @d.method("project.stop")
         @_map_errors
         async def project_stop(params: dict[str, Any]) -> dict[str, Any]:
             out = await self._client(params).stop_project(param(params, "project", str))
-            await self.devices.refresh(param(params, "id", str))
+            await self._push_state(param(params, "id", str))
             return out
 
         @d.method("device.logs")

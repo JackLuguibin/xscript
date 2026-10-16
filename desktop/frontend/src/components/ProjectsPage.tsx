@@ -4,6 +4,7 @@ import type { Device, FileContent, LogEntry, ProjectFiles, ProjectSummary } from
 import { RpcError } from "../bridge/types";
 import { t } from "../strings";
 import { Badge } from "./Badge";
+import { CodeEditor } from "./CodeEditor";
 import { EmptyState } from "./EmptyState";
 import { IconAlert, IconFolder, IconPhone, IconRefresh, Spinner } from "./icons";
 
@@ -293,17 +294,17 @@ export function ProjectsPage({ pollMs = LOG_POLL_MS }: { pollMs?: number }) {
           {project && !file && <p className="muted">{t.projects.pickFile}</p>}
           {file && file.encoding !== "utf-8" && <p className="muted">{t.projects.binary}</p>}
           {file && file.encoding === "utf-8" && (
-            <textarea
-              aria-label={t.projects.editor}
-              className="code"
-              spellCheck={false}
+            <CodeEditor
+              key={`${devId}/${project}/${file.path}`}
+              path={file.path}
+              label={t.projects.editor}
               value={text}
-              onChange={(e) => {
-                setText(e.target.value);
+              onChange={(v) => {
+                setText(v);
                 setDirty(true);
               }}
               onKeyDown={(e) => {
-                if ((e.metaKey || e.ctrlKey) && e.key === "s") {
+                if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "s") {
                   e.preventDefault();
                   void act("save", save);
                 } else if (e.key === "F6" && !e.shiftKey) {
