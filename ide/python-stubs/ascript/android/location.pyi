@@ -2,7 +2,7 @@
 """Android location compatibility API. Coordinates are WGS84.
 
 Callbacks run on a daemon worker; keep the script alive while receiving updates.
-Call close() to release subscriptions. System mock locations are unsupported.
+Call close() to release subscriptions. mock.start/stop/status drive system-wide mock locations (developer option needed).
 """
 import json
 import math
@@ -51,4 +51,33 @@ def get_last():
 def close():
     """Stop receiving updates and remove Android listeners (safe to repeat)."""
     ...
-mock = ...
+
+def wgs84_to_gcj02(lon, lat):
+    ...
+
+def gcj02_to_wgs84(lon, lat):
+    """Iterative inverse (error well under 1 m inside China)."""
+    ...
+
+def bd09_to_gcj02(lon, lat):
+    ...
+
+def gcj02_to_bd09(lon, lat):
+    ...
+
+def to_wgs84(lon, lat, coord_type='wgs84'):
+    ...
+class _MockLocationApi:
+    """System-wide mock location (AScript location.mock). The device must have XScript selected under
+    开发者选项 → 选择模拟位置信息应用 (granted automatically with root). Mocking ends with stop() or when the script ends."""
+
+    def start(self, lon, lat, accuracy=5.0, interval=1000, coord_type="bd09"):
+        ...
+
+    def stop(self):
+        ...
+
+    def status(self):
+        """{"running", "allowed", "providers", "updates", and lat/lon (WGS84)/accuracy/interval while running}"""
+        ...
+mock: _MockLocationApi
