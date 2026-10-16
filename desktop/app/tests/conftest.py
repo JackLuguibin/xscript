@@ -6,6 +6,8 @@ from pathlib import Path
 
 import pytest
 
+from .fake_device import FakeDevice
+
 REPO = Path(__file__).resolve().parents[3]
 
 
@@ -67,3 +69,13 @@ class FakeAdb:
         if args[0] == "version":
             return 0, "Android Debug Bridge version 1.0.41\n", ""
         return 1, "", "unsupported in FakeAdb: %r" % args
+
+
+@pytest.fixture()
+def fake_device():
+    """tests/fake_device.py: deterministic device that can misbehave (`fake_device.mode = "bad_json"` …)."""
+    d = FakeDevice()
+    try:
+        yield d
+    finally:
+        d.close()

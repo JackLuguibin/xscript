@@ -15,6 +15,7 @@ const yn = (b: boolean | undefined) => (b ? t.info.yes : t.info.no);
 
 export function DeviceCard({ device, onDisconnect, busy }: { device: Device; onDisconnect: () => void; busy: boolean }) {
   const i = device.info;
+  // A per-click nonce, not a counter: a counter restarts at 1 for every new card and Chromium would serve the cached image of the previous session.
   const [shotTick, setShotTick] = useState(0);
   const [shotFailed, setShotFailed] = useState(false);
   // Screenshots come over the custom scheme (xsapp://app/_shot/...), not through the JSON bridge (design §3.1).
@@ -53,7 +54,7 @@ export function DeviceCard({ device, onDisconnect, busy }: { device: Device; onD
           <Row k={t.info.cloud} v={i.cloud} />
         </dl>
         <div className="shot">
-          <button onClick={() => { setShotFailed(false); setShotTick((n) => n + 1); }}>{t.takeShot}</button>
+          <button onClick={() => { setShotFailed(false); setShotTick((n) => Math.max(Date.now(), n + 1)); }}>{t.takeShot}</button>
           {shotUrl && !shotFailed && <img alt={t.screenshot} src={shotUrl} onError={() => setShotFailed(true)} />}
           {!i.capture && <p className="muted">{t.captureHint}</p>}
           {shotFailed && <p className="muted">{t.shotFailed}</p>}

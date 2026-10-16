@@ -3,3 +3,6 @@ app/xscript_desktop/resources/app/
 frontend/node_modules/
 # local verification output (screenshots etc.)
 .scratch/
+.coverage
+coverage.xml
+htmlcov/

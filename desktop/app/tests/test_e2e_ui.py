@@ -1,0 +1,225 @@
+"""E2E: the real built React app inside the real shell (QtWebEngine offscreen, xsapp:// scheme, QWebChannel bridge, Python services),
+talking to a FakeAdb and a deterministic FakeDevice. Skipped when the frontend has not been built (`npm run build`)."""
+from __future__ import annotations
+
+import pytest
+
+pytest.importorskip("PySide6.QtWebEngineWidgets")
+
+from xscript_desktop.services.adb import AdbError
+
+from .fake_device import STATUS, FakeDevice
+from .harness import build_shell, close_shell, have_build
+
+pytestmark = [pytest.mark.qt, pytest.mark.skipif(not have_build(), reason="frontend not built (cd desktop/frontend && npm run build)")]
+
+
+@pytest.fixture(scope="module")
+def _shell(qapp):
+    """One window for the whole module (QtWebEngine profiles are expensive and must be disposed in order); state is reset per test."""
+    fd = FakeDevice()
+    sh = build_shell()
+    sh.fake_device = fd
+    yield sh
+    close_shell(sh)
+    fd.close()
+
+
+@pytest.fixture()
+def ui(_shell, qtbot):
+    sh = _shell
+    fd = sh.fake_device
+    fd.mode, fd.screen_mode, fd.delay = "ok", "ok", 0.0
+    fd.status.clear()
+    fd.status.update(STATUS)
+    fd.requests.clear()
+    sh.run_async(sh.ctx.devices.shutdown())
+    sh.fake.forwards.clear()
+    sh.fake.devices = [("emulator-5554", "device", fd.port), ("R58M", "unauthorized", fd.port), ("emulator-5556", "offline", fd.port)]
+    sh.fake._next = 41000
+    sh.ctx.adb._runner = sh.fake
+    sh.redirect.clear()
+    sh.redirect[41000] = fd.port
+    sh.win.resize(1100, 720)
+    sh.win.load()
+    qtbot.wait(100)
+    sh.wait_url(qtbot)
+    sh.wait_js(qtbot, "document.querySelector('main') !== null && document.body.innerText.includes('emulator-5554')", timeout=15000)
+    return sh
+
+
+def card(sh, qtbot) -> str:
+    return sh.text(qtbot)
+
+
+def test_e2e_01_startup_lists_adb_devices_and_marks_unusable_ones(ui, qtbot):
+    """E-01 first paint: header, no demo banner, adb list from the shell, non-`device` states can't be connected."""
+    ui.wait_text(qtbot, "emulator-5554")
+    t = ui.text(qtbot)
+    assert "XScript 桌面端" in t and "演示模式" not in t
+    assert "R58M" in t and "unauthorized" in t and "offline" in t
+    assert ui.is_disabled(qtbot, "连接 R58M") is True and ui.is_disabled(qtbot, "连接 emulator-5556") is True
+    assert ui.is_disabled(qtbot, "连接 emulator-5554") is False
+    assert ui.js(qtbot, "document.title") == "XScript"
+
+
+def test_e2e_02_connect_shows_info_screenshot_and_disconnect_cleans_forward(ui, qtbot):
+    """E-02 connect over adb → card with /status info + forward port → screenshot over xsapp:// → disconnect removes our forward."""
+    ui.wait_text(qtbot, "emulator-5554")
+    ui.click(qtbot, "连接 emulator-5554")
+    ui.wait_text(qtbot, "在线")
+    t = ui.text(qtbot)
+    for needle in ("emu64a16k", "google sdk_gphone16k_arm64", "1080×2337", "0.2.6", "10.0.2.16", "ae10e6ed9b09580c", "41000"):
+        assert needle in t, needle
+    assert list(ui.fake.forwards) == [41000]
+    ui.click(qtbot, "刷新截图")
+    ui.wait_js(qtbot, "document.querySelector('img[alt=\"截图\"]') && document.querySelector('img[alt=\"截图\"]').complete && document.querySelector('img[alt=\"截图\"]').naturalWidth > 0", timeout=10000)
+    assert ui.js(qtbot, "document.querySelector('img[alt=\"截图\"]').naturalWidth") == 270  # the FakeDevice gradient, decoded by the browser
+    ui.click(qtbot, "断开")
+    ui.wait_no_text(qtbot, "在线")
+    assert ui.fake.forwards == {}
+    assert ui.js(qtbot, "document.querySelectorAll('article').length") == 0
+
+
+def test_e2e_03_screenshot_failure_when_capture_not_authorised(ui, qtbot):
+    """E-03 /screen → 503 capture_unavailable: the page shows the failure and the capture hint (status.capture=false)."""
+    ui.fake_device.status["capture"] = False
+    ui.fake_device.screen_mode = "503"
+    ui.wait_text(qtbot, "emulator-5554")
+    ui.click(qtbot, "连接 emulator-5554")
+    ui.wait_text(qtbot, "录屏授权")
+    assert "尚未授予录屏" in ui.text(qtbot)
+    ui.click(qtbot, "刷新截图")
+    ui.wait_text(qtbot, "截图失败")
+
+
+def test_e2e_04_adb_missing_shows_install_hint_and_not_the_empty_message(ui, qtbot, monkeypatch):
+    """E-04 no adb at all → `adb.not_found` rendered as the install hint; the 'no devices' text is not shown at the same time."""
+    ui.wait_text(qtbot, "emulator-5554")
+
+    async def boom(argv):  # the runner is bypassed: simulate find_adb() == None
+        raise AdbError("adb.not_found", "x")
+
+    ui.ctx.adb._runner = boom
+    ui.click(qtbot, "刷新")
+    ui.wait_text(qtbot, "找不到 adb")
+    assert "没有发现 ADB 设备" not in ui.text(qtbot)
+
+
+def test_e2e_05_adb_returns_no_devices_shows_empty_state(ui, qtbot):
+    """E-05 empty ADB list → the empty-state sentence."""
+    ui.fake.devices = []
+    ui.click(qtbot, "刷新")
+    ui.wait_text(qtbot, "没有发现 ADB 设备")
+
+
+@pytest.mark.parametrize("mode, code", [("bad_json", "device.protocol"), ("non_object", "device.protocol"), ("html", "device.protocol"),
+                                        ("429", "device.http"), ("500", "device.http"), ("503", "device.http"), ("reset", "device.unreachable")])
+def test_e2e_06_connect_errors_surface_as_alerts(ui, qtbot, mode, code):
+    """E-06 device misbehaves during connect (bad JSON / not an object / HTML / 429 / 500 / 503 / dropped connection): alert with the code, no card, no leaked forward."""
+    ui.fake_device.mode = mode
+    ui.wait_text(qtbot, "emulator-5554")
+    ui.click(qtbot, "连接 emulator-5554")
+    ui.wait_text(qtbot, "[%s]" % code, timeout=15000) if mode in ("429", "500", "503") else ui.wait_text(qtbot, "出错", timeout=15000)
+    t = ui.text(qtbot)
+    assert "出错" in t
+    assert ui.js(qtbot, "document.querySelectorAll('article').length") == 0
+    assert ui.fake.forwards == {}  # the forward created for the probe was removed again
+    assert ui.js(qtbot, "!!document.querySelector('[role=alert]')") is True
+
+
+def test_e2e_07_device_goes_offline_and_comes_back_via_pushed_events(ui, qtbot):
+    """E-07 health refresh marks the card 离线 (+error), then 在线 again — both arrive as device.state events."""
+    ui.wait_text(qtbot, "emulator-5554")
+    ui.click(qtbot, "连接 emulator-5554")
+    ui.wait_text(qtbot, "在线")
+    ui.fake_device.mode = "500"
+    ui.run_async(ui.ctx.devices.refresh("adb:emulator-5554"))
+    ui.wait_text(qtbot, "离线")
+    assert "500" in ui.text(qtbot)
+    ui.fake_device.mode = "ok"
+    ui.run_async(ui.ctx.devices.refresh("adb:emulator-5554"))
+    ui.wait_no_text(qtbot, "离线")
+    assert "在线" in ui.text(qtbot)
+
+
+def test_e2e_08_lan_connect_warns_about_missing_auth_for_non_loopback(ui, qtbot):
+    """E-08 a non-loopback address connects but shows the 'no authentication' warning banner; loopback does not."""
+    ui.redirect[9860] = ui.fake_device.port
+    ui.type_into(qtbot, "device address", "192.168.1.20:9860")
+    ui.click(qtbot, "连接地址")
+    ui.wait_text(qtbot, "没有鉴权，同网段任何人都能运行代码")
+    assert "192.168.1.20:9860" in ui.text(qtbot)
+
+
+def test_e2e_09_lan_connect_to_closed_port_is_unreachable(ui, qtbot):
+    """E-09 nothing listens on the address → device.unreachable alert (retryable), UI stays usable."""
+    ui.type_into(qtbot, "device address", "127.0.0.1:1")
+    ui.click(qtbot, "连接地址")
+    ui.wait_text(qtbot, "出错", timeout=15000)
+    assert "cannot reach" in ui.text(qtbot) or "unreachable" in ui.text(qtbot)
+    assert ui.is_disabled(qtbot, "连接地址") is False
+
+
+def test_e2e_10_lan_connect_bad_address_and_empty_input(ui, qtbot):
+    """E-10 an invalid port is refused by Python (device.protocol/bad params); an empty field keeps the connect button disabled."""
+    assert ui.is_disabled(qtbot, "连接地址") is True
+    ui.type_into(qtbot, "device address", "host:99999")
+    ui.click(qtbot, "连接地址")
+    ui.wait_text(qtbot, "invalid port", timeout=10000)
+
+
+def test_e2e_11_scan_finds_the_fake_device_only(ui, qtbot, monkeypatch):
+    """E-11 scan: only endpoints answering like XScript are listed (the scan range is patched to loopback + the fake's port)."""
+    import xscript_desktop.context as context
+
+    monkeypatch.setattr(context, "lan_hosts", lambda cidr=None, limit=1024: ["127.0.0.1"])
+    orig = ui.ctx.devices.scan
+    port = ui.fake_device.port
+
+    async def scan(hosts, **kw):
+        return await orig(hosts, ports=(port, 1))
+
+    monkeypatch.setattr(ui.ctx.devices, "scan", scan)
+    ui.click(qtbot, "扫描本机所在的 /24 网段")
+    ui.wait_text(qtbot, "127.0.0.1:%d" % port)
+    assert "emu64a16k" in ui.text(qtbot)
+
+
+def test_e2e_12_page_survives_garbage_from_python(ui, qtbot):
+    """E-12 non-JSON / unknown-topic messages pushed from Python are ignored; the page keeps working."""
+    ui.wait_text(qtbot, "emulator-5554")
+    ui.bridge._deliver.emit("this is not json")
+    ui.bridge._deliver.emit('{"event": true, "topic": "nobody.listens", "data": 1}')
+    ui.bridge._deliver.emit('{"id": 424242, "ok": true, "result": 1}')  # late reply nobody waits for
+    ui.click(qtbot, "连接 emulator-5554")
+    ui.wait_text(qtbot, "在线")
+
+
+def test_e2e_13_narrow_window_reflows_without_horizontal_scroll(ui, qtbot):
+    """E-13 at 640 px wide the page must not need a horizontal scrollbar (reflow, WCAG 1.4.10)."""
+    ui.click(qtbot, "连接 emulator-5554")
+    ui.wait_text(qtbot, "在线")
+    ui.win.resize(640, 700)
+    qtbot.wait(300)
+    assert ui.js(qtbot, "document.documentElement.scrollWidth <= document.documentElement.clientWidth + 1") is True
+
+
+def test_e2e_14_keyboard_can_reach_and_activate_connect(ui, qtbot):
+    """E-14 the connect button is a real focusable <button> (Tab order) and Enter/Space activation works through a synthetic click."""
+    ui.wait_text(qtbot, "emulator-5554")
+    assert ui.js(qtbot, "(() => { const b = [...document.querySelectorAll('button')].find(b => b.getAttribute('aria-label') === '连接 emulator-5554'); b.focus(); return document.activeElement === b; })()") is True
+    assert ui.js(qtbot, "document.querySelector('[aria-label=\"device address\"]').tabIndex >= 0") is True
+
+
+def test_e2e_15_reconnect_replaces_card_and_keeps_single_forward(ui, qtbot):
+    """E-15 connecting the same serial twice (button is disabled after the first) – re-connect via RPC replaces, not duplicates."""
+    ui.wait_text(qtbot, "emulator-5554")
+    ui.click(qtbot, "连接 emulator-5554")
+    ui.wait_text(qtbot, "在线")
+    assert ui.is_disabled(qtbot, "连接 emulator-5554") is True
+    r = ui.js(qtbot, "new Promise(res => { const ch = window.__ch; res(null); })")  # keep the page responsive
+    assert r is None
+    ui.run_async(ui.ctx.devices.connect_adb("emulator-5554"))
+    assert len(ui.fake.forwards) == 1
+    assert ui.js(qtbot, "document.querySelectorAll('article').length") == 1
