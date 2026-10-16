@@ -1,8 +1,9 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useServices } from "../app-context";
-import type { Device, FileContent, LogEntry, ProjectFiles, ProjectSummary } from "../api";
+import type { FileContent, LogEntry, ProjectFiles, ProjectSummary } from "../api";
 import { RpcError } from "../bridge/types";
 import { t } from "../strings";
+import { useDevices, useSelectedDevice } from "../useDevices";
 import { Badge } from "./Badge";
 import { CodeEditor } from "./CodeEditor";
 import { SyncPanel } from "./SyncPanel";
@@ -19,9 +20,9 @@ function errText(e: unknown): string {
 
 /** Device projects: list → files → edit/save → run/stop → follow /logs (the P1 "edit, sync, run, logs" loop, design §12.1). */
 export function ProjectsPage({ pollMs = LOG_POLL_MS }: { pollMs?: number }) {
-  const { api, rpc } = useServices();
-  const [devices, setDevices] = useState<Device[]>([]);
-  const [devId, setDevId] = useState("");
+  const { api } = useServices();
+  const devices = useDevices();
+  const [devId, setDevId] = useSelectedDevice(devices);
   const [projects, setProjects] = useState<ProjectSummary[] | null>(null);
   const [project, setProject] = useState("");
   const [files, setFiles] = useState<ProjectFiles | null>(null);
@@ -38,26 +39,6 @@ export function ProjectsPage({ pollMs = LOG_POLL_MS }: { pollMs?: number }) {
 
   const online = devices.filter((d) => d.state === "online");
   const device = devices.find((d) => d.id === devId);
-
-  useEffect(() => {
-    void api.listDevices().then((r) => setDevices(r.devices)).catch(() => undefined);
-    const offState = rpc.on("device.state", (d) =>
-      setDevices((cur) => {
-        const dev = d as Device;
-        return cur.some((x) => x.id === dev.id) ? cur.map((x) => (x.id === dev.id ? dev : x)) : [...cur, dev];
-      }),
-    );
-    const offRemoved = rpc.on("device.removed", (d) => setDevices((cur) => cur.filter((x) => x.id !== (d as { id: string }).id)));
-    return () => {
-      offState();
-      offRemoved();
-    };
-  }, [api, rpc]);
-
-  // pick the first online device; drop the selection when it goes away
-  useEffect(() => {
-    if (!devId || !devices.some((d) => d.id === devId)) setDevId(online[0]?.id ?? "");
-  }, [devices, devId, online]);
 
   const act = async (key: string, fn: () => Promise<void>) => {
     setBusy(key);
