@@ -18,6 +18,7 @@ class FakeDebugDevice:
     def __init__(self, n_lines: int = 6) -> None:
         self.lock = threading.Lock()
         self.n_lines = n_lines
+        self.source = "".join("v%d = %d\n" % (i, i) for i in range(1, n_lines + 1))
         self.mode = "ok"  # ok | busy | never_ready | no_initialized | stack_fails
         self.reset()
         outer = self
@@ -51,6 +52,12 @@ class FakeDebugDevice:
                         since = int(q.get("since", 0))
                         ents = [e for e in outer.logs if e["seq"] > since]
                         self._send(200, {"entries": ents, "next": outer.logs[-1]["seq"] if outer.logs else since})
+                    elif u.path == "/projects":
+                        self._send(200, {"projects": ["dbg"], "details": [{"name": "dbg"}]})
+                    elif u.path == "/projects/dbg/files":
+                        self._send(200, {"project": "dbg", "files": [{"path": "__init__.py", "size": len(outer.source)}], "dirs": []})
+                    elif u.path == "/projects/dbg/file" and q.get("path") == "__init__.py":
+                        self._send(200, {"path": "__init__.py", "encoding": "utf-8", "content": outer.source})
                     elif u.path == "/debug/messages":
                         since = int(q.get("since", 0))
                         msgs = [m for m in outer.msgs if m["id"] > since]
