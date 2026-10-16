@@ -123,7 +123,19 @@ object Automation {
         }
     }
 
-    fun inputText(text: String): Boolean = when (channel()) {
+    /** XScript 输入法 first when it is the active IME (works where SET_TEXT is ignored), then the control channel. */
+    fun inputText(text: String): Boolean {
+        if (com.xscript.app.ime.ImeControl.active()) {
+            try {
+                if (com.xscript.app.ime.ImeControl.setText(text)) return true
+            } catch (_: Exception) {
+                // the editor went away between the check and the call: fall back below
+            }
+        }
+        return channelInputText(text)
+    }
+
+    private fun channelInputText(text: String): Boolean = when (channel()) {
         Channel.ACCESSIBILITY -> AccessibilityEngine.inputText(text)
         Channel.ROOT -> RootEngine.inputText(text)
         Channel.NONE -> false

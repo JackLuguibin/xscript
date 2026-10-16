@@ -31,6 +31,16 @@ object MainControl {
         val ctx = XscriptApp.instance
         return when (op) {
             "current_app" -> Automation.currentApp().toString()
+            // ---- XScript 输入法 (action.Ime)
+            "ime_status" -> com.xscript.app.ime.ImeControl.status().toString()
+            "ime_commit" -> com.xscript.app.ime.ImeControl.commit(arg).toString()
+            "ime_set_text" -> com.xscript.app.ime.ImeControl.setText(arg).toString()
+            "ime_delete" -> JSONObject(arg).let { com.xscript.app.ime.ImeControl.delete(it.optInt("before", 1), it.optInt("after", 0)) }.toString()
+            "ime_clear" -> com.xscript.app.ime.ImeControl.clear().toString()
+            "ime_enter" -> com.xscript.app.ime.ImeControl.enter().toString()
+            "ime_key" -> com.xscript.app.ime.ImeControl.key(arg.trim().toInt()).toString()
+            "ime_switch" -> com.xscript.app.ime.ImeControl.switch().toString()
+            "ime_restore" -> com.xscript.app.ime.ImeControl.restore().toString()
             "status" -> status(ctx).toString()
             "float_show" -> {
                 FloatControl.forceShow(ctx, arg)
