@@ -1,0 +1,82 @@
+"""project.* / device.logs / device.action RPC methods against scripts/mock_device.py."""
+from __future__ import annotations
+
+import pytest
+
+from .conftest import FakeAdb
+from .test_context import make_ctx, rpc
+
+
+@pytest.fixture()
+async def ctx_dev(mock_device):
+    ctx = make_ctx(FakeAdb([("emulator-5554", "device", mock_device)]))
+    con = await rpc(ctx, "device.connect", transport="adb", serial="emulator-5554")
+    assert con["ok"], con
+    try:
+        yield ctx, "adb:emulator-5554"
+    finally:
+        await ctx.shutdown()
+
+
+async def test_create_list_files_read_write(ctx_dev):
+    ctx, dev = ctx_dev
+    assert (await rpc(ctx, "project.create", id=dev, project="demo_x"))["ok"]
+    names = [p.get("name") for p in (await rpc(ctx, "project.list", id=dev))["result"]["projects"]]
+    assert "demo_x" in names
+    w = await rpc(ctx, "project.write", id=dev, project="demo_x", path="utils/net.py", content="X = 1\n")
+    assert w["ok"], w
+    files = (await rpc(ctx, "project.files", id=dev, project="demo_x"))["result"]
+    assert {f["path"] for f in files["files"]} >= {"__init__.py", "utils/net.py"} and "utils" in files["dirs"]
+    r = (await rpc(ctx, "project.read", id=dev, project="demo_x", path="utils/net.py"))["result"]
+    assert r["content"] == "X = 1\n" and r["encoding"] == "utf-8"
+
+
+async def test_create_only_conflict_is_http_error(ctx_dev):
+    ctx, dev = ctx_dev
+    await rpc(ctx, "project.create", id=dev, project="demo_y")
+    r = await rpc(ctx, "project.write", id=dev, project="demo_y", path="__init__.py", content="", create=True)
+    assert not r["ok"] and r["error"]["code"] == "device.http" and r["error"]["details"]["status"] == 409
+
+
+@pytest.mark.parametrize("bad", ["", "/abs.py", "../x.py", "a//b.py", "a/./b.py", "a\\b.py"])
+async def test_path_validation(ctx_dev, bad):
+    ctx, dev = ctx_dev
+    r = await rpc(ctx, "project.read", id=dev, project="demo", path=bad)
+    assert r["error"]["code"] == "rpc.bad_params"
+
+
+async def test_write_rejects_bad_encoding_and_huge(ctx_dev):
+    ctx, dev = ctx_dev
+    assert (await rpc(ctx, "project.write", id=dev, project="p", path="a.py", content="", encoding="latin1"))["error"]["code"] == "rpc.bad_params"
+    big = "x" * (2 * 1024 * 1024 + 1)
+    assert (await rpc(ctx, "project.write", id=dev, project="p", path="a.py", content=big))["error"]["code"] in ("rpc.too_large",)
+
+
+async def test_run_logs_stop(ctx_dev):
+    ctx, dev = ctx_dev
+    await rpc(ctx, "project.create", id=dev, project="runme")
+    run = await rpc(ctx, "project.run", id=dev, project="runme")
+    assert run["ok"] and run["result"]["running"] is True
+    assert ctx.devices.get(dev).status.get("running")
+    again = await rpc(ctx, "project.run", id=dev, project="runme")  # 409 is passed through, not an error
+    assert again["ok"] and again["result"].get("error") == "already running"
+    logs = (await rpc(ctx, "device.logs", id=dev, since=0))["result"]
+    assert logs["entries"] and logs["next"] >= logs["entries"][-1]["seq"]
+    later = (await rpc(ctx, "device.logs", id=dev, since=logs["next"]))["result"]
+    assert later["entries"] == [] and later["next"] == logs["next"]
+    assert (await rpc(ctx, "device.logs", id=dev, since=-1))["error"]["code"] == "rpc.bad_params"
+    stop = await rpc(ctx, "project.stop", id=dev, project="runme")
+    assert stop["ok"] and stop["result"]["running"] is False
+
+
+async def test_action_validation_and_forwarding(ctx_dev):
+    ctx, dev = ctx_dev
+    assert (await rpc(ctx, "device.action", id=dev, type="click", x=10, y=20))["ok"]
+    assert (await rpc(ctx, "device.action", id=dev, type="key", name="home"))["ok"]
+    assert (await rpc(ctx, "device.action", id=dev, type="rm -rf"))["error"]["code"] == "rpc.bad_params"
+    assert (await rpc(ctx, "device.action", id=dev, type="click", x="10"))["error"]["code"] == "rpc.bad_params"
+
+
+async def test_unknown_device(ctx_dev):
+    ctx, _ = ctx_dev
+    assert (await rpc(ctx, "project.list", id="adb:nope"))["error"]["code"] == "device.not_found"

@@ -13,6 +13,17 @@ from .services.adb import AdbError, AdbService
 from .services.device_client import DeviceError
 from .services.device_manager import DeviceManager, lan_hosts
 
+ACTION_TYPES = ("click", "swipe", "input", "key")
+MAX_FILE_CHARS = 2 * 1024 * 1024  # stays under the bridge's 4 MiB request cap even after JSON escaping
+
+
+def _rel_path(params: dict[str, Any]) -> str:
+    """Same rules as the device (ProjectStore.resolve): relative, '/'-separated, no '.', '..' or empty segments."""
+    rel = param(params, "path", str)
+    if not rel or rel.startswith("/") or "\\" in rel or "\0" in rel or any(p in ("", ".", "..") for p in rel.split("/")):
+        raise RpcError("rpc.bad_params", "invalid project path: %r" % rel)
+    return rel
+
 
 def _map_errors(fn: Callable[..., Awaitable[Any]]) -> Callable[..., Awaitable[Any]]:
     @functools.wraps(fn)
@@ -49,6 +60,12 @@ class AppContext:
             return await rec.client.screen("jpg", quality, max_side)
         except DeviceError as e:
             raise e
+
+    def _client(self, params: dict[str, Any]) -> Any:
+        rec = self.devices.get(param(params, "id", str))
+        if rec.client is None:
+            raise RpcError("device.not_found", "device has no client: %s" % rec.id)
+        return rec.client
 
     async def shutdown(self) -> None:
         await self.devices.shutdown()
@@ -117,3 +134,78 @@ class AppContext:
             if not isinstance(hosts, list) or not all(isinstance(h, str) for h in hosts) or len(hosts) > 1024:
                 raise RpcError("rpc.bad_params", "hosts must be a list of at most 1024 strings")
             return {"found": await self.devices.scan(hosts)}
+
+        # ---- projects / run / logs / input (P1 slice: design §12.1) ----------------------------------------------------------------
+
+        @d.method("project.list")
+        @_map_errors
+        async def project_list(params: dict[str, Any]) -> dict[str, Any]:
+            return {"projects": await self._client(params).projects()}
+
+        @d.method("project.create")
+        @_map_errors
+        async def project_create(params: dict[str, Any]) -> dict[str, Any]:
+            return await self._client(params).create_project(param(params, "project", str))
+
+        @d.method("project.files")
+        @_map_errors
+        async def project_files(params: dict[str, Any]) -> dict[str, Any]:
+            return await self._client(params).files(param(params, "project", str))
+
+        @d.method("project.read")
+        @_map_errors
+        async def project_read(params: dict[str, Any]) -> dict[str, Any]:
+            return await self._client(params).read_file(param(params, "project", str), _rel_path(params))
+
+        @d.method("project.write")
+        @_map_errors
+        async def project_write(params: dict[str, Any]) -> dict[str, Any]:
+            content = param(params, "content", str)
+            if len(content) > MAX_FILE_CHARS:
+                raise RpcError("rpc.too_large", "file exceeds %d characters" % MAX_FILE_CHARS)
+            encoding = param(params, "encoding", str, default="utf-8")
+            if encoding not in ("utf-8", "base64"):
+                raise RpcError("rpc.bad_params", "encoding must be utf-8 or base64")
+            return await self._client(params).write_file(param(params, "project", str), _rel_path(params), content, encoding,
+                                                         param(params, "create", bool, default=False))
+
+        @d.method("project.run")
+        @_map_errors
+        async def project_run(params: dict[str, Any]) -> dict[str, Any]:
+            out = await self._client(params).run_project(param(params, "project", str))
+            await self.devices.refresh(param(params, "id", str))  # push the new running/project state right away
+            return out
+
+        @d.method("project.stop")
+        @_map_errors
+        async def project_stop(params: dict[str, Any]) -> dict[str, Any]:
+            out = await self._client(params).stop_project(param(params, "project", str))
+            await self.devices.refresh(param(params, "id", str))
+            return out
+
+        @d.method("device.logs")
+        @_map_errors
+        async def device_logs(params: dict[str, Any]) -> dict[str, Any]:
+            since = param(params, "since", int, default=0)
+            if since < 0:
+                raise RpcError("rpc.bad_params", "since must be >= 0")
+            data = await self._client(params).logs(since)
+            if not isinstance(data, dict):
+                raise RpcError("device.protocol", "unexpected /logs response")
+            entries = data.get("entries") or []
+            return {"entries": entries, "next": data.get("next", since)}
+
+        @d.method("device.action")
+        @_map_errors
+        async def device_action(params: dict[str, Any]) -> dict[str, Any]:
+            kind = param(params, "type", str)
+            if kind not in ACTION_TYPES:
+                raise RpcError("rpc.bad_params", "action type must be one of %s" % ", ".join(ACTION_TYPES))
+            payload: dict[str, Any] = {"type": kind}
+            for k in ("x", "y", "x1", "y1", "x2", "y2", "dur"):
+                if k in params and params[k] is not None:
+                    payload[k] = param(params, k, (int, float))
+            for k in ("text", "name"):
+                if k in params and params[k] is not None:
+                    payload[k] = param(params, k, str)
+            return await self._client(params).action(payload)
