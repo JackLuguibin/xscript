@@ -19,8 +19,15 @@ test("every template creates an entry file, build.as and res/, and refuses a non
     assert.ok(fs.statSync(path.join(dir, "__init__.py")).size > 0, t.id);
     assert.deepEqual(JSON.parse(fs.readFileSync(path.join(dir, "build.as"), "utf-8")), { name: "demo", version: "1.0.0", entry: "__init__.py" });
     assert.ok(fs.existsSync(path.join(dir, "res")));
+    for (const rel of Object.keys(t.files("demo"))) assert.ok(fs.existsSync(path.join(dir, ...rel.split("/"))), t.id + ": " + rel);
     assert.equal(findProjectRoot(path.join(dir, "__init__.py"), parent), dir);
     assert.throws(() => createProject(parent, "demo", t), /not empty/);
   }
   assert.throws(() => createProject(os.tmpdir(), "bad-name", TEMPLATES[0]), /letters/);
+});
+
+test("template ids are unique and the scenario templates from the roadmap exist", () => {
+  const ids = TEMPLATES.map((t) => t.id);
+  assert.equal(new Set(ids).size, ids.length);
+  for (const id of ["checkin", "findImage", "ocr", "floatUi"]) assert.ok(ids.includes(id), id);
 });
