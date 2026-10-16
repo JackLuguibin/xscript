@@ -8,6 +8,9 @@ const outDir = fileURLToPath(new URL("../app/xscript_desktop/resources/app", imp
 
 export default defineConfig({
   plugins: [react()],
+  // Monaco is imported file-by-file (src/editor/monaco-lean.ts) to leave out ~80 language packs; the package's
+  // "exports" map only allows *.js, so the CSS it needs is reached through this alias. Everything is bundled (no CDN).
+  resolve: { alias: { "monaco-esm": fileURLToPath(new URL("./node_modules/monaco-editor/esm/vs", import.meta.url)) } },
   base: "./",
   server: { port: 5173, strictPort: true },
   build: {
@@ -16,6 +19,7 @@ export default defineConfig({
     sourcemap: false,
     // The page may not make network requests (CSP connect-src 'none'); the modulepreload polyfill uses fetch().
     modulePreload: { polyfill: false },
+    chunkSizeWarningLimit: 4500, // the lazily loaded Monaco chunk (~4 MB, local file, never over the network)
   },
   test: {
     environment: "jsdom",
@@ -24,7 +28,8 @@ export default defineConfig({
     coverage: {
       provider: "v8",
       include: ["src/**/*.{ts,tsx}"],
-      exclude: ["src/main.tsx", "src/**/*.d.ts"],
+      // monaco.ts / monaco-lean.ts only run in a real browser: covered by app/tests/test_e2e_projects.py
+      exclude: ["src/main.tsx", "src/**/*.d.ts", "src/editor/monaco.ts", "src/editor/monaco-lean.ts"],
       reporter: ["text", "json-summary"],
       thresholds: { lines: 85, statements: 85, functions: 80, branches: 75 },
     },

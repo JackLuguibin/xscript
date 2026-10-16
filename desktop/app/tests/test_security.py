@@ -92,7 +92,16 @@ def test_built_bundle_contains_no_remote_origins():
     text = "".join(p.read_text(errors="ignore") for p in BUILT.parent.rglob("*") if p.is_file() and p.suffix in (".js", ".css", ".html"))
     urls = set(re.findall(r"https?://[^\s\"'`)<>]+", text))
     allowed = ("http://www.w3.org/", "https://react.dev", "http://localhost", "https://reactjs.org", "https://github.com/facebook/react")
-    assert [u for u in urls if not u.startswith(allowed)] == [], urls
+    # Monaco's bundle carries help/license/issue links as text (shown as links, never fetched: CSP connect-src 'none').
+    # Listed one by one so a real remote origin (CDN script, font, telemetry) still fails this test.
+    monaco_text_links = {
+        "https://code.visualstudio.com/docs/editor/codebasics#_find-and-replace",
+        "https://code.visualstudio.com/docs/editor/codebasics#_multicursor-modifier",
+        "https://github.com/markedjs/marked.", "https://github.com/microsoft/monaco-editor#faq",
+        "https://github.com/microsoft/vscode/blob/main/LICENSE.txt", "https://github.com/microsoft/vscode/issues/103170",
+        "https://github.com/microsoft/vscode/issues/new", "https://microsoft.com",
+    }
+    assert [u for u in urls if not u.startswith(allowed) and u not in monaco_text_links] == [], urls
 
 
 def test_no_secret_material_is_tracked_under_desktop():
