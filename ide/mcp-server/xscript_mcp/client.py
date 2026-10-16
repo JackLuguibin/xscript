@@ -133,6 +133,17 @@ class DeviceClient:
     def list_projects(self) -> list[str]:
         return list(self._get("/projects").get("projects") or [])
 
+    def list_ascript_projects(self) -> list[str]:
+        """AScript projects found on the phone (/sdcard/airscript/model)."""
+        return list(self._get("/ascript/projects").get("projects") or [])
+
+    def import_ascript_project(self, name: str) -> dict[str, Any]:
+        """Copy an AScript project into XScript (needs root or shared storage access)."""
+        with self._client() as client:
+            r = client.post(self._url("/ascript/import"), json={"name": name})
+            _check(r)
+            return r.json()
+
     def list_files(self, project: str) -> list[dict[str, Any]]:
         return list(self._get("/projects/%s/files" % self._p(project)).get("files") or [])
 
