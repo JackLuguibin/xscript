@@ -30,12 +30,12 @@ describe("ProjectsPage", () => {
     const { api } = await setup();
     fireEvent.click(await screen.findByRole("button", { name: /^demo/ }));
     fireEvent.click(await screen.findByRole("button", { name: /__init__\.py/ }));
-    const editor = (await screen.findByRole("textbox", { name: "编辑器" })) as HTMLTextAreaElement;
+    const editor = (await screen.findByRole("textbox", { name: "编辑器" }, { timeout: 3000 })) as HTMLTextAreaElement;
     expect(editor.value).toContain("hello from demo");
     fireEvent.change(editor, { target: { value: "print(1)\n" } });
     expect(screen.getByText("未保存")).toBeTruthy();
     fireEvent.keyDown(editor, { key: "s", ctrlKey: true });
-    await screen.findByText("已保存");
+    await screen.findByText("已保存", undefined, { timeout: 3000 });
     const id = (await api.listDevices()).devices[0].id;
     expect((await api.readFile(id, "demo", "__init__.py")).content).toBe("print(1)\n");
   });

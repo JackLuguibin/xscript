@@ -1,6 +1,7 @@
 import { useState, type ReactElement } from "react";
 import { useServices } from "./app-context";
 import { DevicePage } from "./components/DevicePage";
+import { MirrorPage } from "./components/MirrorPage";
 import { ProjectsPage } from "./components/ProjectsPage";
 import { IconFlow, IconFolder, IconMark, IconMonitor, IconMoon, IconPhone, IconSun } from "./components/icons";
 import { t } from "./strings";
@@ -23,7 +24,7 @@ function ThemeToggle() {
 
 function Shell() {
   const { inShell } = useServices();
-  const [page, setPage] = useState<"devices" | "projects">("devices");
+  const [page, setPage] = useState<"devices" | "mirror" | "projects">("devices");
   return (
     <div className="app">
       <a className="skip-link" href="#main">
@@ -40,6 +41,10 @@ function Shell() {
           <button className="nav-item" aria-current={page === "devices" ? "page" : undefined} onClick={() => setPage("devices")}>
             <IconPhone />
             <span className="label">{t.nav.devices}</span>
+          </button>
+          <button className="nav-item" aria-current={page === "mirror" ? "page" : undefined} onClick={() => setPage("mirror")}>
+            <IconMonitor />
+            <span className="label">{t.nav.mirror}</span>
           </button>
           <button className="nav-item" aria-current={page === "projects" ? "page" : undefined} onClick={() => setPage("projects")}>
             <IconFolder />
@@ -58,8 +63,8 @@ function Shell() {
       <div className="content">
         <header className="topbar">
           <div>
-            <h1>{page === "devices" ? t.nav.devices : t.nav.projects}</h1>
-            <p className="sub">{page === "devices" ? t.subtitle : t.projects.subtitle}</p>
+            <h1>{t.nav[page]}</h1>
+            <p className="sub">{page === "devices" ? t.subtitle : page === "mirror" ? t.mirror.subtitle : t.projects.subtitle}</p>
           </div>
         </header>
         {!inShell && (
@@ -68,7 +73,7 @@ function Shell() {
           </div>
         )}
         <main id="main" tabIndex={-1}>
-          {page === "devices" ? <DevicePage /> : <ProjectsPage />}
+          {page === "devices" ? <DevicePage /> : page === "mirror" ? <MirrorPage /> : <ProjectsPage />}
         </main>
       </div>
     </div>
