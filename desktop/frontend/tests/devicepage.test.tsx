@@ -70,7 +70,7 @@ describe("DevicePage", () => {
     const { t } = setup({ "device.connect": (p) => dev({ id: "lan:" + p.address, transport: "lan", serial: "", address: String(p.address), warning: "设备 API 没有鉴权" }) });
     await user.type(screen.getByLabelText("device address"), "192.168.1.20:9860");
     await user.click(screen.getByRole("button", { name: "连接地址" }));
-    expect(await screen.findByText(/没有鉴权/, { selector: ".banner" })).toBeTruthy();
+    expect(await screen.findByText(/没有鉴权/, { selector: ".banner span" })).toBeTruthy();
     expect(t.sent.find((m) => m.method === "device.connect")?.params).toEqual({ transport: "lan", address: "192.168.1.20:9860" });
   });
 

@@ -133,3 +133,28 @@ def test_screenshot_writes_a_png_of_the_window(fake_adb, tmp_path):
     assert r.returncode == 0, r.stderr
     assert out.read_bytes().startswith(b"\x89PNG") and out.stat().st_size > 5000
     assert any(p == "/screen?format=jpg&quality=60&max=360" or p.startswith("/screen") for _, p in fd.requests)
+
+
+def test_parse_args_size_and_theme():
+    a = parse_args(["--screenshot", "x.png", "--size", "900x600", "--theme", "dark"])
+    assert a.size == "900x600" and a.theme == "dark"
+    with pytest.raises(SystemExit):
+        parse_args(["--theme", "pink"])
+
+
+@needs_build
+@posix
+@pytest.mark.parametrize("theme", ["light", "dark"])
+def test_screenshot_with_size_and_theme(fake_adb, tmp_path, theme):
+    """--size sets the window, --theme drives the real theme button; the dark one must really be dark (mean luminance)."""
+    from PySide6.QtGui import QGuiApplication, QImage  # noqa: F401
+
+    exe, log, fd = fake_adb
+    out = tmp_path / ("shot-%s.png" % theme)
+    r = run_app("--screenshot", str(out), "--screenshot-delay", "1", "--size", "900x600", "--theme", theme, "--adb", str(exe), "--connect-adb",
+                "emulator-5554", "--timeout", "40", env={"FAKE_ADB_LOG": str(log), "FAKE_ADB_PORT": str(fd.port)})
+    assert r.returncode == 0, r.stderr
+    img = QImage(str(out))
+    assert (img.width(), img.height()) == (900, 600)
+    lum = sum(((p >> 16) & 255) * 0.3 + ((p >> 8) & 255) * 0.59 + (p & 255) * 0.11 for p in (img.pixel(x, y) for x in range(600, 880, 20) for y in range(20, 40, 5))) / (14 * 4)
+    assert (lum < 70) if theme == "dark" else (lum > 200), lum

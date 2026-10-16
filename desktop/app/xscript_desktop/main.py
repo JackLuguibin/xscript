@@ -24,6 +24,8 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     p.add_argument("--screenshot", metavar="PNG", help="save a screenshot of the window once the UI is ready, then quit (verification aid)")
     p.add_argument("--screenshot-delay", type=float, default=2.5, help="seconds to wait after ready before the screenshot")
     p.add_argument("--click-screenshot", action="store_true", help="with --screenshot: press the page's screenshot button first (verification aid)")
+    p.add_argument("--size", metavar="WxH", help="initial window size, e.g. 1180x760 (verification aid; documentation screenshots)")
+    p.add_argument("--theme", choices=["system", "light", "dark"], help="with --screenshot: press the sidebar theme button until this theme is active (verification aid)")
     p.add_argument("--timeout", type=float, default=30.0, help="selftest/screenshot timeout in seconds")
     p.add_argument("--data-dir", help="where to keep the web profile (default: per-user app data dir)")
     return p.parse_args(argv)
@@ -67,13 +69,20 @@ def main(argv: list[str] | None = None) -> int:
     headless = bool(args.selftest)
     data_dir = Path(args.data_dir) if args.data_dir else default_data_dir()
     win = MainWindow(bridge, handler, dev_url=args.dev_url, storage=None if (headless or args.screenshot) else data_dir / "web")
+    if args.size:
+        try:
+            w, h = (int(x) for x in args.size.lower().split("x", 1))
+            win.resize(max(320, w), max(240, h))
+        except ValueError:
+            print("ignoring bad --size %r (expected WxH)" % args.size, file=sys.stderr)
     win.show()
     win.load()
 
     result = {"code": 1}
     poll = QTimer()
     poll.setInterval(100)
-    elapsed = {"t": 0.0, "ready_at": None, "clicked": False}
+    elapsed = {"t": 0.0, "ready_at": None, "clicked": False, "theme_clicks": 0}
+    theme_order = ["system", "light", "dark"]
 
     def finish(code: int) -> None:
         result["code"] = code
@@ -92,6 +101,10 @@ def main(argv: list[str] | None = None) -> int:
             elapsed["ready_at"] = elapsed["t"]
             if args.connect_adb:
                 runtime.submit(_connect(ctx, args.connect_adb))
+        if args.theme and elapsed["theme_clicks"] < theme_order.index(args.theme):
+            elapsed["theme_clicks"] += 1  # one click per tick (React re-renders between clicks): system → light → dark
+            win.page.runJavaScript("document.querySelector('.sidebar-foot button')?.click()")
+            return
         if args.selftest and not args.connect_adb:
             print(json.dumps({"selftest": "ok", "version": __version__, "page": "loaded", "bridge": "roundtrip"}))
             finish(0)

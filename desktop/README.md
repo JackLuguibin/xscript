@@ -14,12 +14,22 @@
 | PySide6 外壳：`QWebEngineView` + 自定义协议 `xsapp://app/`（提供前端、`qwebchannel.js`、设备截图）+ CSP（页面不能自己发网络请求）+ 导航白名单 | `app/xscript_desktop/{main,window,scheme}.py` | macOS ✅ |
 | QWebChannel **JSON-RPC 桥**（一个 `Bridge` 对象：`call(json)` 进、`message(json)` 出，请求/应答/事件/取消） | `app/xscript_desktop/{bridge,rpc,runtime,context}.py` | macOS ✅ |
 | 设备连接：`adb devices` → `adb forward tcp:<自动端口> tcp:9860` → `GET /status`；局域网/手输 `host:port`；LAN 扫描（9860–9869）；健康轮询；退出时只删自己建的 forward | `app/xscript_desktop/services/` | macOS ✅（单测 + 两台模拟器） |
-| React 19 + Vite + TypeScript 前端：设备页（ADB 设备、手动地址、扫描、设备信息、截图）；网页里没有 `fetch`/`WebSocket`（有测试守着） | `frontend/` | macOS ✅ |
+| React 19 + Vite + TypeScript 前端：设备页（侧边栏导航、设备卡片、状态徽标、截图预览、空/加载/错误状态、浅/深/跟随系统主题、设计令牌、键盘焦点与对比度）；网页里没有 `fetch`/`WebSocket`（有测试守着） | `frontend/` | macOS ✅ |
 | 设备如何执行工程入口的实测 + 探针工具 | `docs/桌面端-入口执行实测.md`、`app/tools/entry_probe.py` | 两台模拟器 ✅ |
 
 **没做（不在 P0 范围）**：流程编辑器 / React Flow / DSL / 编译器（P2）、Monaco 与工程同步（P1）、投屏流（P1）、云控与后台（P4）、打包与安装器（P5）、`pyside6-deploy` 与 PyInstaller 对比。
 
-![P0 设备页：macOS 上经 adb forward 连接 5554 模拟器，显示 /status 信息和截图](../docs/images/desktop-p0.png)
+**设备页美化前 → 后**（macOS 真实外壳，经 adb forward 连接 5554 模拟器；设计细节见设计文档 §14.15）：
+
+| 美化前（P0） | 美化后 · 浅色 |
+| --- | --- |
+| ![美化前](../docs/images/desktop-before.png) | ![美化后浅色](../docs/images/desktop-after-light.png) |
+
+| 美化后 · 深色 | 窄窗口（图标栏 + 叠放） |
+| --- | --- |
+| ![美化后深色](../docs/images/desktop-after-dark.png) | ![窄窗口](../docs/images/desktop-after-narrow-dark.png) |
+
+重新生成：`python -m xscript_desktop --screenshot out.png --connect-adb emulator-5554 --click-screenshot --theme dark --size 1180x760`（`--theme` 会真的去按侧栏的主题按钮）。
 
 ## 目录
 
@@ -57,14 +67,14 @@ cd ../app && python3.10 -m venv .venv && .venv/bin/pip install -e '.[test]'
 完整方案与用例编号表：[`docs/桌面端-测试方案.md`](../docs/桌面端-测试方案.md)（分层：单元 / 集成 / 前端组件 / 真实外壳 e2e / 安全 / 视觉回归 / 性能 / Windows 逻辑模拟 / 真机）。
 
 ```bash
-cd desktop/app && .venv/bin/python -m pytest -q                                   # 320 个通过、5 个真机用例默认跳过（macOS，约 40 s）
+cd desktop/app && .venv/bin/python -m pytest -q                                   # 344 个通过、5 个真机用例默认跳过（macOS，约 65 s；含 10 张视觉回归）
 cd desktop/app && .venv/bin/python -m pytest -q --cov --cov-report=term-missing   # 覆盖率 95%（含子进程里的 --selftest/--screenshot）
 cd desktop/app && XSCRIPT_DEVICE_TESTS=1 .venv/bin/python -m pytest -m device -v  # 真机/模拟器（只读 + adb forward；5554 与 5556 已通过）
-cd desktop/frontend && npm run typecheck && npm run test:coverage                  # tsc + vitest（44 个；语句 94% / 分支 80%）
+cd desktop/frontend && npm run typecheck && npm run test:coverage                  # tsc + vitest（138 个，含 77 项对比度/令牌检查；语句 97% / 分支 88%）
 python desktop/app/tools/gen_test_matrix.py --check                                # 测试方案里的编号表没有过期
 ```
 
-e2e 用例要先 `npm run build`（否则自动跳过）。视觉回归的基线按平台存放，没有本平台基线时跳过；`XSCRIPT_UPDATE_BASELINES=1 pytest -m visual` 重新生成。
+e2e 用例要先 `npm run build`（否则自动跳过）。视觉回归的基线按平台存放（`app/tests/baselines/darwin/`，只有 macOS 的；Linux CI 与 Windows 没有基线所以跳过）；`XSCRIPT_UPDATE_BASELINES=1 pytest -m visual` 重新生成。
 
 ## 设备连接的约定
 

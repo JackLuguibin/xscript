@@ -1,0 +1,19 @@
+*, *::before, *::after { box-sizing: border-box; }
+html { font-size: 100%; -webkit-text-size-adjust: 100%; }
+body { margin: 0; background: var(--bg); color: var(--text); font: var(--fs-md) / var(--lh) var(--font-sans); -webkit-font-smoothing: antialiased; text-rendering: optimizeLegibility; }
+h1, h2, h3, p { margin: 0; }
+button, input { font: inherit; color: inherit; }
+.mono { font-family: var(--font-mono); font-size: var(--fs-xs); }
+.muted { color: var(--text-muted); }
+.grow { flex: 1; min-width: 0; }
+.row { display: flex; align-items: center; gap: var(--sp-2); }
+.sr-only { position: absolute; width: 1px; height: 1px; margin: -1px; padding: 0; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; border: 0; }
+
+/* keyboard focus: one consistent, always-visible ring (never removed without a replacement) */
+:focus-visible { outline: 2px solid var(--focus-ring); outline-offset: 2px; border-radius: var(--r-sm); }
+.skip-link { position: absolute; left: var(--sp-3); top: -3rem; z-index: 10; background: var(--primary); color: var(--text-on-primary); padding: var(--sp-2) var(--sp-3); border-radius: var(--r-sm); text-decoration: none; transition: top var(--dur-fast) var(--ease); }
+.skip-link:focus { top: var(--sp-3); }
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation-duration: 0.001ms !important; animation-iteration-count: 1 !important; transition-duration: 0.001ms !important; scroll-behavior: auto !important; }
+}

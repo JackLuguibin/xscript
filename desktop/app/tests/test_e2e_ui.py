@@ -223,3 +223,55 @@ def test_e2e_15_reconnect_replaces_card_and_keeps_single_forward(ui, qtbot):
     ui.run_async(ui.ctx.devices.connect_adb("emulator-5554"))
     assert len(ui.fake.forwards) == 1
     assert ui.js(qtbot, "document.querySelectorAll('article').length") == 1
+
+
+def test_e2e_16_theme_button_switches_and_survives_reload(ui, qtbot):
+    """E-16 the sidebar theme button cycles system→light→dark in the real shell, sets <html data-theme>, repaints and is remembered after a reload."""
+    ui.wait_text(qtbot, "主题：")
+    ui.js(qtbot, "(() => { localStorage.removeItem('xscript.theme'); return 1; })()")
+    ui.win.load()
+    ui.wait_js(qtbot, "document.querySelector('.sidebar-foot button')")
+    assert ui.js(qtbot, "document.documentElement.hasAttribute('data-theme')") is False
+    ui.js(qtbot, "(() => { document.querySelector('.sidebar-foot button').click(); return 1; })()")
+    ui.js(qtbot, "(() => { document.querySelector('.sidebar-foot button').click(); return 1; })()")
+    ui.wait_js(qtbot, "document.documentElement.getAttribute('data-theme') === 'dark'")
+    assert ui.js(qtbot, "getComputedStyle(document.body).backgroundColor") == "rgb(14, 17, 22)"  # --bg of the dark tokens
+    ui.win.load()
+    ui.wait_js(qtbot, "document.documentElement.getAttribute('data-theme') === 'dark' && document.querySelector('main')")
+    ui.js(qtbot, "(() => { localStorage.removeItem('xscript.theme'); return 1; })()")
+
+
+@pytest.mark.parametrize("width", [400, 560, 760, 900, 1400, 2200])
+def test_e2e_17_no_horizontal_scroll_at_any_width(ui, qtbot, width):
+    """E-17 window-resize support: from a phone-sized column to a wide monitor the page never needs a horizontal scrollbar (also with a connected card)."""
+    ui.click(qtbot, "连接 emulator-5554")
+    ui.wait_text(qtbot, "在线")
+    ui.win.resize(width, 800)
+    qtbot.wait(300)
+    assert ui.js(qtbot, "document.documentElement.scrollWidth <= document.documentElement.clientWidth + 1") is True
+    # the sidebar collapses to an icon rail at ≤760 px but its labels stay available to assistive tech
+    assert ui.js(qtbot, "!!document.querySelector('.nav-item .label')") is True
+    assert ui.js(qtbot, "document.querySelector('.sidebar').getBoundingClientRect().width < 100") is (width <= 760)
+
+
+def test_e2e_18_keyboard_focus_is_visible_and_skip_link_works(ui, qtbot):
+    """E-18 a :focus-visible ring rule exists in the shipped CSS, the skip link is the first tab stop and moves focus to <main>."""
+    ui.wait_text(qtbot, "emulator-5554")
+    rules = ui.js(qtbot, "[...document.styleSheets].flatMap(s => [...s.cssRules]).map(r => r.cssText).filter(t => t.includes(':focus-visible') && t.includes('outline')).length")
+    assert rules >= 1
+    assert ui.js(qtbot, "document.querySelector('.skip-link').getAttribute('href')") == "#main"
+    ui.js(qtbot, "(() => { document.querySelector('.skip-link').click(); return 1; })()")
+    ui.wait_js(qtbot, "document.activeElement && document.activeElement.id === 'main'")
+
+
+def test_e2e_19_screenshot_button_shows_loading_then_loaded(ui, qtbot):
+    """E-19 screenshot micro-states in the real shell: skeleton + disabled button while the image loads, then the picture."""
+    ui.fake_device.screen_mode = "slow"
+    ui.fake_device.delay = 0.8
+    ui.click(qtbot, "连接 emulator-5554")
+    ui.wait_text(qtbot, "在线")
+    ui.click(qtbot, "刷新截图")
+    ui.wait_js(qtbot, "document.querySelector('.shot[aria-busy=\"true\"]')")
+    assert ui.is_disabled(qtbot, "刷新截图") is True
+    ui.wait_js(qtbot, "document.querySelector('.shot[aria-busy=\"false\"]') && document.querySelector('img[alt=\"截图\"]').naturalWidth > 0", timeout=10000)
+    assert ui.is_disabled(qtbot, "刷新截图") is False
