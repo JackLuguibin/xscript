@@ -46,6 +46,10 @@ print(result.offset_x, result.offset_y, result.data)
 
 实现包含裁剪、灰度、阈值、腐蚀/膨胀、形态学开闭、高斯模糊、缩放、旋转和 Canny/Sobel/Laplacian/Adaptive 轮廓识别，并恢复任务之间的通道转换、offset 和 data 传递。识别/缩放的具体行为沿用 XScript 的 OpenCV 后端。
 
+`gp.run(path, cv_img=None, allow_python=True)`：有 data.gp 时只做声明式解释、不执行包内代码；没有 data.gp 的旧 GP 包（`as_gp_<名>/__init__.py` 定义 `gp(cv_img)`）与原 gp.py:90 一致，解压到 `/sdcard/airscript/gp/as_gp_<名>` 后导入并调用 `gp(cv_img)`，拒绝越界路径、限制 64 MiB，模块缓存最多 20 个。`allow_python=False` 拒绝执行。
+
+云插件条目（`type` 含「云端」、`nv` 为插件规格）按原 gp_tool 先 `plug.load(nv)`，再用 `gp.register_task(id, cls)` 注册的类或可导入的 `module.Class`；XScript 没有插件服务器，未内置的插件抛 NotImplementedError。`gp.unregister_task(id)` 取消注册。
+
 轮廓 data 的 x/y/w/h/cx/cy 为当前图像局部坐标；offset_x/y 另行保存裁剪原点，不是包含任意缩放或旋转的屏幕变换。脚本点击前需要按其任务链正确处理坐标。
 
 `ascript.android.screen.gp_tasks.CvFontLib(part_img, font_lib, confidence=0.95, rect=None, spacing=5, rgb=False)`（图片字库）：`part_img[i]`（文件路径或 BGR 数组）是字符 `font_lib[i]` 的小图，按列表顺序模板匹配，匹配到的区域会涂黑再找下一个字符，所以大图/易混字符放前面；匹配结果按中心 y 相差小于 `spacing` 分行，行内按左边缘排序。`Result.data` 为 `{"text", "words", "group"}`（无匹配为 `None`），`words` 里每项是带 `font` 的模板匹配字典；传入 `rect` 时坐标仍在输入图像坐标系。附带 `sort_and_concatenate_chars`、`group_chars_by_distance` 两个原有辅助函数，以及 XScript 扩展 `CvFontLib.recognize(part_img, font_lib, ..., image=None)`（直接返回文字，默认识别当前截图）。可用于 JSON GP 管线（`structured args`），原 UI 里的字库编辑器未移植。
