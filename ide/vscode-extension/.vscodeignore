@@ -4,3 +4,5 @@ out/test/**
 **/*.map
 tsconfig.json
 node_modules/**
+.venv/**
+*.vsix
