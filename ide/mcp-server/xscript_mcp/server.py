@@ -64,6 +64,22 @@ def list_projects() -> str:
 
 
 @mcp.tool()
+def list_ascript_projects() -> str:
+    """AScript projects already on the phone (/sdcard/airscript/model) that can be imported."""
+    return _json({"projects": _client.list_ascript_projects()})
+
+
+@mcp.tool()
+def import_ascript_project(name: str) -> str:
+    """Copy one AScript project from the phone into XScript so it can run unchanged.
+
+    Needs root or shared-storage access on the device. Use list_ascript_projects for the names; for a
+    project on this computer, use upload_directory instead.
+    """
+    return _json(_client.import_ascript_project(name))
+
+
+@mcp.tool()
 def list_project_files(project_name: str) -> str:
     """Files inside a device project."""
     return _json({"files": _client.list_files(project_name)})

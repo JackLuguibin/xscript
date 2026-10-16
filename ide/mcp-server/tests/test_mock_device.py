@@ -8,7 +8,7 @@ ROOT = Path(__file__).resolve().parents[3]
 sys.path.insert(0, str(ROOT / "scripts"))
 
 import mock_device  # noqa: E402
-from xscript_mcp.client import DeviceClient, DeviceTarget  # noqa: E402
+from xscript_mcp.client import DeviceClient, DeviceError, DeviceTarget  # noqa: E402
 
 
 class MockDeviceTest(unittest.TestCase):
@@ -24,6 +24,18 @@ class MockDeviceTest(unittest.TestCase):
     def tearDownClass(cls):
         cls.httpd.shutdown()
         cls.httpd.server_close()
+
+    def test_list_and_import_ascript_project(self):
+        self.assertIn("ascript_demo", self.client.list_ascript_projects())
+        self.assertTrue(self.client.import_ascript_project("ascript_demo")["ok"])
+        self.assertIn("ascript_demo", self.client.list_projects())
+        with self.assertRaises(DeviceError) as e:
+            self.client.import_ascript_project("ascript_demo")
+        self.assertEqual(e.exception.status_code, 409)
+        with self.assertRaises(DeviceError) as e:
+            self.client.import_ascript_project("nope")
+        self.assertEqual(e.exception.status_code, 404)
+        self.client.delete_project("ascript_demo")
 
     def test_zip_import_strips_top_folder_and_lists_files(self):
         buf = io.BytesIO()

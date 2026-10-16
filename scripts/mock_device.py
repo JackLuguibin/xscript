@@ -29,6 +29,7 @@ PNG = _make_png()
 
 STATE = {
     "projects": {},
+    "ascript": {"ascript_demo": {"__init__.py": b"from ascript.android import action\n"}},
     "running": None,
     "logs": [],
     "actions": [],
@@ -269,7 +270,7 @@ class Handler(BaseHTTPRequestHandler):
             self._json(200, {"projects": sorted(STATE["projects"])})
             return
         if parsed.path == "/ascript/projects":
-            self._json(200, {"projects": []})
+            self._json(200, {"projects": sorted(STATE["ascript"])})
             return
         if parsed.path == "/settings":
             self._json(200, STATE["settings"])
@@ -490,6 +491,17 @@ class Handler(BaseHTTPRequestHandler):
             sid = "%d_%d" % (1790000000000 + STATE["seq"], STATE["seq"] % 1000)
             STATE["snapshots"][sid] = raw or SNAP_PNG
             self._json(200, _snap_info(sid))
+            return
+        if path == "/ascript/import":
+            name = str(self._body().get("name") or "")
+            if name not in STATE["ascript"]:
+                self._json(404, {"ok": False, "error": "AScript 工程不存在: " + name})
+                return
+            if name in STATE["projects"]:
+                self._json(409, {"ok": False, "error": "工程已存在: " + name})
+                return
+            STATE["projects"][name] = dict(STATE["ascript"][name])
+            self._json(200, {"ok": True, "name": name})
             return
         if path == "/tools/vision":
             body = self._body()
