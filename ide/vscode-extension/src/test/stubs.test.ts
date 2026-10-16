@@ -47,3 +47,17 @@ test("ascript.android.bluetooth stubs: scan, SPP and BLE GATT instead of the old
     assert.ok(s.includes(sig), sig);
   assert.doesNotMatch(s, /not supported|NotImplementedError/);
 });
+
+test("xscript.android.ime stubs: XScript 输入法 control", () => {
+  const s = stub("xscript/android/ime.pyi");
+  for (const sig of ["class ImeNotActive(RuntimeError):", "def status():", "def is_active():", "def switch():", "def restore():",
+    "def commit(text):", "def set_text(text):", "def delete(before=1, after=0):", "def clear():", "def enter():", "def key(code):"])
+    assert.ok(s.includes(sig), sig);
+});
+
+test("ascript.android.action.Ime stubs gain switch / restore / delete and drop the 'no custom IME' note", () => {
+  const s = stub("ascript/android/action.pyi");
+  const ime = s.slice(s.indexOf("class Ime"));
+  for (const sig of ["def switch():", "def restore():", "def delete(count=1):"]) assert.ok(ime.includes(sig), sig);
+  assert.doesNotMatch(s, /has no custom IME/);
+});
