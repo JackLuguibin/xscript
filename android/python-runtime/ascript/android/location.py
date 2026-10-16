@@ -213,7 +213,7 @@ def to_wgs84(lon, lat, coord_type="wgs84"):
     raise ValueError("coord_type must be wgs84, gcj02 or bd09")
 
 
-class _MockLocationApi:
+class MockLocationApi:
     """System-wide mock location (AScript location.mock). The device must have XScript selected under
     开发者选项 → 选择模拟位置信息应用 (granted automatically with root). Mocking ends with stop() or when the script ends."""
 
@@ -252,4 +252,5 @@ class _MockLocationApi:
         return r
 
 
-mock = _MockLocationApi()
+_MockLocationApi = MockLocationApi  # old private name
+mock: MockLocationApi = MockLocationApi()  # annotated so scripts/gen_stubs.py keeps the type
