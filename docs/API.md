@@ -306,6 +306,10 @@ ui.float_add_menu("rec", "/sdcard/rec.png", on_click, remove_system=False)  # �
 - **截图：** `capture()` 与 AScript 一样返回 android `Bitmap`。`capture_cv` 返回 BGR numpy 数组。
 - **事件：** `NotificationEvent` 事件携带的是纯数据，因此 `event.raw` 为 `None`。`Selector.on_event` 收到的对象提供 `getEventType()`、`getPackageName()`、`getClassName()` 和 `getText()`。
 - **`system.reboot(ms)`：** 在新的脚本进程中重启项目，不会重启设备。
+- **`sms`、`sensor`、`location`：** 短信（只读）、传感器、定位订阅与最近位置；`location.mock.start(lon, lat, accuracy=5.0, interval=1000, coord_type="bd09")` / `stop()` / `status()` 做系统模拟定位（需在开发者选项里把应用设为「模拟位置信息应用」，有 Root 时自动授予；bd09/gcj02 自动转 WGS84，另有 `location.to_wgs84()` 等转换函数）。
+- **`media.recode(path, time=None)`：** 麦克风录音到文件（.m4a/.aac/.mp4、.amr/.3gp、.ogg/.opus）；`time` 毫秒，省略则后台录制、`media.stop_recode()` 结束；需要录音权限，只能在前台录。**`media.send_email(to, subject, body, cc=None)`：** 打开邮件 App 并预填草稿。
+- **`bluetooth`：** `scan(timeout, ble=False)`、`bonded()`、经典蓝牙 `connect(address)`（默认 SPP）读写、BLE `ble_connect(address)` 的 `read/write/notify`；首次使用时申请蓝牙权限。
+- **`plug.load_apk(path)` / `load_apk_dir(dir)`：** 用 DexClassLoader 加载应用自己存储里的 .apk/.jar/.dex，`load_class(name).new(...)`、`call`、`call_static`、`get/set` 反射调用。
 
 不支持以下功能，调用时会抛出 `NotImplementedError` 或打印一次性警告：
 
@@ -314,10 +318,9 @@ ui.float_add_menu("rec", "/sdcard/rec.png", on_click, remove_system=False)  # �
 - `OcrX` / `Ocr.matrix`
 - AScript 图色工具生成的 gp 文件
 - `node.WebSelector`
-- `sms`、`bluetooth`、`location`、`sensor`
-- 内置 YOLO 插件以外的 `plug.load` 插件，`plug.load_apk` / `inject`
+- 内置 YOLO 插件以外的 `plug.load` 插件，`plug.inject` / `load_module_dynamically`
 - `cloud_control.connect_to_as`（AScript 官方云服务）
-- `media.recode` / `send_email` / `AliTts`
+- `media.AliTts`（请用 `media.talk()`）
 
 ## 开发者工具（脚本 IDE / 图色 / 标注 / 投屏）
 
