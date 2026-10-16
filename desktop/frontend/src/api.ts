@@ -124,6 +124,8 @@ export function createApi(rpc: RpcClient) {
     readFile: (id: string, project: string, path: string) => rpc.call<FileContent>("project.read", { id, project, path }),
     writeFile: (id: string, project: string, path: string, content: string, create = false) =>
       rpc.call<{ ok: boolean }>("project.write", { id, project, path, content, create }, { timeoutMs: 60_000 }),
+    deleteFile: (id: string, project: string, path: string) => rpc.call<{ ok: boolean }>("project.deleteFile", { id, project, path }),
+    moveFile: (id: string, project: string, from: string, to: string) => rpc.call<{ ok: boolean }>("project.move", { id, project, from, to }),
     run: (id: string, project: string) => rpc.call<RunResult>("project.run", { id, project }),
     stop: (id: string, project: string) => rpc.call<RunResult>("project.stop", { id, project }),
     logs: (id: string, since: number) => rpc.call<{ entries: LogEntry[]; next: number }>("device.logs", { id, since }),

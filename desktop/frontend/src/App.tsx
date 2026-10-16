@@ -4,6 +4,7 @@ import { DevicePage } from "./components/DevicePage";
 import { MirrorPage } from "./components/MirrorPage";
 import { ProjectsPage } from "./components/ProjectsPage";
 import { IconFlow, IconFolder, IconMark, IconMonitor, IconMoon, IconPhone, IconSun } from "./components/icons";
+import { useLanguage } from "./i18n";
 import { t } from "./strings";
 import { ThemeProvider, useTheme, type ThemeMode } from "./theme";
 
@@ -22,8 +23,21 @@ function ThemeToggle() {
   );
 }
 
+function LangToggle({ lang, onChange }: { lang: "zh" | "en"; onChange: (l: "zh" | "en") => void }) {
+  const next = lang === "zh" ? "en" : "zh";
+  return (
+    <button className="ghost nav-item" onClick={() => onChange(next)} aria-label={`${t.lang.label}：${t.lang[lang]}（${t.lang.switchTo}）`} title={`${t.lang.label}：${t.lang[lang]}`}>
+      <span aria-hidden="true" className="lang-mark">{lang === "zh" ? "中" : "EN"}</span>
+      <span className="label">
+        {t.lang.label}：{t.lang[lang]}
+      </span>
+    </button>
+  );
+}
+
 function Shell() {
   const { inShell } = useServices();
+  const [lang, setLang] = useLanguage();
   const [page, setPage] = useState<"devices" | "mirror" | "projects">("devices");
   return (
     <div className="app">
@@ -58,6 +72,7 @@ function Shell() {
         </nav>
         <div className="sidebar-foot">
           <ThemeToggle />
+          <LangToggle lang={lang} onChange={setLang} />
         </div>
       </aside>
       <div className="content">

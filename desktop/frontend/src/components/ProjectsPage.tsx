@@ -102,7 +102,7 @@ export function ProjectsPage({ pollMs = LOG_POLL_MS }: { pollMs?: number }) {
     if (el) el.scrollTop = el.scrollHeight;
   }, [logs]);
 
-  const confirmDiscard = () => !dirty || window.confirm(`${t.projects.unsaved}，确定放弃修改？`);
+  const confirmDiscard = () => !dirty || window.confirm(t.confirmDiscard);
 
   const openProject = (name: string) => {
     if (!confirmDiscard()) return;
@@ -121,6 +121,37 @@ export function ProjectsPage({ pollMs = LOG_POLL_MS }: { pollMs?: number }) {
       setFile(f);
       setText(f.encoding === "utf-8" ? f.content : "");
       setDirty(false);
+    });
+  };
+
+  const [fileForm, setFileForm] = useState<{ mode: "new" | "rename"; from: string; value: string } | null>(null);
+  const reloadFiles = async () => setFiles(await api.files(devId, project));
+
+  const submitFileForm = () => {
+    const f = fileForm;
+    if (!f || !f.value.trim()) return;
+    const to = f.value.trim();
+    void act("fileform", async () => {
+      if (f.mode === "new") {
+        await api.writeFile(devId, project, to, "", true);
+      } else {
+        await api.moveFile(devId, project, f.from, to);
+        if (file?.path === f.from) setFile({ ...file, path: to });
+      }
+      setFileForm(null);
+      await reloadFiles();
+    });
+  };
+
+  const deleteFile = (path: string) => {
+    if (!window.confirm(t.files.confirmDelete(path))) return;
+    void act("del:" + path, async () => {
+      await api.deleteFile(devId, project, path);
+      if (file?.path === path) {
+        setFile(null);
+        setDirty(false);
+      }
+      await reloadFiles();
     });
   };
 
@@ -239,16 +270,69 @@ export function ProjectsPage({ pollMs = LOG_POLL_MS }: { pollMs?: number }) {
           </form>
           {files && (
             <>
-              <h3 className="sub-head">{t.projects.files}</h3>
+              <div className="section-head">
+                <h3 className="sub-head grow">{t.projects.files}</h3>
+                <button className="small" onClick={() => setFileForm({ mode: "new", from: "", value: "" })} disabled={busy !== ""}>
+                  {t.files.newFile}
+                </button>
+              </div>
+              {fileForm && (
+                <form
+                  className="row"
+                  style={{ marginBottom: "var(--sp-2)" }}
+                  onSubmit={(e) => {
+                    e.preventDefault();
+                    submitFileForm();
+                  }}
+                >
+                  <input
+                    autoFocus
+                    aria-label={fileForm.mode === "new" ? t.files.newFilePrompt : t.files.renamePrompt}
+                    placeholder={fileForm.mode === "new" ? t.files.newFilePrompt : t.files.renamePrompt}
+                    className="grow mono"
+                    value={fileForm.value}
+                    spellCheck={false}
+                    onChange={(e) => setFileForm({ ...fileForm, value: e.target.value })}
+                    onKeyDown={(e) => e.key === "Escape" && setFileForm(null)}
+                  />
+                  <button type="submit" className="small primary" disabled={!fileForm.value.trim() || busy !== ""}>
+                    {busy === "fileform" ? <Spinner /> : "OK"}
+                  </button>
+                  <button type="button" className="small" onClick={() => setFileForm(null)}>
+                    ✕
+                  </button>
+                </form>
+              )}
               <ul className="list" aria-label={t.projects.files}>
-                {files.files.map((f) => (
-                  <li key={f.path}>
-                    <button className={"list-btn mono" + (file?.path === f.path ? " active" : "")} onClick={() => openFile(f.path)}>
-                      {f.path}
-                      <span className="muted">{f.size} B</span>
-                    </button>
-                  </li>
-                ))}
+                {files.files.map((f) => {
+                  const entry = f.path === "__init__.py";
+                  return (
+                    <li key={f.path} className="file-row">
+                      <button className={"list-btn mono" + (file?.path === f.path ? " active" : "")} onClick={() => openFile(f.path)}>
+                        {f.path}
+                        <span className="muted">{f.size} B</span>
+                      </button>
+                      <button
+                        className="small ghost"
+                        aria-label={`${t.files.rename} ${f.path}`}
+                        title={entry ? t.files.entryProtected : t.files.rename}
+                        disabled={entry || busy !== ""}
+                        onClick={() => setFileForm({ mode: "rename", from: f.path, value: f.path })}
+                      >
+                        ✎
+                      </button>
+                      <button
+                        className="small ghost danger"
+                        aria-label={`${t.files.del} ${f.path}`}
+                        title={entry ? t.files.entryProtected : t.files.del}
+                        disabled={entry || busy !== ""}
+                        onClick={() => deleteFile(f.path)}
+                      >
+                        {busy === "del:" + f.path ? <Spinner /> : "🗑"}
+                      </button>
+                    </li>
+                  );
+                })}
               </ul>
               <SyncPanel
                 devId={devId}
