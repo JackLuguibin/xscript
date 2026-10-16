@@ -15,7 +15,7 @@ from typing import Any, Callable
 import httpx
 
 from .adb import DEVICE_PORT, AdbError, AdbService
-from .device_client import DeviceClient, DeviceError, DeviceTarget, summarize_status
+from .device_client import DeviceClient, DeviceError, DeviceTarget, is_xscript_status, summarize_status
 
 EventEmitter = Callable[[str, Any], None]
 ClientFactory = Callable[[DeviceTarget], DeviceClient]
@@ -109,6 +109,10 @@ class DeviceManager:
             raise DeviceError(
                 "已建立 adb forward，但 127.0.0.1:%d 没有响应 XScript（App 没打开或服务未启动？）: %s" % (fw.local_port, e),
                 status=e.status, detail=e.detail, kind=e.kind) from e
+        if not is_xscript_status(status):
+            await client.aclose()
+            await self.adb.remove_forward(serial, fw.local_port)
+            raise DeviceError("127.0.0.1:%d 有响应，但不像 XScript 设备（/status 缺少 device_id/app_id/model）" % fw.local_port, kind="protocol")
         client.timeout = 10.0
         rec = DeviceRecord(id=dev_id, transport="adb", target=target, serial=serial, forward_port=fw.local_port,
                            state="online", status=status, last_seen=time.time(), client=client)
@@ -132,6 +136,9 @@ class DeviceManager:
         except DeviceError:
             await client.aclose()
             raise
+        if not is_xscript_status(status):
+            await client.aclose()
+            raise DeviceError("%s 有响应，但不像 XScript 设备（/status 缺少 device_id/app_id/model）" % target.address, kind="protocol")
         client.timeout = 10.0
         warning = "" if self._is_loopback(target.host) else "此设备经局域网直连：设备 API 没有鉴权，同网段任何人都能运行代码。仅在可信网络使用，优先用 ADB。"
         rec = DeviceRecord(id=dev_id, transport="lan", target=target, state="online", status=status, last_seen=time.time(),
@@ -223,7 +230,7 @@ class DeviceManager:
                     return
                 finally:
                     await c.aclose()
-                if "device_id" in st or "app_id" in st or "model" in st:
+                if is_xscript_status(st):
                     found.append({"address": DeviceTarget(host, port).address, "host": host, "port": port, "info": summarize_status(st)})
 
         await asyncio.gather(*(probe(h, p) for h in hosts for p in ports))
@@ -240,10 +247,10 @@ def lan_hosts(cidr: str | None = None, limit: int = 1024) -> list[str]:
         if not ip:
             return []
         net = ipaddress.ip_network(ip + "/24", strict=False)
-    hosts = [str(h) for h in net.hosts()]
-    if len(hosts) > limit:
-        raise ValueError("scan range too large (%d hosts > %d)" % (len(hosts), limit))
-    return hosts
+    count = max(net.num_addresses - 2, 1) if net.version == 4 else net.num_addresses  # check BEFORE materialising: a /8 is 16M hosts
+    if count > limit:
+        raise ValueError("scan range too large (%d hosts > %d)" % (count, limit))
+    return [str(h) for h in net.hosts()]
 
 
 def _local_ipv4() -> str | None:

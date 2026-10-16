@@ -7,6 +7,7 @@ dropped connections, slow responses, 503 capture_unavailable on /screen.
 from __future__ import annotations
 
 import json
+import socket
 import struct
 import threading
 import time
@@ -81,7 +82,11 @@ class FakeDevice:
                 if m == "slow" or outer.delay:
                     time.sleep(outer.delay or 3.0)
                 if m == "reset":
-                    self.connection.close()
+                    self.close_connection = True
+                    try:
+                        self.connection.shutdown(socket.SHUT_RDWR)  # a real abrupt drop (close() alone leaves the makefile() wrappers open)
+                    except OSError:
+                        pass
                     return
                 if m == "bad_json":
                     self._send(200, "application/json", b'{"name": "x", ')

@@ -14,7 +14,7 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
-test = ["pytest>=8", "pytest-qt>=4.4", "pytest-asyncio>=0.23"]
+test = ["pytest>=8", "pytest-qt>=4.4", "pytest-asyncio>=0.23", "pytest-cov>=5"]
 
 [project.scripts]
 xscript-desktop = "xscript_desktop.main:main"
@@ -28,7 +28,23 @@ xscript_desktop = ["resources/**/*"]
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 asyncio_mode = "auto"
+filterwarnings = [
+  # CPython 3.10 asyncio: a finished child's transport can be collected after the test's loop closed (harmless, no leak of the process)
+  "ignore:Exception ignored in.*BaseSubprocessTransport:pytest.PytestUnraisableExceptionWarning",
+]
 markers = [
+  "perf: coarse performance budgets (generous limits; run with -m perf or in the default run)",
+  "visual: screenshot regression against per-platform baselines in tests/baselines/ (skipped when none exists)",
   "device: needs a running Android emulator/device with the XScript app (skipped unless XSCRIPT_DEVICE_TESTS=1)",
   "qt: needs a Qt platform (runs offscreen)",
 ]
+
+[tool.coverage.run]
+source = ["xscript_desktop"]
+branch = true
+patch = ["subprocess"]  # --selftest / --screenshot tests run the app in a child process
+
+[tool.coverage.report]
+show_missing = true
+skip_covered = false
+exclude_also = ["pragma: no cover", "if __name__ == .__main__.:"]

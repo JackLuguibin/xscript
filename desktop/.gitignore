@@ -6,3 +6,5 @@ frontend/node_modules/
 .coverage
 coverage.xml
 htmlcov/
+frontend/coverage/
+app/tests/_visual_out/

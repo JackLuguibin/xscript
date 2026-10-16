@@ -173,6 +173,11 @@ class DeviceClient:
         return await self._json("POST", "/action", json=payload)
 
 
+def is_xscript_status(st: Any) -> bool:
+    """Does a /status body look like an XScript device? (any JSON object is not enough: a random local web server answers too)"""
+    return isinstance(st, dict) and any(k in st for k in ("device_id", "app_id", "model"))
+
+
 def summarize_status(st: dict[str, Any]) -> dict[str, Any]:
     """The few fields the UI shows as 'device info' (full /status is also passed through)."""
     return {

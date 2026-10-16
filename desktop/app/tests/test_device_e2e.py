@@ -20,6 +20,8 @@ from xscript_desktop.services.adb import AdbService
 from xscript_desktop.services.device_client import DeviceClient
 from xscript_desktop.services.device_manager import DeviceManager
 
+from .harness import have_build
+
 pytestmark = [pytest.mark.device, pytest.mark.skipif(os.environ.get("XSCRIPT_DEVICE_TESTS") != "1", reason="set XSCRIPT_DEVICE_TESTS=1 to run against real devices")]
 
 
@@ -109,3 +111,49 @@ async def test_design_entry_stub_runs_on_device(adb_service):
         finally:
             await c.aclose()
             await adb_service.cleanup()
+
+
+async def test_screen_endpoint_returns_an_image_or_a_clean_capture_error(adb_service):
+    """One GET /screen per ready device (no streams: the stream slot leak measured in docs §14.4 is not exercised here)."""
+    serials = await ready_serials(adb_service)
+    if not serials:
+        pytest.skip("no adb device online")
+    m = DeviceManager(adb_service, poll_interval=60)
+    try:
+        for serial in serials:
+            try:
+                rec = await m.connect_adb(serial)
+            except Exception as e:
+                print("skip %s: %s" % (serial, e))
+                continue
+            try:
+                body, mime = await rec.client.screen("jpg", 60, 360)
+                assert body[:3] == b"\xff\xd8\xff" and mime.startswith("image/")
+            except Exception as e:
+                # an app without the screen-capture grant answers 503 capture_unavailable: that is a valid, reported state
+                assert getattr(e, "status", None) == 503, e
+    finally:
+        await m.shutdown()
+
+
+@pytest.mark.skipif(not have_build(), reason="frontend not built")
+def test_real_shell_selftest_connects_a_real_emulator():
+    """`python -m xscript_desktop --selftest --connect-adb <serial>` against the first ready device: exit 0, state online."""
+    import json
+    import sys
+    from pathlib import Path
+
+    svc = AdbService()
+    if svc.path() is None:
+        pytest.skip("adb not found")
+    serials = asyncio.run(ready_serials(svc))
+    if not serials:
+        pytest.skip("no adb device online")
+    before = forward_list(svc.path())
+    env = dict(os.environ, QT_QPA_PLATFORM="offscreen", QTWEBENGINE_CHROMIUM_FLAGS="--disable-gpu")
+    r = subprocess.run([sys.executable, "-m", "xscript_desktop", "--selftest", "--connect-adb", serials[0], "--timeout", "40"],
+                       cwd=Path(__file__).resolve().parents[1], env=env, capture_output=True, text=True, timeout=90)
+    assert r.returncode == 0, r.stderr
+    out = json.loads(r.stdout.strip().splitlines()[-1])
+    assert out["state"] == "online" and out["device"]["deviceId"]
+    assert forward_list(svc.path()) == before  # the app removed the forward it created

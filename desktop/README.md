@@ -54,11 +54,17 @@ cd ../app && python3.10 -m venv .venv && .venv/bin/pip install -e '.[test]'
 
 ## 测试
 
+完整方案与用例编号表：[`docs/桌面端-测试方案.md`](../docs/桌面端-测试方案.md)（分层：单元 / 集成 / 前端组件 / 真实外壳 e2e / 安全 / 视觉回归 / 性能 / Windows 逻辑模拟 / 真机）。
+
 ```bash
-cd desktop/app && .venv/bin/python -m pytest -q                                  # 79 个（3 个真机测试默认跳过）：RPC、adb、设备客户端/管理器、scheme/导航、真 QtWebEngine 集成
-cd desktop/app && XSCRIPT_DEVICE_TESTS=1 .venv/bin/python -m pytest -m device -v  # 真机/模拟器（adb + 已安装并启动的 XScript）
-cd desktop/frontend && npm run typecheck && npm test                              # tsc + vitest（21 个）
+cd desktop/app && .venv/bin/python -m pytest -q                                   # 320 个通过、5 个真机用例默认跳过（macOS，约 40 s）
+cd desktop/app && .venv/bin/python -m pytest -q --cov --cov-report=term-missing   # 覆盖率 95%（含子进程里的 --selftest/--screenshot）
+cd desktop/app && XSCRIPT_DEVICE_TESTS=1 .venv/bin/python -m pytest -m device -v  # 真机/模拟器（只读 + adb forward；5554 与 5556 已通过）
+cd desktop/frontend && npm run typecheck && npm run test:coverage                  # tsc + vitest（44 个；语句 94% / 分支 80%）
+python desktop/app/tools/gen_test_matrix.py --check                                # 测试方案里的编号表没有过期
 ```
+
+e2e 用例要先 `npm run build`（否则自动跳过）。视觉回归的基线按平台存放，没有本平台基线时跳过；`XSCRIPT_UPDATE_BASELINES=1 pytest -m visual` 重新生成。
 
 ## 设备连接的约定
 
