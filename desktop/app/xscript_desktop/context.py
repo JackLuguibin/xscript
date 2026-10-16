@@ -1,7 +1,10 @@
 """AppContext: wires the services to the RPC dispatcher. No Qt imports here, so it is testable headless."""
 from __future__ import annotations
 
+import asyncio
+import hashlib
 import functools
+from pathlib import Path
 import platform
 import sys
 import threading
@@ -12,6 +15,7 @@ from .rpc import Dispatcher, RpcError, param
 from .services.adb import AdbError, AdbService
 from .services.device_client import DeviceError
 from .services.device_manager import DeviceManager, lan_hosts
+from .services import sync as syncmod
 
 ACTION_TYPES = ("click", "swipe", "input", "key")
 MAX_FILE_CHARS = 2 * 1024 * 1024  # stays under the bridge's 4 MiB request cap even after JSON escaping
@@ -30,6 +34,8 @@ def _map_errors(fn: Callable[..., Awaitable[Any]]) -> Callable[..., Awaitable[An
     async def wrapper(params: dict[str, Any]) -> Any:
         try:
             return await fn(params)
+        except syncmod.SyncError as e:
+            raise RpcError(e.code, e.message) from e
         except AdbError as e:
             raise RpcError(e.code, e.message, details=e.details) from e
         except DeviceError as e:
@@ -44,8 +50,11 @@ def _map_errors(fn: Callable[..., Awaitable[Any]]) -> Callable[..., Awaitable[An
 
 
 class AppContext:
-    def __init__(self, adb: AdbService | None = None, poll_interval: float = 5.0) -> None:
+    def __init__(self, adb: AdbService | None = None, poll_interval: float = 5.0, data_dir: Path | None = None) -> None:
         self.dispatcher = Dispatcher()
+        self.sync_cache = syncmod.SyncCache(data_dir / "sync-cache.json" if data_dir else None)
+        # set by the Qt shell (main.py): shows a native folder dialog on the GUI thread; None in headless/tests
+        self.pick_directory: Callable[[str], Awaitable[str | None]] | None = None
         self.adb = adb or AdbService()
         self.devices = DeviceManager(self.adb, emit=self.dispatcher.emit, poll_interval=poll_interval)
         self.ui_ready = threading.Event()
@@ -66,6 +75,31 @@ class AppContext:
         if rec.client is None:
             raise RpcError("device.not_found", "device has no client: %s" % rec.id)
         return rec.client
+
+    def _sync_key(self, params: dict[str, Any]) -> str:
+        rec = self.devices.get(param(params, "id", str))
+        return "%s:%s" % (rec.status.get("device_id") or rec.id, param(params, "project", str))
+
+    @staticmethod
+    def _local_dir(params: dict[str, Any], must_be_project: bool) -> Path:
+        raw = param(params, "dir", str)
+        p = Path(raw).expanduser()
+        if not p.is_absolute():
+            raise RpcError("rpc.bad_params", "local folder must be an absolute path: %s" % raw)
+        if not p.is_dir():
+            raise RpcError("sync.no_dir", "local folder does not exist: %s" % raw)
+        if must_be_project and not syncmod.is_project_dir(p):
+            raise RpcError("sync.not_project", "%s has no __init__.py (or build.as): pick the project folder itself" % raw)
+        return p
+
+    async def _plan(self, params: dict[str, Any]) -> tuple[Any, syncmod.UploadPlan]:
+        root = self._local_dir(params, True)
+        client = self._client(params)
+        project = param(params, "project", str)
+        full = param(params, "full", bool, default=False)
+        files = await asyncio.to_thread(lambda: syncmod.collect_files(root, syncmod.load_ignore_rules(root)))
+        remote = await client.files_or_none(project)
+        return client, syncmod.plan_upload(files, remote, {} if full else self.sync_cache.get(self._sync_key(params)))
 
     async def _push_state(self, device_id: str) -> None:
         """After run/stop: re-read /status and push it (refresh only emits on online/offline changes, not on running/project)."""
@@ -214,3 +248,48 @@ class AppContext:
                 if k in params and params[k] is not None:
                     payload[k] = param(params, k, str)
             return await self._client(params).action(payload)
+
+        # ---- local folder sync (port of the VS Code extension's sync.ts) ------------------------------------------------------
+
+        @d.method("app.pickDirectory")
+        async def pick_directory(params: dict[str, Any]) -> dict[str, Any]:
+            if self.pick_directory is None:
+                raise RpcError("app.unavailable", "no folder dialog in this mode")
+            return {"path": await self.pick_directory(param(params, "title", str, default=""))}
+
+        @d.method("sync.preview")
+        @_map_errors
+        async def sync_preview(params: dict[str, Any]) -> dict[str, Any]:
+            _, plan = await self._plan(params)
+            return plan.summary()
+
+        @d.method("sync.upload")
+        @_map_errors
+        async def sync_upload(params: dict[str, Any]) -> dict[str, Any]:
+            client, plan = await self._plan(params)
+            project = param(params, "project", str)
+            sent = 0
+            for chunk in syncmod.batches(plan.upload):
+                await client.upload_files(project, [f.upload_body() for f in chunk])
+                sent += len(chunk)
+                self.dispatcher.emit("sync.progress", {"id": params["id"], "project": project, "sent": sent, "total": len(plan.upload)})
+            self.sync_cache.put(self._sync_key(params), plan.hashes)
+            return dict(plan.summary(), uploaded=sent)
+
+        @d.method("sync.pull")
+        @_map_errors
+        async def sync_pull(params: dict[str, Any]) -> dict[str, Any]:
+            root = self._local_dir(params, False)
+            client = self._client(params)
+            project = param(params, "project", str)
+            listing = await client.files_or_none(project)
+            if listing is None:
+                raise RpcError("sync.no_project", "project %s does not exist on the device" % project)
+            pulled = [(f["path"], await client.read_raw(project, f["path"])) for f in listing if syncmod.safe_relative(str(f.get("path", "")))]
+            diff = syncmod.diff_against_local(root, pulled)
+            if param(params, "dryRun", bool, default=False):
+                return dict(diff, written=0)
+            written = await asyncio.to_thread(syncmod.write_pulled, root, pulled, diff)
+            # what we just wrote equals the device: remember it so the next incremental upload skips it
+            self.sync_cache.put(self._sync_key(params), {rel: hashlib.sha1(data).hexdigest() for rel, data in pulled})
+            return dict(diff, written=written)
