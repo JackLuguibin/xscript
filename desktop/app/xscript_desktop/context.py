@@ -17,6 +17,7 @@ from .services.device_client import DeviceError
 from .services.device_manager import DeviceManager, lan_hosts
 from .services import sync as syncmod
 from .services.debugger import DebugError, DebugSession
+from .services.mirror import MirrorProxy, MirrorTimings
 
 ACTION_TYPES = ("click", "swipe", "input", "key")
 MAX_FILE_CHARS = 2 * 1024 * 1024  # stays under the bridge's 4 MiB request cap even after JSON escaping
@@ -53,7 +54,8 @@ def _map_errors(fn: Callable[..., Awaitable[Any]]) -> Callable[..., Awaitable[An
 
 
 class AppContext:
-    def __init__(self, adb: AdbService | None = None, poll_interval: float = 5.0, data_dir: Path | None = None) -> None:
+    def __init__(self, adb: AdbService | None = None, poll_interval: float = 5.0, data_dir: Path | None = None,
+                 mirror_timings: MirrorTimings | None = None) -> None:
         self.dispatcher = Dispatcher()
         self.sync_cache = syncmod.SyncCache(data_dir / "sync-cache.json" if data_dir else None)
         # set by the Qt shell (main.py): shows a native folder dialog on the GUI thread; None in headless/tests
@@ -62,8 +64,12 @@ class AppContext:
         self.pick_directory: Callable[[str], Awaitable[str | None]] | None = None
         self.adb = adb or AdbService()
         self.devices = DeviceManager(self.adb, emit=self.dispatcher.emit, poll_interval=poll_interval)
+        self.mirror = MirrorProxy(self._mirror_client, self.dispatcher.emit, timings=mirror_timings)
         self.ui_ready = threading.Event()
         self._register()
+
+    def _mirror_client(self, device_id: str):
+        return self.devices.get(device_id).client
 
     # ---- binary data for xsapp://shot/... (called from the scheme handler through the asyncio loop) -------------------------------
 
@@ -118,13 +124,16 @@ class AppContext:
         return sess
 
     async def shutdown(self) -> None:
-        for sess in list(self.debug_sessions.values()):
-            try:
-                await sess.stop(terminate=False, quiet=True)
-            except Exception:  # pragma: no cover - best effort at exit
-                pass
-        self.debug_sessions.clear()
-        await self.devices.shutdown()
+        try:
+            await self.mirror.shutdown()  # close viewer slots before the device HTTP clients go away
+        finally:
+            for sess in list(self.debug_sessions.values()):
+                try:
+                    await sess.stop(terminate=False, quiet=True)
+                except Exception:  # pragma: no cover - best effort at exit
+                    pass
+            self.debug_sessions.clear()
+            await self.devices.shutdown()
 
     # ---- RPC methods ---------------------------------------------------------------------------------------------------------------------------
 
@@ -179,7 +188,9 @@ class AppContext:
         @d.method("device.disconnect")
         @_map_errors
         async def disconnect(params: dict[str, Any]) -> dict[str, Any]:
-            return {"removed": await self.devices.disconnect(param(params, "id", str))}
+            dev_id = param(params, "id", str)
+            await self.mirror.close(dev_id)  # release the stream slot while the HTTP client still exists
+            return {"removed": await self.devices.disconnect(dev_id)}
 
         @d.method("device.scan")
         @_map_errors
@@ -402,3 +413,23 @@ class AppContext:
             except Exception:
                 pass
             return {"stopped": True}
+
+        # ---- mirror (one MJPEG upstream per device; design §14.4) ------------------------------------------------------------
+
+        @d.method("mirror.subscribe")
+        @_map_errors
+        async def mirror_subscribe(params: dict[str, Any]) -> dict[str, Any]:
+            dev_id = param(params, "id", str)
+            self.devices.get(dev_id)  # KeyError -> device.not_found; don't open a stream for an unknown id
+            return await self.mirror.subscribe(dev_id, param(params, "viewer", str, default="mirror"),
+                                               params.get("fps"), params.get("scale"), params.get("quality"))
+
+        @d.method("mirror.unsubscribe")
+        @_map_errors
+        async def mirror_unsubscribe(params: dict[str, Any]) -> dict[str, Any]:
+            return await self.mirror.unsubscribe(param(params, "id", str), param(params, "viewer", str, default="mirror"))
+
+        @d.method("mirror.retry")
+        @_map_errors
+        async def mirror_retry(params: dict[str, Any]) -> dict[str, Any]:
+            return await self.mirror.retry(param(params, "id", str))

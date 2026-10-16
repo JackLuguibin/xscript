@@ -63,34 +63,39 @@ describe("MirrorPage", () => {
     expect(await screen.findByText("还没有在线设备")).toBeTruthy();
   });
 
-  it("requests frames over xsapp:// (never through the bridge) and chains the next one after load", async () => {
-    await setup();
+  it("requests frames over xsapp:// (never through the bridge) and shows the next seq after the current one loads", async () => {
+    const { transport } = await setup();
     const img = await screen.findByAltText("设备屏幕");
     const first = img.getAttribute("src")!;
-    expect(first).toMatch(/^\/_shot\/adb%3Aemulator-5554\.jpg\?max=1080&t=\d+$/);
+    expect(first).toMatch(/^\/_frame\/adb%3Aemulator-5554\?seq=1&n=\d+$/);
+    expect(transport.sent.some((m) => m.method === "mirror.subscribe")).toBe(true);
     expect(screen.getByText("等待第一帧…")).toBeTruthy();
-    vi.useFakeTimers();
+    expect(screen.getByText("直播")).toBeTruthy();
     fireEvent.load(img);
     expect(screen.queryByText("等待第一帧…")).toBeNull();
-    await act(async () => vi.advanceTimersByTime(600));
-    expect(screen.getByAltText("设备屏幕").getAttribute("src")).not.toBe(first);
+    await act(async () => {
+      transport.push({ event: true, topic: "mirror.frame", data: { id: "adb:emulator-5554", seq: 2, w: 1080, h: 2209 } });
+    });
+    expect(screen.getByAltText("设备屏幕").getAttribute("src")).toMatch(/seq=2/);
   });
 
-  it("pause stops the chain; failures show the permission hint", async () => {
-    await setup();
+  it("pause unsubscribes so the slot is released; a failed image shows the hint", async () => {
+    const { transport } = await setup();
     const img = await screen.findByAltText("设备屏幕");
-    vi.useFakeTimers();
     fireEvent.error(img);
-    expect(screen.getByText(/取不到截图/)).toBeTruthy();
+    expect(screen.getByText(/取不到画面/)).toBeTruthy();
     fireEvent.click(screen.getByRole("button", { name: "暂停" }));
     expect(screen.getByText("已暂停")).toBeTruthy();
+    await vi.waitFor(() => expect(transport.sent.some((m) => m.method === "mirror.unsubscribe")).toBe(true));
     const src = img.getAttribute("src");
-    await act(async () => vi.advanceTimersByTime(5000));
+    await act(async () => {
+      transport.push({ event: true, topic: "mirror.frame", data: { id: "adb:emulator-5554", seq: 9, w: 10, h: 10 } });
+    });
     expect(screen.getByAltText("设备屏幕").getAttribute("src")).toBe(src);
-    fireEvent.change(screen.getByRole("combobox", { name: "帧率" }), { target: { value: "10" } });
+    fireEvent.change(screen.getByRole("combobox", { name: "帧率" }), { target: { value: "5" } });
     fireEvent.click(screen.getByRole("button", { name: "开始" }));
-    await act(async () => vi.advanceTimersByTime(150));
-    expect(screen.getByAltText("设备屏幕").getAttribute("src")).not.toBe(src);
+    await vi.waitFor(() => expect(transport.sent.filter((m) => m.method === "mirror.subscribe").some((m) => m.params?.fps === 5)).toBe(true));
+    await vi.waitFor(() => expect(screen.getByAltText("设备屏幕").getAttribute("src")).not.toBe(src));
   });
 
   it("a tap becomes a click and a drag becomes a swipe in device pixels; keys and text go through device.action", async () => {

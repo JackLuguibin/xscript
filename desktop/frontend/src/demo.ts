@@ -170,6 +170,12 @@ export function createDemoTransport(): MemoryTransport {
       "sync.preview": () => ({ upload: ["__init__.py"], skipped: [], bytes: 24 }),
       "sync.upload": () => ({ upload: ["__init__.py"], skipped: [], bytes: 24, uploaded: 1 }),
       "sync.pull": () => ({ added: [], changed: ["__init__.py"], unchanged: [], written: 1 }),
+      "mirror.subscribe": (p) => ({
+        id: String(p.id), state: "streaming", reason: "", seq: 1, w: 1080, h: 2209,
+        viewers: 1, fps: Number(p.fps ?? 12), scale: Number(p.scale ?? 0.5), quality: Number(p.quality ?? 60),
+      }),
+      "mirror.unsubscribe": () => ({ ok: true, viewers: 0 }),
+      "mirror.retry": (p) => ({ id: String(p.id), state: "connecting", reason: "", seq: 1, w: 1080, h: 2209, viewers: 1, fps: 12, scale: 0.5, quality: 60 }),
     },
     30,
   );

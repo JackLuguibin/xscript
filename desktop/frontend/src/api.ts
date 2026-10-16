@@ -128,6 +128,19 @@ export interface DebugState {
 }
 export interface DebugScope { name: string; ref: number; expensive: boolean }
 export interface DebugVar { name: string; value: string; type: string; ref: number }
+export interface MirrorStatus {
+  id: string;
+  state: string;
+  reason: string;
+  seq: number;
+  w: number;
+  h: number;
+  viewers: number;
+  fps: number;
+  scale: number;
+  quality: number;
+}
+
 export type DebugStep = "continue" | "next" | "stepIn" | "stepOut" | "pause";
 export type Breakpoints = Record<string, number[]>;
 
@@ -174,6 +187,10 @@ export function createApi(rpc: RpcClient) {
     debugEvaluate: (id: string, expression: string, frameId?: number) =>
       rpc.call<{ result: string; type: string; ref: number }>("debug.evaluate", frameId === undefined ? { id, expression } : { id, expression, frameId }, { timeoutMs: 40_000 }),
     debugStop: (id: string, terminate = true) => rpc.call<{ stopped: boolean }>("debug.stop", { id, terminate }, { timeoutMs: 20_000 }),
+    mirrorSubscribe: (id: string, opts: { fps?: number; scale?: number; quality?: number } = {}) =>
+      rpc.call<MirrorStatus>("mirror.subscribe", { id, viewer: "mirror", ...opts }),
+    mirrorUnsubscribe: (id: string) => rpc.call<{ ok: boolean; viewers: number }>("mirror.unsubscribe", { id, viewer: "mirror" }),
+    mirrorRetry: (id: string) => rpc.call<MirrorStatus>("mirror.retry", { id }),
     scan: (cidr?: string) => rpc.call<{ found: ScanHit[] }>("device.scan", cidr ? { cidr } : {}, { timeoutMs: 60_000 }),
   };
 }

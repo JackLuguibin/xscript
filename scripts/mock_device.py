@@ -8,8 +8,9 @@ import json
 import os
 import struct
 import threading
+import time
 import zipfile
-from http.server import BaseHTTPRequestHandler, HTTPServer
+from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from urllib.parse import parse_qs, unquote, urlparse
 
 def _make_png(width=24, height=48):
@@ -26,6 +27,15 @@ def _make_png(width=24, height=48):
 
 
 PNG = _make_png()
+# 24x48 JPEG so a real WebEngine <img> can decode a mock /screen/stream frame (sips, quality 60).
+JPEG = base64.b64decode(
+    "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"
+)
+
+
+def _mjpeg_part(jpeg: bytes, w: int, h: int) -> bytes:
+    head = ("--xscriptframe\r\nContent-Type: image/jpeg\r\nContent-Length: %d\r\nX-Screen-Size: %dx%d\r\n\r\n" % (len(jpeg), w, h)).encode("ascii")
+    return head + jpeg + b"\r\n"
 
 STATE = {
     "projects": {},
@@ -185,6 +195,33 @@ class Handler(BaseHTTPRequestHandler):
     def _json(self, code, payload):
         self._send(code, "application/json; charset=utf-8", json.dumps(payload).encode("utf-8"))
 
+    def _screen_stream(self):
+        """One MJPEG viewer. At most two, matching the device; a third gets 429 and does not take a slot."""
+        srv = self.server
+        if not hasattr(srv, "stream_lock"):
+            srv.stream_lock = threading.Lock()
+            srv.stream_viewers = 0
+        with srv.stream_lock:
+            if srv.stream_viewers >= 2:
+                self._json(429, {"error": "too many screen streams (max 2)"})
+                return
+            srv.stream_viewers += 1
+        try:
+            self.close_connection = True
+            self.wfile.write(b"HTTP/1.1 200 OK\r\nContent-Type: multipart/x-mixed-replace; boundary=xscriptframe\r\n"
+                             b"Cache-Control: no-cache, no-store\r\nTransfer-Encoding: chunked\r\n\r\n")
+            self.wfile.flush()
+            while True:
+                part = _mjpeg_part(JPEG, 1080, 2400)
+                self.wfile.write(b"%x\r\n" % len(part) + part + b"\r\n")
+                self.wfile.flush()
+                time.sleep(0.05)
+        except (BrokenPipeError, ConnectionResetError, ConnectionAbortedError, OSError):
+            return
+        finally:
+            with srv.stream_lock:
+                srv.stream_viewers = max(0, srv.stream_viewers - 1)
+
     def _raw_body(self):
         length = int(self.headers.get("Content-Length", "0") or 0)
         return self.rfile.read(length) if length > 0 else b""
@@ -246,6 +283,9 @@ class Handler(BaseHTTPRequestHandler):
             return
         if parsed.path == "/screen":
             self._send(200, "image/jpeg" if q.get("format") in ("jpg", "jpeg") else "image/png", PNG)
+            return
+        if parsed.path == "/screen/stream":
+            self._screen_stream()
             return
         if parsed.path == "/ui-tree":
             self._json(200, {
@@ -753,7 +793,11 @@ class Handler(BaseHTTPRequestHandler):
 
 
 def serve(host="127.0.0.1", port=0):
-    httpd = HTTPServer((host, port), Handler)
+    # Threaded so a held /screen/stream does not block /action and /status on the same device.
+    httpd = ThreadingHTTPServer((host, port), Handler)
+    httpd.daemon_threads = True
+    httpd.stream_lock = threading.Lock()
+    httpd.stream_viewers = 0
     thread = threading.Thread(target=httpd.serve_forever, daemon=True)
     thread.start()
     return httpd

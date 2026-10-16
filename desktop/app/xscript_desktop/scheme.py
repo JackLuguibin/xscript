@@ -58,6 +58,18 @@ def mime_for(path: Path | str) -> str:
     return _MIME_FIX.get(ext) or mimetypes.guess_type(str(path))[0] or "application/octet-stream"
 
 
+def frame_device_id(url_path: str) -> str | None:
+    """`/_frame/<id>` or `/_frame/<id>.jpg` -> device id. Reject anything that is not a single path segment."""
+    if not url_path.startswith("/_frame/"):
+        return None
+    device_id = unquote(url_path[len("/_frame/"):])
+    if device_id.endswith(".jpg"):
+        device_id = device_id[:-4]
+    if not device_id or "/" in device_id or "\\" in device_id or "\0" in device_id or device_id in (".", ".."):
+        return None
+    return device_id
+
+
 def with_csp(html: bytes) -> bytes:
     """Inject the CSP as a <meta> tag (QWebEngineUrlRequestJob's response-header API does not marshal reliably in PySide6).
     It must come first in <head> so it applies to everything after it."""
@@ -97,6 +109,17 @@ class XsAppHandler(QWebEngineUrlSchemeHandler):
             return
         if path.startswith("/_shot/"):
             self._start_shot(job, path[len("/_shot/"):], parse_qs(url.query()))
+            return
+        if path.startswith("/_frame/"):
+            # Latest JPEG only (design §14.4 scheme B). `seq` is a cache-buster; a stale seq still gets the newest frame.
+            device_id = frame_device_id(path)
+            body = self._ctx.mirror.latest(device_id) if device_id else None
+            if device_id is None:
+                job.fail(QWebEngineUrlRequestJob.Error.UrlNotFound)
+            elif not body:
+                job.fail(QWebEngineUrlRequestJob.Error.RequestFailed)
+            else:
+                self._reply(job, body, "image/jpeg")
             return
         f = resolve_static(self._root, path)
         if f is None:

@@ -22,6 +22,18 @@ function clamp(v: number, lo: number, hi: number): number {
   return Math.min(Math.max(v, lo), Math.max(lo, hi));
 }
 
+/** Stream `scale` for a frame element of `displayPx` against a screen of `screenPx`. Device clamps to 0.2–1; 0.5 until both sizes are known. */
+export function streamScale(displayPx: number, screenPx: number): number {
+  if (!(displayPx > 0) || !(screenPx > 0)) return 0.5;
+  const stepped = Math.round((displayPx / screenPx) * 10) / 10;
+  return Math.min(1, Math.max(0.2, stepped));
+}
+
+/** Cache-busted latest-frame URL. The shell ignores `seq` and returns whatever JPEG it has now. */
+export function frameUrl(deviceId: string, seq: number, nonce: number): string {
+  return `/_frame/${encodeURIComponent(deviceId)}?seq=${seq}&n=${nonce}`;
+}
+
 export const TAP_SLOP_PX = 8; // element pixels: a smaller move is still a click
 export const LONG_PRESS_MS = 500;
 

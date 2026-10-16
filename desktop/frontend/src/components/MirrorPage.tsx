@@ -1,13 +1,14 @@
 import { useEffect, useRef, useState, type PointerEvent as RPointerEvent } from "react";
 import { useServices } from "../app-context";
+import type { MirrorStatus } from "../api";
 import { RpcError } from "../bridge/types";
-import { classify, toDevice } from "../mirror";
+import { classify, frameUrl, streamScale, toDevice } from "../mirror";
 import { t } from "../strings";
 import { useDevices, useSelectedDevice } from "../useDevices";
 import { EmptyState } from "./EmptyState";
 import { IconAlert, IconMonitor, IconPhone } from "./icons";
 
-const FPS = [1, 2, 5, 10];
+const FPS = [5, 8, 12, 15];
 
 function errText(e: unknown): string {
   if (e instanceof RpcError) return `${e.message} [${e.code}]`;
@@ -15,51 +16,143 @@ function errText(e: unknown): string {
 }
 
 /**
- * Screen mirror. Frames are successive screenshots over xsapp://app/_shot/ (the next one is requested when the previous one
- * has loaded, so a slow device lowers the rate instead of queueing): it never takes one of the device's two
- * /screen/stream viewer slots (design §14). Pointer gestures become /action click/swipe through the bridge.
+ * Screen mirror. One MJPEG upstream per device lives in Python (design §14.4); the page only hears `mirror.frame` and reads
+ * `xsapp://app/_frame/<id>?seq=N`. A frame that arrives while the previous image is still loading is skipped.
  */
 export function MirrorPage() {
-  const { api } = useServices();
+  const { api, rpc } = useServices();
   const devices = useDevices();
   const [devId, setDevId] = useSelectedDevice(devices);
   const device = devices.find((d) => d.id === devId);
   const [playing, setPlaying] = useState(true);
-  const [fps, setFps] = useState(2);
-  const [tick, setTick] = useState(0);
-  const [state, setState] = useState<"waiting" | "ok" | "failed">("waiting");
+  const [fps, setFps] = useState(12);
+  const [scale, setScale] = useState(0.5);
+  const [src, setSrc] = useState("");
+  const [phase, setPhase] = useState<"waiting" | "ok" | "failed">("waiting");
+  const [mirrorState, setMirrorState] = useState("");
+  const [reason, setReason] = useState("");
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
   const [text, setText] = useState("");
+  const [trackDev, setTrackDev] = useState(devId);
   const img = useRef<HTMLImageElement>(null);
+  const frameRef = useRef<HTMLDivElement>(null);
   const down = useRef<{ ex: number; ey: number; t: number; x: number; y: number } | null>(null);
-  const timer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
+  const screenSize = useRef<{ w: number; h: number } | null>(null);
+  const want = useRef(0);
+  const shown = useRef(0);
+  const inflight = useRef(false);
+  const nonce = useRef(0);
+  const ticket = useRef(0);
+  const currentDev = useRef(devId);
 
-  useEffect(() => {
-    setState("waiting");
-    setTick(Date.now());
-  }, [devId]);
+  if (devId !== trackDev) {
+    setTrackDev(devId);
+    setSrc("");
+    setPhase("waiting");
+    setMirrorState("");
+    setReason("");
+    setError("");
+    screenSize.current = null;
+    want.current = 0;
+    shown.current = 0;
+    inflight.current = false;
+  }
 
-  useEffect(() => () => clearTimeout(timer.current), []);
+  const noteFrame = (seq: number, w: number, h: number) => {
+    if (!(seq > 0) || !devId) return;
+    if (w > 0 && h > 0) screenSize.current = { w, h };
+    want.current = seq;
+    if (!inflight.current) {
+      inflight.current = true;
+      shown.current = seq;
+      nonce.current += 1;
+      setSrc(frameUrl(devId, seq, nonce.current));
+    }
+  };
+  const noteRef = useRef(noteFrame);
+  noteRef.current = noteFrame;
 
-  const next = (delay: number) => {
-    clearTimeout(timer.current);
-    timer.current = setTimeout(() => setTick((n) => Math.max(Date.now(), n + 1)), delay);
+  const applySnap = (s: MirrorStatus) => {
+    setMirrorState(s.state || "");
+    setReason(s.reason || "");
+    if (s.seq > 0) noteFrame(s.seq, s.w, s.h);
   };
 
   useEffect(() => {
-    if (playing && state !== "waiting") next(1000 / fps);
-    else clearTimeout(timer.current);
+    currentDev.current = devId;
+    if (!playing || !devId) return;
+    const mine = ++ticket.current;
+    let dead = false;
+    void api
+      .mirrorSubscribe(devId, { fps, scale })
+      .then((s) => {
+        if (dead) {
+          // a newer subscribe owns this device; leaving the device (or pausing) must still drop the viewer
+          if (mine === ticket.current || devId !== currentDev.current) void api.mirrorUnsubscribe(devId).catch(() => undefined);
+          return;
+        }
+        if (mine !== ticket.current) return;
+        applySnap(s);
+      })
+      .catch((e) => {
+        if (!dead && mine === ticket.current) setError(errText(e));
+      });
+    return () => {
+      dead = true;
+    };
+    // applySnap/noteFrame close over the latest setters; ticket ignores stale replies
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [playing, fps]);
+  }, [api, playing, devId, fps, scale]);
 
-  const onLoad = () => {
-    setState("ok");
-    if (playing) next(1000 / fps);
-  };
-  const onError = () => {
-    setState("failed");
-    if (playing) next(3000); // keep trying slowly: permission may be granted meanwhile
+  useEffect(() => {
+    if (!playing || !devId) return;
+    const offFrame = rpc.on("mirror.frame", (d) => {
+      const ev = d as { id?: string; seq?: number; w?: number; h?: number };
+      if (ev.id !== devId || typeof ev.seq !== "number") return;
+      noteRef.current(ev.seq, ev.w || 0, ev.h || 0);
+    });
+    const offState = rpc.on("mirror.state", (d) => {
+      const ev = d as { id?: string; state?: string; reason?: string };
+      if (ev.id !== devId) return;
+      setMirrorState(ev.state || "");
+      setReason(ev.reason || "");
+    });
+    return () => {
+      inflight.current = false;
+      offFrame();
+      offState();
+      void api.mirrorUnsubscribe(devId).catch(() => undefined);
+    };
+  }, [api, rpc, playing, devId]);
+
+  useEffect(() => {
+    const el = frameRef.current;
+    if (!playing || !el || typeof ResizeObserver === "undefined") return;
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    const ro = new ResizeObserver(() => {
+      clearTimeout(timer);
+      timer = setTimeout(() => {
+        const sw = screenSize.current?.w || device?.info.width || 0;
+        const next = streamScale(el.getBoundingClientRect().width, sw);
+        setScale((cur) => (Math.abs(cur - next) < 0.049 ? cur : next));
+      }, 400);
+    });
+    ro.observe(el);
+    return () => {
+      clearTimeout(timer);
+      ro.disconnect();
+    };
+  }, [playing, devId, device?.info.width]);
+
+  const advance = () => {
+    inflight.current = false;
+    if (want.current !== shown.current && devId) {
+      inflight.current = true;
+      shown.current = want.current;
+      nonce.current += 1;
+      setSrc(frameUrl(devId, want.current, nonce.current));
+    }
   };
 
   const point = (e: RPointerEvent<HTMLImageElement>) => {
@@ -67,8 +160,8 @@ export function MirrorPage() {
     const r = el.getBoundingClientRect();
     const ex = e.clientX - r.left;
     const ey = e.clientY - r.top;
-    const dev = device?.info.width && device.info.height ? { w: device.info.width, h: device.info.height } : null;
-    const p = toDevice(ex, ey, { w: r.width, h: r.height }, { w: el.naturalWidth || r.width, h: el.naturalHeight || r.height }, dev);
+    const sized = screenSize.current && screenSize.current.w ? screenSize.current : device?.info.width && device.info.height ? { w: device.info.width, h: device.info.height } : null;
+    const p = toDevice(ex, ey, { w: r.width, h: r.height }, { w: el.naturalWidth || r.width, h: el.naturalHeight || r.height }, sized);
     return { ex, ey, t: e.timeStamp || Date.now(), x: p.x, y: p.y };
   };
 
@@ -76,7 +169,6 @@ export function MirrorPage() {
     setError("");
     try {
       await api.action(devId, payload);
-      if (playing) next(150); // show the result soon
     } catch (e) {
       setError(errText(e));
     }
@@ -92,7 +184,8 @@ export function MirrorPage() {
     );
   }
 
-  const src = devId && tick ? `/_shot/${encodeURIComponent(devId)}.jpg?max=1080&t=${tick}` : "";
+  const blocked = mirrorState === "blocked";
+  const stalled = mirrorState === "stalled";
   return (
     <div className="page">
       {error && (
@@ -101,6 +194,12 @@ export function MirrorPage() {
           <span className="grow">
             {t.errorPrefix}：{error}
           </span>
+        </div>
+      )}
+      {reason === "viewers_full" && (
+        <div className="banner warn" role="status">
+          <IconAlert size={16} />
+          <span className="grow">{t.mirror.viewersFull}</span>
         </div>
       )}
       <div className="row toolbar">
@@ -135,16 +234,22 @@ export function MirrorPage() {
         ))}
       </div>
       <div className="mirror-grid">
-        <div className="mirror-frame">
+        <div className="mirror-frame" ref={frameRef}>
           {src && (
             <img
               ref={img}
               src={src}
               alt={t.mirror.frame}
               draggable={false}
-              className={state === "ok" ? "" : "loading"}
-              onLoad={onLoad}
-              onError={onError}
+              className={phase === "ok" ? "" : "loading"}
+              onLoad={() => {
+                setPhase("ok");
+                advance();
+              }}
+              onError={() => {
+                setPhase("failed");
+                advance();
+              }}
               onPointerDown={(e) => {
                 e.currentTarget.setPointerCapture?.(e.pointerId);
                 down.current = point(e);
@@ -158,19 +263,38 @@ export function MirrorPage() {
               onPointerCancel={() => (down.current = null)}
             />
           )}
-          {state === "waiting" && (
+          {blocked && (
+            <div className="overlay fail" role="status">
+              <IconAlert size={28} />
+              <span>{t.mirror.noCapture}</span>
+              <button type="button" onClick={() => void api.mirrorRetry(devId).catch((e) => setError(errText(e)))}>
+                {t.mirror.retry}
+              </button>
+            </div>
+          )}
+          {stalled && !blocked && (
+            <div className="overlay fail" role="status">
+              <IconAlert size={28} />
+              <span>{t.mirror.stalled}</span>
+              <button type="button" onClick={() => void api.mirrorRetry(devId).catch((e) => setError(errText(e)))}>
+                {t.mirror.retry}
+              </button>
+            </div>
+          )}
+          {phase === "waiting" && !blocked && !stalled && (
             <div className="overlay" role="status">
               <IconMonitor size={28} />
               <span>{t.mirror.waiting}</span>
             </div>
           )}
-          {state === "failed" && (
+          {phase === "failed" && !blocked && !stalled && (
             <div className="overlay fail" role="status">
               <IconAlert size={28} />
               <span>{t.mirror.failed}</span>
             </div>
           )}
           {!playing && <span className="mirror-badge">{t.mirror.paused}</span>}
+          {playing && mirrorState === "streaming" && <span className="mirror-badge">{t.mirror.live}</span>}
         </div>
         <div className="panel">
           <form

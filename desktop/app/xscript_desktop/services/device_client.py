@@ -132,6 +132,14 @@ class DeviceClient:
         r = await self._request("GET", "/screen", params=params, timeout=max(self.timeout, 20))
         return r.content, r.headers.get("content-type", "image/jpeg" if fmt == "jpg" else "image/png")
 
+    def open_screen_stream(self, fps: int = 12, scale: float = 0.5, quality: int = 60):
+        """Long-lived MJPEG response (`async with`). Closing it is what frees the device's viewer slot (design §14.4).
+
+        Read timeout is disabled: the proxy has its own 3 s watchdog and must not have httpx abort the body first."""
+        timeout = httpx.Timeout(self.timeout, read=None)
+        return self._http.stream("GET", "/screen/stream", params={"fps": int(fps), "scale": float(scale), "quality": int(quality)},
+                                  timeout=timeout)
+
     async def projects(self) -> list[dict[str, Any]]:
         data = await self._json("GET", "/projects")
         details = data.get("details") if isinstance(data, dict) else None
