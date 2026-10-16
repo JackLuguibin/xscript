@@ -184,6 +184,35 @@ class DeviceClient:
     async def move(self, project: str, src: str, dst: str) -> dict[str, Any]:
         return await self._json("POST", "/projects/%s/move" % self._p(project), json={"from": src, "to": dst})
 
+    # ---- debugger bridge (/debug/*, docs/DEBUGGING.md) ---------------------------------------------------------------------------
+
+    async def debug_start(self, project: str) -> dict[str, Any]:
+        r = await self._request("POST", "/projects/%s/debug" % self._p(project), ok_status=(403, 404, 409), timeout=max(self.timeout, 30))
+        try:
+            data = r.json()
+        except ValueError:
+            data = {}
+        if r.is_error and isinstance(data, dict):
+            data.setdefault("error", "HTTP %d" % r.status_code)
+            data["status"] = r.status_code
+        return data if isinstance(data, dict) else {}
+
+    async def debug_connect(self) -> dict[str, Any]:
+        r = await self._request("POST", "/debug/connect", json={}, ok_status=(409,))
+        data = r.json() if r.content else {}
+        if r.status_code == 409 and isinstance(data, dict):
+            data.setdefault("error", "debugger not ready")
+        return data if isinstance(data, dict) else {}
+
+    async def debug_request(self, message: dict[str, Any]) -> dict[str, Any]:
+        return await self._json("POST", "/debug/request", json=message)
+
+    async def debug_messages(self, since: int) -> dict[str, Any]:
+        return await self._json("GET", "/debug/messages", params={"since": int(since)})
+
+    async def debug_close(self) -> dict[str, Any]:
+        return await self._json("DELETE", "/debug")
+
     async def create_project(self, project: str) -> dict[str, Any]:
         return await self._json("POST", "/projects/%s" % self._p(project))
 
