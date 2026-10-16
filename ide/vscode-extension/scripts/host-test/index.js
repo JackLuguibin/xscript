@@ -142,8 +142,8 @@ async function flows(ext, check, folder) {
     const png = tabs.find((t) => /screen-\d+\.png$/.test(t.label || ""));
     check(!!png, "screenshot opens a PNG editor tab", tabs.map((t) => t.label).join(","));
 
-    // debugging through VS Code's own debug API (real device only: the mock has no debugger)
-    if (real) {
+    // debugging through VS Code's own debug API: a real device, or the debugpy-backed mock (XS_HOST_TEST_DEBUG=1)
+    if (real || process.env.XS_HOST_TEST_DEBUG === "1") {
       fs.writeFileSync(path.join(dir, "__init__.py"), "import time\nx = 1\ny = x + 1\nprint('dbg-done', y, flush=True)\ntime.sleep(1)\n");
       const uri = vscode.Uri.file(path.join(dir, "__init__.py"));
       const bp = new vscode.SourceBreakpoint(new vscode.Location(uri, new vscode.Position(2, 0)));
