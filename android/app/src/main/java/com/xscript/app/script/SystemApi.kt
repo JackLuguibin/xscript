@@ -51,6 +51,7 @@ object SystemApi {
             }
             "open" -> open(a.optString("v")).toString()
             "browser" -> startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(a.optString("v")))).toString()
+            "send_email" -> sendEmail(a).toString()
             "open_setting" -> startActivity(
                 Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS, Uri.parse("package:" + a.optString("v"))),
             ).toString()
@@ -121,6 +122,18 @@ object SystemApi {
         true
     } catch (_: Exception) {
         false
+    }
+
+    /** Opens the user's mail app with a pre-filled draft (ACTION_SENDTO mailto:); nothing is sent without the user. */
+    private fun sendEmail(a: JSONObject): Boolean {
+        val d = EmailDraft.from(a)
+        val intent = Intent(Intent.ACTION_SENDTO, Uri.parse("mailto:")).apply {
+            if (d.to.isNotEmpty()) putExtra(Intent.EXTRA_EMAIL, d.to.toTypedArray())
+            if (d.cc.isNotEmpty()) putExtra(Intent.EXTRA_CC, d.cc.toTypedArray())
+            if (d.subject.isNotEmpty()) putExtra(Intent.EXTRA_SUBJECT, d.subject)
+            if (d.body.isNotEmpty()) putExtra(Intent.EXTRA_TEXT, d.body)
+        }
+        return startActivity(Intent.createChooser(intent, null))
     }
 
     /** Accepts a package name or an app label. Background activity starts need the overlay grant on 10+. */
