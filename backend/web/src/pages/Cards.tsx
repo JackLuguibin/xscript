@@ -162,6 +162,7 @@ export default function CardsPage() {
             ["unused", "未使用", "unused", toneColor("gray")],
             ["active", "已激活", "active", toneColor("green")],
             ["expired", "已过期", "expired", toneColor("amber")],
+            ["exhausted", "次数用完", "exhausted", toneColor("amber")],
             ["unbound", "已解绑", "unbound", toneColor("blue")],
             ["revoked", "已停用", "revoked", toneColor("red")],
           ] as const
@@ -294,8 +295,13 @@ export default function CardsPage() {
                         render: (k: string, c) => (
                           <Space size={4}>
                             {k === "trial" && <Tag color="gold">体验卡</Tag>}
+                            {k === "count" && (
+                              <Tag color="purple">
+                                按次 {c.uses_left}/{c.uses_total}
+                              </Tag>
+                            )}
                             {c.max_devices > 1 && <Tag color="blue">{c.max_devices} 台</Tag>}
-                            {k !== "trial" && c.max_devices <= 1 && "-"}
+                            {k === "normal" && c.max_devices <= 1 && "-"}
                           </Space>
                         ),
                       },
@@ -387,7 +393,7 @@ export default function CardsPage() {
                       dataIndex: "kind",
                       render: (k: string, b) => (
                         <Space size={4}>
-                          {k === "trial" ? <Tag color="gold">体验卡</Tag> : "正式卡"}
+                          {k === "trial" ? <Tag color="gold">体验卡</Tag> : k === "count" ? <Tag color="purple">按次卡</Tag> : "正式卡"}
                           {b.max_devices > 1 && <Tag color="blue">{b.max_devices} 台</Tag>}
                         </Space>
                       ),
@@ -570,10 +576,12 @@ function CreateModal({
           save.mutate(
             v.kind === "trial"
               ? { count: v.count, kind: "trial", hours: v.hours, app: v.app, note: v.note, prefix: v.prefix }
+              : v.kind === "count"
+              ? { count: v.count, kind: "count", uses: v.uses, days: v.days, max_devices: v.max_devices, app: v.app, note: v.note, prefix: v.prefix }
               : { count: v.count, kind: "normal", days: v.days, max_devices: v.max_devices, stack: v.stack, app: v.app, note: v.note, prefix: v.prefix },
           )
         }
-        initialValues={{ kind: "normal", count: 50, days: 30, hours: 24, max_devices: 1, stack: true, app: "*", prefix: "XS" }}
+        initialValues={{ kind: "normal", count: 50, days: 30, hours: 24, uses: 100, max_devices: 1, stack: true, app: "*", prefix: "XS" }}
       >
         <Form.Item name="kind" label="卡类型">
           <Radio.Group
@@ -581,6 +589,7 @@ function CreateModal({
             options={[
               { value: "normal", label: "正式卡" },
               { value: "trial", label: "体验卡" },
+              { value: "count", label: "按次卡" },
             ]}
           />
         </Form.Item>
@@ -609,6 +618,19 @@ function CreateModal({
             style={{ marginBottom: 16 }}
             title="每台设备在每个应用上只能用一张体验卡（解绑、删除卡也不会重置）；体验卡只绑定一台设备，不参与续期叠加。"
           />
+        ) : kind === "count" ? (
+          <Row gutter={12}>
+            <Col span={12}>
+              <Form.Item name="uses" label="可用次数" extra="App 每启动一次扣一次，用完即失效" rules={[{ required: true }]}>
+                <InputNumber min={1} max={100000} style={{ width: "100%" }} />
+              </Form.Item>
+            </Col>
+            <Col span={12}>
+              <Form.Item name="max_devices" label="可绑定设备数" extra="多台设备共用同一份次数">
+                <InputNumber min={1} max={100} style={{ width: "100%" }} />
+              </Form.Item>
+            </Col>
+          </Row>
         ) : (
           <Row gutter={12}>
             <Col span={12}>

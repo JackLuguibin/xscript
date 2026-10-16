@@ -112,6 +112,7 @@ export const CARD_STATUS: Record<CardStatus, [Tone, string]> = {
   unused: ["gray", "未使用"],
   active: ["green", "已激活"],
   expired: ["amber", "已过期"],
+  exhausted: ["amber", "次数用完"],
   unbound: ["blue", "已解绑"],
   revoked: ["red", "已停用"],
 };
