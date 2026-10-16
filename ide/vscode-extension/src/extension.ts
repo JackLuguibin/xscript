@@ -9,6 +9,7 @@ import { DeviceStore, FoundDevice, SavedDevice, httpProbe, lanCandidates, normal
 import { DEFAULT_SYNCIGNORE, SYNCIGNORE_PATH, SyncCache, diffAgainstLocal, fetchProject, loadIgnoreRules, planUpload, writePulled } from "./sync";
 import { TEMPLATES, createProject, validateProjectName } from "./newProject";
 import { Node, XScriptTree } from "./tree";
+import { newUiForm, registerUiDesigner } from "./uiDesigner";
 
 let client: DeviceClient;
 let output: vscode.OutputChannel;
@@ -407,6 +408,8 @@ const commands: Record<string, (...args: any[]) => unknown> = {
     }
   },
 
+  "xscript.newUiForm": (arg?: { root?: string; name?: string }) => newUiForm(arg),
+
   "xscript.status": async () => {
     const s = await guard("status", () => client.status());
     if (!s) return;
@@ -637,6 +640,7 @@ export function activate(context: vscode.ExtensionContext): XScriptApi {
     );
   }
   context.subscriptions.push(vscode.window.createTreeView("xscript.devices", { treeDataProvider: tree, showCollapseAll: false }));
+  registerUiDesigner(context, output);
   registerDebugger(context, output, () => config().get<string>("device", "127.0.0.1:9860"));
   context.subscriptions.push(
     vscode.workspace.onDidChangeConfiguration((e) => {

@@ -35,5 +35,7 @@
   "xscript.config.logPollMs": "跟踪日志时的轮询间隔（毫秒）。",
   "xscript.config.evalTimeoutMs": "「在设备上运行选中代码」的超时（毫秒）。",
   "xscript.config.adbPath": "扫描设备和 ADB 终端用的 adb 路径。留空：先找 ANDROID_HOME 和常见 SDK 目录，再找 PATH。",
-  "xscript.config.scanLan": "扫描设备时同时扫描局域网（私有网段 /24），而不只是 ADB。"
+  "xscript.config.scanLan": "扫描设备时同时扫描局域网（私有网段 /24），而不只是 ADB。",
+  "xscript.command.newUiForm": "新建界面（UI 设计器）",
+  "xscript.uiDesigner.displayName": "XScript UI 设计器"
 }

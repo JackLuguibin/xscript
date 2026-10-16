@@ -92,6 +92,30 @@ async function flows(ext, check, folder) {
     // new project (template), then run twice (second run re-syncs only changes and restarts), stop, pull
     const dir = await vscode.commands.executeCommand("xscript.newProject", { parent: tmp, name, template: "empty", open: false });
     check(dir === path.join(tmp, name) && fs.existsSync(path.join(dir, "build.as")) && fs.existsSync(path.join(dir, "__init__.py")), "newProject creates __init__.py + build.as", dir);
+    // UI designer: New UI Form opens res/ui/<name>.ui.json in the custom editor; saving an edit regenerates html + py
+    {
+      const uiRoot = fs.mkdtempSync(path.join(os.tmpdir(), "xs-host-ui-"));
+      fs.writeFileSync(path.join(uiRoot, "__init__.py"), "");
+      const uri = await vscode.commands.executeCommand("xscript.newUiForm", { root: uiRoot, name: "hostform" });
+      const specFile = path.join(uiRoot, "res", "ui", "hostform.ui.json");
+      check(uri && fs.existsSync(specFile) && fs.existsSync(path.join(uiRoot, "res", "ui", "hostform.html")) && fs.existsSync(path.join(uiRoot, "ui_hostform.py")),
+        "newUiForm creates the spec, res/ui/hostform.html and ui_hostform.py");
+      await sleep(800);
+      const tab = vscode.window.tabGroups.activeTabGroup.activeTab;
+      const input = tab && tab.input;
+      check(input instanceof vscode.TabInputCustom && input.viewType === "xscript.uiDesigner", "the .ui.json opens in the XScript UI designer", tab && tab.label);
+      const doc = await vscode.workspace.openTextDocument(specFile);
+      const spec = JSON.parse(doc.getText());
+      spec.fields.push({ kind: "select", id: "mode", label: "Mode", options: ["fast", "safe"], default: "safe" });
+      const edit = new vscode.WorkspaceEdit();
+      edit.replace(doc.uri, new vscode.Range(0, 0, doc.lineCount, 0), JSON.stringify(spec, null, 2) + "\n");
+      await vscode.workspace.applyEdit(edit);
+      await doc.save();
+      await sleep(500);
+      const py = fs.readFileSync(path.join(uiRoot, "ui_hostform.py"), "utf-8");
+      check(/"mode": "safe"/.test(py) && /data-key="mode"/.test(fs.readFileSync(path.join(uiRoot, "res", "ui", "hostform.html"), "utf-8")), "saving the edited form regenerates the html and Python");
+      await vscode.commands.executeCommand("workbench.action.closeAllEditors");
+    }
     fs.writeFileSync(path.join(dir, "__init__.py"), 'import time\nprint("host-test-start", flush=True)\nfor _ in range(60):\n    time.sleep(0.5)\n');
     fs.writeFileSync(path.join(dir, "notes.skip"), "ignored");
     fs.mkdirSync(path.join(dir, ".vscode"), { recursive: true });
