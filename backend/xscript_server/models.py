@@ -135,10 +135,13 @@ class Card(Base):
     revoked: Mapped[bool] = mapped_column(Boolean, default=False)
     last_verified_at: Mapped[int | None] = mapped_column(Integer, default=None)
     # 体验卡 (trial): one per device and app. Normal cards may stack onto a running one (续期叠加).
-    kind: Mapped[str] = mapped_column(String(8), default="normal")  # normal | trial
+    kind: Mapped[str] = mapped_column(String(8), default="normal")  # normal | trial | count
     # 多设备卡: how many devices may share the card. `device` is the first one bound; the rest are in `extras`.
     max_devices: Mapped[int] = mapped_column(Integer, default=1)
     stack: Mapped[bool] = mapped_column(Boolean, default=True)
+    # 按次卡 (count): each app launch reports one use; the card stops working at 0 uses left.
+    uses_total: Mapped[int] = mapped_column(Integer, default=0)
+    uses_left: Mapped[int] = mapped_column(Integer, default=0)
     extras: Mapped[list["CardDevice"]] = relationship(cascade="all, delete-orphan", lazy="selectin",
                                                        order_by="CardDevice.id")
 

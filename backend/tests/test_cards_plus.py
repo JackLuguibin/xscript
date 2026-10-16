@@ -596,3 +596,54 @@ class HttpTest(unittest.IsolatedAsyncioTestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class CountCardTest(ServiceTest):
+    """按次卡: each launch reports one use; the card stops at zero."""
+
+    def use(self, token):
+        payload = licensing.verify(self.pub, token)
+        with self.db.session() as s:
+            return cardsvc.consume_use(s, payload)
+
+    def test_validation(self):
+        with self.assertRaises(ValueError):
+            self.make(kind="count", uses=0)
+        (code,) = self.make(kind="count", uses=3, stack=True)
+        r = self.row(code)
+        self.assertEqual((r.uses_total, r.uses_left, r.stack), (3, 3, False))
+
+    def test_uses_are_deducted_until_exhausted(self):
+        (code,) = self.make(kind="count", uses=2, days=0)
+        act = self.act(code, "d1")
+        self.assertIsNotNone(act.token)
+        self.assertEqual(self.use(act.token), ("ok", 1))
+        self.assertEqual(self.use(act.token), ("ok", 0))
+        self.assertEqual(self.use(act.token), ("exhausted", 0))
+        self.assertEqual(cardsvc.status_of(self.row(code)), "exhausted")
+        with self.db.session() as s:
+            self.assertEqual(cardsvc.check_token(s, licensing.verify(self.pub, act.token)), "exhausted")
+        again = self.act(code, "d1")
+        self.assertEqual(again.code, "exhausted")
+
+    def test_normal_card_is_not_counted(self):
+        (code,) = self.make()
+        act = self.act(code, "d1")
+        self.assertEqual(self.use(act.token), ("ok", -1))
+        self.assertEqual(self.row(code).uses_left, 0)
+
+    def test_revoked_count_card_does_not_deduct(self):
+        (code,) = self.make(kind="count", uses=5, days=0)
+        act = self.act(code, "d1")
+        with self.db.session() as s:
+            s.get(Card, code).revoked = True
+            s.commit()
+        self.assertEqual(self.use(act.token), ("revoked", 5))
+
+    def test_status_filters(self):
+        (code,) = self.make(kind="count", uses=1, days=0)
+        act = self.act(code, "d1")
+        self.use(act.token)
+        with self.db.session() as s:
+            st = cardsvc.stats(s)
+        self.assertEqual((st["exhausted"], st["active"]), (1, 0))

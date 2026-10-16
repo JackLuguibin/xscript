@@ -14,7 +14,8 @@ from sqlalchemy.orm import Session
 from . import licensing
 from .models import Card, CardDevice, DeviceBan, TrialUse
 
-STATUSES = ("unused", "active", "expired", "unbound", "revoked")
+STATUSES = ("unused", "active", "expired", "exhausted", "unbound", "revoked")
+KINDS = ("normal", "trial", "count")
 
 
 def status_of(c: Card, now: float | None = None) -> str:
@@ -25,6 +26,8 @@ def status_of(c: Card, now: float | None = None) -> str:
         return "unbound" if c.activated_at else "unused"
     if c.expires_at and c.expires_at <= now:
         return "expired"
+    if c.kind == "count" and (c.uses_left or 0) <= 0:
+        return "exhausted"
     return "active"
 
 
@@ -37,8 +40,11 @@ def status_filter(status: str, now: int):
     if status == "unbound":
         return and_(live, Card.device.is_(None), Card.activated_at.is_not(None))
     not_expired = or_(Card.expires_at.is_(None), Card.expires_at == 0, Card.expires_at > now)
+    used_up = and_(Card.kind == "count", Card.uses_left <= 0)
     if status == "active":
-        return and_(live, Card.device.is_not(None), not_expired)
+        return and_(live, Card.device.is_not(None), not_expired, ~used_up)
+    if status == "exhausted":
+        return and_(live, Card.device.is_not(None), not_expired, used_up)
     if status == "expired":
         return and_(live, Card.device.is_not(None), Card.expires_at > 0, Card.expires_at <= now)
     raise ValueError("unknown status " + status)
@@ -62,6 +68,7 @@ def to_dict(c: Card, now: float | None = None) -> dict[str, Any]:
         "activated_at": c.activated_at, "expires_at": c.expires_at, "revoked": c.revoked,
         "last_verified_at": c.last_verified_at, "status": status_of(c, now),
         "kind": c.kind or "normal", "max_devices": c.max_devices or 1, "stack": bool(c.stack),
+        "uses_total": c.uses_total or 0, "uses_left": c.uses_left or 0,
         "devices": [{"device": d, "model": m} for d, m in devices.items()],
     }
 
@@ -76,9 +83,15 @@ def new_batch_id() -> str:
 
 def create_batch(s: Session, count: int, days: float, app: str, note: str = "", prefix: str = "XS",
                  batch: str | None = None, kind: str = "normal", max_devices: int = 1,
-                 stack: bool = True) -> tuple[str, list[str]]:
-    if kind not in ("normal", "trial"):
+                 stack: bool = True, uses: int = 0) -> tuple[str, list[str]]:
+    if kind not in KINDS:
         raise ValueError("未知卡类型")
+    if kind == "count":  # a per-use card is limited by uses, not by stacking validity
+        if not 0 < int(uses) <= 100000:
+            raise ValueError("按次卡次数必须在 1 到 100000 之间")
+        stack = False
+    else:
+        uses = 0
     if kind == "trial":  # a trial is short, single-device and never stacks
         if not 0 < days <= 30:
             raise ValueError("体验卡有效期必须在 0 到 30 天之间")
@@ -91,7 +104,8 @@ def create_batch(s: Session, count: int, days: float, app: str, note: str = "", 
         try:
             with s.begin_nested():
                 s.add(Card(card=code, batch=batch, days=float(days), app=app or "*", note=note, created_at=now,
-                           kind=kind, max_devices=max(1, int(max_devices)), stack=bool(stack)))
+                           kind=kind, max_devices=max(1, int(max_devices)), stack=bool(stack),
+                           uses_total=int(uses), uses_left=int(uses)))
             codes.append(code)
         except IntegrityError:  # astronomically unlikely collision
             continue
@@ -203,6 +217,8 @@ def activate_ex(s: Session, key, card: str, device: str, app: str, model: str = 
         new_device = res.rowcount > 0
     if row.expires_at and row.expires_at <= now:
         return Activation(error="卡密已过期", code="expired", card=row)
+    if row.kind == "count" and (row.uses_left or 0) <= 0:
+        return Activation(error="卡密次数已用完", code="exhausted", card=row)
     payload = {"card": row.card, "device": device, "app": app, "iat": now, "exp": int(row.expires_at or 0)}
     return Activation(token=licensing.sign(key, payload), card=row, new_device=new_device)
 
@@ -256,7 +272,31 @@ def check_token(s: Session, payload: dict[str, Any]) -> str:
         return "revoked"
     if row.expires_at and row.expires_at <= time.time():
         return "expired"
+    if row.kind == "count" and (row.uses_left or 0) <= 0:
+        return "exhausted"
     return "ok"
+
+
+def consume_use(s: Session, payload: dict[str, Any]) -> tuple[str, int]:
+    """One app launch on a 按次卡: deduct a use. Returns (state, uses_left). Commits.
+
+    state is "ok", or the check_token failure ("revoked", "expired", "unknown", "exhausted").
+    Non-count cards are left untouched and report uses_left -1 (unlimited).
+    """
+    state = check_token(s, payload)
+    row = s.get(Card, normalize(str(payload.get("card", ""))))
+    if state != "ok" or row is None:
+        return state, (row.uses_left or 0) if row is not None and row.kind == "count" else -1
+    if row.kind != "count":
+        return "ok", -1
+    # Conditional decrement so concurrent launches can never push the counter below zero.
+    res = s.execute(update(Card).where(Card.card == row.card, Card.uses_left > 0)
+                    .values(uses_left=Card.uses_left - 1))
+    s.commit()
+    s.refresh(row)
+    if res.rowcount == 0:
+        return "exhausted", 0
+    return "ok", int(row.uses_left or 0)
 
 
 def issue_offline(s: Session, key, device: str, days: float, app: str, note: str = "") -> tuple[str, dict[str, Any]]:
