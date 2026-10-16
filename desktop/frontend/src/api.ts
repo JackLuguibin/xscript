@@ -106,6 +106,31 @@ export interface PullResult {
   written: number;
 }
 
+export type DebugStateName = "idle" | "starting" | "running" | "stopped" | "ended";
+export interface DebugFrame {
+  id: number;
+  name: string;
+  line: number;
+  column: number;
+  /** project-relative path, or null for frames outside the project (stdlib, runtime) */
+  path: string | null;
+  file: string;
+}
+export interface DebugState {
+  id: string;
+  project?: string;
+  state: DebugStateName;
+  frames: DebugFrame[];
+  path?: string | null;
+  line?: number | null;
+  reason?: string;
+  error?: string;
+}
+export interface DebugScope { name: string; ref: number; expensive: boolean }
+export interface DebugVar { name: string; value: string; type: string; ref: number }
+export type DebugStep = "continue" | "next" | "stepIn" | "stepOut" | "pause";
+export type Breakpoints = Record<string, number[]>;
+
 /** Typed wrappers over the JSON-RPC methods (names match xscript_desktop/context.py). */
 export function createApi(rpc: RpcClient) {
   return {
@@ -138,6 +163,17 @@ export function createApi(rpc: RpcClient) {
       rpc.call<SyncPlan>("sync.upload", { id, project, dir, full }, { timeoutMs: 600_000 }),
     syncPull: (id: string, project: string, dir: string, dryRun = false) =>
       rpc.call<PullResult>("sync.pull", { id, project, dir, dryRun }, { timeoutMs: 600_000 }),
+    debugStart: (id: string, project: string, breakpoints: Breakpoints) =>
+      rpc.call<DebugState>("debug.start", { id, project, breakpoints }, { timeoutMs: 90_000 }),
+    debugStatus: (id: string) => rpc.call<DebugState>("debug.status", { id }),
+    debugSetBreakpoints: (id: string, path: string, lines: number[]) =>
+      rpc.call<{ breakpoints: Array<{ line: number; verified: boolean; message?: string }> }>("debug.setBreakpoints", { id, path, lines }),
+    debugStep: (id: string, command: DebugStep) => rpc.call<{ ok: boolean }>("debug.step", { id, command }, { timeoutMs: 40_000 }),
+    debugScopes: (id: string, frameId: number) => rpc.call<{ scopes: DebugScope[] }>("debug.scopes", { id, frameId }, { timeoutMs: 40_000 }),
+    debugVariables: (id: string, ref: number) => rpc.call<{ variables: DebugVar[] }>("debug.variables", { id, ref }, { timeoutMs: 40_000 }),
+    debugEvaluate: (id: string, expression: string, frameId?: number) =>
+      rpc.call<{ result: string; type: string; ref: number }>("debug.evaluate", frameId === undefined ? { id, expression } : { id, expression, frameId }, { timeoutMs: 40_000 }),
+    debugStop: (id: string, terminate = true) => rpc.call<{ stopped: boolean }>("debug.stop", { id, terminate }, { timeoutMs: 20_000 }),
     scan: (cidr?: string) => rpc.call<{ found: ScanHit[] }>("device.scan", cidr ? { cidr } : {}, { timeoutMs: 60_000 }),
   };
 }
