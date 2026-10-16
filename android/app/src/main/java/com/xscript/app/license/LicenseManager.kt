@@ -24,6 +24,10 @@ import kotlin.concurrent.thread
  * With a server configured the token is re-verified every 6 hours, so revoked cards stop
  * working; a network error keeps the current license.
  *
+ * 按次卡: every script start posts `<LICENSE_SERVER>/license/use` ([use]); only status "ok" may run. "exhausted" (also seen by
+ * the 6-hour re-verify) is remembered as a block (「次数已用完」) until a new card is activated; offline starts are allowed,
+ * like the re-verify.
+ *
  * This is client-side enforcement: it stops ordinary copying, not a determined attacker
  * who patches the APK.
  */
@@ -44,6 +48,7 @@ object LicenseManager {
     fun check(context: Context): String? {
         if (!required()) return null
         val token = prefs(context).getString("token", null) ?: return "未激活，请输入卡密"
+        prefs(context).getString("blocked", null)?.let { return it }
         val payload = verify(context, token) ?: return "授权无效，请重新激活"
         val exp = payload.optLong("exp", 0L)
         if (exp in 1..now(context)) return "卡密已过期"
@@ -60,6 +65,7 @@ object LicenseManager {
             val card = payload.optString("card")
             out.put("card", mask(card))
             out.put("expires", payload.optLong("exp", 0L))
+            out.put("uses_left", prefs(context).getInt("uses_left", -1))
         }
         out.put("error", check(context) ?: "")
         out.put("device_id", CloudClient.deviceId(context))
@@ -113,6 +119,8 @@ object LicenseManager {
         prefs(context).edit()
             .putString("token", token)
             .putLong("checked", System.currentTimeMillis())
+            .remove("blocked")
+            .remove("uses_left")
             .apply()
         return Result(true, LicenseToken.describeActivation(before, exp))
     }
@@ -145,10 +153,11 @@ object LicenseManager {
         thread(name = "xscript-license") {
             try {
                 val reply = post("$server/license/verify", JSONObject().put("token", token).put("device_id", CloudClient.deviceId(context)))
-                if (reply.optBoolean("revoked") || reply.optString("status") == "revoked") {
-                    p.edit().remove("token").apply()
-                } else {
-                    p.edit().putLong("checked", System.currentTimeMillis()).apply()
+                val o = LicenseUse.decide(reply)
+                when {
+                    o.dropToken -> p.edit().remove("token").apply()
+                    !o.allow -> p.edit().putString("blocked", o.block).putLong("checked", System.currentTimeMillis()).apply()
+                    else -> p.edit().putLong("checked", System.currentTimeMillis()).apply()
                 }
             } catch (_: Throwable) {
                 // Offline: keep the license; try again next time.
@@ -157,6 +166,33 @@ object LicenseManager {
             }
         }
     }
+
+    /**
+     * Deduct one use for a script start (按次卡). Blocking network call: run it off the UI thread.
+     * Returns null when the run may start, otherwise the user-facing reason. Unpackaged apps, apps without a server and
+     * network failures all return null (the 6-hour re-verify and [check] still apply).
+     */
+    fun use(context: Context): String? {
+        if (!required()) return null
+        val server = BuildConfig.LICENSE_SERVER.trimEnd('/')
+        val p = prefs(context)
+        val token = p.getString("token", null) ?: return null // check() already refuses this
+        if (server.isEmpty()) return null
+        val o = try {
+            LicenseUse.decide(post("$server/license/use", JSONObject().put("token", token).put("device_id", CloudClient.deviceId(context))))
+        } catch (_: Throwable) {
+            LicenseUse.OFFLINE
+        }
+        when {
+            o.dropToken -> p.edit().remove("token").remove("uses_left").apply()
+            !o.allow -> p.edit().putString("blocked", o.block).putInt("uses_left", 0).apply()
+            !o.offline -> p.edit().putInt("uses_left", o.usesLeft).apply()
+        }
+        return if (o.allow) null else o.block
+    }
+
+    /** Remaining uses recorded by the last [use] (-1: unlimited card or not known yet). */
+    fun usesLeft(context: Context): Int = prefs(context).getInt("uses_left", -1)
 
     private fun post(url: String, body: JSONObject): JSONObject {
         val conn = URL(url).openConnection() as HttpURLConnection

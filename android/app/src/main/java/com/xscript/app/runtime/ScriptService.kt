@@ -162,7 +162,23 @@ class ScriptService : Service() {
                 putExtra(EXTRA_PARAMS, launchParams)
                 putExtra(EXTRA_DEBUG, debug)
             }
-            context.startService(intent)
+            if (!com.xscript.app.license.LicenseManager.required()) {
+                context.startService(intent)
+                return null
+            }
+            // 按次卡: deduct one use per start. The network call runs off the caller's (often UI) thread; a refusal is logged
+            // and remembered by LicenseManager, so the pack UI shows 「次数已用完」 on its next refresh.
+            val app = context.applicationContext
+            kotlin.concurrent.thread(name = "xscript-license-use") {
+                val refused = com.xscript.app.license.LicenseManager.use(app)
+                if (refused != null) {
+                    LogBuffer.append(app, "stderr", "xscript: $name not started: $refused\n")
+                    return@thread
+                }
+                val left = com.xscript.app.license.LicenseManager.usesLeft(app)
+                if (left >= 0) LogBuffer.append(app, "stdout", "xscript: 卡密剩余 $left 次\n")
+                app.startService(intent)
+            }
             return null
         }
 

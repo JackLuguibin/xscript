@@ -189,7 +189,8 @@ class PackActivity : AppCompatActivity() {
             if (st.optBoolean("activated") && gate == null) {
                 val exp = st.optLong("expires")
                 val until = if (exp == 0L) "永久" else java.text.SimpleDateFormat("yyyy-MM-dd HH:mm", java.util.Locale.CHINA).format(java.util.Date(exp * 1000))
-                rowLicense.value("有效至 $until", UiKit.GREEN)
+                val left = LicenseManager.usesLeft(this)
+                rowLicense.value("有效至 $until" + if (left >= 0) "，剩余 $left 次" else "", UiKit.GREEN)
             } else {
                 rowLicense.value(gate ?: "未激活", UiKit.RED)
             }
@@ -222,7 +223,7 @@ class PackActivity : AppCompatActivity() {
             return
         }
         val gate = ScriptService.run(this, PackInstaller.project)
-        Toast.makeText(this, gate ?: "已启动", Toast.LENGTH_SHORT).show()
+        Toast.makeText(this, gate ?: if (LicenseManager.required()) "正在启动…" else "已启动", Toast.LENGTH_SHORT).show()
     }
 
     /** After a check (or on resume): forced update first, then unseen 公告, then an optional update. */
