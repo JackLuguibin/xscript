@@ -95,7 +95,7 @@ class GPCompatTest(unittest.TestCase):
             with self.subTest(jobs=jobs), self.assertRaises(error):
                 gp.GPStack.run_json(jobs, self.image)
 
-    def test_archive_requires_unambiguous_declarative_data(self):
+    def test_archive_rejects_ambiguous_data_or_package_without_entry(self):
         with tempfile.TemporaryDirectory() as directory:
             packed = Path(directory) / "bad.gp"
             for members in ({"__init__.py": "pass"}, {"a/data.gp": "[]", "b/data.gp": "[]"}):
