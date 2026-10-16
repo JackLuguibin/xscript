@@ -25,6 +25,16 @@ class MockDeviceTest(unittest.TestCase):
         cls.httpd.shutdown()
         cls.httpd.server_close()
 
+    def test_settings_partial_update(self):
+        before = self.client.get_settings()
+        out = self.client.update_settings({"keep_screen_on": not before["keep_screen_on"]})
+        self.assertEqual(out["keep_screen_on"], not before["keep_screen_on"])
+        self.assertEqual(out["run_mode"], before["run_mode"])
+        with self.assertRaises(DeviceError) as e:
+            self.client.update_settings({"run_mode": "bogus"})
+        self.assertEqual(e.exception.status_code, 400)
+        self.client.update_settings({"keep_screen_on": before["keep_screen_on"]})
+
     def test_list_and_import_ascript_project(self):
         self.assertIn("ascript_demo", self.client.list_ascript_projects())
         self.assertTrue(self.client.import_ascript_project("ascript_demo")["ok"])

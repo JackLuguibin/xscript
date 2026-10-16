@@ -133,6 +133,16 @@ class DeviceClient:
     def list_projects(self) -> list[str]:
         return list(self._get("/projects").get("projects") or [])
 
+    def get_settings(self) -> dict[str, Any]:
+        return self._get("/settings")
+
+    def update_settings(self, changes: dict[str, Any]) -> dict[str, Any]:
+        """Partial update of the runtime settings; returns the full settings afterwards."""
+        with self._client() as client:
+            r = client.put(self._url("/settings"), json=changes)
+            _check(r)
+            return r.json()
+
     def list_ascript_projects(self) -> list[str]:
         """AScript projects found on the phone (/sdcard/airscript/model)."""
         return list(self._get("/ascript/projects").get("projects") or [])

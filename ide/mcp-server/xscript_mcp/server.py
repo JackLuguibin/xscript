@@ -66,6 +66,29 @@ def list_projects() -> str:
 
 
 @mcp.tool()
+def get_device_settings() -> str:
+    """Runtime settings: run_mode (auto/accessibility/root), float_on_run, float_always, keep_screen_on, cloud_url."""
+    return _json(_client.get_settings())
+
+
+@mcp.tool()
+def update_device_settings(run_mode: str | None = None, float_on_run: bool | None = None,
+                           float_always: bool | None = None, keep_screen_on: bool | None = None) -> str:
+    """Change device runtime settings; only the arguments you pass are changed. cloud_url is read-only.
+
+    run_mode: "auto", "accessibility" or "root". float_on_run shows the floating window while a script runs;
+    float_always also shows it when idle; keep_screen_on stops the screen sleeping.
+    """
+    if run_mode is not None and run_mode not in ("auto", "accessibility", "root"):
+        return _json({"ok": False, "error": "run_mode must be auto, accessibility or root"})
+    changes = {k: v for k, v in {"run_mode": run_mode, "float_on_run": float_on_run, "float_always": float_always,
+                                 "keep_screen_on": keep_screen_on}.items() if v is not None}
+    if not changes:
+        return _json({"ok": False, "error": "nothing to change"})
+    return _json(_client.update_settings(changes))
+
+
+@mcp.tool()
 def list_ascript_projects() -> str:
     """AScript projects already on the phone (/sdcard/airscript/model) that can be imported."""
     return _json({"projects": _client.list_ascript_projects()})
