@@ -1,4 +1,4 @@
-"""ascript.android.media: volume, vibrate, TTS. Audio playback/recording is not supported."""
+"""ascript.android.media: volume, vibrate, TTS, e-mail drafts. Audio recording is not supported."""
 
 from ascript._compat import warn_once
 from xscript.android import system as _xs
@@ -56,8 +56,23 @@ def recode(path, time=None):
     warn_once("recode", "media.recode is not supported by XScript")
 
 
-def send_email(to=None, subject=None, body=None):
-    warn_once("email", "media.send_email is not supported by XScript")
+def send_email(to=None, subject=None, body=None, cc=None):
+    """Open the mail app with a pre-filled draft (the user taps send). `to`/`cc`: "a@x.com, b@y.com" or a list.
+
+    Returns True when a mail app (or the chooser) was opened; raises ValueError on an invalid address.
+    """
+    def _addrs(v):
+        if v is None:
+            return []
+        items = v if isinstance(v, (list, tuple, set)) else str(v).replace(";", ",").split(",")
+        out = [str(x).strip() for x in items if str(x).strip()]
+        for a in out:
+            if "@" not in a or any(c in a for c in " <>"):
+                raise ValueError("invalid email address: %s" % a)
+        return out
+
+    arg = {"to": _addrs(to), "cc": _addrs(cc), "subject": "" if subject is None else str(subject), "body": "" if body is None else str(body)}
+    return bridge.system("send_email", arg) == "true"
 
 
 def image_to_gallery(file_path):
