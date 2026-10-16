@@ -164,18 +164,32 @@ def catch_click(msg=None, shine=True):
     ...
 
 class Ime:
-    """XScript has no custom IME; input goes through accessibility SET_TEXT or root."""
+    """AScript action.Ime on XScript 输入法 (xscript.android.ime). When it is not the active IME, input falls back to
+    accessibility SET_TEXT / root, keys to key events, as before."""
 
     @staticmethod
     def is_active():
         ...
 
     @staticmethod
+    def switch():
+        ...
+
+    @staticmethod
+    def restore():
+        ...
+
+    @staticmethod
     def input(info):
+        """Insert text at the cursor (IME), or set the field's text through accessibility."""
         ...
 
     @staticmethod
     def input_clear():
+        ...
+
+    @staticmethod
+    def delete(count=1):
         ...
 
     @staticmethod
