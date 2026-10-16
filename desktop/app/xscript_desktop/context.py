@@ -16,6 +16,7 @@ from .services.adb import AdbError, AdbService
 from .services.device_client import DeviceError
 from .services.device_manager import DeviceManager, lan_hosts
 from .services import sync as syncmod
+from .services.debugger import DebugError, DebugSession
 
 ACTION_TYPES = ("click", "swipe", "input", "key")
 MAX_FILE_CHARS = 2 * 1024 * 1024  # stays under the bridge's 4 MiB request cap even after JSON escaping
@@ -34,6 +35,8 @@ def _map_errors(fn: Callable[..., Awaitable[Any]]) -> Callable[..., Awaitable[An
     async def wrapper(params: dict[str, Any]) -> Any:
         try:
             return await fn(params)
+        except DebugError as e:
+            raise RpcError(e.code, e.message) from e
         except syncmod.SyncError as e:
             raise RpcError(e.code, e.message) from e
         except AdbError as e:
@@ -54,6 +57,8 @@ class AppContext:
         self.dispatcher = Dispatcher()
         self.sync_cache = syncmod.SyncCache(data_dir / "sync-cache.json" if data_dir else None)
         # set by the Qt shell (main.py): shows a native folder dialog on the GUI thread; None in headless/tests
+        self.debug_sessions: dict[str, DebugSession] = {}
+        self.debug_options: dict[str, Any] = {}  # tests shorten the poll intervals
         self.pick_directory: Callable[[str], Awaitable[str | None]] | None = None
         self.adb = adb or AdbService()
         self.devices = DeviceManager(self.adb, emit=self.dispatcher.emit, poll_interval=poll_interval)
@@ -106,7 +111,19 @@ class AppContext:
         rec = await self.devices.refresh(device_id)
         self.dispatcher.emit("device.state", rec.to_dict())
 
+    def _debug(self, params: dict[str, Any]) -> DebugSession:
+        sess = self.debug_sessions.get(param(params, "id", str))
+        if sess is None or sess.state == "ended":
+            raise RpcError("debug.no_session", "no active debug session on this device")
+        return sess
+
     async def shutdown(self) -> None:
+        for sess in list(self.debug_sessions.values()):
+            try:
+                await sess.stop(terminate=False, quiet=True)
+            except Exception:  # pragma: no cover - best effort at exit
+                pass
+        self.debug_sessions.clear()
         await self.devices.shutdown()
 
     # ---- RPC methods ---------------------------------------------------------------------------------------------------------------------------
@@ -306,3 +323,82 @@ class AppContext:
             # what we just wrote equals the device: remember it so the next incremental upload skips it
             self.sync_cache.put(self._sync_key(params), {rel: hashlib.sha1(data).hexdigest() for rel, data in pulled})
             return dict(diff, written=written)
+
+        # ---- breakpoint debugging (/debug/*; port of ide/vscode-extension/src/dap.ts) --------------------------------------------
+
+        def _bp_map(raw: Any) -> dict[str, list[int]]:
+            if raw is None:
+                return {}
+            if not isinstance(raw, dict):
+                raise RpcError("rpc.bad_params", "breakpoints must be {path: [lines]}")
+            out: dict[str, list[int]] = {}
+            for rel, lines in raw.items():
+                _rel_path({"path": rel})
+                if not isinstance(lines, list) or not all(isinstance(n, int) and not isinstance(n, bool) and n > 0 for n in lines):
+                    raise RpcError("rpc.bad_params", "breakpoint lines must be positive integers")
+                out[rel] = lines
+            return out
+
+        @d.method("debug.start")
+        @_map_errors
+        async def debug_start(params: dict[str, Any]) -> dict[str, Any]:
+            dev_id = param(params, "id", str)
+            old = self.debug_sessions.get(dev_id)
+            if old is not None and old.state != "ended":
+                raise RpcError("debug.already", "a debug session is already active on this device")
+            bps = _bp_map(params.get("breakpoints"))
+            sess = DebugSession(dev_id, self._client(params), param(params, "project", str), self.dispatcher.emit, **self.debug_options)
+            self.debug_sessions[dev_id] = sess
+            out = await sess.start(bps)
+            await self._push_state(dev_id)
+            return out
+
+        @d.method("debug.status")
+        def debug_status(params: dict[str, Any]) -> dict[str, Any]:
+            sess = self.debug_sessions.get(param(params, "id", str))
+            return sess.snapshot() if sess else {"id": params["id"], "state": "idle", "frames": []}
+
+        @d.method("debug.setBreakpoints")
+        @_map_errors
+        async def debug_set_breakpoints(params: dict[str, Any]) -> dict[str, Any]:
+            rel = _rel_path(params)
+            lines = _bp_map({rel: params.get("lines") or []})[rel]
+            return {"breakpoints": await self._debug(params).set_breakpoints(rel, lines)}
+
+        @d.method("debug.step")
+        @_map_errors
+        async def debug_step(params: dict[str, Any]) -> dict[str, Any]:
+            await self._debug(params).step(param(params, "command", str))
+            return {"ok": True}
+
+        @d.method("debug.scopes")
+        @_map_errors
+        async def debug_scopes(params: dict[str, Any]) -> dict[str, Any]:
+            return {"scopes": await self._debug(params).scopes(param(params, "frameId", int))}
+
+        @d.method("debug.variables")
+        @_map_errors
+        async def debug_variables(params: dict[str, Any]) -> dict[str, Any]:
+            ref = param(params, "ref", int)
+            if ref <= 0:
+                raise RpcError("rpc.bad_params", "ref must be > 0")
+            return {"variables": await self._debug(params).variables(ref)}
+
+        @d.method("debug.evaluate")
+        @_map_errors
+        async def debug_evaluate(params: dict[str, Any]) -> dict[str, Any]:
+            return await self._debug(params).evaluate(param(params, "expression", str), param(params, "frameId", int, default=None))
+
+        @d.method("debug.stop")
+        @_map_errors
+        async def debug_stop(params: dict[str, Any]) -> dict[str, Any]:
+            dev_id = param(params, "id", str)
+            sess = self.debug_sessions.get(dev_id)
+            if sess is None:
+                return {"stopped": False}
+            await sess.stop(terminate=param(params, "terminate", bool, default=True))
+            try:
+                await self._push_state(dev_id)
+            except Exception:
+                pass
+            return {"stopped": True}
