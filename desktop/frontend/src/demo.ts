@@ -82,6 +82,10 @@ export function createDemoTransport(): MemoryTransport {
         return { entries, next: logs.length ? logs[logs.length - 1].seq : since };
       },
       "device.action": () => ({ ok: true }),
+      "app.pickDirectory": () => ({ path: "/demo/projects/demo" }),
+      "sync.preview": () => ({ upload: ["__init__.py"], skipped: [], bytes: 24 }),
+      "sync.upload": () => ({ upload: ["__init__.py"], skipped: [], bytes: 24, uploaded: 1 }),
+      "sync.pull": () => ({ added: [], changed: ["__init__.py"], unchanged: [], written: 1 }),
     },
     30,
   );

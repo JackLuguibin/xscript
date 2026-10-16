@@ -163,6 +163,21 @@ class DeviceClient:
             body["create"] = True
         return await self._json("PUT", "/projects/%s/files" % self._p(project), json=body)
 
+    async def upload_files(self, project: str, files: list[dict[str, Any]]) -> dict[str, Any]:
+        return await self._json("PUT", "/projects/%s/files" % self._p(project), json={"files": files}, timeout=max(self.timeout, 120))
+
+    async def read_raw(self, project: str, path: str) -> bytes:
+        r = await self._request("GET", "/projects/%s/file" % self._p(project), params={"path": path, "raw": "1"}, timeout=max(self.timeout, 60))
+        return r.content
+
+    async def files_or_none(self, project: str) -> list[dict[str, Any]] | None:
+        """The project's file list, or None when the project does not exist yet (404)."""
+        r = await self._request("GET", "/projects/%s/files" % self._p(project), ok_status=(404,))
+        if r.status_code == 404:
+            return None
+        data = r.json()
+        return data.get("files") or [] if isinstance(data, dict) else []
+
     async def create_project(self, project: str) -> dict[str, Any]:
         return await self._json("POST", "/projects/%s" % self._p(project))
 

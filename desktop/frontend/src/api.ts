@@ -92,6 +92,20 @@ export interface RunResult {
   error?: string;
 }
 
+export interface SyncPlan {
+  upload: string[];
+  skipped: string[];
+  bytes: number;
+  uploaded?: number;
+}
+
+export interface PullResult {
+  added: string[];
+  changed: string[];
+  unchanged: string[];
+  written: number;
+}
+
 /** Typed wrappers over the JSON-RPC methods (names match xscript_desktop/context.py). */
 export function createApi(rpc: RpcClient) {
   return {
@@ -114,6 +128,13 @@ export function createApi(rpc: RpcClient) {
     stop: (id: string, project: string) => rpc.call<RunResult>("project.stop", { id, project }),
     logs: (id: string, since: number) => rpc.call<{ entries: LogEntry[]; next: number }>("device.logs", { id, since }),
     key: (id: string, name: string) => rpc.call<{ ok: boolean }>("device.action", { id, type: "key", name }),
+    pickDirectory: (title: string) => rpc.call<{ path: string | null }>("app.pickDirectory", { title }, { timeoutMs: 600_000 }),
+    syncPreview: (id: string, project: string, dir: string, full = false) =>
+      rpc.call<SyncPlan>("sync.preview", { id, project, dir, full }, { timeoutMs: 120_000 }),
+    syncUpload: (id: string, project: string, dir: string, full = false) =>
+      rpc.call<SyncPlan>("sync.upload", { id, project, dir, full }, { timeoutMs: 600_000 }),
+    syncPull: (id: string, project: string, dir: string, dryRun = false) =>
+      rpc.call<PullResult>("sync.pull", { id, project, dir, dryRun }, { timeoutMs: 600_000 }),
     scan: (cidr?: string) => rpc.call<{ found: ScanHit[] }>("device.scan", cidr ? { cidr } : {}, { timeoutMs: 60_000 }),
   };
 }

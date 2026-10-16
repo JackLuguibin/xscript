@@ -5,6 +5,7 @@ import { RpcError } from "../bridge/types";
 import { t } from "../strings";
 import { Badge } from "./Badge";
 import { CodeEditor } from "./CodeEditor";
+import { SyncPanel } from "./SyncPanel";
 import { EmptyState } from "./EmptyState";
 import { IconAlert, IconFolder, IconPhone, IconRefresh, Spinner } from "./icons";
 
@@ -268,6 +269,12 @@ export function ProjectsPage({ pollMs = LOG_POLL_MS }: { pollMs?: number }) {
                   </li>
                 ))}
               </ul>
+              <SyncPanel
+                devId={devId}
+                project={project}
+                onError={(e) => setError(errText(e))}
+                onSynced={() => void api.files(devId, project).then(setFiles).catch(() => undefined)}
+              />
             </>
           )}
         </section>
