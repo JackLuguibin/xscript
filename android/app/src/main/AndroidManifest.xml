@@ -149,6 +149,17 @@
             android:foregroundServiceType="dataSync|mediaProjection" />
 
         <service
+            android:name=".ime.XscriptIme"
+            android:exported="true"
+            android:label="XScript 输入法"
+            android:permission="android.permission.BIND_INPUT_METHOD">
+            <intent-filter>
+                <action android:name="android.view.InputMethod" />
+            </intent-filter>
+            <meta-data android:name="android.view.im" android:resource="@xml/xscript_ime" />
+        </service>
+
+        <service
             android:name=".runtime.AutomationService"
             android:exported="false" />
 
