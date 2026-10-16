@@ -54,10 +54,13 @@ async def test_write_rejects_bad_encoding_and_huge(ctx_dev):
 
 async def test_run_logs_stop(ctx_dev):
     ctx, dev = ctx_dev
+    events: list = []
+    ctx.dispatcher.set_event_sink(lambda t, d: events.append((t, d)))
     await rpc(ctx, "project.create", id=dev, project="runme")
     run = await rpc(ctx, "project.run", id=dev, project="runme")
     assert run["ok"] and run["result"]["running"] is True
     assert ctx.devices.get(dev).status.get("running")
+    assert any(t == "device.state" and d["status"].get("running") for t, d in events)
     again = await rpc(ctx, "project.run", id=dev, project="runme")  # 409 is passed through, not an error
     assert again["ok"] and again["result"].get("error") == "already running"
     logs = (await rpc(ctx, "device.logs", id=dev, since=0))["result"]
