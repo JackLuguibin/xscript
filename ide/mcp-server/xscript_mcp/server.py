@@ -10,11 +10,13 @@ except ImportError:  # mcp 1.x
     from mcp.server.fastmcp import FastMCP as _Server, Image
 
 from xscript_mcp.client import DEFAULT_PORT, DeviceClient, DeviceTarget
+from xscript_mcp.debug import DebugError, DebugSession
 
 EVAL_DEADLINE_MS = 8000
 
 mcp = _Server("xscript")
 _client = DeviceClient(DeviceTarget.parse(os.environ.get("XSCRIPT_DEVICE", "127.0.0.1:%d" % DEFAULT_PORT)))
+_debug = DebugSession(_client)
 
 
 def _catalog() -> dict:
@@ -373,3 +375,58 @@ def main() -> None:
 
 if __name__ == "__main__":
     main()
+
+
+# ---------------------------------------------------------------- breakpoint debugging
+
+def _dbg(fn, *a, **kw) -> str:
+    try:
+        return _json(fn(*a, **kw))
+    except DebugError as e:
+        return _json({"ok": False, "error": str(e), "state": _debug.state})
+
+
+@mcp.tool()
+def debug_start(project_name: str, breakpoints: dict[str, list[int]] | None = None, wait_seconds: float = 30) -> str:
+    """Run a saved device project under the debugger and wait until it stops at a breakpoint or ends.
+
+    breakpoints maps project-relative files to 1-based lines, e.g. {"__init__.py": [12, 30]}. Upload the
+    project first. Returns state (stopped/running/terminated) plus, when stopped, file, line, stack and locals.
+    Always finish with debug_stop.
+    """
+    if _debug.client is not _client:
+        _debug.client = _client
+    return _dbg(_debug.start, project_name, breakpoints or {}, wait_seconds=wait_seconds)
+
+
+@mcp.tool()
+def debug_step(action: str = "continue", wait_seconds: float = 30) -> str:
+    """Resume a stopped program: continue, next (step over), step_in, step_out, or pause a running one.
+
+    Waits up to wait_seconds for the next stop and returns the same snapshot as debug_start.
+    """
+    return _dbg(_debug.step, action, wait_seconds)
+
+
+@mcp.tool()
+def debug_set_breakpoints(file: str, lines: list[int]) -> str:
+    """Replace the breakpoints of one project file (an empty list clears them) during a session."""
+    return _dbg(lambda: {"breakpoints": _debug.set_breakpoints(file, lines)})
+
+
+@mcp.tool()
+def debug_evaluate(expression: str, frame_id: int | None = None) -> str:
+    """Evaluate a Python expression in a stopped frame (top frame by default). Keep it side-effect free."""
+    return _dbg(_debug.evaluate, expression, frame_id)
+
+
+@mcp.tool()
+def debug_status(wait_seconds: float = 0) -> str:
+    """Current debug state and snapshot; wait_seconds > 0 waits for a running program to stop."""
+    return _dbg(_debug.wait, wait_seconds)
+
+
+@mcp.tool()
+def debug_stop(terminate: bool = True) -> str:
+    """End the debug session. terminate=False only detaches and leaves the script running."""
+    return _dbg(_debug.stop, terminate)
