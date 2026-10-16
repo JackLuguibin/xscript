@@ -83,3 +83,22 @@ async def test_action_validation_and_forwarding(ctx_dev):
 async def test_unknown_device(ctx_dev):
     ctx, _ = ctx_dev
     assert (await rpc(ctx, "project.list", id="adb:nope"))["error"]["code"] == "device.not_found"
+
+
+async def test_delete_and_move_files(ctx_dev):
+    ctx, dev = ctx_dev
+    await rpc(ctx, "project.create", id=dev, project="mv")
+    await rpc(ctx, "project.write", id=dev, project="mv", path="a.py", content="A\n")
+    m = await rpc(ctx, "project.move", id=dev, project="mv", **{"from": "a.py", "to": "pkg/b.py"})
+    assert m["ok"], m
+    paths = {f["path"] for f in (await rpc(ctx, "project.files", id=dev, project="mv"))["result"]["files"]}
+    assert "pkg/b.py" in paths and "a.py" not in paths
+    assert (await rpc(ctx, "project.move", id=dev, project="mv", **{"from": "x.py", "to": "x.py"}))["error"]["code"] == "rpc.bad_params"
+    assert (await rpc(ctx, "project.move", id=dev, project="mv", **{"from": "../x", "to": "y"}))["error"]["code"] == "rpc.bad_params"
+    d = await rpc(ctx, "project.deleteFile", id=dev, project="mv", path="pkg/b.py")
+    assert d["ok"], d
+    paths = {f["path"] for f in (await rpc(ctx, "project.files", id=dev, project="mv"))["result"]["files"]}
+    assert "pkg/b.py" not in paths
+    # the device refuses deleting the entry point: surfaced as an HTTP error with its message
+    e = await rpc(ctx, "project.deleteFile", id=dev, project="mv", path="__init__.py")
+    assert not e["ok"] and e["error"]["code"] == "device.http"

@@ -29,7 +29,7 @@ describe("ProjectsPage", () => {
   it("lists projects, opens a file, edits and saves it", async () => {
     const { api } = await setup();
     fireEvent.click(await screen.findByRole("button", { name: /^demo/ }));
-    fireEvent.click(await screen.findByRole("button", { name: /__init__\.py/ }));
+    fireEvent.click(await screen.findByRole("button", { name: /^__init__\.py/ }));
     const editor = (await screen.findByRole("textbox", { name: "编辑器" }, { timeout: 3000 })) as HTMLTextAreaElement;
     expect(editor.value).toContain("hello from demo");
     fireEvent.change(editor, { target: { value: "print(1)\n" } });
@@ -52,7 +52,7 @@ describe("ProjectsPage", () => {
   it("runs, streams new log lines, reports a second run as already running", async () => {
     const { transport } = await setup();
     fireEvent.click(await screen.findByRole("button", { name: /^demo/ }));
-    await screen.findByRole("button", { name: /__init__\.py/ });
+    await screen.findByRole("button", { name: /^__init__\.py/ });
     await waitFor(() => expect(transport.sent.some((m) => m.method === "device.logs")).toBe(true));
     fireEvent.click(screen.getByRole("button", { name: "保存并运行" }));
     await screen.findByText(/\[demo\] running demo/);

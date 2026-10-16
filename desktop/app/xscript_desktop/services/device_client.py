@@ -178,6 +178,12 @@ class DeviceClient:
         data = r.json()
         return data.get("files") or [] if isinstance(data, dict) else []
 
+    async def delete_file(self, project: str, path: str) -> dict[str, Any]:
+        return await self._json("DELETE", "/projects/%s/file" % self._p(project), params={"path": path})
+
+    async def move(self, project: str, src: str, dst: str) -> dict[str, Any]:
+        return await self._json("POST", "/projects/%s/move" % self._p(project), json={"from": src, "to": dst})
+
     async def create_project(self, project: str) -> dict[str, Any]:
         return await self._json("POST", "/projects/%s" % self._p(project))
 

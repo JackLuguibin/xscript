@@ -1,5 +1,6 @@
-// zh-CN UI strings (P0). react-i18next with zh-CN/en arrives with P1 (design §4.1).
-export const t = {
+// UI strings: zh-CN (default) and en. `t` is a live binding: setLanguage() swaps the dictionary and the shell re-renders
+// (src/i18n.ts). Every key must exist in both: `en` is typed as `Strings` so a missing one fails tsc.
+const zh = {
   appTitle: "XScript 桌面端",
   brand: "XScript",
   skip: "跳到主要内容",
@@ -49,6 +50,18 @@ export const t = {
   retry: "重试",
   adbMissing: "找不到 adb。请安装 Android platform-tools，或设置环境变量 XSCRIPT_ADB / ANDROID_HOME。",
   lastSeen: "最后在线",
+  lang: { label: "语言", zh: "中文", en: "English", switchTo: "切换语言" },
+  addressConnect: "连接地址",
+  confirmDiscard: "未保存，确定放弃修改？",
+  files: {
+    newFile: "新建文件",
+    newFilePrompt: "新文件路径（例如 utils/net.py）",
+    rename: "重命名",
+    renamePrompt: "新路径",
+    del: "删除",
+    confirmDelete: (p: string) => `确定从设备上删除 ${p}？此操作不能撤销。`,
+    entryProtected: "入口 __init__.py 不能删除或改名",
+  },
   projects: {
     subtitle: "浏览、编辑并运行设备上的工程",
     device: "设备",
@@ -110,3 +123,146 @@ export const t = {
     hint: "规则同 VS Code 插件：遵循 .vscode/.syncignore；跳过点文件、__pycache__、*.pyc 与虚拟环境。",
   },
 };
+
+export type Strings = typeof zh;
+
+const en: Strings = {
+  appTitle: "XScript Desktop",
+  brand: "XScript",
+  skip: "Skip to main content",
+  nav: { devices: "Devices", mirror: "Screen", projects: "Projects", flows: "Flows", soon: "Coming soon", p1: "P1", p2: "P2" },
+  theme: { label: "Theme", system: "System", light: "Light", dark: "Dark", switchTo: "switch theme" },
+  subtitle: "Connect to and inspect your Android devices",
+  demoBanner: "Demo mode: the page is not running inside the XScript shell; the data is fake.",
+  devices: "Devices",
+  adbDevices: "ADB devices",
+  refresh: "Refresh",
+  connect: "Connect",
+  disconnect: "Disconnect",
+  connected: "Connected devices",
+  none: "None",
+  emptyDevicesTitle: "No device connected yet",
+  emptyDevicesDesc: "Pick an ADB device below or enter a LAN address. On first use, open the XScript app on the phone.",
+  adbLoading: "Querying ADB devices…",
+  adbUnauthorized: "Allow USB debugging for this computer on the phone",
+  adbOffline: "adb reports the device as unresponsive: replug it or restart adb (adb kill-server)",
+  adbEmptyTitle: "No USB devices found",
+  adbMissingTitle: "adb not found",
+  adbErrorTitle: "Failed to query ADB devices",
+  connecting: "Connecting…",
+  lanHint: "LAN devices have no authentication; use them on trusted networks only.",
+  shotIdle: "Use the button below to take a screenshot",
+  shotLoading: "Taking screenshot…",
+  forwardLabel: "Local port",
+  noAdbDevices: "No ADB devices. Connect over USB with USB debugging on, or start an emulator.",
+  lanTitle: "LAN / manual address",
+  lanPlaceholder: "e.g. 192.168.1.20:9860 or localhost:19860",
+  lanWarning: "Direct LAN connection: the device API has no authentication. Trusted networks only; prefer ADB.",
+  scan: "Scan this machine's /24 network",
+  scanning: "Scanning…",
+  scanNone: "No devices found",
+  state: { connecting: "Connecting", online: "Online", offline: "Offline" } as Record<string, string>,
+  info: {
+    model: "Model", android: "Android", sdk: "API", screen: "Screen", density: "Density", version: "XScript version", ip: "Device IP",
+    deviceId: "Device ID", running: "Script running", accessibility: "Accessibility", root: "Root", capture: "Screen capture", channel: "Control channel", cloud: "Cloud",
+    yes: "Yes", no: "No",
+  },
+  screenshot: "Screenshot",
+  takeShot: "Refresh screenshot",
+  shotFailed: "Screenshot failed",
+  captureHint: "The device has not granted screen capture yet, so screenshots fail: grant it in the device app.",
+  forward: "adb forward local port",
+  errorPrefix: "Error",
+  retry: "Retry",
+  adbMissing: "adb not found. Install Android platform-tools or set XSCRIPT_ADB / ANDROID_HOME.",
+  lastSeen: "Last seen",
+  lang: { label: "Language", zh: "中文", en: "English", switchTo: "switch language" },
+  addressConnect: "Connect address",
+  confirmDiscard: "Unsaved changes. Discard them?",
+  files: {
+    newFile: "New file",
+    newFilePrompt: "New file path (e.g. utils/net.py)",
+    rename: "Rename",
+    renamePrompt: "New path",
+    del: "Delete",
+    confirmDelete: (p: string) => `Delete ${p} from the device? This cannot be undone.`,
+    entryProtected: "The entry point __init__.py cannot be deleted or renamed",
+  },
+  projects: {
+    subtitle: "Browse, edit and run the projects on a device",
+    device: "Device",
+    noDevice: "No online device",
+    noDeviceDesc: "Connect a device on the Devices page first.",
+    list: "Projects",
+    empty: "No projects on the device yet",
+    newName: "New project name",
+    create: "Create",
+    files: "Files",
+    pickProject: "Pick a project on the left",
+    pickFile: "Pick a file to view or edit",
+    binary: "Binary file: it cannot be edited here",
+    save: "Save",
+    saved: "Saved",
+    unsaved: "Unsaved",
+    run: "Save & run",
+    stop: "Stop",
+    running: "Running",
+    alreadyRunning: "A project is already running on the device",
+    logs: "Run log",
+    clear: "Clear",
+    noLogs: "No log yet",
+    keys: "Keys",
+    home: "Home",
+    back: "Back",
+    recents: "Recents",
+    editor: "Editor",
+  },
+  mirror: {
+    subtitle: "Watch the device screen live; click or drag to control it",
+    start: "Start",
+    pause: "Pause",
+    fps: "FPS",
+    frame: "Device screen",
+    waiting: "Waiting for the first frame…",
+    failed: "No screenshot: the device has not granted screen capture, or it is gone.",
+    paused: "Paused",
+    text: "Send text",
+    textPlaceholder: "Typed into the focused field on the device",
+    send: "Send",
+    hint: "Click = tap, hold still ≥0.5 s = long press, drag = swipe. Needs the accessibility or root control channel on the device.",
+    sent: (s: string) => `Sent: ${s}`,
+  },
+  sync: {
+    title: "Local folder sync",
+    dir: "Local folder",
+    dirPlaceholder: "Absolute path of the project folder, e.g. /Users/me/proj",
+    pick: "Choose…",
+    preview: "Preview",
+    upload: "Upload changes",
+    full: "Upload all",
+    pull: "Pull to local",
+    planNone: "Nothing to upload (no changes)",
+    plan: (n: number, skipped: number) => `${n} file(s) to upload, ${skipped} unchanged`,
+    uploaded: (n: number, skipped: number) => `Uploaded ${n} file(s), skipped ${skipped} unchanged`,
+    pulled: (w: number, a: number, c: number) => `Wrote ${w} file(s) (${a} new, ${c} changed); local-only files were left alone`,
+    progress: (sent: number, total: number) => `Uploading ${sent}/${total}`,
+    hint: "Same rules as the VS Code extension: honours .vscode/.syncignore; skips dot files, __pycache__, *.pyc and virtualenvs.",
+  },
+};
+
+export type Lang = "zh" | "en";
+export const DICTS: Record<Lang, Strings> = { zh, en };
+
+// eslint-disable-next-line import/no-mutable-exports
+export let t: Strings = zh;
+let current: Lang = "zh";
+
+export function setLanguage(lang: Lang): void {
+  current = lang;
+  t = DICTS[lang];
+  if (typeof document !== "undefined") document.documentElement.lang = lang === "zh" ? "zh-CN" : "en";
+}
+
+export function getLanguage(): Lang {
+  return current;
+}
