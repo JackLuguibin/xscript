@@ -181,7 +181,9 @@ class FloatWindow:
 
     @staticmethod
     def add_menu(menu_id, menu_ico, menu_click_listener, remove_system=False):
-        warn_once("float_menu", "FloatWindow.add_menu is not supported by XScript")
+        if menu_ico is not None and not isinstance(menu_ico, str):
+            warn_once("float_menu_icon", "FloatWindow.add_menu: only an image file path works as the icon in XScript; showing the id instead")
+        _xu.float_add_menu(menu_id, menu_ico, menu_click_listener, remove_system)
 
 
 class ImageWindow:

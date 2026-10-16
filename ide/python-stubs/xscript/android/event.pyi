@@ -32,6 +32,7 @@ NOTIFICATION = 'notification'
 TOAST = 'toast'
 ACCESSIBILITY = 'a11y'
 CLOUD = 'cloud'
+FLOAT = 'float'
 TYPES = ...
 KEYCODE_HOME = 3
 KEYCODE_BACK = 4
@@ -67,7 +68,7 @@ def dispatch(data):
     ...
 
 def on(event_type, fn=None, **filters):
-    """Register `fn(event)` for `event_type` ("key", "touch", "notification", "toast", "a11y").
+    """Register `fn(event)` for `event_type` ("key", "touch", "notification", "toast", "a11y", "cloud", "float").
 
     Keyword filters match event fields, e.g. `on("key", fn, key_code=24, action="down")`.
     Returns a token for `off(token)`. Without `fn`, returns a decorator.

@@ -35,7 +35,8 @@ NOTIFICATION = "notification"
 TOAST = "toast"
 ACCESSIBILITY = "a11y"
 CLOUD = "cloud"     # messages from the 云控 server (see xscript.android.cloud)
-TYPES = (KEY, TOUCH, NOTIFICATION, TOAST, ACCESSIBILITY, CLOUD)
+FLOAT = "float"     # a custom floating-window button was tapped (see xscript.android.ui.float_add_menu)
+TYPES = (KEY, TOUCH, NOTIFICATION, TOAST, ACCESSIBILITY, CLOUD, FLOAT)
 
 # Android key codes that scripts commonly listen for.
 KEYCODE_HOME = 3
@@ -172,7 +173,7 @@ def dispatch(data):
 
 
 def on(event_type, fn=None, **filters):
-    """Register `fn(event)` for `event_type` ("key", "touch", "notification", "toast", "a11y").
+    """Register `fn(event)` for `event_type` ("key", "touch", "notification", "toast", "a11y", "cloud", "float").
 
     Keyword filters match event fields, e.g. `on("key", fn, key_code=24, action="down")`.
     Returns a token for `off(token)`. Without `fn`, returns a decorator.

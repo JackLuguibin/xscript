@@ -308,5 +308,69 @@ class LifecycleTest(_Patched):
             system.Schedule.daily("08:00")
 
 
+class FloatMenuTest(_Patched):
+    MODULES = ("xscript.android.event", "xscript.android.system", "xscript.android.ui")
+
+    def setUp(self):
+        super().setUp()
+        from xscript.android import ui
+
+        ui._float_menus.clear()
+
+    def _wait(self, cond):
+        import time
+
+        end = time.time() + 2
+        while time.time() < end and not cond():
+            time.sleep(0.01)
+        return cond()
+
+    def test_add_menu_registers_button_and_runs_callback_on_tap(self):
+        from xscript.android import event, ui
+
+        hits = []
+        ui.float_add_menu("rec", "/sdcard/a.png", lambda: hits.append("rec"), remove_system=True)
+        op, arg = [c for c in self.fake.calls if c[0] == "float_menu_add"][-1]
+        self.assertEqual(json.loads(arg), {"id": "rec", "icon": "/sdcard/a.png", "remove_system": True})
+        self.assertIn("float", self.fake.subscriptions[-1]["types"])
+        event.dispatch({"type": "float", "menu": "other"})
+        event.dispatch({"type": "float", "menu": "rec"})
+        self.assertTrue(self._wait(lambda: hits == ["rec"]))
+
+    def test_callback_may_take_the_menu_id(self):
+        from xscript.android import event, ui
+
+        got = []
+        ui.float_add_menu("a", None, lambda mid: got.append(mid))
+        event.dispatch({"type": "float", "menu": "a"})
+        self.assertTrue(self._wait(lambda: got == ["a"]))
+        op, arg = [c for c in self.fake.calls if c[0] == "float_menu_add"][-1]
+        self.assertEqual(json.loads(arg)["icon"], "")
+
+    def test_same_id_replaces_the_callback(self):
+        from xscript.android import event, ui
+
+        hits = []
+        ui.float_add_menu("a", None, lambda: hits.append("old"))
+        ui.float_add_menu("a", None, lambda: hits.append("new"))
+        event.dispatch({"type": "float", "menu": "a"})
+        self.assertTrue(self._wait(lambda: hits == ["new"]))
+        import time
+        time.sleep(0.1)
+        self.assertEqual(hits, ["new"])
+
+    def test_ascript_facade_forwards(self):
+        from ascript.android.ui import FloatWindow
+
+        FloatWindow.add_menu("x", "/p.png", lambda: None)
+        self.assertEqual(len([c for c in self.fake.calls if c[0] == "float_menu_add"]), 1)
+
+    def test_callback_must_be_callable(self):
+        from xscript.android import ui
+
+        with self.assertRaises(TypeError):
+            ui.float_add_menu("a", None, "nope")
+
+
 if __name__ == "__main__":
     unittest.main()

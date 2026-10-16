@@ -161,3 +161,14 @@ def float_show(x=None, y=None, dim=1.0):
 
 def float_hide():
     ...
+
+def float_add_menu(menu_id, icon, callback, remove_system=False):
+    """Add a round button to the floating window's panel (AScript ``FloatWindow.add_menu``).
+
+    ``icon`` is an image file path (``R.img(...)``); without a readable image the button shows the first
+    letters of ``menu_id``. ``callback`` runs on its own thread when the button is tapped, with no argument
+    (or with ``menu_id`` when it takes one). ``remove_system=True`` hides the built-in 运行/日志/打开/隐藏
+    buttons while custom ones exist. Adding the same ``menu_id`` again replaces the earlier button. The buttons
+    last until the script ends. The window itself still needs ``float_show()`` or the 悬浮窗显示 setting.
+    """
+    ...

@@ -33,6 +33,7 @@ object EventHub {
     const val TOAST = "toast"
     const val A11Y = "a11y"
     const val CLOUD = "cloud"
+    const val FLOAT = "float"
 
     /** Default raw accessibility mask: everything except the very chatty content changes. */
     private const val DEFAULT_A11Y_MASK = AccessibilityEvent.TYPES_ALL_MASK and
@@ -109,6 +110,11 @@ object EventHub {
     /** A 云控 message for the script (`cloud.on_message`, AScript `system.channel`). */
     fun cloudMessage(data: Any) {
         emit(CLOUD, JSONObject().put("data", data))
+    }
+
+    /** A custom button of the floating window was tapped (`FloatWindow.add_menu`). */
+    fun floatMenu(id: String) {
+        emit(FLOAT, JSONObject().put("menu", id))
     }
 
     fun onKey(event: KeyEvent) {

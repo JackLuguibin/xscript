@@ -303,3 +303,40 @@ def float_show(x=None, y=None, dim=1.0):
 
 def float_hide():
     bridge.control("float_hide", "")
+
+
+_float_menus = {}
+
+
+def float_add_menu(menu_id, icon, callback, remove_system=False):
+    """Add a round button to the floating window's panel (AScript ``FloatWindow.add_menu``).
+
+    ``icon`` is an image file path (``R.img(...)``); without a readable image the button shows the first
+    letters of ``menu_id``. ``callback`` runs on its own thread when the button is tapped, with no argument
+    (or with ``menu_id`` when it takes one). ``remove_system=True`` hides the built-in 运行/日志/打开/隐藏
+    buttons while custom ones exist. Adding the same ``menu_id`` again replaces the earlier button. The buttons
+    last until the script ends. The window itself still needs ``float_show()`` or the 悬浮窗显示 setting.
+    """
+    import inspect
+    import json
+    import threading
+    from xscript.android import event
+
+    menu_id = str(menu_id)
+    if not callable(callback):
+        raise TypeError("callback must be callable")
+    try:
+        wants_id = len([p for p in inspect.signature(callback).parameters.values()
+                        if p.kind in (p.POSITIONAL_ONLY, p.POSITIONAL_OR_KEYWORD)]) >= 1
+    except (TypeError, ValueError):
+        wants_id = False
+
+    def run(_ev):
+        threading.Thread(target=callback, args=(menu_id,) if wants_id else (), name="xscript-float-menu", daemon=True).start()
+
+    old = _float_menus.pop(menu_id, None)
+    if old is not None:
+        event.off(old)
+    _float_menus[menu_id] = event.on(event.FLOAT, run, menu=menu_id)
+    icon = icon if isinstance(icon, str) else ""
+    bridge.control("float_menu_add", json.dumps({"id": menu_id, "icon": icon, "remove_system": bool(remove_system)}))
