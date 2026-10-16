@@ -82,6 +82,69 @@
       ]
     },
     {
+      "name": "xscript.android.ime",
+      "description": "XScript 输入法: a keyboard-less input method that types straight into the focused field. Root switches to it silently; without root the user enables and selects it once in system settings. Calls raise ImeNotActive when it is not the active input method.",
+      "functions": [
+        {
+          "name": "status",
+          "signature": "status() -> dict",
+          "doc": "Enabled / active / focused-field state of the XScript input method."
+        },
+        {
+          "name": "is_active",
+          "signature": "is_active() -> bool",
+          "doc": "True when XScript 输入法 is the current input method."
+        },
+        {
+          "name": "switch",
+          "signature": "switch() -> bool",
+          "doc": "Make XScript 输入法 current (silent with root; otherwise opens the picker)."
+        },
+        {
+          "name": "restore",
+          "signature": "restore() -> bool",
+          "doc": "Switch back to the input method that was active before switch()."
+        },
+        {
+          "name": "commit",
+          "signature": "commit(text) -> bool",
+          "doc": "Type text at the cursor."
+        },
+        {
+          "name": "set_text",
+          "signature": "set_text(text) -> bool",
+          "doc": "Replace the whole field with text."
+        },
+        {
+          "name": "delete",
+          "signature": "delete(before=1, after=0) -> bool",
+          "doc": "Delete characters around the cursor."
+        },
+        {
+          "name": "clear",
+          "signature": "clear() -> bool",
+          "doc": "Empty the focused field."
+        },
+        {
+          "name": "enter",
+          "signature": "enter() -> bool",
+          "doc": "Send the editor action (search / go / send) or Enter."
+        },
+        {
+          "name": "key",
+          "signature": "key(code) -> bool",
+          "doc": "Send one Android key code through the input method."
+        }
+      ],
+      "classes": [
+        {
+          "name": "ImeNotActive",
+          "doc": "Raised when XScript 输入法 is not the active input method.",
+          "methods": []
+        }
+      ]
+    },
+    {
       "name": "xscript.android.node",
       "description": "Accessibility node selector (text/id/desc/type/state filters, relations) and XPath 1.0 queries.",
       "functions": [
@@ -759,11 +822,6 @@
           "doc": "WebWindow, Dialog, Loger, FloatWindow, ImageWindow, Canvas."
         },
         {
-          "name": "media.*",
-          "signature": "media.vibrate(200); media.talk(msg)",
-          "doc": "Volume, brightness, vibrate, TTS, play."
-        },
-        {
           "name": "event.KeyEvent / TouchEvent / NotificationEvent",
           "signature": "@KeyEvent.on(key_code=24) / @NotificationEvent.on(package=...) / X.stop()",
           "doc": "Same fields as AScript; NotificationEvent event.send() opens the notification, event.raw is None."
@@ -789,11 +847,6 @@
           "doc": "YOLO on ONNX (v5/v8/v11 exports). Returns [{'label','prob','x','y','w','h','rect'}]. NCNN .param/.bin need an ONNX export next to them."
         },
         {
-          "name": "plug.load",
-          "signature": "plug.load('Yolov8Ncnn:1.3'); import Yolov8Ncnn; Yolov8Ncnn.load(R.res('best.onnx'), None, nc)",
-          "doc": "Built-in replacements for the yolov5 / Yolov8Ncnn / Yolov11Ncnn plugins (load / detect / draw / free). Other plugin names raise NotImplementedError."
-        },
-        {
           "name": "cloud_control.connect_to_ws / send / close / channel",
           "signature": "cloud_control.connect_to_ws('ws://host:port/ws?token=..'); cloud_control.send({'gold': 1})",
           "doc": "On XScript's 云控. connect_to_as (AScript's official server) is not available."
@@ -802,6 +855,31 @@
           "name": "system.channel / Control.send / R.get_card",
           "signature": "system.channel(fun)",
           "doc": "Server messages to fun(msg); Control.send reports data; R.get_card() returns a packaged app's 卡密."
+        },
+        {
+          "name": "media.*",
+          "signature": "media.vibrate(200); media.talk(msg); media.recode(path, time=None); media.send_email(to, subject, body, cc=None)",
+          "doc": "Volume, brightness, vibrate, TTS, play, image_to_gallery. recode records the mic (AAC/AMR/Opus by extension; time in ms blocks, None records in the background until stop_recode(); recode_status()). Android 11+ only records while XScript is in the foreground. send_email opens the mail app with a prefilled draft; the user taps send."
+        },
+        {
+          "name": "location.mock",
+          "signature": "location.mock.start(lon, lat, accuracy=5.0, interval=1000, coord_type='bd09') / stop() / status()",
+          "doc": "System mock location (MockLocationApi). bd09/gcj02 are converted to GPS (to_wgs84, gcj02_to_wgs84, bd09_to_gcj02). XScript must be the mock-location app in developer options (granted automatically with root)."
+        },
+        {
+          "name": "plug.load_apk / load_apk_dir",
+          "signature": "plug.load_apk(path).load_class(name).new(*args).call(method, *args)",
+          "doc": "Load an .apk/.jar/.dex from the app's own storage with DexClassLoader and call it by reflection (JavaClass.call_static/get_static, JavaObject.call/get/set). plug.load() keeps the built-in yolo/ncnn replacements."
+        },
+        {
+          "name": "bluetooth.*",
+          "signature": "bluetooth.scan(timeout=10, ble=False); bluetooth.connect(address).write(b'..'); bluetooth.ble_connect(address).notify(service, char, cb)",
+          "doc": "state / is_enabled / enable / bonded / scan; classic SPP serial (HC-05 style) via connect() -> Connection.read/read_text/write/close; BLE via ble_connect() -> read/write/notify/close. Raises BluetoothError. Interface is XScript's own, not checked against AScript."
+        },
+        {
+          "name": "action.Ime",
+          "signature": "Ime.is_active() / switch() / restore() / input(info) / input_clear() / delete(count=1) / keys(keys, duration=20) / enter()",
+          "doc": "Typing through XScript 输入法 (see xscript.android.ime), with accessibility / key fallback when it is not active."
         }
       ],
       "unsupported": [
