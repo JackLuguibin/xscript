@@ -1,0 +1,18 @@
+body{margin:0;padding:0;color:var(--vscode-foreground);font-family:var(--vscode-font-family);font-size:var(--vscode-font-size)}
+#app{display:grid;grid-template-columns:150px minmax(240px,1fr) 260px minmax(260px,1fr);gap:10px;padding:10px;height:100vh;box-sizing:border-box}
+.col{overflow:auto;min-height:0}h4{margin:0 0 8px;font-weight:600;opacity:.85}
+.pal button,.btn{display:block;width:100%;margin:0 0 6px;padding:6px 8px;text-align:left;cursor:grab;color:var(--vscode-button-secondaryForeground);background:var(--vscode-button-secondaryBackground);border:0;border-radius:3px}
+.pal button:hover{background:var(--vscode-button-secondaryHoverBackground)}
+.list{min-height:120px;border:1px dashed var(--vscode-panel-border);border-radius:4px;padding:6px}
+.list.over{border-color:var(--vscode-focusBorder)}
+.item{display:flex;align-items:center;gap:6px;padding:6px;margin:0 0 4px;border-radius:3px;background:var(--vscode-list-inactiveSelectionBackground);cursor:grab}
+.item.sel{outline:1px solid var(--vscode-focusBorder);background:var(--vscode-list-activeSelectionBackground);color:var(--vscode-list-activeSelectionForeground)}
+.item.drop-before{box-shadow:0 -2px 0 var(--vscode-focusBorder)}
+.item .k{opacity:.7;font-size:90%;min-width:62px}.item .t{flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.item button{background:none;border:0;color:inherit;cursor:pointer;opacity:.7}
+.props label{display:block;margin:0 0 8px}.props label span{display:block;opacity:.8;margin-bottom:2px}
+.props input,.props textarea,.props select{width:100%;box-sizing:border-box;color:var(--vscode-input-foreground);background:var(--vscode-input-background);border:1px solid var(--vscode-input-border,transparent);padding:4px}
+.props input[type=checkbox]{width:auto}
+.errors{color:var(--vscode-errorForeground);margin:6px 0;white-space:pre-wrap}
+.hint{opacity:.7;margin:8px 0}
+iframe{width:100%;height:70vh;border:1px solid var(--vscode-panel-border);background:#fff;border-radius:4px}

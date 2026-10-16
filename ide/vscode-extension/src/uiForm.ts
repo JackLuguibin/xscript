@@ -259,3 +259,14 @@ export function outputs(spec: FormSpec, name: string): Record<string, string> {
   const html = "res/ui/" + name + ".html";
   return { [html]: renderHtml(spec), [modName(html) + ".py"]: renderPython(spec, html) };
 }
+
+/** "res/ui/main.ui.json" -> "main"; undefined when the file is not a form spec. */
+export function formName(file: string): string | undefined {
+  const m = /([^/\\]+)\.ui\.json$/.exec(file);
+  return m && /^[\p{L}_][\p{L}\p{N}_]*$/u.test(m[1]) ? m[1] : undefined;
+}
+
+/** Pretty JSON as stored on disk (stable so undo/redo and git diffs stay small). */
+export function serializeSpec(spec: FormSpec): string {
+  return JSON.stringify(spec, null, 2) + "\n";
+}

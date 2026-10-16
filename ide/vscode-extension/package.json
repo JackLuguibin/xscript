@@ -27,7 +27,8 @@
     "workspaceContains:**/build.as",
     "onView:xscript.devices",
     "onDebugResolve:xscript",
-    "onDebugDynamicConfigurations:xscript"
+    "onDebugDynamicConfigurations:xscript",
+    "onCustomEditor:xscript.uiDesigner"
   ],
   "contributes": {
     "commands": [
@@ -179,6 +180,12 @@
         "title": "%xscript.command.refreshView%",
         "category": "XScript",
         "icon": "$(refresh)"
+      },
+      {
+        "command": "xscript.newUiForm",
+        "title": "%xscript.command.newUiForm%",
+        "category": "XScript",
+        "icon": "$(layout)"
       }
     ],
     "menus": {
@@ -315,6 +322,11 @@
           "command": "xscript.editSyncIgnore",
           "when": "explorerResourceIsFolder",
           "group": "xscript"
+        },
+        {
+          "command": "xscript.newUiForm",
+          "when": "xscript.isProject",
+          "group": "xscript@9"
         }
       ],
       "editor/context": [
@@ -459,7 +471,19 @@
           "name": "%xscript.view.name%"
         }
       ]
-    }
+    },
+    "customEditors": [
+      {
+        "viewType": "xscript.uiDesigner",
+        "displayName": "%xscript.uiDesigner.displayName%",
+        "selector": [
+          {
+            "filenamePattern": "*.ui.json"
+          }
+        ],
+        "priority": "default"
+      }
+    ]
   },
   "scripts": {
     "compile": "tsc -p . && node scripts/copy-stubs.js",
