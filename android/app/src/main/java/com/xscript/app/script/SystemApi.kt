@@ -38,6 +38,7 @@ object SystemApi {
         val a = if (arg.startsWith("{")) JSONObject(arg) else JSONObject().put("v", arg)
         if (op.startsWith("permission_")) return com.xscript.app.permission.PermissionApi.call(op, a)
         if (op.startsWith("sensor_")) return SensorsApi.call(op, a)
+        if (op.startsWith("location_mock_")) return MockLocationApi.call(op, a)
         if (op.startsWith("location_")) return LocationApi.call(op, a)
         if (op.startsWith("record_")) return AudioRecordApi.call(op, a)
         if (op.startsWith("sms_")) {
@@ -47,7 +48,7 @@ object SystemApi {
         }
         return when (op) {
             "device_resources_close" -> {
-                try { SensorsApi.closeAll() } finally { try { LocationApi.close() } finally { AudioRecordApi.close() } }
+                try { SensorsApi.closeAll() } finally { try { LocationApi.close() } finally { try { AudioRecordApi.close() } finally { MockLocationApi.stop() } } }
                 "ok"
             }
             "open" -> open(a.optString("v")).toString()
