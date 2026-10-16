@@ -15,9 +15,18 @@ MOCK_PID=""
 if [ -z "${XS_HOST_TEST_DEVICE:-}" ]; then
   REPO="$(cd ../.. && pwd)"
   PYBIN="$REPO/.venv/bin/python"; [ -x "$PYBIN" ] || PYBIN=python3
+  # with debugpy available (e.g. python3 -m venv .venv && .venv/bin/pip install debugpy, here in ide/vscode-extension)
+  # the mock also serves the debug bridge, so the VS Code debug-session checks run without a phone
+  MOCK="import mock_device as m"
+  for C in "$PWD/.venv/bin/python" "$PYBIN"; do
+    if [ -x "$C" ] && "$C" -c "import debugpy" 2>/dev/null; then
+      PYBIN="$C"; MOCK="sys.path.insert(0, '$SCRIPTS/host-test'); import debug_mock as m"; export XS_HOST_TEST_DEBUG=1; break
+    fi
+  done
+  [ -n "${XS_HOST_TEST_DEBUG:-}" ] || echo "note: no debugpy found, the debug-session checks are skipped (see the comment above)"
   # port 9860 (the default) lets the LAN-scan check find the mock at 127.0.0.1; fall back to a free port without it
   for P in 9860 0; do
-    "$PYBIN" -c "import sys, threading; sys.path.insert(0, sys.argv[1]); import mock_device; s = mock_device.serve('127.0.0.1', int(sys.argv[2])); print(s.server_address[1], flush=True); threading.Event().wait()" "$REPO/scripts" "$P" >"$T/mock.port" 2>"$T/mock.err" &
+    "$PYBIN" -c "import sys, threading; sys.path.insert(0, sys.argv[1]); $MOCK; s = m.serve('127.0.0.1', int(sys.argv[2])); print(s.server_address[1], flush=True); threading.Event().wait()" "$REPO/scripts" "$P" >"$T/mock.port" 2>"$T/mock.err" &
     MOCK_PID=$!
     for _ in $(seq 1 50); do [ -s "$T/mock.port" ] && break; sleep 0.1; done
     [ -s "$T/mock.port" ] && break
@@ -28,7 +37,7 @@ if [ -z "${XS_HOST_TEST_DEVICE:-}" ]; then
   export XS_HOST_TEST_DEVICE="127.0.0.1:$MOCK_PORT"
   [ "$MOCK_PORT" = "9860" ] && export XS_HOST_TEST_LAN_HOSTS="127.0.0.1"
 fi
-trap '[ -n "$MOCK_PID" ] && kill "$MOCK_PID" 2>/dev/null || true' EXIT
+trap '[ -n "$MOCK_PID" ] && kill "$MOCK_PID" 2>/dev/null; pkill -f "debugpy --listen 127.0.0.1:[0-9]* --wait-for-client .*xs-remote-" 2>/dev/null || true' EXIT
 env "${VSC_ENV[@]}" "$CLI" --user-data-dir "$T/ud" --extensions-dir "$T/ext" --install-extension "$PWD/$VSIX" >/dev/null 2>&1
 ls "$T/ext" | grep -q xscript || { echo "vsix did not install"; exit 1; }
 echo "installed: $(ls "$T/ext" | grep xscript)"
