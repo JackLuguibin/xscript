@@ -126,7 +126,8 @@ class BatchIn(BaseModel):
     app: str = Field(default="*", max_length=128, pattern=APP_PATTERN)
     note: str = Field(default="", max_length=255)
     prefix: str = Field(default="XS", min_length=1, max_length=8, pattern=r"^[A-Z0-9]+$")
-    kind: Literal["normal", "trial"] = "normal"  # 体验卡: one per device and app, never stacks
+    kind: Literal["normal", "trial", "count"] = "normal"  # 体验卡: one per device and app; 按次卡: limited by uses
+    uses: int = Field(default=0, ge=0, le=100000)  # 按次卡: number of app launches
     hours: float | None = Field(default=None, gt=0, le=720)  # convenient for trials; overrides days
     max_devices: int = Field(default=1, ge=1, le=100)  # 多设备卡
     stack: bool = True  # 续期叠加: a new card starts when the device's running card ends
@@ -137,12 +138,13 @@ def create_batch(body: BatchIn, request: Request, p: Principal = Depends(operato
     days = body.hours / 24 if body.hours else body.days
     try:
         batch, codes = cardsvc.create_batch(s, body.count, days, body.app, body.note, body.prefix, kind=body.kind,
-                                            max_devices=body.max_devices, stack=body.stack)
+                                            max_devices=body.max_devices, stack=body.stack, uses=body.uses)
     except ValueError as e:
         raise HTTPException(400, str(e)) from None
     record(request, s, p, "card.create", batch, {"count": body.count, "days": days, "app": body.app,
                                                  "kind": body.kind, "max_devices": body.max_devices,
-                                                 "stack": body.stack and body.kind != "trial"})
+                                                 "stack": body.stack and body.kind == "normal",
+                                                 "uses": body.uses if body.kind == "count" else 0})
     s.commit()
     return {"batch": batch, "cards": codes}
 
@@ -158,13 +160,14 @@ def export_cards(request: Request, p: Principal = Depends(operator), s: Session 
     buf.write("\ufeff")  # Excel opens UTF-8 CSV correctly with a BOM
     w = csv.writer(buf)
     w.writerow(["卡密", "状态", "批次", "天数", "应用", "设备", "型号", "激活时间", "到期时间", "备注", "类型", "设备数上限",
-                "已绑定设备数"])
+                "已绑定设备数", "总次数", "剩余次数"])
     fmt = lambda t: time.strftime("%Y-%m-%d %H:%M", time.localtime(t)) if t else ""  # noqa: E731
     for r in rows:
         w.writerow([r["card"], r["status"], r["batch"], round(r["days"], 3) if r["days"] else "永久", r["app"], r["device"] or "",
                     r["model"] or "", fmt(r["activated_at"]),
                     "永久" if r["activated_at"] and not r["expires_at"] else fmt(r["expires_at"]), r["note"],
-                    "体验卡" if r["kind"] == "trial" else "正式卡", r["max_devices"], len(r["devices"])])
+                    {"trial": "体验卡", "count": "按次卡"}.get(r["kind"], "正式卡"), r["max_devices"], len(r["devices"]),
+                    r["uses_total"] if r["kind"] == "count" else "", r["uses_left"] if r["kind"] == "count" else ""])
     name = "cards-%s.csv" % time.strftime("%Y%m%d-%H%M%S")
     return StreamingResponse(iter([buf.getvalue()]), media_type="text/csv; charset=utf-8",
                              headers={"Content-Disposition": 'attachment; filename="%s"' % name})
@@ -304,3 +307,18 @@ def license_verify(body: VerifyIn, request: Request, s: Session = Depends(db_ses
         return {"status": "revoked", "revoked": True}
     state = cardsvc.check_token(s, payload)
     return {"status": state, "revoked": state in ("revoked", "unknown")}
+
+
+class UseIn(BaseModel):
+    token: str = Field(default="", max_length=4096)
+    device_id: str = Field(default="", max_length=128)
+
+
+@public.post("/use")
+def license_use(body: UseIn, request: Request, s: Session = Depends(db_session)):
+    """Called by a packed app on every launch: deducts one use of a 按次卡 (no-op for other cards)."""
+    payload = licensing.verify(ctx(request).pubkey, body.token)
+    if payload is None:
+        return {"status": "revoked", "revoked": True, "uses_left": 0}
+    state, left = cardsvc.consume_use(s, payload)
+    return {"status": state, "revoked": state in ("revoked", "unknown"), "uses_left": left}

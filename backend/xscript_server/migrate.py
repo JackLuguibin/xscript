@@ -48,7 +48,13 @@ def _v4(conn: Connection) -> None:
     _add_column(conn, "cards", "stack", "BOOLEAN NOT NULL DEFAULT 1")
 
 
-STEPS: list[Callable[[Connection], None]] = [_v1, _v2, _v3, _v4]
+def _v5(conn: Connection) -> None:
+    """0.7: 按次卡 use counters."""
+    _add_column(conn, "cards", "uses_total", "INTEGER NOT NULL DEFAULT 0")
+    _add_column(conn, "cards", "uses_left", "INTEGER NOT NULL DEFAULT 0")
+
+
+STEPS: list[Callable[[Connection], None]] = [_v1, _v2, _v3, _v4, _v5]
 LATEST = len(STEPS)
 
 
