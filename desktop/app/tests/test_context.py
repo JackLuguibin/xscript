@@ -24,7 +24,9 @@ async def test_ping_and_hello():
     ctx = make_ctx(FakeAdb([]))
     assert (await rpc(ctx, "app.ping", echo=5))["result"]["pong"] == 5
     assert not ctx.ui_ready.is_set()
-    r = await rpc(ctx, "app.hello")
+    await rpc(ctx, "app.hello", pingOk=False)
+    assert not ctx.ui_ready.is_set()
+    r = await rpc(ctx, "app.hello", pingOk=True)
     assert ctx.ui_ready.is_set() and "device.connect" in r["result"]["methods"]
 
 

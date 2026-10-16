@@ -65,7 +65,8 @@ class AppContext:
         @d.method("app.hello")
         def hello(params: dict[str, Any]) -> dict[str, Any]:
             """The page calls this once it has mounted (used by --selftest and to tell the UI the shell's capabilities)."""
-            self.ui_ready.set()
+            if params.get("pingOk") is True:  # the page proved a full request/response round trip
+                self.ui_ready.set()
             return {"version": __version__, "platform": sys.platform, "adbPath": self.adb.path(), "methods": d.methods}
 
         @d.method("app.settings.set")
