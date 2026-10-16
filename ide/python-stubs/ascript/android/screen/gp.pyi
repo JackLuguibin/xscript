@@ -2,11 +2,21 @@
 """Local GP pipelines reconstructed from the packaged task/UI interface.
 
 JSON entries use ``id`` and ``data.params`` (Python argument literals), or
-structured ``args``/``kwargs``. Archives must contain one data.gp JSON member;
-packaged Python and cloud plugins are deliberately not executed.
+structured ``args``/``kwargs``. A package with a data.gp member is interpreted
+declaratively (its Python is never executed). Legacy packages without data.gp
+are AScript code exports (``as_gp_<name>/__init__.py`` defining ``gp(cv_img)``);
+like AScript they are extracted and imported, unless ``allow_python=False``.
+
+Cloud entries (``type`` containing 云端, ``nv`` = plugin spec) first run
+``plug.load(nv)``; the task id then resolves through :func:`register_task`, or
+a module importable once the plugin is loaded. There is no plugin server.
 """
 import ast
+import importlib
 import json
+import re
+import sys
+import tempfile
 from abc import ABC, abstractmethod
 from pathlib import Path
 import zipfile
@@ -23,6 +33,13 @@ class GPTask(ABC):
     @abstractmethod
     def run(self, cv_image, offset_x=0, offset_y=0, data=None) -> Result:
         ...
+
+def register_task(task_id, task_class):
+    """Map a GP task id (e.g. a cloud plugin's ``module.Class``) to a local class."""
+    ...
+
+def unregister_task(task_id):
+    ...
 
 class GPStack:
 
@@ -48,10 +65,11 @@ class GPStack:
     def run(self):
         ...
 
-def run(gp_file, cv_img=None):
-    """Run a plain JSON .gp file, directory/data.gp, or ZIP containing data.gp.
+def run(gp_file, cv_img=None, allow_python=True):
+    """Run a .gp: plain JSON, directory, or ZIP package.
 
-    Legacy archives with only generated Python need conversion to data.gp.
-    No archive extraction, Python imports or module-cache mutation occurs.
+    data.gp (JSON) is preferred and never executes package code. Without it a
+    legacy Python export is imported and its ``gp(cv_img)`` called (AScript
+    behaviour); pass ``allow_python=False`` to refuse that.
     """
     ...
