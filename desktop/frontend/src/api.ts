@@ -61,6 +61,37 @@ export interface ScanHit {
   info: Partial<DeviceInfo>;
 }
 
+export interface ProjectSummary {
+  name: string;
+  [k: string]: unknown;
+}
+
+export interface ProjectFiles {
+  project: string;
+  files: Array<{ path: string; size: number }>;
+  dirs: string[];
+}
+
+export interface FileContent {
+  path: string;
+  encoding: "utf-8" | "base64";
+  content: string;
+}
+
+export interface LogEntry {
+  seq: number;
+  ts: number;
+  stream: string;
+  line: string;
+}
+
+export interface RunResult {
+  ok?: boolean;
+  running?: boolean;
+  project?: string;
+  error?: string;
+}
+
 /** Typed wrappers over the JSON-RPC methods (names match xscript_desktop/context.py). */
 export function createApi(rpc: RpcClient) {
   return {
@@ -73,6 +104,16 @@ export function createApi(rpc: RpcClient) {
     listDevices: () => rpc.call<{ devices: Device[] }>("device.list"),
     refresh: (id: string) => rpc.call<Device>("device.refresh", { id }),
     disconnect: (id: string) => rpc.call<{ removed: boolean }>("device.disconnect", { id }),
+    projects: (id: string) => rpc.call<{ projects: ProjectSummary[] }>("project.list", { id }),
+    createProject: (id: string, project: string) => rpc.call<{ ok: boolean }>("project.create", { id, project }),
+    files: (id: string, project: string) => rpc.call<ProjectFiles>("project.files", { id, project }),
+    readFile: (id: string, project: string, path: string) => rpc.call<FileContent>("project.read", { id, project, path }),
+    writeFile: (id: string, project: string, path: string, content: string, create = false) =>
+      rpc.call<{ ok: boolean }>("project.write", { id, project, path, content, create }, { timeoutMs: 60_000 }),
+    run: (id: string, project: string) => rpc.call<RunResult>("project.run", { id, project }),
+    stop: (id: string, project: string) => rpc.call<RunResult>("project.stop", { id, project }),
+    logs: (id: string, since: number) => rpc.call<{ entries: LogEntry[]; next: number }>("device.logs", { id, since }),
+    key: (id: string, name: string) => rpc.call<{ ok: boolean }>("device.action", { id, type: "key", name }),
     scan: (cidr?: string) => rpc.call<{ found: ScanHit[] }>("device.scan", cidr ? { cidr } : {}, { timeoutMs: 60_000 }),
   };
 }
