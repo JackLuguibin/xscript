@@ -53,3 +53,15 @@ The standard MIT terms apply:
 YOLO models are supplied by the user. Ultralytics YOLOv8 / YOLO11 weights and code are AGPL-3.0 unless you hold an
 Ultralytics Enterprise license. That applies to models you train from their pretrained weights and ship inside a
 packaged app.
+
+## Desktop client (`desktop/`)
+
+The desktop client (not part of the APK) depends on these packages; none are vendored into the repository.
+
+- **PySide6 / Qt for Python** (Qt 6, QtWebEngine, QtWebChannel) — LGPL-3.0-only OR GPL-2.0-only OR GPL-3.0-only (or a commercial license). The
+  client is meant to be shipped in directory (not one-file) form with the Qt libraries as separate, replaceable libraries, with the LGPL text and a
+  source offer. `qwebchannel.js` (served to the page at runtime) is part of Qt WebChannel. Packaging has not been done yet; see
+  `docs/桌面端设计.md` §5.6 / §13-6. This is not legal advice.
+- **httpx** — BSD-3-Clause.
+- **React**, **react-dom** — MIT. **Vite**, **@vitejs/plugin-react**, **Vitest**, **Testing Library**, **TypeScript** (Apache-2.0) — build/test tooling only.
+

@@ -7,12 +7,12 @@ from pathlib import Path
 from PySide6.QtCore import QCoreApplication, QEvent, QUrl
 from PySide6.QtGui import QDesktopServices
 from PySide6.QtWebChannel import QWebChannel
-from PySide6.QtWebEngineCore import QWebEnginePage, QWebEngineProfile, QWebEngineSettings
+from PySide6.QtWebEngineCore import QWebEnginePage, QWebEngineProfile, QWebEngineScript, QWebEngineSettings
 from PySide6.QtWebEngineWidgets import QWebEngineView
 from PySide6.QtWidgets import QMainWindow
 
 from .bridge import Bridge
-from .scheme import APP_ORIGIN, SCHEME, XsAppHandler
+from .scheme import APP_ORIGIN, SCHEME, XsAppHandler, read_qwebchannel_js
 
 log = logging.getLogger("xscript_desktop.window")
 
@@ -74,6 +74,15 @@ class MainWindow(QMainWindow):
         self.channel = QWebChannel(self.page)
         self.channel.registerObject("xs", bridge)
         self.page.setWebChannel(self.channel)
+        if dev_url:
+            # The Vite dev server cannot serve qwebchannel.js (prod gets it from xsapp://app/qwebchannel.js): inject it.
+            script = QWebEngineScript()
+            script.setName("qwebchannel")
+            script.setInjectionPoint(QWebEngineScript.InjectionPoint.DocumentCreation)
+            script.setWorldId(QWebEngineScript.ScriptWorldId.MainWorld)
+            script.setRunsOnSubFrames(False)
+            script.setSourceCode(read_qwebchannel_js().decode("utf-8"))
+            self.page.scripts().insert(script)
         self.view.setPage(self.page)
         self.setCentralWidget(self.view)
         self._dev_url = dev_url

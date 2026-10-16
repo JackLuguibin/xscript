@@ -5,7 +5,7 @@ from pathlib import Path
 
 import pytest
 
-pytest.importorskip("PySide6")
+pytest.importorskip("PySide6.QtWebEngineWidgets")
 from PySide6.QtCore import QUrl
 
 from xscript_desktop.scheme import CSP, mime_for, resolve_static, with_csp
