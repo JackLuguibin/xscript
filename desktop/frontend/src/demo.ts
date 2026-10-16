@@ -10,6 +10,15 @@ const status = {
 
 export function createDemoTransport(): MemoryTransport {
   const devices = new Map<string, Device>();
+  const projects = new Map<string, Map<string, string>>([["demo", new Map([["__init__.py", "print('hello from demo')\n"]])]]);
+  const logs: Array<{ seq: number; ts: number; stream: string; line: string }> = [];
+  let running = "";
+  const log = (line: string) => logs.push({ seq: logs.length + 1, ts: Date.now(), stream: "stdout", line });
+  const proj = (p: Record<string, unknown>) => {
+    const m = projects.get(String(p.project));
+    if (!m) throw { code: "device.http", message: "missing project" };
+    return m;
+  };
   return new MemoryTransport(
     {
       "app.ping": (p) => ({ pong: p.echo, version: "demo", python: "-", platform: "browser" }),
@@ -35,6 +44,44 @@ export function createDemoTransport(): MemoryTransport {
       "device.refresh": (p) => devices.get(String(p.id)),
       "device.disconnect": (p) => ({ removed: devices.delete(String(p.id)) }),
       "device.scan": () => ({ found: [] }),
+      "project.list": () => ({ projects: [...projects.keys()].map((name) => ({ name })) }),
+      "project.create": (p) => {
+        const name = String(p.project);
+        if (projects.has(name)) throw { code: "device.http", message: "工程已存在: " + name };
+        projects.set(name, new Map([["__init__.py", "print('hello')\n"]]));
+        return { ok: true };
+      },
+      "project.files": (p) => {
+        const m = proj(p);
+        return { project: p.project, files: [...m.entries()].sort().map(([path, c]) => ({ path, size: c.length })), dirs: [] };
+      },
+      "project.read": (p) => {
+        const c = proj(p).get(String(p.path));
+        if (c === undefined) throw { code: "device.http", message: "missing file" };
+        return { path: p.path, encoding: "utf-8", content: c };
+      },
+      "project.write": (p) => {
+        proj(p).set(String(p.path), String(p.content));
+        return { ok: true };
+      },
+      "project.run": (p) => {
+        if (running) return { error: "already running", project: running };
+        proj(p);
+        running = String(p.project);
+        log(`[demo] running ${running}\n`);
+        return { ok: true, running: true, project: running };
+      },
+      "project.stop": () => {
+        if (running) log(`[demo] stopped ${running}\n`);
+        running = "";
+        return { ok: true, running: false };
+      },
+      "device.logs": (p) => {
+        const since = Number(p.since ?? 0);
+        const entries = logs.filter((e) => e.seq > since);
+        return { entries, next: logs.length ? logs[logs.length - 1].seq : since };
+      },
+      "device.action": () => ({ ok: true }),
     },
     30,
   );
