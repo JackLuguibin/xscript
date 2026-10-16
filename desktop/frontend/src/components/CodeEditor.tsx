@@ -20,15 +20,27 @@ interface Props {
   label: string;
   onChange: (v: string) => void;
   onKeyDown: (e: KeyboardEvent) => void;
+  breakpoints?: number[];
+  currentLine?: number | null;
+  onToggleBreakpoint?: (line: number) => void;
+}
+
+const NO_LINES: number[] = [];
+
+/** 1-based line of the caret in a textarea */
+export function caretLine(el: HTMLTextAreaElement): number {
+  return el.value.slice(0, el.selectionStart ?? 0).split("\n").length;
 }
 
 /** Monaco with Python completion from ide/python-stubs; a plain textarea until (or unless) Monaco has loaded. Remount per file (key=path). */
-export function CodeEditor({ path, value, label, onChange, onKeyDown }: Props) {
+export function CodeEditor({ path, value, label, onChange, onKeyDown, breakpoints = NO_LINES, currentLine = null, onToggleBreakpoint }: Props) {
   const host = useRef<HTMLDivElement>(null);
   const handle = useRef<EditorHandle | null>(null);
-  const cb = useRef({ onChange, onKeyDown });
-  cb.current = { onChange, onKeyDown };
+  const cb = useRef({ onChange, onKeyDown, onToggleBreakpoint });
+  cb.current = { onChange, onKeyDown, onToggleBreakpoint };
   const initial = useRef(value);
+  const dbg = useRef({ breakpoints, currentLine });
+  dbg.current = { breakpoints, currentLine };
   const [ready, setReady] = useState(false);
 
   useEffect(() => {
@@ -44,6 +56,9 @@ export function CodeEditor({ path, value, label, onChange, onKeyDown }: Props) {
           label,
           onChange: (v) => cb.current.onChange(v),
           onKey: (e) => cb.current.onKeyDown(e),
+          breakpoints: dbg.current.breakpoints,
+          currentLine: dbg.current.currentLine,
+          onToggleBreakpoint: (ln) => cb.current.onToggleBreakpoint?.(ln),
         });
         setReady(true);
       })
@@ -64,6 +79,13 @@ export function CodeEditor({ path, value, label, onChange, onKeyDown }: Props) {
     if (h && h.getValue() !== value) h.setValue(value);
   }, [value]);
 
+  useEffect(() => {
+    handle.current?.setBreakpoints(breakpoints);
+  }, [breakpoints, ready]);
+  useEffect(() => {
+    handle.current?.setCurrentLine(currentLine);
+  }, [currentLine, ready]);
+
   return (
     <>
       <div ref={host} className="monaco-host" data-ready={ready ? "true" : "false"} hidden={!ready} />
@@ -74,8 +96,20 @@ export function CodeEditor({ path, value, label, onChange, onKeyDown }: Props) {
           spellCheck={false}
           value={value}
           onChange={(e) => onChange(e.target.value)}
-          onKeyDown={(e) => onKeyDown(e.nativeEvent)}
+          onKeyDown={(e) => {
+            if (e.key === "F9" && onToggleBreakpoint) {
+              e.preventDefault();
+              onToggleBreakpoint(caretLine(e.currentTarget));
+              return;
+            }
+            onKeyDown(e.nativeEvent);
+          }}
         />
+      )}
+      {!ready && currentLine !== null && (
+        <p className="muted mono" data-testid="current-line">
+          ➜ {currentLine}: {value.split("\n")[currentLine - 1] ?? ""}
+        </p>
       )}
     </>
   );

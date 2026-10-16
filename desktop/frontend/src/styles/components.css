@@ -139,3 +139,17 @@ pre.logs .err { color: var(--danger-fg); }
 .mirror-badge { position: absolute; top: var(--sp-2); right: var(--sp-2); background: var(--surface); border: 1px solid var(--border); border-radius: var(--r-md); padding: 0 var(--sp-2); font-size: var(--fs-sm); }
 .lang-mark { display: inline-grid; place-items: center; width: 18px; font-size: var(--fs-xs); font-weight: 700; }
 .file-row { display: flex; gap: var(--sp-1, 4px); align-items: center; } .file-row .list-btn { flex: 1; min-width: 0; }
+
+/* debugger */
+.monaco-host .bp-glyph { background: var(--danger-dot); border-radius: 50%; width: 10px !important; height: 10px !important; margin: 4px 0 0 6px; cursor: pointer; }
+.monaco-host .dbg-current-line { background: var(--warning-bg); }
+.monaco-host .dbg-current-glyph::after { content: "➜"; color: var(--warning-fg); position: absolute; left: 4px; font-size: 12px; }
+.debug-panel { margin-top: var(--sp-3); }
+.debug-toolbar { flex-wrap: wrap; gap: var(--sp-2); }
+.debug-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(14rem, 1fr)); gap: var(--sp-3); margin-top: var(--sp-2); }
+.debug-grid .list { max-height: 14rem; overflow: auto; }
+.var-tree { list-style: none; margin: 0; padding-left: var(--sp-3); font-size: var(--fs-sm); }
+.var-tree > li { padding: 1px 0; }
+.var-tree .var-name { color: var(--primary); }
+.var-tree .twisty { background: none; border: 0; padding: 0 4px; cursor: pointer; color: inherit; min-height: 0; }
+pre.logs.debug-console { min-height: 4rem; max-height: 10rem; }

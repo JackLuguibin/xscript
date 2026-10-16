@@ -43,12 +43,17 @@ export interface EditorHandle {
   getValue(): string;
   setValue(v: string): void;
   setTheme(dark: boolean): void;
+  /** gutter breakpoint dots (1-based lines) */
+  setBreakpoints(lines: number[]): void;
+  /** the paused line (highlighted and revealed), or null */
+  setCurrentLine(line: number | null): void;
   dispose(): void;
 }
 
 export function createEditor(
   el: HTMLElement,
-  opts: { value: string; language: string; dark: boolean; label: string; onChange: (v: string) => void; onKey: (e: KeyboardEvent) => void },
+  opts: { value: string; language: string; dark: boolean; label: string; onChange: (v: string) => void; onKey: (e: KeyboardEvent) => void;
+    breakpoints?: number[]; currentLine?: number | null; onToggleBreakpoint?: (line: number) => void; toggleLabel?: string },
 ): EditorHandle {
   register();
   const ed = monaco.editor.create(el, {
@@ -64,6 +69,32 @@ export function createEditor(
     ariaLabel: opts.label,
     // the hidden-textarea input path: EditContext support varies across QtWebEngine builds (IME on Windows untested)
     editContext: false,
+    glyphMargin: true,
+  });
+  const bpDeco = ed.createDecorationsCollection();
+  const lineDeco = ed.createDecorationsCollection();
+  const setBreakpoints = (lines: number[]) =>
+    bpDeco.set(lines.map((ln) => ({ range: new monaco.Range(ln, 1, ln, 1), options: { glyphMarginClassName: "bp-glyph", glyphMarginHoverMessage: { value: `breakpoint ${ln}` }, stickiness: 1 } })));
+  const setCurrentLine = (line: number | null) => {
+    lineDeco.set(line ? [{ range: new monaco.Range(line, 1, line, 1), options: { isWholeLine: true, className: "dbg-current-line", glyphMarginClassName: "dbg-current-glyph" } }] : []);
+    if (line) ed.revealLineInCenterIfOutsideViewport(line);
+  };
+  setBreakpoints(opts.breakpoints ?? []);
+  setCurrentLine(opts.currentLine ?? null);
+  ed.onMouseDown((e) => {
+    const T = monaco.editor.MouseTargetType;
+    if ((e.target.type === T.GUTTER_GLYPH_MARGIN || e.target.type === T.GUTTER_LINE_NUMBERS) && e.target.position) {
+      opts.onToggleBreakpoint?.(e.target.position.lineNumber);
+    }
+  });
+  ed.addAction({
+    id: "xscript.toggleBreakpoint",
+    label: opts.toggleLabel ?? "Toggle breakpoint",
+    keybindings: [monaco.KeyCode.F9],
+    run: (e) => {
+      const pos = e.getPosition();
+      if (pos) opts.onToggleBreakpoint?.(pos.lineNumber);
+    },
   });
   let silent = false;
   ed.onDidChangeModelContent(() => {
@@ -78,6 +109,8 @@ export function createEditor(
       silent = false;
     },
     setTheme: (dark) => monaco.editor.setTheme(dark ? "vs-dark" : "vs"),
+    setBreakpoints,
+    setCurrentLine,
     dispose: () => {
       ed.getModel()?.dispose();
       ed.dispose();
