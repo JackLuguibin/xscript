@@ -195,7 +195,7 @@ export function DevicePage() {
             }}
           >
             <input aria-label="device address" className="grow" value={address} onChange={(e) => setAddress(e.target.value)} placeholder={t.lanPlaceholder} autoComplete="off" spellCheck={false} />
-            <button type="submit" className="primary" aria-label={`${t.connect}地址`} disabled={busy !== "" || !address.trim()}>
+            <button type="submit" className="primary" aria-label={t.addressConnect} disabled={busy !== "" || !address.trim()}>
               {busy === "lan" ? <Spinner /> : t.connect}
             </button>
             <button type="button" onClick={() => void doScan()} disabled={busy !== ""}>

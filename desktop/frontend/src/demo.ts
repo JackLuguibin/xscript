@@ -64,6 +64,20 @@ export function createDemoTransport(): MemoryTransport {
         proj(p).set(String(p.path), String(p.content));
         return { ok: true };
       },
+      "project.deleteFile": (p) => {
+        if (p.path === "__init__.py") throw { code: "device.http", message: "entry point cannot be deleted" };
+        if (!proj(p).delete(String(p.path))) throw { code: "device.http", message: "missing file" };
+        return { ok: true };
+      },
+      "project.move": (p) => {
+        const m = proj(p);
+        const c = m.get(String(p.from));
+        if (c === undefined) throw { code: "device.http", message: "missing file" };
+        if (m.has(String(p.to))) throw { code: "device.http", message: "target exists" };
+        m.delete(String(p.from));
+        m.set(String(p.to), c);
+        return { ok: true, from: p.from, to: p.to };
+      },
       "project.run": (p) => {
         if (running) return { error: "already running", project: running };
         proj(p);

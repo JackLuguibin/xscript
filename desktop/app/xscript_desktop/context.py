@@ -21,9 +21,9 @@ ACTION_TYPES = ("click", "swipe", "input", "key")
 MAX_FILE_CHARS = 2 * 1024 * 1024  # stays under the bridge's 4 MiB request cap even after JSON escaping
 
 
-def _rel_path(params: dict[str, Any]) -> str:
+def _rel_path(params: dict[str, Any], key: str = "path") -> str:
     """Same rules as the device (ProjectStore.resolve): relative, '/'-separated, no '.', '..' or empty segments."""
-    rel = param(params, "path", str)
+    rel = param(params, key, str)
     if not rel or rel.startswith("/") or "\\" in rel or "\0" in rel or any(p in ("", ".", "..") for p in rel.split("/")):
         raise RpcError("rpc.bad_params", "invalid project path: %r" % rel)
     return rel
@@ -207,6 +207,19 @@ class AppContext:
                 raise RpcError("rpc.bad_params", "encoding must be utf-8 or base64")
             return await self._client(params).write_file(param(params, "project", str), _rel_path(params), content, encoding,
                                                          param(params, "create", bool, default=False))
+
+        @d.method("project.deleteFile")
+        @_map_errors
+        async def project_delete_file(params: dict[str, Any]) -> dict[str, Any]:
+            return await self._client(params).delete_file(param(params, "project", str), _rel_path(params))
+
+        @d.method("project.move")
+        @_map_errors
+        async def project_move(params: dict[str, Any]) -> dict[str, Any]:
+            src, dst = _rel_path(params, "from"), _rel_path(params, "to")
+            if src == dst:
+                raise RpcError("rpc.bad_params", "source and target are the same")
+            return await self._client(params).move(param(params, "project", str), src, dst)
 
         @d.method("project.run")
         @_map_errors
