@@ -1,7 +1,10 @@
-import type { ReactElement } from "react";
+import { useState, type ReactElement } from "react";
 import { useServices } from "./app-context";
 import { DevicePage } from "./components/DevicePage";
+import { MirrorPage } from "./components/MirrorPage";
+import { ProjectsPage } from "./components/ProjectsPage";
 import { IconFlow, IconFolder, IconMark, IconMonitor, IconMoon, IconPhone, IconSun } from "./components/icons";
+import { useLanguage } from "./i18n";
 import { t } from "./strings";
 import { ThemeProvider, useTheme, type ThemeMode } from "./theme";
 
@@ -20,8 +23,22 @@ function ThemeToggle() {
   );
 }
 
+function LangToggle({ lang, onChange }: { lang: "zh" | "en"; onChange: (l: "zh" | "en") => void }) {
+  const next = lang === "zh" ? "en" : "zh";
+  return (
+    <button className="ghost nav-item" onClick={() => onChange(next)} aria-label={`${t.lang.label}：${t.lang[lang]}（${t.lang.switchTo}）`} title={`${t.lang.label}：${t.lang[lang]}`}>
+      <span aria-hidden="true" className="lang-mark">{lang === "zh" ? "中" : "EN"}</span>
+      <span className="label">
+        {t.lang.label}：{t.lang[lang]}
+      </span>
+    </button>
+  );
+}
+
 function Shell() {
   const { inShell } = useServices();
+  const [lang, setLang] = useLanguage();
+  const [page, setPage] = useState<"devices" | "mirror" | "projects">("devices");
   return (
     <div className="app">
       <a className="skip-link" href="#main">
@@ -35,14 +52,17 @@ function Shell() {
           <span className="brand-text">{t.appTitle}</span>
         </div>
         <nav className="nav" aria-label="main">
-          <button className="nav-item" aria-current="page">
+          <button className="nav-item" aria-current={page === "devices" ? "page" : undefined} onClick={() => setPage("devices")}>
             <IconPhone />
             <span className="label">{t.nav.devices}</span>
           </button>
-          <button className="nav-item" disabled title={`${t.nav.soon}（${t.nav.p1}）`}>
+          <button className="nav-item" aria-current={page === "mirror" ? "page" : undefined} onClick={() => setPage("mirror")}>
+            <IconMonitor />
+            <span className="label">{t.nav.mirror}</span>
+          </button>
+          <button className="nav-item" aria-current={page === "projects" ? "page" : undefined} onClick={() => setPage("projects")}>
             <IconFolder />
             <span className="label">{t.nav.projects}</span>
-            <span className="tag">{t.nav.p1}</span>
           </button>
           <button className="nav-item" disabled title={`${t.nav.soon}（${t.nav.p2}）`}>
             <IconFlow />
@@ -52,13 +72,14 @@ function Shell() {
         </nav>
         <div className="sidebar-foot">
           <ThemeToggle />
+          <LangToggle lang={lang} onChange={setLang} />
         </div>
       </aside>
       <div className="content">
         <header className="topbar">
           <div>
-            <h1>{t.nav.devices}</h1>
-            <p className="sub">{t.subtitle}</p>
+            <h1>{t.nav[page]}</h1>
+            <p className="sub">{page === "devices" ? t.subtitle : page === "mirror" ? t.mirror.subtitle : t.projects.subtitle}</p>
           </div>
         </header>
         {!inShell && (
@@ -67,7 +88,7 @@ function Shell() {
           </div>
         )}
         <main id="main" tabIndex={-1}>
-          <DevicePage />
+          {page === "devices" ? <DevicePage /> : page === "mirror" ? <MirrorPage /> : <ProjectsPage />}
         </main>
       </div>
     </div>

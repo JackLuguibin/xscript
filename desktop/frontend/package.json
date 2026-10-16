@@ -13,6 +13,7 @@
     "test:coverage": "vitest run --coverage"
   },
   "dependencies": {
+    "monaco-editor": "0.57.0",
     "react": "19.3.0",
     "react-dom": "19.3.0"
   },

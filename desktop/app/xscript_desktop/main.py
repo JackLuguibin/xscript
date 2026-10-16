@@ -63,11 +63,11 @@ def main(argv: list[str] | None = None) -> int:
     app = QApplication([sys.argv[0]])
     app.setApplicationName("XScript")
     runtime = AsyncRuntime().start()
-    ctx = AppContext(adb=AdbService(args.adb))
+    data_dir = Path(args.data_dir) if args.data_dir else default_data_dir()
+    ctx = AppContext(adb=AdbService(args.adb), data_dir=None if args.selftest else data_dir)
     bridge = Bridge(ctx, runtime)
     handler = XsAppHandler(ctx, runtime)
     headless = bool(args.selftest)
-    data_dir = Path(args.data_dir) if args.data_dir else default_data_dir()
     win = MainWindow(bridge, handler, dev_url=args.dev_url, storage=None if (headless or args.screenshot) else data_dir / "web")
     if args.size:
         try:
@@ -75,6 +75,9 @@ def main(argv: list[str] | None = None) -> int:
             win.resize(max(320, w), max(240, h))
         except ValueError:
             print("ignoring bad --size %r (expected WxH)" % args.size, file=sys.stderr)
+    from .dialogs import DirectoryPicker
+    picker = DirectoryPicker(win)
+    ctx.pick_directory = picker.pick
     win.show()
     win.load()
 

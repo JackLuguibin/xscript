@@ -148,6 +148,74 @@ class DeviceClient:
     def _p(project: str) -> str:
         return quote(project, safe="")
 
+    async def files(self, project: str) -> dict[str, Any]:
+        data = await self._json("GET", "/projects/%s/files" % self._p(project))
+        if not isinstance(data, dict):
+            raise DeviceError("unexpected /files response", kind="protocol")
+        return {"project": data.get("project", project), "files": data.get("files") or [], "dirs": data.get("dirs") or []}
+
+    async def read_file(self, project: str, path: str) -> dict[str, Any]:
+        return await self._json("GET", "/projects/%s/file" % self._p(project), params={"path": path})
+
+    async def write_file(self, project: str, path: str, content: str, encoding: str = "utf-8", create: bool = False) -> dict[str, Any]:
+        body: dict[str, Any] = {"path": path, "content": content, "encoding": encoding}
+        if create:
+            body["create"] = True
+        return await self._json("PUT", "/projects/%s/files" % self._p(project), json=body)
+
+    async def upload_files(self, project: str, files: list[dict[str, Any]]) -> dict[str, Any]:
+        return await self._json("PUT", "/projects/%s/files" % self._p(project), json={"files": files}, timeout=max(self.timeout, 120))
+
+    async def read_raw(self, project: str, path: str) -> bytes:
+        r = await self._request("GET", "/projects/%s/file" % self._p(project), params={"path": path, "raw": "1"}, timeout=max(self.timeout, 60))
+        return r.content
+
+    async def files_or_none(self, project: str) -> list[dict[str, Any]] | None:
+        """The project's file list, or None when the project does not exist yet (404)."""
+        r = await self._request("GET", "/projects/%s/files" % self._p(project), ok_status=(404,))
+        if r.status_code == 404:
+            return None
+        data = r.json()
+        return data.get("files") or [] if isinstance(data, dict) else []
+
+    async def delete_file(self, project: str, path: str) -> dict[str, Any]:
+        return await self._json("DELETE", "/projects/%s/file" % self._p(project), params={"path": path})
+
+    async def move(self, project: str, src: str, dst: str) -> dict[str, Any]:
+        return await self._json("POST", "/projects/%s/move" % self._p(project), json={"from": src, "to": dst})
+
+    # ---- debugger bridge (/debug/*, docs/DEBUGGING.md) ---------------------------------------------------------------------------
+
+    async def debug_start(self, project: str) -> dict[str, Any]:
+        r = await self._request("POST", "/projects/%s/debug" % self._p(project), ok_status=(403, 404, 409), timeout=max(self.timeout, 30))
+        try:
+            data = r.json()
+        except ValueError:
+            data = {}
+        if r.is_error and isinstance(data, dict):
+            data.setdefault("error", "HTTP %d" % r.status_code)
+            data["status"] = r.status_code
+        return data if isinstance(data, dict) else {}
+
+    async def debug_connect(self) -> dict[str, Any]:
+        r = await self._request("POST", "/debug/connect", json={}, ok_status=(409,))
+        data = r.json() if r.content else {}
+        if r.status_code == 409 and isinstance(data, dict):
+            data.setdefault("error", "debugger not ready")
+        return data if isinstance(data, dict) else {}
+
+    async def debug_request(self, message: dict[str, Any]) -> dict[str, Any]:
+        return await self._json("POST", "/debug/request", json=message)
+
+    async def debug_messages(self, since: int) -> dict[str, Any]:
+        return await self._json("GET", "/debug/messages", params={"since": int(since)})
+
+    async def debug_close(self) -> dict[str, Any]:
+        return await self._json("DELETE", "/debug")
+
+    async def create_project(self, project: str) -> dict[str, Any]:
+        return await self._json("POST", "/projects/%s" % self._p(project))
+
     async def upload_zip(self, project: str, data: bytes, replace: bool = True) -> dict[str, Any]:
         return await self._json("PUT", "/projects/%s/zip" % self._p(project), params={"replace": "true" if replace else "false"},
                                 content=data, headers={"Content-Type": "application/zip"}, timeout=max(self.timeout, 120))
