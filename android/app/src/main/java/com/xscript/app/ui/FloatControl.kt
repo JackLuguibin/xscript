@@ -31,6 +31,7 @@ import android.widget.FrameLayout
 import android.widget.ImageView
 import android.widget.LinearLayout
 import android.widget.TextView
+import com.xscript.app.R
 import com.xscript.app.events.EventHub
 import com.xscript.app.runtime.RunState
 import com.xscript.app.runtime.ScriptService
@@ -67,7 +68,9 @@ object FloatControl {
     private var dot: View? = null
     private var title: TextView? = null
     private var timer: TextView? = null
-    private var toggle: TextView? = null
+    private var toggleIcon: ImageView? = null
+    private var toggleLabel: TextView? = null
+    private var toggleBox: View? = null
     private var lp = WindowManager.LayoutParams()
     private var state = FloatLogic.State()
     private var startedActivities = 0
@@ -398,7 +401,8 @@ object FloatControl {
             }
         }
         root = null; box = null; head = null; panel = null; sysRow = null; menuRow = null
-        ball = null; dot = null; title = null; timer = null; toggle = null
+        ball = null; dot = null; title = null; timer = null
+        toggleIcon = null; toggleLabel = null; toggleBox = null
         menuKey = ""
         lastCd = ""
         state = FloatLogic.next(state, FloatLogic.Event.HIDE)
@@ -459,16 +463,27 @@ object FloatControl {
         else -> Color.parseColor("#FF9AA5B1")
     }
 
+    /** Colours for light / dark mode: a light panel with dark icons in light mode, a dark one with light icons at night. */
+    private class Palette(val bg: Int, val stroke: Int, val text: Int, val sub: Int, val ripple: Int, val play: Int, val stop: Int)
+
+    private fun palette(ctx: Context): Palette = if (night(ctx)) {
+        Palette(
+            Color.argb(255, 34, 39, 46), Color.argb(110, 255, 255, 255), Color.parseColor("#FFEAEFF4"),
+            Color.parseColor("#FFAEB9C4"), Color.argb(70, 255, 255, 255), Color.parseColor("#FF4CD27A"), Color.parseColor("#FFFF6B63"),
+        )
+    } else {
+        Palette(
+            Color.argb(255, 249, 250, 252), Color.argb(70, 0, 0, 0), Color.parseColor("#FF1B2430"),
+            Color.parseColor("#FF5B6773"), Color.argb(46, 0, 0, 0), Color.parseColor("#FF1E9E4A"), Color.parseColor("#FFD93A32"),
+        )
+    }
+
     private fun panelBackground(ctx: Context, radiusDp: Float) = GradientDrawable().apply {
+        val p = palette(ctx)
         cornerRadius = dp(ctx, radiusDp).toFloat()
-        // A hairline plus a slightly lighter fill in dark mode keeps the window visible on black backgrounds.
-        if (night(ctx)) {
-            setColor(Color.argb(240, 42, 48, 56))
-            setStroke(dp(ctx, 1f).coerceAtLeast(1), Color.argb(120, 255, 255, 255))
-        } else {
-            setColor(Color.argb(236, 28, 32, 38))
-            setStroke(dp(ctx, 1f).coerceAtLeast(1), Color.argb(70, 255, 255, 255))
-        }
+        // The hairline keeps the window visible on a background of the same brightness.
+        setColor(p.bg)
+        setStroke(dp(ctx, 1f).coerceAtLeast(1), p.stroke)
     }
 
     private fun render(ctx: Context) {
@@ -501,11 +516,14 @@ object FloatControl {
             setText(b, when { running -> FloatLogic.formatBall(elapsed); err -> "!"; else -> "空闲" })
             (b.background as? GradientDrawable)?.setStroke(dp(ctx, 3f), color)
         }
-        toggle?.apply {
-            setText(this, if (running) "■ 停止" else "▶ 运行")
-            contentDescription = if (running) "停止脚本" else "运行脚本"
-            (background as? GradientDrawable)?.setColor(Color.parseColor(if (running) "#FFE5484D" else "#FF2FA84F"))
+        val pal = palette(ctx)
+        toggleIcon?.let { i ->
+            i.setImageResource(if (running) R.drawable.ic_float_stop else R.drawable.ic_float_play)
+            i.setColorFilter(if (running) pal.stop else pal.play)
         }
+        setText(toggleLabel, if (running) "停止" else "运行")
+        toggleLabel?.setTextColor(if (running) pal.stop else pal.play)
+        toggleBox?.contentDescription = if (running) "停止脚本" else "运行脚本"
 
         val inBall = state.mode == FloatLogic.Mode.BALL
         val showPanel = state.mode == FloatLogic.Mode.PANEL
@@ -533,16 +551,20 @@ object FloatControl {
         if (v != null && v.text.toString() != t) v.text = t
     }
 
-    /** Rebuild the script's custom buttons when the set changed. */
+    /** Rebuild the script's custom buttons when the set changed: rows of up to [PER_ROW]. */
     private fun buildMenuRow(ctx: Context) {
-        val row = menuRow ?: return
-        val key = menus.values.joinToString("|") { it.id + ":" + it.icon }
+        val col = menuRow ?: return
+        val key = menus.values.joinToString("|") { it.id + ":" + it.icon } + "/" + night(ctx)
         if (key == menuKey) return
         menuKey = key
-        row.removeAllViews()
-        for (m in menus.values) {
-            val size = dp(ctx, 48f)
-            val v: View = run {
+        col.removeAllViews()
+        val pal = palette(ctx)
+        menus.values.chunked(PER_ROW).forEach { chunk ->
+            val row = LinearLayout(ctx).apply {
+                orientation = LinearLayout.HORIZONTAL
+                gravity = Gravity.CENTER
+            }
+            for (m in chunk) {
                 val bmp: Bitmap? = if (m.icon.isNotEmpty()) {
                     try {
                         BitmapFactory.decodeFile(m.icon)
@@ -552,36 +574,26 @@ object FloatControl {
                 } else {
                     null
                 }
-                if (bmp != null) {
-                    ImageView(ctx).apply {
-                        setImageBitmap(bmp)
-                        scaleType = ImageView.ScaleType.FIT_CENTER
-                        val p = dp(ctx, 10f)
-                        setPadding(p, p, p, p)
-                    }
-                } else {
-                    TextView(ctx).apply {
-                        text = m.id.take(2)
-                        gravity = Gravity.CENTER
-                        setTextColor(Color.WHITE)
-                        textSize = 14f
+                // The script's own icon keeps its colours; the generic one follows light / dark.
+                val b = iconButton(ctx, m.id, "悬浮窗按钮 ${m.id}", pal) { icon ->
+                    if (bmp != null) {
+                        icon.setImageBitmap(bmp)
+                    } else {
+                        icon.setImageResource(R.drawable.ic_float_menu)
+                        icon.setColorFilter(pal.text)
                     }
                 }
+                b.setOnClickListener {
+                    EventHub.floatMenu(m.id)
+                    action(ctx, collapse = false)
+                }
+                row.addView(b, LinearLayout.LayoutParams(WRAP, WRAP))
             }
-            v.contentDescription = "float_menu_${m.id}"
-            v.background = GradientDrawable().apply {
-                shape = GradientDrawable.OVAL
-                setColor(Color.parseColor("#FF3A4350"))
-            }
-            v.setOnClickListener {
-                EventHub.floatMenu(m.id)
-                action(ctx, collapse = false)
-            }
-            row.addView(v, LinearLayout.LayoutParams(size, size).apply {
-                marginStart = dp(ctx, 3f); marginEnd = dp(ctx, 3f)
-            })
+            col.addView(row, LinearLayout.LayoutParams(WRAP, WRAP).apply { gravity = Gravity.CENTER_HORIZONTAL })
         }
     }
+
+    private const val PER_ROW = 4
 
     /**
      * Measure the content ourselves and give the window that exact size: a WRAP_CONTENT overlay does not
@@ -638,21 +650,53 @@ object FloatControl {
         visibleNow = true
     }
 
-    private fun label(ctx: Context, text: String, desc: String, bg: String, onClick: () -> Unit) = TextView(ctx).apply {
-        this.text = text
-        contentDescription = desc
-        gravity = Gravity.CENTER
-        setTextColor(Color.WHITE)
-        textSize = 14f
-        minHeight = dp(ctx, 48f)
-        minWidth = dp(ctx, 56f)
-        val ph = dp(ctx, 12f)
-        setPadding(ph, 0, ph, 0)
-        background = GradientDrawable().apply {
-            cornerRadius = dp(ctx, 24f).toFloat()
-            setColor(Color.parseColor(bg))
+    private fun rounded(ctx: Context, color: Int, radiusDp: Float) = GradientDrawable().apply {
+        setColor(color)
+        cornerRadius = dp(ctx, radiusDp).toFloat()
+    }
+
+    /**
+     * Icon over a small label, at least 48dp in both directions (64 x 56dp by default), with a ripple. [setup] fills
+     * the 24dp icon. Returns the clickable container; the icon and label are decoration for the screen reader.
+     */
+    private fun iconButton(
+        ctx: Context, text: String, desc: String, pal: Palette,
+        setup: (ImageView) -> Unit,
+    ): LinearLayout = iconButtonParts(ctx, text, desc, pal, setup).first
+
+    private fun iconButtonParts(
+        ctx: Context, text: String, desc: String, pal: Palette, setup: (ImageView) -> Unit,
+    ): Triple<LinearLayout, ImageView, TextView> {
+        val icon = ImageView(ctx).apply {
+            scaleType = ImageView.ScaleType.FIT_CENTER
+            importantForAccessibility = View.IMPORTANT_FOR_ACCESSIBILITY_NO
+            setup(this)
         }
-        setOnClickListener { onClick() }
+        val label = TextView(ctx).apply {
+            this.text = text
+            textSize = 11f
+            setTextColor(pal.text)
+            gravity = Gravity.CENTER
+            isSingleLine = true
+            ellipsize = android.text.TextUtils.TruncateAt.END
+            maxWidth = dp(ctx, 72f)
+            importantForAccessibility = View.IMPORTANT_FOR_ACCESSIBILITY_NO
+        }
+        val box = LinearLayout(ctx).apply {
+            orientation = LinearLayout.VERTICAL
+            gravity = Gravity.CENTER
+            minimumWidth = dp(ctx, 64f)
+            minimumHeight = dp(ctx, 56f)
+            setPadding(dp(ctx, 4f), dp(ctx, 6f), dp(ctx, 4f), dp(ctx, 5f))
+            contentDescription = desc
+            isClickable = true
+            background = android.graphics.drawable.RippleDrawable(
+                android.content.res.ColorStateList.valueOf(pal.ripple), null, rounded(ctx, Color.BLACK, 14f),
+            )
+            addView(icon, LinearLayout.LayoutParams(dp(ctx, 24f), dp(ctx, 24f)).apply { gravity = Gravity.CENTER_HORIZONTAL })
+            addView(label, LinearLayout.LayoutParams(WRAP, WRAP).apply { topMargin = dp(ctx, 3f); gravity = Gravity.CENTER_HORIZONTAL })
+        }
+        return Triple(box, icon, label)
     }
 
     @SuppressLint("ClickableViewAccessibility")
@@ -663,6 +707,7 @@ object FloatControl {
         insets = computeInsets(ctx)
         insetsNow = insets
         builtConfig = configKey(ctx)
+        val pal = palette(ctx)
 
         val frame = FrameLayout(ctx).apply {
             // Hidden until [reposition] has docked it, so it never flashes at the top-left corner.
@@ -672,7 +717,7 @@ object FloatControl {
             orientation = LinearLayout.VERTICAL
             val p = dp(ctx, 4f)
             setPadding(p, p, p, p)
-            background = panelBackground(ctx, 28f)
+            background = panelBackground(ctx, 24f)
         }
         val hd = LinearLayout(ctx).apply {
             orientation = LinearLayout.HORIZONTAL
@@ -687,14 +732,14 @@ object FloatControl {
             importantForAccessibility = View.IMPORTANT_FOR_ACCESSIBILITY_NO
         }
         val t = TextView(ctx).apply {
-            setTextColor(Color.WHITE)
+            setTextColor(pal.text)
             textSize = 14f
             maxWidth = dp(ctx, 140f)
             isSingleLine = true
             ellipsize = android.text.TextUtils.TruncateAt.END
         }
         val tm = TextView(ctx).apply {
-            setTextColor(Color.parseColor("#FFC9D2DB"))
+            setTextColor(pal.sub)
             textSize = 13f
             typeface = android.graphics.Typeface.MONOSPACE
             setPadding(dp(ctx, 8f), 0, 0, 0)
@@ -703,7 +748,8 @@ object FloatControl {
         hd.addView(t)
         hd.addView(tm)
 
-        val tg = label(ctx, "▶ 运行", "运行脚本", "#FF2FA84F") {
+        val (tgBox, tgIcon, tgLabel) = iconButtonParts(ctx, "运行", "运行脚本", pal) { it.setImageResource(R.drawable.ic_float_play) }
+        tgBox.setOnClickListener {
             if (RunState.current(ctx) != null) {
                 ScriptService.stop(ctx)
                 RunState.set(ctx, null)
@@ -717,15 +763,18 @@ object FloatControl {
             }
             action(ctx)
         }
-        val logs = label(ctx, "日志", "查看日志", "#FF3A4350") {
+        val logs = iconButton(ctx, "日志", "查看日志", pal) { it.setImageResource(R.drawable.ic_float_log); it.setColorFilter(pal.text) }
+        logs.setOnClickListener {
             startApp(ctx, LogActivity::class.java)
             action(ctx)
         }
-        val open = label(ctx, "打开", "打开应用", "#FF3A4350") {
+        val open = iconButton(ctx, "打开", "打开应用", pal) { it.setImageResource(R.drawable.ic_float_open); it.setColorFilter(pal.text) }
+        open.setOnClickListener {
             startApp(ctx, com.xscript.app.LauncherActivity.home(ctx))
             action(ctx)
         }
-        val hide = label(ctx, "隐藏", "隐藏悬浮窗，下次运行或打开应用后再出现", "#FF3A4350") {
+        val hide = iconButton(ctx, "隐藏", "隐藏悬浮窗，下次运行或打开应用后再出现", pal) { it.setImageResource(R.drawable.ic_float_hide); it.setColorFilter(pal.text) }
+        hide.setOnClickListener {
             userHidden = true
             syncOnMain(ctx, false)
         }
@@ -733,18 +782,16 @@ object FloatControl {
             orientation = LinearLayout.HORIZONTAL
             gravity = Gravity.CENTER
         }
-        for (v in listOf(tg, logs, open, hide)) {
-            sys.addView(v, LinearLayout.LayoutParams(WRAP, WRAP).apply { marginStart = dp(ctx, 3f); marginEnd = dp(ctx, 3f) })
-        }
+        for (v in listOf(tgBox, logs, open, hide)) sys.addView(v, LinearLayout.LayoutParams(WRAP, WRAP))
         val menu = LinearLayout(ctx).apply {
-            orientation = LinearLayout.HORIZONTAL
+            orientation = LinearLayout.VERTICAL
             gravity = Gravity.CENTER
         }
         val pnl = LinearLayout(ctx).apply {
             orientation = LinearLayout.VERTICAL
-            setPadding(0, dp(ctx, 2f), 0, dp(ctx, 4f))
+            setPadding(dp(ctx, 4f), 0, dp(ctx, 4f), dp(ctx, 2f))
             addView(sys, LinearLayout.LayoutParams(WRAP, WRAP).apply { gravity = Gravity.CENTER_HORIZONTAL })
-            addView(menu, LinearLayout.LayoutParams(WRAP, WRAP).apply { topMargin = dp(ctx, 4f); gravity = Gravity.CENTER_HORIZONTAL })
+            addView(menu, LinearLayout.LayoutParams(WRAP, WRAP).apply { gravity = Gravity.CENTER_HORIZONTAL })
         }
         // Explicit WRAP_CONTENT everywhere: a vertical LinearLayout's default MATCH_PARENT children get squeezed to the
         // narrowest sibling when the window wraps its content (the panel buttons were cut off next to a short title).
@@ -754,7 +801,7 @@ object FloatControl {
 
         val ballView = TextView(ctx).apply {
             gravity = Gravity.CENTER
-            setTextColor(Color.WHITE)
+            setTextColor(pal.text)
             textSize = 11f
             typeface = android.graphics.Typeface.create(android.graphics.Typeface.MONOSPACE, android.graphics.Typeface.BOLD)
             isSingleLine = true
@@ -801,7 +848,8 @@ object FloatControl {
         return try {
             wm.addView(frame, lp)
             root = frame; box = b; head = hd; panel = pnl; sysRow = sys; menuRow = menu
-            ball = ballView; dot = d; title = t; timer = tm; toggle = tg
+            ball = ballView; dot = d; title = t; timer = tm
+            toggleIcon = tgIcon; toggleLabel = tgLabel; toggleBox = tgBox
             true
         } catch (_: Exception) {
             // Overlay grant revoked meanwhile, or no window token: stay silent.

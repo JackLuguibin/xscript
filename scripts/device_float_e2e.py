@@ -139,8 +139,9 @@ def uia_nodes():
 
 
 def tap_overlay(label):
+    """Tap the overlay node whose content description (or text) is exactly `label`."""
     for pk, t, d, (x, y), _b in uia_nodes():
-        if pk == PKG and (label in t or label == d):
+        if pk == PKG and (label == d or label == t):
             adb("shell", "input", "tap", str(x), str(y))
             return True
     return False
@@ -182,6 +183,14 @@ def node_texts():
     return [t for pk, t, d, _c, _b in uia_nodes() if pk == PKG and t]
 
 
+BTN_STOP = "停止脚本"
+BTN_RUN = "运行脚本"
+BTN_LOG = "查看日志"
+BTN_OPEN = "打开应用"
+BTN_HIDE = "隐藏悬浮窗，下次运行或打开应用后再出现"
+BTN_DESCS = (BTN_STOP, BTN_LOG, BTN_OPEN, BTN_HIDE)
+
+
 def home():
     adb("shell", "input", "keyevent", "KEYCODE_HOME")
 
@@ -210,7 +219,7 @@ def main():
         api("POST", "/projects/" + PROJECT, {})
         api("PUT", "/projects/%s/files" % PROJECT, {"files": [{"path": "__init__.py", "encoding": "base64", "content": base64.b64encode(SCRIPT.encode()).decode()}]})
     try:
-        # XS_ONLY=orientation|menus|error_flash|appearance|cpu_ticks|scripted_api runs just that section
+        # XS_ONLY=orientation|menus|menu_icon|error_flash|appearance|cpu_ticks|scripted_api runs just that section
         only = os.environ.get("XS_ONLY")
         if only:
             home()
@@ -346,10 +355,16 @@ def flow():
     check(o["alpha"] >= 0.99, "panel is fully opaque", o)
     shot("panel")
     nodes = uia_nodes()
-    buttons = {t: b for pk, t, d, _c, b in nodes if pk == PKG and t in ("■ 停止", "日志", "打开", "隐藏")}
-    check(set(buttons) == {"■ 停止", "日志", "打开", "隐藏"}, "panel has 停止 / 日志 / 打开 / 隐藏", list(buttons))
+    buttons = {d: b for pk, t, d, _c, b in nodes if pk == PKG and d in BTN_DESCS}
+    check(set(buttons) == set(BTN_DESCS), "panel has 停止 / 日志 / 打开 / 隐藏 (icon buttons)", list(buttons))
     small = {t: (b[2] - b[0], b[3] - b[1]) for t, b in buttons.items() if b[3] - b[1] < dp(48) - 1 or b[2] - b[0] < dp(48) - 1}
     check(not small, "every panel button is at least 48dp x 48dp", small)
+    labels = [(t, c) for pk, t, d, c, b in nodes if pk == PKG and t in ("停止", "日志", "打开", "隐藏")]
+    inside = [t for t, (cx, cy) in labels for b in buttons.values() if b[0] <= cx <= b[2] and b[1] <= cy <= b[3]]
+    check(sorted(inside) == sorted(["停止", "日志", "打开", "隐藏"]), "each button shows its label inside its own bounds", labels)
+    gaps = sorted(((b[0] + b[2]) // 2) for b in buttons.values())
+    steps = [gaps[i + 1] - gaps[i] for i in range(len(gaps) - 1)]
+    check(steps and max(steps) - min(steps) <= 3, "buttons are evenly spaced", steps)
     check(inside_safe_area(overlay(), st), "panel fits inside the safe area", overlay())
     check(to_mode("pill"), "tap on the header collapses the panel to the pill", overlay())
 
@@ -398,7 +413,7 @@ def flow():
     # 6 日志 / 打开 buttons bring the app up (and hide the window)
     check(to_mode("panel"), "panel open (for 日志)")
     time.sleep(0.4)
-    check(tap_overlay("日志"), "tap 日志")
+    check(tap_overlay(BTN_LOG), "tap 日志")
     check(wait(lambda: overlay()["app_foreground"], 8), "日志 opens the app", overlay())
     check(wait(lambda: any(pk == PKG and t in ("运行日志", "清空") for pk, t, _, _c, _b in uia_nodes()), 6), "日志 shows the log screen")
     shot("logs")
@@ -409,7 +424,7 @@ def flow():
     # 7 隐藏: gone until the next run / opening the app, script keeps running
     check(to_mode("panel"), "panel open (for 隐藏)")
     time.sleep(0.4)
-    check(tap_overlay("隐藏"), "tap 隐藏")
+    check(tap_overlay(BTN_HIDE), "tap 隐藏")
     check(wait(lambda: not overlay()["visible"], 5) and overlay()["reason"] == "user_hidden", "隐藏 hides it (reason user_hidden)", overlay())
     check(wait(lambda: not window_exists(), 5), "no XScriptFloat window after 隐藏")
     time.sleep(2.5)
@@ -423,7 +438,7 @@ def flow():
     time.sleep(0.5)
     check(to_mode("panel"), "panel open (for 停止)")
     time.sleep(0.4)
-    check(tap_overlay("停止"), "tap 停止 in the panel")
+    check(tap_overlay(BTN_STOP), "tap 停止 in the panel")
     check(wait(lambda: not api("GET", "/status")["running"], 15), "script stopped", api("GET", "/status").get("running"))
     seen_error = bool(wait(lambda: overlay()["error"], 2))
     check(wait(lambda: not overlay()["visible"], 8), "window gone after the script ended", overlay())
@@ -471,6 +486,7 @@ def flow():
     if not PACKED:
         error_flash()
         menus()
+        menu_icon()
         orientation()
         scripted_api()
 
@@ -506,10 +522,18 @@ def appearance():
         w1 = overlay()["width"]
         adb("shell", "settings", "put", "system", "font_scale", "1.5")
         check(wait(lambda: overlay()["visible"] and overlay()["width"] > w1 + 10, 8), "font size 1.5x: window is rebuilt wider", (w1, overlay()))
+        check(to_mode("panel"), "large font: panel opens")
+        time.sleep(0.6)
+        shot("font15_panel")
+        o = overlay()
+        nodes = uia_nodes()
+        btn = {d: b for pk, t, d, _c, b in nodes if pk == PKG and d in BTN_DESCS}
+        check(set(btn) == set(BTN_DESCS), "large font: all four buttons present", list(btn))
+        check(all(b[0] >= o["x"] - 1 and b[2] <= o["x"] + o["width"] + 1 and b[1] >= o["y"] - 1 and b[3] <= o["y"] + o["height"] + 1 for b in btn.values()),
+              "large font: no button is clipped by the window", (o, btn))
+        check(all(b[2] - b[0] >= dp(48) - 1 and b[3] - b[1] >= dp(48) - 1 for b in btn.values()), "large font: buttons still ≥ 48dp", btn)
+        check(inside_safe_area(overlay(), None), "large font: still inside the safe area", overlay())
         to_mode("pill")
-        shot("font15")
-        st = api("GET", "/status")
-        check(inside_safe_area(overlay(), st), "large font: still inside the safe area", overlay())
         adb("shell", "settings", "put", "system", "font_scale", f_old if f_old not in ("", "null") else "1.0")
         check(wait(lambda: overlay()["visible"] and overlay()["width"] <= w1 + 6, 8), "font size back: window shrinks again", (w1, overlay()))
         adb("shell", "cmd", "uimode", "night", "yes")
@@ -566,20 +590,22 @@ def menus():
             time.sleep(0.5)
             print("INFO panel with menus:", {k: overlay().get(k) for k in ("x", "y", "width", "height", "side", "screen_width")}, flush=True)
             nodes = uia_nodes()
-            descs = {d: b for pk, t, d, _c, b in nodes if pk == PKG and d.startswith("float_menu_")}
+            descs = {d: b for pk, t, d, _c, b in nodes if pk == PKG and d.startswith("悬浮窗按钮 ")}
             texts = [t for pk, t, d, _c, b in nodes if pk == PKG and t]
-            check(set(descs) == {"float_menu_hello", "float_menu_bye"}, "panel has the two script buttons", list(descs))
+            check(set(descs) == {"悬浮窗按钮 hello", "悬浮窗按钮 bye"}, "panel has the two script buttons", list(descs))
             check(all(b[2] - b[0] >= dp(48) - 1 and b[3] - b[1] >= dp(48) - 1 for b in descs.values()), "script buttons are 48dp touch targets", descs)
             if remove:
-                check(not any(t in ("■ 停止", "▶ 运行", "日志", "打开", "隐藏") for t in texts), "remove_system=True hides the built-in buttons", texts)
+                check(not any(d in BTN_DESCS + (BTN_RUN,) for d in [d for pk, t, d, _c, b in nodes if pk == PKG]), "remove_system=True hides the built-in buttons", texts)
             else:
-                check(any("停止" in t for t in texts) and "隐藏" in texts, "built-in buttons stay with custom ones", texts)
+                check(all(any(d == x for pk, t, d, _c, b in nodes if pk == PKG) for x in BTN_DESCS), "built-in buttons stay with custom ones", texts)
+                labels = [t for t in texts if t in ("hello", "bye")]
+                check(sorted(labels) == ["bye", "hello"], "script buttons show their id as the label", texts)
             shot("menu_removed" if remove else "menu")
             to_mode("panel")   # uiautomator dumps are slow; the panel shrinks to the ball after 10 s idle
-            check(tap_overlay("float_menu_hello"), "tap the hello button")
+            check(tap_overlay("悬浮窗按钮 hello"), "tap the hello button")
             check(wait(lambda: "MENU_HELLO_CLICKED" in json.dumps(api("GET", "/logs")), 8), "hello callback ran in the script (no-arg callback)")
             to_mode("panel")
-            check(tap_overlay("float_menu_bye"), "tap the bye button")
+            check(tap_overlay("悬浮窗按钮 bye"), "tap the bye button")
             check(wait(lambda: "MENU_BYE_CLICKED bye" in json.dumps(api("GET", "/logs")), 8), "bye callback ran with its menu id")
             check(overlay().get("state") == "panel", "panel stays open after a script button", overlay())
             api("POST", "/projects/%s/stop" % name, {})
@@ -588,6 +614,64 @@ def menus():
         finally:
             drop_project(name)
             wait(lambda: not api("GET", "/status")["running"], 10)
+
+
+def red_png(n=48):
+    import struct, zlib
+    raw = b"".join(b"\x00" + b"\xff\x00\x00\xff" * n for _ in range(n))
+
+    def chunk(t, d):
+        c = struct.pack(">I", len(d)) + t + d
+        return c + struct.pack(">I", zlib.crc32(t + d) & 0xffffffff)
+    return b"\x89PNG\r\n\x1a\n" + chunk(b"IHDR", struct.pack(">IIBBBBB", n, n, 8, 6, 0, 0, 0)) + chunk(b"IDAT", zlib.compress(raw)) + chunk(b"IEND", b"")
+
+
+SCRIPT_ICON = '''import os, time
+from ascript.android.ui import FloatWindow
+ico = os.path.join(os.path.dirname(os.path.abspath(__file__)), "red.png")
+FloatWindow.add_menu("pic", ico, lambda: None)
+FloatWindow.add_menu("gen", "", lambda: None)
+time.sleep(300)
+'''
+
+
+def menu_icon():
+    """A script-provided icon file is drawn as is; a missing one falls back to the generic icon (tinted, not red)."""
+    try:
+        from PIL import Image
+        import io
+    except ImportError:
+        print("SKIP menu_icon: PIL not available (run with the repo's .venv-rt python)", flush=True)
+        return
+    name = PROJECT + "_icon"
+    make_project(name, SCRIPT_ICON)
+    api("PUT", "/projects/%s/files" % name, {"files": [{"path": "red.png", "encoding": "base64", "content": base64.b64encode(red_png()).decode()}]})
+    try:
+        check(run_in_background(name), "icon script running")
+        check(wait(lambda: overlay()["visible"] and overlay().get("menus") == 2, 12), "icon script: 2 buttons registered", overlay())
+        check(to_mode("panel"), "panel open (icons)")
+        time.sleep(0.6)
+        nodes = uia_nodes()
+        btn = {d: b for pk, t, d, _c, b in nodes if pk == PKG and d.startswith("悬浮窗按钮 ")}
+        check(set(btn) == {"悬浮窗按钮 pic", "悬浮窗按钮 gen"}, "both script buttons are in the panel", list(btn))
+        png = subprocess.run([ADB, "-s", SERIAL, "exec-out", "screencap", "-p"], capture_output=True).stdout
+        im = Image.open(io.BytesIO(png)).convert("RGB")
+
+        def red_pixels(b):
+            n = 0
+            for x in range(b[0], b[2], 3):
+                for y in range(b[1], b[3], 3):
+                    r, g, bl = im.getpixel((x, y))
+                    if r > 200 and g < 70 and bl < 70:
+                        n += 1
+            return n
+        shot("menu_icon")
+        check(red_pixels(btn["悬浮窗按钮 pic"]) > 20, "script icon (red.png) is drawn in its own colours", red_pixels(btn["悬浮窗按钮 pic"]))
+        check(red_pixels(btn["悬浮窗按钮 gen"]) == 0, "no icon given: generic icon, not the script's", red_pixels(btn["悬浮窗按钮 gen"]))
+        texts = [t for pk, t, d, _c, b in nodes if pk == PKG and t]
+        check("pic" in texts and "gen" in texts, "labels come from the ids", texts)
+    finally:
+        drop_project(name)
 
 
 def orientation():
