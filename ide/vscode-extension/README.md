@@ -90,6 +90,7 @@ bash scripts/vscode-host-test.sh            # 装 vsix 到隔离配置的真实 
 XS_VSCODE="/path/to/Visual Studio Code.app/Contents/MacOS/Code" bash scripts/vscode-host-test.sh   # 指定 VS Code；默认找 /tmp/vscode-real 和 /Applications
 # 连模拟器 / 真机：adb forward tcp:19860 tcp:9860，再加
 XS_HOST_TEST_DEVICE=127.0.0.1:19860 XS_HOST_TEST_REAL=1 XS_HOST_TEST_ADB=1 bash scripts/vscode-host-test.sh
+python3 -m venv .venv && .venv/bin/pip install debugpy   # 有 debugpy 时 mock 也提供调试桥（scripts/host-test/debug_mock.py），宿主测试会在编辑器里真实启动调试、命中断点、求值、停止
 ```
 
 ### 验证不会弹登录
