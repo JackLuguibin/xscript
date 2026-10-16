@@ -27,13 +27,20 @@ object Settings {
         get() = prefs().getBoolean("float_always", false)
         set(value) = prefs().edit().putBoolean("float_always", value).apply()
 
-    /** Where the floating window rests: edge + vertical fraction (see ui.FloatLogic.Dock). */
-    var floatDock: com.xscript.app.ui.FloatLogic.Dock
-        get() = com.xscript.app.ui.FloatLogic.Dock(
-            prefs().getBoolean("float_right", com.xscript.app.ui.FloatLogic.DEFAULT_DOCK.right),
-            com.xscript.app.ui.FloatLogic.clampFrac(prefs().getFloat("float_y", com.xscript.app.ui.FloatLogic.DEFAULT_DOCK.yFrac)),
+    /** Where the floating window rests, per orientation: edge + vertical fraction (see ui.FloatLogic.Dock). */
+    fun floatDock(landscape: Boolean): com.xscript.app.ui.FloatLogic.Dock {
+        val sfx = if (landscape) "_land" else ""
+        val d = com.xscript.app.ui.FloatLogic.DEFAULT_DOCK
+        return com.xscript.app.ui.FloatLogic.Dock(
+            prefs().getBoolean("float_right$sfx", prefs().getBoolean("float_right", d.right)),
+            com.xscript.app.ui.FloatLogic.clampFrac(prefs().getFloat("float_y$sfx", prefs().getFloat("float_y", d.yFrac))),
         )
-        set(value) = prefs().edit().putBoolean("float_right", value.right).putFloat("float_y", value.yFrac).apply()
+    }
+
+    fun setFloatDock(landscape: Boolean, value: com.xscript.app.ui.FloatLogic.Dock) {
+        val sfx = if (landscape) "_land" else ""
+        prefs().edit().putBoolean("float_right$sfx", value.right).putFloat("float_y$sfx", value.yFrac).apply()
+    }
 
     /** "run" (default: while a script runs), "always" (whenever the app is in the background) or "off". */
     var floatMode: String

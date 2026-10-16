@@ -134,7 +134,7 @@ object ScriptSupervisor {
         }
         EventHub.detach(r.sink)
         if (RunState.get(ctx) == r.project && !RunState.scriptProcessAlive(ctx)) RunState.set(ctx, null)
-        FloatControl.scriptEnded(ctx)
+        FloatControl.scriptEnded(ctx, if (r.userStop) "stopped" else (r.exit ?: "died"))
         if (r.exit == null && !r.userStop) {
             LogBuffer.append(ctx, "stderr", "xscript: script process for ${r.project} died unexpectedly\n")
         }

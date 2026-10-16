@@ -36,20 +36,24 @@ object MainControl {
                 FloatControl.forceShow(ctx, arg)
                 "ok"
             }
+            "float_menu_add" -> {
+                FloatControl.addMenu(ctx, arg)
+                "ok"
+            }
             "float_hide" -> {
                 FloatControl.forceHide(ctx)
                 "ok"
             }
             "script_started" -> {
                 // Shown when the app is in the background (see ui.FloatLogic.decide).
-                FloatControl.sync(ctx)
+                FloatControl.scriptStarted(ctx)
                 // RunState is set now, so the 云控 dashboard sees the run.
                 com.xscript.app.cloud.CloudClient.pushStatus()
                 "ok"
             }
             "script_finished" -> {
                 ScriptSupervisor.onFinished(arg)
-                FloatControl.scriptEnded(ctx)
+                FloatControl.scriptEnded(ctx, arg)
                 com.xscript.app.cloud.CloudClient.pushStatus()
                 "ok"
             }

@@ -2,6 +2,8 @@ package com.xscript.app.ui
 
 import com.xscript.app.ui.FloatLogic.Dock
 import com.xscript.app.ui.FloatLogic.Event
+import com.xscript.app.ui.FloatLogic.Insets
+import com.xscript.app.ui.FloatLogic.Mode
 import com.xscript.app.ui.FloatLogic.Reason
 import com.xscript.app.ui.FloatLogic.State
 import org.junit.Assert.assertEquals
@@ -64,27 +66,97 @@ class FloatLogicTest {
         assertEquals(Reason.SCRIPT_HIDDEN, d.reason)
     }
 
-    // ---- panel state machine ----
+    @Test fun userHiddenWinsOverEverythingButScriptOverrides() {
+        val d = FloatLogic.decide(true, true, true, true, false, userHidden = true)
+        assertFalse(d.show)
+        assertEquals(Reason.USER_HIDDEN, d.reason)
+        // a permission problem is still reported first; ui.float_show() overrides 隐藏
+        assertEquals(Reason.NO_PERMISSION, FloatLogic.decide(false, true, true, true, false, userHidden = true).reason)
+        assertTrue(FloatLogic.decide(true, true, true, true, false, scriptForce = true, userHidden = true).show)
+    }
 
-    @Test fun tapTogglesPanelOnlyWhileVisible() {
+    @Test fun errorNoticeKeepsTheWindowUpAfterTheRunEnded() {
+        val d = FloatLogic.decide(true, true, false, running = false, appForeground = false, notice = true)
+        assertTrue(d.show)
+        // but never over our own screens, with the setting off, or without the grant
+        assertFalse(FloatLogic.decide(true, true, false, false, true, notice = true).show)
+        assertFalse(FloatLogic.decide(true, false, false, false, false, notice = true).show)
+        assertFalse(FloatLogic.decide(false, true, false, false, false, notice = true).show)
+    }
+
+    @Test fun exitClassification() {
+        assertFalse(FloatLogic.isError("0"))
+        assertFalse(FloatLogic.isError("stopped"))
+        assertFalse(FloatLogic.isError(null))
+        assertFalse(FloatLogic.isError(""))
+        assertTrue(FloatLogic.isError("1"))
+        assertTrue(FloatLogic.isError("died"))
+        assertTrue(FloatLogic.isError(" 2 "))
+    }
+
+    // ---- ball / pill / panel state machine ----
+
+    @Test fun appearsAsPillAndTapTogglesPanelOnlyWhileVisible() {
         var s = State()
         assertEquals(s, FloatLogic.next(s, Event.TAP))
+        assertEquals(s, FloatLogic.next(s, Event.IDLE))
         s = FloatLogic.next(s, Event.SHOW)
         assertTrue(s.visible)
+        assertEquals(Mode.PILL, s.mode)
         s = FloatLogic.next(s, Event.TAP)
         assertTrue(s.expanded)
         s = FloatLogic.next(s, Event.TAP)
+        assertEquals(Mode.PILL, s.mode)
         assertFalse(s.expanded)
     }
 
+    @Test fun idleShrinksToBallAndTapOpensPanelFromBall() {
+        var s = FloatLogic.next(State(), Event.SHOW)
+        s = FloatLogic.next(s, Event.IDLE)
+        assertEquals(Mode.BALL, s.mode)
+        // a repeated SHOW (sync every second) must not wake or reset the ball
+        assertEquals(s, FloatLogic.next(s, Event.SHOW))
+        s = FloatLogic.next(s, Event.TAP)
+        assertEquals(Mode.PANEL, s.mode)
+        // panel idle also shrinks to the ball
+        assertEquals(Mode.BALL, FloatLogic.next(s, Event.IDLE).mode)
+    }
+
+    @Test fun wakeOnlyAffectsTheBall() {
+        val ball = State(true, Mode.BALL)
+        assertEquals(Mode.PILL, FloatLogic.next(ball, Event.WAKE).mode)
+        assertEquals(Mode.PANEL, FloatLogic.next(State(true, Mode.PANEL), Event.WAKE).mode)
+        assertEquals(State(), FloatLogic.next(State(false), Event.WAKE))
+    }
+
     @Test fun actionCollapsesAndHideResets() {
-        var s = State(visible = true, expanded = true)
+        var s = State(visible = true, mode = Mode.PANEL)
         s = FloatLogic.next(s, Event.ACTION)
-        assertEquals(State(visible = true, expanded = false), s)
-        s = FloatLogic.next(State(visible = true, expanded = true), Event.HIDE)
-        assertEquals(State(visible = false, expanded = false), s)
-        // showing again starts collapsed
-        assertFalse(FloatLogic.next(s, Event.SHOW).expanded)
+        assertEquals(State(visible = true, mode = Mode.PILL), s)
+        s = FloatLogic.next(State(visible = true, mode = Mode.PANEL), Event.HIDE)
+        assertEquals(State(visible = false, mode = Mode.PILL), s)
+        // showing again starts as the readable pill, not a ball
+        assertEquals(Mode.PILL, FloatLogic.next(FloatLogic.next(State(true, Mode.BALL), Event.HIDE), Event.SHOW).mode)
+    }
+
+    @Test fun idleTimeouts() {
+        assertEquals(FloatLogic.PILL_IDLE_MS, FloatLogic.idleMs(Mode.PILL))
+        assertEquals(FloatLogic.PANEL_IDLE_MS, FloatLogic.idleMs(Mode.PANEL))
+        assertNull(FloatLogic.idleMs(Mode.BALL))
+        assertTrue(FloatLogic.PANEL_IDLE_MS > FloatLogic.PILL_IDLE_MS)
+    }
+
+    @Test fun alphaHonoursDimAndDimsTheIdleBall() {
+        assertEquals(1f, FloatLogic.alpha(Mode.PILL, 1f), 0f)
+        assertEquals(0.5f, FloatLogic.alpha(Mode.PANEL, 0.5f), 0f)
+        assertEquals(FloatLogic.BALL_ALPHA, FloatLogic.alpha(Mode.BALL, 1f), 0.0001f)
+        assertEquals(0.5f * FloatLogic.BALL_ALPHA, FloatLogic.alpha(Mode.BALL, 0.5f), 0.0001f)
+        // touching the ball brings it to the script's dim, never above it
+        assertEquals(0.5f, FloatLogic.alpha(Mode.BALL, 0.5f, touching = true), 0f)
+        // out-of-range dim values stay usable
+        assertEquals(0.1f, FloatLogic.alpha(Mode.PILL, 0f), 0f)
+        assertEquals(1f, FloatLogic.alpha(Mode.PILL, 7f), 0f)
+        assertEquals(1f, FloatLogic.alpha(Mode.PILL, Float.NaN), 0f)
     }
 
     // ---- position ----
@@ -173,6 +245,51 @@ class FloatLogicTest {
         assertFalse(resolve(50f, 10f).right)
     }
 
+
+    // ---- safe area ----
+
+    private val ins = Insets(left = 0, top = 100, right = 0, bottom = 60)
+
+    @Test fun windowStaysOutOfStatusAndNavigationBars() {
+        assertEquals(100, FloatLogic.clampY(0, 120, 2400, ins))
+        assertEquals(2400 - 60 - 120, FloatLogic.clampY(9999, 120, 2400, ins))
+        assertEquals(500, FloatLogic.clampY(500, 120, 2400, ins))
+        val top = FloatLogic.place(Dock(true, 0f), 300, 120, 1080, 2400, ins)
+        val bottom = FloatLogic.place(Dock(true, 1f), 300, 120, 1080, 2400, ins)
+        assertEquals(100, top.second)
+        assertEquals(2400 - 60 - 120, bottom.second)
+    }
+
+    @Test fun landscapeCutoutInsetsMoveTheDockedEdgesInward() {
+        val land = Insets(left = 90, top = 24, right = 90, bottom = 0)
+        assertEquals(90, FloatLogic.dockX(false, 300, 2400, land))
+        assertEquals(2400 - 90 - 300, FloatLogic.dockX(true, 300, 2400, land))
+        assertEquals(90, FloatLogic.clampX(-10, 300, 2400, land))
+        assertEquals(2400 - 90 - 300, FloatLogic.clampX(9999, 300, 2400, land))
+    }
+
+    @Test fun dropAndRestoreRoundTripWithInsets() {
+        val dock = FloatLogic.dockFor(x = 800, y = 1300, w = 300, h = 120, screenW = 1080, screenH = 2400, insets = ins)
+        val (x, y) = FloatLogic.place(dock, 300, 120, 1080, 2400, ins)
+        assertEquals(1080 - 300, x)
+        assertEquals(1300, y)
+        // dropped on the bars → pulled inside
+        assertEquals(0f, FloatLogic.dockFor(0, 0, 300, 120, 1080, 2400, ins).yFrac, 0f)
+        assertEquals(1f, FloatLogic.dockFor(0, 2399, 300, 120, 1080, 2400, ins).yFrac, 0f)
+    }
+
+    @Test fun resolveBottomMeansAboveTheNavigationBar() {
+        val d = FloatLogic.resolve(-1f, -1f, cur, 300, 100, 1000, 2000, ins)
+        val (_, y) = FloatLogic.place(d, 300, 100, 1000, 2000, ins)
+        assertEquals(2000 - 60 - 100, y)
+        val t = FloatLogic.resolve(0f, 0f, cur, 300, 100, 1000, 2000, ins)
+        assertEquals(100, FloatLogic.place(t, 300, 100, 1000, 2000, ins).second)
+    }
+
+    @Test fun windowLargerThanTheSafeAreaPinsToTheTop() {
+        assertEquals(100, FloatLogic.place(Dock(false, 0.5f), 300, 5000, 1080, 2400, ins).second)
+    }
+
     // ---- text ----
 
     @Test fun elapsedFormat() {
@@ -183,5 +300,12 @@ class FloatLogicTest {
         assertEquals("59:59", FloatLogic.formatElapsed(3_599_000))
         assertEquals("1:00:00", FloatLogic.formatElapsed(3_600_000))
         assertEquals("25:01:02", FloatLogic.formatElapsed((25 * 3600 + 62) * 1000L))
+    }
+
+    @Test fun ballText() {
+        assertEquals("0:00", FloatLogic.formatBall(0))
+        assertEquals("12:34", FloatLogic.formatBall((12 * 60 + 34) * 1000L))
+        assertEquals("1h00", FloatLogic.formatBall(3_600_000))
+        assertEquals("25h01", FloatLogic.formatBall((25 * 3600 + 62) * 1000L))
     }
 }
