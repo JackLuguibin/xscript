@@ -139,7 +139,7 @@ Android 后端仅查询 `content://sms`，使用 selectionArgs 绑定 LIKE 号�
 
 后端按已有权限选择 GPS/network provider；只有粗略位置权限时不申请 GPS。每次重新订阅使用新 token、有界事件队列；close 取消监听。没有缓存时返回 None，不伪造坐标。需要保持脚本存活以接收 daemon 回调，使用完成后关闭。后台定位持续性受 Android 约束，本轮没有添加后台定位权限或绕过系统限制。
 
-mock.start/stop/status 保留显式 NotImplementedError，不提供模拟定位或坐标转换的等价实现。
+mock.start/stop/status 已实现：LocationManager 测试提供者（gps + network）按 interval 推送，坐标按 coord_type（默认 bd09，与 AScript 一致）转成 WGS84；需要开发者选项里的「模拟位置信息应用」授权（有 Root 时用 appops 自动授予），未授权时抛 PermissionError；mock.stop() 或脚本结束时移除测试提供者，恢复真实定位。
 
 ### 传感器
 

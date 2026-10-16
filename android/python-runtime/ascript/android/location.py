@@ -1,7 +1,7 @@
 """Android location compatibility API. Coordinates are WGS84.
 
 Callbacks run on a daemon worker; keep the script alive while receiving updates.
-Call close() to release subscriptions. System mock locations are unsupported.
+Call close() to release subscriptions. mock.start/stop/status drive system-wide mock locations (developer option needed).
 """
 
 import json
@@ -139,15 +139,117 @@ def _shutdown():
         pass
 
 
+# ---- coordinate systems (China): WGS84 (GPS), GCJ-02 (高德/腾讯), BD-09 (百度) ---------------------------------------------
+
+_A = 6378245.0
+_EE = 0.00669342162296594323
+_X_PI = math.pi * 3000.0 / 180.0
+
+
+def _out_of_china(lon, lat):
+    return not (73.66 < lon < 135.05 and 3.86 < lat < 53.55)
+
+
+def _delta(lon, lat):
+    x, y = lon - 105.0, lat - 35.0
+    dlat = (-100.0 + 2.0 * x + 3.0 * y + 0.2 * y * y + 0.1 * x * y + 0.2 * math.sqrt(abs(x))
+            + (20.0 * math.sin(6.0 * x * math.pi) + 20.0 * math.sin(2.0 * x * math.pi)) * 2.0 / 3.0
+            + (20.0 * math.sin(y * math.pi) + 40.0 * math.sin(y / 3.0 * math.pi)) * 2.0 / 3.0
+            + (160.0 * math.sin(y / 12.0 * math.pi) + 320 * math.sin(y * math.pi / 30.0)) * 2.0 / 3.0)
+    dlon = (300.0 + x + 2.0 * y + 0.1 * x * x + 0.1 * x * y + 0.1 * math.sqrt(abs(x))
+            + (20.0 * math.sin(6.0 * x * math.pi) + 20.0 * math.sin(2.0 * x * math.pi)) * 2.0 / 3.0
+            + (20.0 * math.sin(x * math.pi) + 40.0 * math.sin(x / 3.0 * math.pi)) * 2.0 / 3.0
+            + (150.0 * math.sin(x / 12.0 * math.pi) + 300.0 * math.sin(x / 30.0 * math.pi)) * 2.0 / 3.0)
+    rad = lat / 180.0 * math.pi
+    magic = 1 - _EE * math.sin(rad) ** 2
+    sq = math.sqrt(magic)
+    dlat = (dlat * 180.0) / ((_A * (1 - _EE)) / (magic * sq) * math.pi)
+    dlon = (dlon * 180.0) / (_A / sq * math.cos(rad) * math.pi)
+    return dlon, dlat
+
+
+def wgs84_to_gcj02(lon, lat):
+    if _out_of_china(lon, lat):
+        return lon, lat
+    dlon, dlat = _delta(lon, lat)
+    return lon + dlon, lat + dlat
+
+
+def gcj02_to_wgs84(lon, lat):
+    """Iterative inverse (error well under 1 m inside China)."""
+    if _out_of_china(lon, lat):
+        return lon, lat
+    wlon, wlat = lon, lat
+    for _ in range(30):
+        glon, glat = wgs84_to_gcj02(wlon, wlat)
+        dx, dy = glon - lon, glat - lat
+        wlon, wlat = wlon - dx, wlat - dy
+        if abs(dx) < 1e-9 and abs(dy) < 1e-9:
+            break
+    return wlon, wlat
+
+
+def bd09_to_gcj02(lon, lat):
+    x, y = lon - 0.0065, lat - 0.006
+    z = math.sqrt(x * x + y * y) - 0.00002 * math.sin(y * _X_PI)
+    theta = math.atan2(y, x) - 0.000003 * math.cos(x * _X_PI)
+    return z * math.cos(theta), z * math.sin(theta)
+
+
+def gcj02_to_bd09(lon, lat):
+    z = math.sqrt(lon * lon + lat * lat) + 0.00002 * math.sin(lat * _X_PI)
+    theta = math.atan2(lat, lon) + 0.000003 * math.cos(lon * _X_PI)
+    return z * math.cos(theta) + 0.0065, z * math.sin(theta) + 0.006
+
+
+def to_wgs84(lon, lat, coord_type="wgs84"):
+    t = str(coord_type).lower().replace("-", "").replace("_", "")
+    if t in ("wgs84", "gps"):
+        return float(lon), float(lat)
+    if t in ("gcj02", "gcj", "amap", "gaode", "tencent"):
+        return gcj02_to_wgs84(float(lon), float(lat))
+    if t in ("bd09", "bd09ll", "baidu"):
+        return gcj02_to_wgs84(*bd09_to_gcj02(float(lon), float(lat)))
+    raise ValueError("coord_type must be wgs84, gcj02 or bd09")
+
+
 class _MockLocationApi:
+    """System-wide mock location (AScript location.mock). The device must have XScript selected under
+    开发者选项 → 选择模拟位置信息应用 (granted automatically with root). Mocking ends with stop() or when the script ends."""
+
     def start(self, lon, lat, accuracy=5.0, interval=1000, coord_type="bd09"):
-        raise NotImplementedError("System mock location is not implemented in XScript")
+        lon, lat = float(lon), float(lat)
+        for v in (lon, lat, float(accuracy), float(interval)):
+            if not math.isfinite(v):
+                raise ValueError("mock location arguments must be finite")
+        if not (-180 <= lon <= 180 and -90 <= lat <= 90):
+            raise ValueError("longitude/latitude out of range")
+        if float(accuracy) <= 0 or float(interval) <= 0:
+            raise ValueError("accuracy and interval must be positive")
+        wlon, wlat = to_wgs84(lon, lat, coord_type)
+        r = self._call("start", {"lon": wlon, "lat": wlat, "accuracy": float(accuracy), "interval": int(interval)})
+        return r
 
     def stop(self):
-        raise NotImplementedError("System mock location is not implemented in XScript")
+        self._call("stop")
 
     def status(self):
-        raise NotImplementedError("System mock location is not implemented in XScript")
+        """{"running", "allowed", "providers", "updates", and lat/lon (WGS84)/accuracy/interval while running}"""
+        return self._call("status")
+
+    @staticmethod
+    def _call(op, arg=None):
+        raw = bridge.system("location_mock_" + op, arg or {})
+        if not raw:
+            raise RuntimeError("Android location bridge is unavailable")
+        r = json.loads(str(raw))
+        if isinstance(r, dict) and r.get("error"):
+            if r.get("code") == "not_mock_app":
+                raise PermissionError(r["error"])
+            if r.get("code") == "bad_args":
+                raise ValueError(r["error"])
+            raise RuntimeError(r["error"])
+        return r
 
 
 mock = _MockLocationApi()
