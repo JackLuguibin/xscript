@@ -1,5 +1,7 @@
 # XScript
 
+[![CI](https://github.com/JackLuguibin/xscript/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/JackLuguibin/xscript/actions/workflows/ci.yml) [![Release](https://img.shields.io/github/v/release/JackLuguibin/xscript)](https://github.com/JackLuguibin/xscript/releases/latest) [![License: MIT](https://img.shields.io/github/license/JackLuguibin/xscript)](LICENSE)
+
 **面向 Android 的 Python 自动化开发平台。**
 
 XScript 将设备端 Python 运行时、自动化 API、浏览器开发工具和可自托管的管理后台组合在一起。你可以在电脑上编写脚本，将工程上传到手机或模拟器，执行控件操作、图像识别和设备任务，并通过日志与断点调试定位问题。
