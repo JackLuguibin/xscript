@@ -67,11 +67,12 @@ def gcj02_to_bd09(lon, lat):
 
 def to_wgs84(lon, lat, coord_type='wgs84'):
     ...
-class _MockLocationApi:
+
+class MockLocationApi:
     """System-wide mock location (AScript location.mock). The device must have XScript selected under
     开发者选项 → 选择模拟位置信息应用 (granted automatically with root). Mocking ends with stop() or when the script ends."""
 
-    def start(self, lon, lat, accuracy=5.0, interval=1000, coord_type="bd09"):
+    def start(self, lon, lat, accuracy=5.0, interval=1000, coord_type='bd09'):
         ...
 
     def stop(self):
@@ -80,4 +81,4 @@ class _MockLocationApi:
     def status(self):
         """{"running", "allowed", "providers", "updates", and lat/lon (WGS84)/accuracy/interval while running}"""
         ...
-mock: _MockLocationApi
+mock: MockLocationApi = ...

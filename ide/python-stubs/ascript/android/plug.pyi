@@ -11,7 +11,8 @@ plugins scripts actually rely on for vision are built in, so the usual code runs
     yolo.detect()
 
 Other plugin names raise NotImplementedError. Third-party Python packages are installed
-with `xscript.android.pip` instead.
+with `xscript.android.pip` instead. External Java code (APK/JAR/DEX inside the app's storage) is loaded with
+`plug.load_apk(path)` and called through reflection (see below).
 """
 import sys
 import types
@@ -24,11 +25,63 @@ def load(plug_and_version):
 def load_module_dynamically(*args, **kwargs):
     ...
 
-def load_apk(*args, **kwargs):
+class JavaClass(object):
+    """A class from a loaded plugin: new(), call_static(), get_static()/set_static()."""
+
+    def __init__(self, cls):
+        ...
+
+    def new(self, *args):
+        ...
+
+    def call_static(self, method, *args):
+        ...
+
+    def get_static(self, field):
+        ...
+
+    def set_static(self, field, value):
+        ...
+
+    def __repr__(self):
+        ...
+
+class JavaObject(object):
+    """An instance: call(), get()/set(). `.java` is the raw Java object for APIs that take it."""
+
+    def __init__(self, cls, obj):
+        ...
+
+    def call(self, method, *args):
+        ...
+
+    def get(self, field):
+        ...
+
+    def set(self, field, value):
+        ...
+
+    def __str__(self):
+        ...
+
+class Plugin(object):
+    """A loaded APK/JAR/DEX."""
+
+    def __init__(self, path, handle):
+        ...
+
+    def load_class(self, name):
+        ...
+    __getitem__ = ...
+
+def load_apk(path):
+    """Load an .apk/.jar/.dex/.zip with DexClassLoader. The file must be inside the app's own storage (projects, files,
+    cache); anything else raises ValueError. Returns a Plugin; the same file loaded twice shares one class loader."""
+    ...
+
+def load_apk_dir(directory):
+    """Load every plugin file in `directory` (non-recursive, sorted). Returns {file name: Plugin}."""
     ...
 
 def inject(*args, **kwargs):
-    ...
-
-def load_apk_dir(*args, **kwargs):
     ...
