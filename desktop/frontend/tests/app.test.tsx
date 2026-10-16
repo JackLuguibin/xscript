@@ -37,7 +37,7 @@ describe("App shell", () => {
     mount(true);
     const nav = within(screen.getByRole("navigation", { name: "main" }));
     expect(nav.getByRole("button", { name: /设备/ }).getAttribute("aria-current")).toBe("page");
-    for (const name of [/工程/, /流程/]) {
+    for (const name of [/流程/]) {
       const b = nav.getByRole("button", { name }) as HTMLButtonElement;
       expect(b.disabled).toBe(true);
       expect(b.getAttribute("aria-current")).toBeNull();

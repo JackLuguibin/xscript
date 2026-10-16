@@ -61,6 +61,51 @@ export interface ScanHit {
   info: Partial<DeviceInfo>;
 }
 
+export interface ProjectSummary {
+  name: string;
+  [k: string]: unknown;
+}
+
+export interface ProjectFiles {
+  project: string;
+  files: Array<{ path: string; size: number }>;
+  dirs: string[];
+}
+
+export interface FileContent {
+  path: string;
+  encoding: "utf-8" | "base64";
+  content: string;
+}
+
+export interface LogEntry {
+  seq: number;
+  ts: number;
+  stream: string;
+  line: string;
+}
+
+export interface RunResult {
+  ok?: boolean;
+  running?: boolean;
+  project?: string;
+  error?: string;
+}
+
+export interface SyncPlan {
+  upload: string[];
+  skipped: string[];
+  bytes: number;
+  uploaded?: number;
+}
+
+export interface PullResult {
+  added: string[];
+  changed: string[];
+  unchanged: string[];
+  written: number;
+}
+
 /** Typed wrappers over the JSON-RPC methods (names match xscript_desktop/context.py). */
 export function createApi(rpc: RpcClient) {
   return {
@@ -73,6 +118,26 @@ export function createApi(rpc: RpcClient) {
     listDevices: () => rpc.call<{ devices: Device[] }>("device.list"),
     refresh: (id: string) => rpc.call<Device>("device.refresh", { id }),
     disconnect: (id: string) => rpc.call<{ removed: boolean }>("device.disconnect", { id }),
+    projects: (id: string) => rpc.call<{ projects: ProjectSummary[] }>("project.list", { id }),
+    createProject: (id: string, project: string) => rpc.call<{ ok: boolean }>("project.create", { id, project }),
+    files: (id: string, project: string) => rpc.call<ProjectFiles>("project.files", { id, project }),
+    readFile: (id: string, project: string, path: string) => rpc.call<FileContent>("project.read", { id, project, path }),
+    writeFile: (id: string, project: string, path: string, content: string, create = false) =>
+      rpc.call<{ ok: boolean }>("project.write", { id, project, path, content, create }, { timeoutMs: 60_000 }),
+    deleteFile: (id: string, project: string, path: string) => rpc.call<{ ok: boolean }>("project.deleteFile", { id, project, path }),
+    moveFile: (id: string, project: string, from: string, to: string) => rpc.call<{ ok: boolean }>("project.move", { id, project, from, to }),
+    run: (id: string, project: string) => rpc.call<RunResult>("project.run", { id, project }),
+    stop: (id: string, project: string) => rpc.call<RunResult>("project.stop", { id, project }),
+    logs: (id: string, since: number) => rpc.call<{ entries: LogEntry[]; next: number }>("device.logs", { id, since }),
+    action: (id: string, payload: Record<string, unknown>) => rpc.call<{ ok: boolean }>("device.action", { id, ...payload }),
+    key: (id: string, name: string) => rpc.call<{ ok: boolean }>("device.action", { id, type: "key", name }),
+    pickDirectory: (title: string) => rpc.call<{ path: string | null }>("app.pickDirectory", { title }, { timeoutMs: 600_000 }),
+    syncPreview: (id: string, project: string, dir: string, full = false) =>
+      rpc.call<SyncPlan>("sync.preview", { id, project, dir, full }, { timeoutMs: 120_000 }),
+    syncUpload: (id: string, project: string, dir: string, full = false) =>
+      rpc.call<SyncPlan>("sync.upload", { id, project, dir, full }, { timeoutMs: 600_000 }),
+    syncPull: (id: string, project: string, dir: string, dryRun = false) =>
+      rpc.call<PullResult>("sync.pull", { id, project, dir, dryRun }, { timeoutMs: 600_000 }),
     scan: (cidr?: string) => rpc.call<{ found: ScanHit[] }>("device.scan", cidr ? { cidr } : {}, { timeoutMs: 60_000 }),
   };
 }
