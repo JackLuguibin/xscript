@@ -232,10 +232,14 @@ class Handler(BaseHTTPRequestHandler):
                     "mode": "off" if not STATE["settings"]["float_on_run"] else ("always" if STATE["settings"]["float_always"] else "run"),
                     "permitted": True,
                     "visible": False,
+                    "state": None,
                     "expanded": False,
                     "app_foreground": True,
                     "side": "right",
                     "reason": "foreground",
+                    "error": False,
+                    "menus": 0,
+                    "insets": {"left": 0, "top": 0, "right": 0, "bottom": 0},
                 },
             })
             return

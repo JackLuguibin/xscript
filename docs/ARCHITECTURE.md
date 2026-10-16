@@ -284,14 +284,16 @@ MCP 也提供了对应工具（`take_snapshot`、`vision_test`、`crop_template`
 
 悬浮窗是一个 `TYPE_APPLICATION_OVERLAY`（API 26 以下 `TYPE_PHONE`）窗口，标题 `XScriptFloat`，在主进程里由 `WindowManager` 直接添加，不另起 Service：主进程已经被 `DeviceHttpService` 的前台服务通知保活，悬浮窗不需要自己的通知。`FloatLogic` 是不依赖 Android 类型的纯 Kotlin（JVM 测试覆盖），`FloatControl` 负责窗口和事件。
 
-- **何时可见**：`FloatLogic.decide(permitted, enabled, always, running, appForeground, scriptForce)`。无权限 → 不显示（静默）；脚本 `ui.float_show()` → 显示，`ui.float_hide()` → 隐藏（只对本次运行有效，脚本结束清除）；设置关闭 → 不显示；有 Activity 在前台 → 不显示；否则脚本在运行或设置为“后台一直显示”时显示。
+- **何时可见**：`FloatLogic.decide(permitted, enabled, always, running, appForeground, scriptForce, userHidden, notice)`。无权限 → 不显示（静默）；脚本 `ui.float_show()` → 显示，`ui.float_hide()` → 隐藏（只对本次运行有效，脚本结束清除）；面板里点了 **隐藏** → 不显示（下次运行或有 Activity 回到前台时清除）；设置关闭 → 不显示；有 Activity 在前台 → 不显示；否则脚本在运行、设置为“后台一直显示”或刚报错（`notice`，约 8 秒）时显示。退出码非 0 / 进程死亡才算出错（`FloatLogic.isError`；退出码 0 和用户停止不算），`scriptEnded(ctx, exit)` 从 `script_finished` 和 `ScriptSupervisor.onDeath` 两处带上退出信息。
 - **前后台**：`XscriptApp` 里注册 `ActivityLifecycleCallbacks`，数已 `started` 的 Activity（主进程内）。脚本进程里的 `ui.Window` 等是 View 不是 Activity，不算前台。
-- **触发**：`script_started` / `script_finished`（`MainControl`）、`ScriptSupervisor.onDeath`、设置变化、前后台切换都会调 `sync`；窗口显示期间每秒一次 tick，刷新计时，并发现脚本进程已消失、屏幕旋转、权限被撤销。“空闲”需要连续两次确认才收起，避免状态文件读到一半时闪一下。
+- **触发**：`script_started` / `script_finished`（`MainControl`）、`ScriptSupervisor.onDeath`、设置变化、前后台切换都会调 `sync`；窗口显示期间每秒一次 tick（只读状态文件、只在文本变化时 `setText`；进程列表 IPC 最多每 4 秒一次；屏幕熄灭时降到每 5 秒），刷新计时，并发现脚本进程已消失、屏幕旋转、字体 / 深色模式变化（重建窗口，保留当前形态）、权限被撤销；窗口隐藏时没有任何轮询。“空闲”需要连续两次确认才收起，避免状态文件读到一半时闪一下。
 - **运行状态和计时**：`RunState`（文件，原子写入）里有工程名，`running-since` 记录开始时间，主进程重启后计时不归零。
-- **位置**：`FloatLogic.Dock(right, yFrac)`——靠左或靠右 + 竖直方向的比例，存在 `Settings`；拖动松手后吸附到近的一侧，换屏幕尺寸或旋转后按比例重新放置，窗口始终完整在屏幕内。展开面板、计时位数变化导致宽度变化时，右侧停靠的窗口自动贴着右边。
-- **展开面板**：点一下切换 `FloatLogic.State.expanded`；运行 / 停止走 `ScriptService.run/stop`（用户停止，不会重跑），日志、打开用 `FLAG_ACTIVITY_NEW_TASK` 拉起 Activity（有可见悬浮窗的应用允许从后台启动）。
+- **位置**：`FloatLogic.Dock(right, yFrac)`——靠左或靠右 + 竖直方向的比例，横屏和竖屏各存一份在 `Settings`（`floatDock(landscape)`）；`FloatLogic.Insets`（状态栏、刘海、导航 / 手势条，API 30+ 用 `maximumWindowMetrics.windowInsets`，更低版本用资源尺寸）贯穿 clamp / place / dockFor / resolve，窗口始终在安全区内。拖动松手后吸附到近的一侧（`DecelerateInterpolator` 200 ms），换屏幕尺寸或旋转后按比例重新放置。窗口大小由 `FloatControl.fit` 自己量好后设为精确值（`WRAP_CONTENT` 的覆盖窗口内容变宽时不会可靠地跟着变宽，面板按钮会被裁掉），右侧停靠的窗口因此始终贴着右边。
+- **球 / 药丸 / 面板**：`FloatLogic.Mode`（BALL、PILL、PANEL）+ `Event.TAP / ACTION / IDLE / WAKE`；新窗口先是药丸（看得清名字），`PILL_IDLE_MS`（5 秒）/ `PANEL_IDLE_MS`（10 秒）没触碰就缩成 48dp 球；`FloatLogic.alpha(mode, dim, touching)` 把脚本的 `dim` 当基础透明度，球再乘 0.6，触碰时回到 `dim`。药丸 ≥ 48dp 高，面板按钮 ≥ 48dp × 56dp，颜色随深色模式换并带描边；读屏文字在 `render` 里生成（状态 + 名称 + 时长），点击走 `performClick`，TalkBack 双击可用。
+- **脚本自己的按钮**：Python `xscript.android.ui.float_add_menu` → 控制命令 `float_menu_add`（`FloatControl.addMenu`，主进程保存 id + 图标路径，随脚本结束清除）→ 点击时 `EventHub.floatMenu(id)` 发 `float` 事件（`xscript.android.event` 的 `FLOAT` 类型，带 `menu` 字段）→ 脚本进程的事件线程分发，回调另开线程执行，所以长回调不会堵事件。
+- **展开面板**：点一下切换面板；运行 / 停止走 `ScriptService.run/stop`（用户停止，不会重跑），日志、打开用 `FLAG_ACTIVITY_NEW_TASK` 拉起 Activity（有可见悬浮窗的应用允许从后台启动）。
 - **重启恢复**：主进程被系统杀掉后 `DeviceHttpService`（`START_STICKY`）重新拉起，`XscriptApp.onCreate` 里 `FloatControl.restore` 延迟 1.5 秒调用 `sync`（避免从桌面冷启动时闪一下），脚本还在运行就恢复悬浮窗。
-- **`/status`**：`overlay` 字段（`enabled / always / mode / permitted / visible / expanded / app_foreground / side / reason`，可见时附 `x / y / width / height`），测试用。
+- **`/status`**：`overlay` 字段（`enabled / always / mode / permitted / visible / state / expanded / app_foreground / side / reason / error / menus / insets`，可见时附 `x / y / width / height / alpha / screen_width / screen_height`），测试用。
 - **AScript 兼容**：`FloatWindow.show(x, y, dim)` 的 x / y / dim 由 `FloatLogic.resolve` 解释（-1 = 右 / 下，0 = 左 / 上，小数 = 比例，正数 = 像素），但始终贴边。
 
 ### 4.10 APK 打包与卡密

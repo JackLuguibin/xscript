@@ -1081,7 +1081,22 @@ components:
           enum: [run, always, 'off']
         permitted: { type: boolean, description: "Overlay grant (悬浮窗权限 / SYSTEM_ALERT_WINDOW)" }
         visible: { type: boolean, description: "The window is attached right now" }
-        expanded: { type: boolean, description: "The 运行/停止/日志/打开 panel is open" }
+        state:
+          type: string
+          nullable: true
+          enum: [ball, pill, panel]
+          description: "ball = small dimmed ball after a few idle seconds, pill = dot + name + time, panel = pill plus buttons (null while hidden)"
+        expanded: { type: boolean, description: "The 运行/停止/日志/打开/隐藏 panel is open (state == panel)" }
+        error: { type: boolean, description: "The last run ended with an error and the window stays up for a few seconds to say so" }
+        menus: { type: integer, description: "Buttons the running script added with FloatWindow.add_menu" }
+        insets:
+          type: object
+          description: "Screen areas (status bar, camera cut-out, navigation / gesture bar) the window stays out of, px"
+          properties:
+            left: { type: integer }
+            top: { type: integer }
+            right: { type: integer }
+            bottom: { type: integer }
         app_foreground: { type: boolean, description: "One of the app's activities is on screen (the window hides then)" }
         side:
           type: string
@@ -1090,12 +1105,15 @@ components:
         reason:
           type: string
           nullable: true
-          enum: [no_permission, disabled, foreground, idle, script_hidden]
+          enum: [no_permission, disabled, foreground, idle, script_hidden, user_hidden]
           description: Why it is hidden (null while visible)
         x: { type: integer, description: "Screen position in px (only while visible)" }
         y: { type: integer }
         width: { type: integer }
         height: { type: integer }
+        alpha: { type: number, description: "Window opacity now (the script's dim; the idle ball is dimmer)" }
+        screen_width: { type: integer, description: "Full screen size the window is placed in (the top-level width / height exclude the navigation bar)" }
+        screen_height: { type: integer }
     ProjectConfig:
       type: object
       properties:
