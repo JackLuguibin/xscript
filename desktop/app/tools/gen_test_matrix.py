@@ -27,7 +27,7 @@ LAYERS = OrderedDict([
     ("unit", ("U", "单元（Python，纯逻辑，不需要 Qt/设备）",
               ["test_project_names", "test_adb", "test_adb_more", "test_device_client", "test_device_client_more", "test_rpc", "test_scheme", "test_runtime_bridge", "test_sync", "test_stub_completions"], [])),
     ("integration", ("I", "集成（服务层 + FakeDevice/FakeAdb/子进程，含错误路径矩阵）",
-                     ["test_device_manager", "test_context", "test_errors_matrix", "test_main_cli", "test_projects_rpc", "test_dialogs", "test_debugger"], [])),
+                     ["test_device_manager", "test_context", "test_errors_matrix", "test_main_cli", "test_projects_rpc", "test_dialogs", "test_debugger", "test_app_icon", "test_packaging"], [])),
     ("frontend", ("F", "前端（vitest + testing-library，MemoryTransport 代替 Python）", [],
                   ["client.test.ts", "boot.test.ts", "qt-transport.test.ts", "demo.test.ts", "app.test.tsx", "devicepage.test.tsx", "devicepage-more.test.tsx", "states.test.tsx", "theme.test.tsx", "contrast.test.ts",
                    "projects.test.tsx", "codeeditor.test.tsx", "completions.test.ts", "sync.test.tsx", "mirror.test.tsx", "fileops-i18n.test.tsx", "debugger.test.tsx"])),
