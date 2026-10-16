@@ -1,5 +1,7 @@
 # XScript：VS Code / Cursor 扩展
 
+> **English:** run, stop and debug XScript / AScript-style projects on an Android phone from VS Code or Cursor, with live logs. Download `xscript-vscode-<version>.vsix` from the [GitHub Release](https://github.com/JackLuguibin/xscript/releases/latest) and install it with `code --install-extension xscript-vscode-<version>.vsix`, or build it with `cd ide/vscode-extension && npm ci && npm run package`. It talks to the device HTTP API (default port 9860, no login), so only point it at a phone on a trusted network or at `127.0.0.1` via `adb forward`. The details below are in Chinese. See the [English README](../../README.en.md) for the project overview.
+
 把 XScript / AScript 风格的工程上传到 Android 手机，运行、停止、调试，看日志。通过设备 HTTP API（`protocol/openapi.yaml`，默认端口 9860）通信，没有登录。只指向可信网络中的手机，或用 `adb forward` 指向 `127.0.0.1`。
 
 ```bash

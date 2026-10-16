@@ -7,7 +7,7 @@
 #
 #   scripts/release.sh check                 versions agree (android versionName == extension version); used by verify.sh and CI
 #   scripts/release.sh prepare X.Y.Z         bump android versionName (+ versionCode + 1), extension package.json / lock,
-#                                            the README download link, and turn CHANGELOG "未发布" into "vX.Y.Z（date）".
+#                                            the README / README.en.md download link, and turn CHANGELOG "未发布" into "vX.Y.Z（date）".
 #                                            Edits files only; review, then commit (chore(release): vX.Y.Z) and push.
 #   scripts/release.sh build [--skip-apk]    dist/release/: xscript-vX.Y.Z-release.apk (signed with keys/release.properties, or the
 #                                            file in $XSCRIPT_SIGNING_FILE, via android/build.sh), xscript-vscode-X.Y.Z.vsix,
@@ -82,13 +82,20 @@ open(path, "w", encoding="utf-8").write(s)
 PY
   (cd "$EXT" && npm version "$V" --no-git-tag-version --allow-same-version >/dev/null)
   python3 - "$V" <<'PY'
-import datetime, re, sys
+import datetime, os, re, sys
 v = sys.argv[1]
 s = open("README.md", encoding="utf-8").read()
 s, n = re.subn(r"\[GitHub Release v\d+\.\d+\.\d+\]\(([^)]*)/releases/tag/v\d+\.\d+\.\d+\) 下载 `xscript-v\d+\.\d+\.\d+-release\.apk`",
                lambda m: "[GitHub Release v%s](%s/releases/tag/v%s) 下载 `xscript-v%s-release.apk`" % (v, m.group(1), v, v), s)
 assert n == 1, "README download link not found"
 open("README.md", "w", encoding="utf-8").write(s)
+en = "README.en.md"   # English README: same download link (optional file)
+if os.path.exists(en):
+    t = open(en, encoding="utf-8").read()
+    t, n = re.subn(r"download `xscript-v\d+\.\d+\.\d+-release\.apk` from \[GitHub Release v\d+\.\d+\.\d+\]\(([^)]*)/releases/tag/v\d+\.\d+\.\d+\)",
+                   lambda m: "download `xscript-v%s-release.apk` from [GitHub Release v%s](%s/releases/tag/v%s)" % (v, v, m.group(1), v), t)
+    assert n == 1, "README.en.md download link not found"
+    open(en, "w", encoding="utf-8").write(t)
 c = open("CHANGELOG.md", encoding="utf-8").read()
 assert "\n## 未发布\n" in c, "CHANGELOG has no 未发布 section"
 c = c.replace("\n## 未发布\n", "\n## 未发布\n\n## v%s（%s）\n" % (v, datetime.date.today().isoformat()), 1)

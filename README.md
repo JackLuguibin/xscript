@@ -1,5 +1,7 @@
 # XScript
 
+[English](README.en.md) | 简体中文
+
 [![CI](https://github.com/JackLuguibin/xscript/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/JackLuguibin/xscript/actions/workflows/ci.yml) [![Release](https://img.shields.io/github/v/release/JackLuguibin/xscript)](https://github.com/JackLuguibin/xscript/releases/latest) [![License: MIT](https://img.shields.io/github/license/JackLuguibin/xscript)](LICENSE)
 
 **面向 Android 的 Python 自动化开发平台。**
