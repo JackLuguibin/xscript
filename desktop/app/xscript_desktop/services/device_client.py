@@ -1,0 +1,188 @@
+"""Async client for the device HTTP API (protocol/openapi.yaml), ported from ide/mcp-server/xscript_mcp/client.py
+and the address rules of ide/vscode-extension/src/client.ts (`parseTarget`)."""
+from __future__ import annotations
+
+import json
+import re
+from dataclasses import dataclass
+from typing import Any
+from urllib.parse import quote
+
+import httpx
+
+DEFAULT_PORT = 9860
+CLIENT_HEADER = {"X-XScript-Client": "desktop"}
+
+
+class DeviceError(Exception):
+    """HTTP or transport failure talking to a device."""
+
+    def __init__(self, message: str, *, status: int | None = None, detail: str = "", kind: str = "http"):
+        super().__init__(message)
+        self.status = status
+        self.detail = detail
+        self.kind = kind  # "http" | "connect" | "timeout" | "protocol"
+
+    @property
+    def retryable(self) -> bool:
+        return self.kind in ("connect", "timeout") or self.status in (429, 502, 503, 504)
+
+
+@dataclass(frozen=True)
+class DeviceTarget:
+    host: str = "127.0.0.1"
+    port: int = DEFAULT_PORT
+
+    @property
+    def base_url(self) -> str:
+        host = "[%s]" % self.host if ":" in self.host else self.host
+        return "http://%s:%d" % (host, self.port)
+
+    @property
+    def address(self) -> str:
+        return "%s:%d" % (("[%s]" % self.host) if ":" in self.host else self.host, self.port)
+
+    @classmethod
+    def parse(cls, value: str) -> "DeviceTarget":
+        """Same rules as client.ts parseTarget: scheme and path dropped, [v6]:port, bare v6, strict port."""
+        text = (value or "").strip()
+        if not text:
+            return cls()
+        if "://" in text:
+            text = text.split("://", 1)[1]
+        text = text.split("/", 1)[0]
+
+        def port(s: str) -> int:
+            if s == "":
+                return DEFAULT_PORT
+            if not re.fullmatch(r"\d+", s) or not (0 < int(s) <= 65535):
+                raise ValueError("invalid port in device address: %s" % value)
+            return int(s)
+
+        if text.startswith("["):
+            end = text.find("]")
+            if end < 0:
+                raise ValueError("invalid device address: %s" % value)
+            rest = text[end + 1:]
+            return cls(host=text[1:end] or "::1", port=port(rest[1:] if rest.startswith(":") else ""))
+        if text.count(":") > 1:
+            return cls(host=text, port=DEFAULT_PORT)
+        i = text.rfind(":")
+        if i < 0:
+            return cls(host=text, port=DEFAULT_PORT)
+        return cls(host=text[:i] or "127.0.0.1", port=port(text[i + 1:]))
+
+
+def _detail(r: httpx.Response) -> str:
+    try:
+        body = r.json()
+        if isinstance(body, dict):
+            return str(body.get("error") or body.get("msg") or "")
+    except ValueError:
+        return r.text[:200]
+    return ""
+
+
+class DeviceClient:
+    """One device endpoint. No auth (the device API has none, openapi.yaml); loopback or trusted LAN only."""
+
+    def __init__(self, target: DeviceTarget, timeout: float = 10.0, transport: httpx.AsyncBaseTransport | None = None):
+        self.target = target
+        self.timeout = timeout
+        self._http = httpx.AsyncClient(
+            base_url=target.base_url, timeout=timeout, headers=CLIENT_HEADER, transport=transport,
+            trust_env=False,  # never route device traffic through a system proxy
+        )
+
+    async def aclose(self) -> None:
+        await self._http.aclose()
+
+    async def _request(self, method: str, path: str, *, timeout: float | None = None, ok_status: tuple[int, ...] = (), **kw: Any) -> httpx.Response:
+        try:
+            r = await self._http.request(method, path, timeout=timeout or self.timeout, **kw)
+        except httpx.TimeoutException as e:
+            raise DeviceError("device %s %s timed out" % (method, path), kind="timeout") from e
+        except httpx.TransportError as e:
+            raise DeviceError("cannot reach %s: %s" % (self.target.address, e), kind="connect") from e
+        if r.is_error and r.status_code not in ok_status:
+            d = _detail(r)
+            raise DeviceError("device %s %s -> %d%s" % (method, path, r.status_code, (": " + d) if d else ""),
+                              status=r.status_code, detail=d)
+        return r
+
+    async def _json(self, method: str, path: str, **kw: Any) -> Any:
+        r = await self._request(method, path, **kw)
+        try:
+            return r.json()
+        except ValueError as e:
+            raise DeviceError("device %s %s returned non-JSON" % (method, path), kind="protocol") from e
+
+    # ---- read ----------------------------------------------------------------------------------------------------------------
+
+    async def status(self) -> dict[str, Any]:
+        data = await self._json("GET", "/status")
+        if not isinstance(data, dict):
+            raise DeviceError("unexpected /status response", kind="protocol")
+        return data
+
+    async def screen(self, fmt: str = "jpg", quality: int = 60, max_side: int | None = None) -> tuple[bytes, str]:
+        params: dict[str, Any] = {"format": fmt, "quality": int(quality)}
+        if max_side:
+            params["max"] = int(max_side)
+        r = await self._request("GET", "/screen", params=params, timeout=max(self.timeout, 20))
+        return r.content, r.headers.get("content-type", "image/jpeg" if fmt == "jpg" else "image/png")
+
+    async def projects(self) -> list[dict[str, Any]]:
+        data = await self._json("GET", "/projects")
+        details = data.get("details") if isinstance(data, dict) else None
+        if isinstance(details, list):
+            return details
+        return [{"name": n} for n in (data.get("projects") or [])] if isinstance(data, dict) else []
+
+    async def logs(self, since: int = 0) -> dict[str, Any]:
+        return await self._json("GET", "/logs", params={"since": int(since)})
+
+    # ---- projects / run (used by the entry-point investigation and later phases) -------------------------------------------
+
+    @staticmethod
+    def _p(project: str) -> str:
+        return quote(project, safe="")
+
+    async def upload_zip(self, project: str, data: bytes, replace: bool = True) -> dict[str, Any]:
+        return await self._json("PUT", "/projects/%s/zip" % self._p(project), params={"replace": "true" if replace else "false"},
+                                content=data, headers={"Content-Type": "application/zip"}, timeout=max(self.timeout, 120))
+
+    async def run_project(self, project: str) -> dict[str, Any]:
+        r = await self._request("POST", "/projects/%s/run" % self._p(project), ok_status=(409,))
+        return r.json()
+
+    async def stop_project(self, project: str) -> dict[str, Any]:
+        return await self._json("POST", "/projects/%s/stop" % self._p(project))
+
+    async def delete_project(self, project: str) -> dict[str, Any]:
+        return await self._json("DELETE", "/projects/%s" % self._p(project))
+
+    async def eval_python(self, code: str, timeout_ms: int = 8000) -> dict[str, Any]:
+        r = await self._request("POST", "/eval", json={"code": code, "timeout_ms": int(timeout_ms)},
+                                timeout=max(self.timeout, timeout_ms / 1000.0 + 2), ok_status=(408,))
+        if r.status_code == 408:
+            return {"ok": False, "error": "timeout"}
+        return r.json()
+
+    async def action(self, payload: dict[str, Any]) -> dict[str, Any]:
+        return await self._json("POST", "/action", json=payload)
+
+
+def summarize_status(st: dict[str, Any]) -> dict[str, Any]:
+    """The few fields the UI shows as 'device info' (full /status is also passed through)."""
+    return {
+        "name": st.get("name") or st.get("model") or "",
+        "model": st.get("model", ""), "brand": st.get("brand", ""),
+        "android": st.get("release", ""), "sdk": st.get("sdk"),
+        "width": st.get("width"), "height": st.get("height"), "density": st.get("density"),
+        "ip": st.get("ip", ""), "port": st.get("port"),
+        "version": st.get("version", ""), "deviceId": st.get("device_id", ""), "appId": st.get("app_id", ""),
+        "running": bool(st.get("running")), "project": st.get("project") or "",
+        "accessibility": bool(st.get("accessibility")), "root": bool(st.get("root")),
+        "capture": bool(st.get("capture")), "channel": st.get("channel", ""), "cloud": st.get("cloud", ""),
+    }
