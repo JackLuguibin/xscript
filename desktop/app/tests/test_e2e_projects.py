@@ -75,3 +75,23 @@ def test_e2e_p01_monaco_edit_save_run_logs_stop(shell, qtbot):
     sh.wait_text(qtbot, "settings_search", timeout=10000)  # mock_device logs a line on run, followed through device.logs
     sh.click(qtbot, "停止")
     sh.wait_js(qtbot, "[...document.querySelectorAll('button')].find(b => b.textContent.trim() === '停止')?.disabled === true", timeout=10000)
+
+
+def test_e2e_p02_mirror_frames_and_tap_becomes_action(shell, qtbot):
+    sh = shell
+    mock = __import__("mock_device")
+    sh.click(qtbot, "连接 emulator-5554")
+    sh.wait_text(qtbot, "在线")
+    click_js(sh, qtbot, btn_starting("屏幕"))
+    img = "document.querySelector('img[alt=\"设备屏幕\"]')"
+    sh.wait_js(qtbot, "%s && %s.complete && %s.naturalWidth > 0" % (img, img, img), timeout=15000)
+    first = sh.js(qtbot, "%s.src" % img)
+    qtbot.waitUntil(lambda: sh.js(qtbot, "%s.src" % img) != first, timeout=8000)  # frames keep coming
+    before = len(mock.STATE["actions"])
+    sh._eval(qtbot, "(() => { const i = %s; const r = i.getBoundingClientRect(); const o = {bubbles: true, pointerId: 1, clientX: r.left + r.width / 2, clientY: r.top + r.height / 2}; "
+                    "i.dispatchEvent(new PointerEvent('pointerdown', o)); i.dispatchEvent(new PointerEvent('pointerup', o)); return true; })()" % img)
+    qtbot.waitUntil(lambda: len(mock.STATE["actions"]) > before, timeout=8000)
+    act = mock.STATE["actions"][-1]
+    assert act["type"] == "click" and act["x"] > 0 and act["y"] > 0
+    sh.click(qtbot, "主页")
+    qtbot.waitUntil(lambda: mock.STATE["actions"][-1] == {"type": "key", "name": "home"}, timeout=8000)

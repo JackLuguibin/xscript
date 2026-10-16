@@ -127,6 +127,7 @@ export function createApi(rpc: RpcClient) {
     run: (id: string, project: string) => rpc.call<RunResult>("project.run", { id, project }),
     stop: (id: string, project: string) => rpc.call<RunResult>("project.stop", { id, project }),
     logs: (id: string, since: number) => rpc.call<{ entries: LogEntry[]; next: number }>("device.logs", { id, since }),
+    action: (id: string, payload: Record<string, unknown>) => rpc.call<{ ok: boolean }>("device.action", { id, ...payload }),
     key: (id: string, name: string) => rpc.call<{ ok: boolean }>("device.action", { id, type: "key", name }),
     pickDirectory: (title: string) => rpc.call<{ path: string | null }>("app.pickDirectory", { title }, { timeoutMs: 600_000 }),
     syncPreview: (id: string, project: string, dir: string, full = false) =>
