@@ -38,4 +38,4 @@ licenses.db
 xscript_cloud_state.json
 backend/web/dist/
 *.tsbuildinfo
-ascript_analysis/*
+ascript_analysis/*.venv-build/

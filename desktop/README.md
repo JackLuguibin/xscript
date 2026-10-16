@@ -72,6 +72,8 @@ cd ../app && python3.10 -m venv .venv && .venv/bin/pip install -e '.[test]'
 .venv/bin/python -m xscript_desktop --selftest --connect-adb emulator-5554   # 并连上设备、打印设备信息
 ```
 
+打包成 macOS 应用：`app/packaging/build_macos_app.sh` → `app/dist/XScript.app`（PyInstaller，自带 `.icns` 图标，Dock/菜单栏显示 XScript；`dist/XScript.app/Contents/MacOS/XScript --selftest` 可无头自检）。
+
 `adb` 的查找顺序：`--adb` 参数 → `XSCRIPT_ADB` → `ANDROID_SDK_ROOT`/`ANDROID_HOME` → `PATH` → 各系统默认目录（macOS `~/Library/Android/sdk`；Windows `%LOCALAPPDATA%\XScript\platform-tools`、`%LOCALAPPDATA%\Android\Sdk`，⚠ Windows 未验证）。
 
 前端热更新开发：`cd frontend && npm run dev`，再 `python -m xscript_desktop --dev-url http://localhost:5173`（外壳会把 `qwebchannel.js` 注入页面）。
