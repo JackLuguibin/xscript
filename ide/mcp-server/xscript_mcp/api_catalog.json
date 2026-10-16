@@ -880,6 +880,11 @@
           "name": "action.Ime",
           "signature": "Ime.is_active() / switch() / restore() / input(info) / input_clear() / delete(count=1) / keys(keys, duration=20) / enter()",
           "doc": "Typing through XScript 输入法 (see xscript.android.ime), with accessibility / key fallback when it is not active."
+        },
+        {
+          "name": "screen.gp",
+          "signature": "gp.run(gp_file, cv_img=None, allow_python=True); gp.register_task(task_id, task_class); gp.unregister_task(task_id)",
+          "doc": "Run AScript GP packages: legacy pure-Python ZIP or directory packages via their gp(cv_img) entry (paths escaping the package are rejected, 64 MiB unpack limit), and cloud-plugin tasks from classes registered with register_task or imported from loaded plugins. allow_python=False refuses to execute the package's own Python code. There is no plugin server, so an unknown task id raises."
         }
       ],
       "unsupported": [
