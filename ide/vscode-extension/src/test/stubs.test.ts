@@ -61,3 +61,10 @@ test("ascript.android.action.Ime stubs gain switch / restore / delete and drop t
   for (const sig of ["def switch():", "def restore():", "def delete(count=1):"]) assert.ok(ime.includes(sig), sig);
   assert.doesNotMatch(s, /has no custom IME/);
 });
+
+test("ascript.android.screen.gp stubs: task registry and allow_python", () => {
+  const s = stub("ascript/android/screen/gp.pyi");
+  for (const sig of ["def register_task(task_id, task_class):", "def unregister_task(task_id):", "def run(gp_file, cv_img=None, allow_python=True):"])
+    assert.ok(s.includes(sig), sig);
+  assert.doesNotMatch(s, /deliberately not executed/);
+});
