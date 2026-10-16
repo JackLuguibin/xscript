@@ -4,6 +4,7 @@ from __future__ import annotations
 import asyncio
 import hashlib
 import functools
+import json
 from pathlib import Path
 import platform
 import sys
@@ -13,11 +14,14 @@ from typing import Any, Awaitable, Callable
 from . import __version__
 from .rpc import Dispatcher, RpcError, param
 from .services.adb import AdbError, AdbService
-from .services.device_client import DeviceError
-from .services.device_manager import DeviceManager, lan_hosts
+from .services.device_client import DeviceError, DeviceTarget, summarize_status
+from .services.device_manager import LAN_WARNING, DeviceManager, DeviceRecord, lan_hosts
 from .services import sync as syncmod
 from .services.debugger import DebugError, DebugSession
 from .services.mirror import MirrorProxy, MirrorTimings
+from .services.secrets import MemoryBackend, NameIndex, SecretError, SecretStore
+from .services.store import AppStore, SavedDevice, StoreError, StoreSyncCache
+from .services.tool_pages import TITLES, tool_url
 
 ACTION_TYPES = ("click", "swipe", "input", "key")
 MAX_FILE_CHARS = 2 * 1024 * 1024  # stays under the bridge's 4 MiB request cap even after JSON escaping
@@ -45,6 +49,11 @@ def _map_errors(fn: Callable[..., Awaitable[Any]]) -> Callable[..., Awaitable[An
         except DeviceError as e:
             code = {"connect": "device.unreachable", "timeout": "device.timeout", "protocol": "device.protocol"}.get(e.kind, "device.http")
             raise RpcError(code, str(e), retryable=e.retryable, details={"status": e.status, "detail": e.detail}) from e
+        except StoreError as e:
+            code = {"db.not_found": "device.not_found"}.get(e.code, e.code)
+            raise RpcError(code, e.message) from e
+        except SecretError as e:
+            raise RpcError(e.code, e.message) from e
         except KeyError as e:
             raise RpcError("device.not_found", "no such connected device: %s" % e.args[0]) from e
         except ValueError as e:
@@ -57,14 +66,26 @@ class AppContext:
     def __init__(self, adb: AdbService | None = None, poll_interval: float = 5.0, data_dir: Path | None = None,
                  mirror_timings: MirrorTimings | None = None) -> None:
         self.dispatcher = Dispatcher()
-        self.sync_cache = syncmod.SyncCache(data_dir / "sync-cache.json" if data_dir else None)
         # set by the Qt shell (main.py): shows a native folder dialog on the GUI thread; None in headless/tests
         self.debug_sessions: dict[str, DebugSession] = {}
         self.debug_options: dict[str, Any] = {}  # tests shorten the poll intervals
         self.pick_directory: Callable[[str], Awaitable[str | None]] | None = None
+        self.open_tools: Callable[[str, int, str, str], Awaitable[None]] | None = None
+        self.save_file: Callable[[], Awaitable[str | None]] | None = None
+        self.copy_text: Callable[[str], Awaitable[None]] | None = None
         self.adb = adb or AdbService()
-        self.devices = DeviceManager(self.adb, emit=self.dispatcher.emit, poll_interval=poll_interval)
+        db_path = data_dir / "desktop.db" if data_dir else None
+        legacy = data_dir / "sync-cache.json" if data_dir else None
+        self.store = AppStore(db_path, legacy)
+        self.sync_cache: Any = StoreSyncCache(self.store)  # tests may swap in the JSON SyncCache
+        if self.adb._configured is None:
+            saved_adb = self.store.get_setting("adbPath")
+            if saved_adb:
+                self.adb.set_path(saved_adb)
+        self.devices = DeviceManager(self.adb, emit=self.dispatcher.emit, poll_interval=poll_interval, on_online=self._persist_seen)
         self.mirror = MirrorProxy(self._mirror_client, self.dispatcher.emit, timings=mirror_timings)
+        # Memory backend until main() swaps in the OS keyring. --selftest never touches the login keychain.
+        self.secrets = SecretStore(MemoryBackend(), NameIndex(data_dir / "slot-index.json" if data_dir else None))
         self.ui_ready = threading.Event()
         self._register()
 
@@ -117,6 +138,106 @@ class AppContext:
         rec = await self.devices.refresh(device_id)
         self.dispatcher.emit("device.state", rec.to_dict())
 
+    @staticmethod
+    def _apply_saved(rec: DeviceRecord, saved: SavedDevice | None) -> None:
+        if saved is None:
+            return
+        rec.saved_name, rec.group, rec.note = saved.name, saved.grp, saved.note
+        rec.auto_connect, rec.sort_order, rec.saved = bool(saved.auto_connect), saved.sort_order, True
+
+    @staticmethod
+    def _saved_address(rec: DeviceRecord) -> str:
+        """What goes in the devices.address column: adb serial or host:port. Never the forward port."""
+        return rec.serial if rec.transport == "adb" else rec.target.address
+
+    async def _remember(self, rec: DeviceRecord) -> None:
+        # In-memory when there is no data dir (selftest and most tests): still saved for this process,
+        # so disconnect leaves the offline card the same way a real desktop.db does.
+        if self.store.read_only:
+            saved = await self.store.aexec(self.store._get, rec.id)
+            self._apply_saved(rec, saved)
+            if saved is not None:
+                self.dispatcher.emit("device.state", rec.to_dict())
+            return
+        try:
+            saved = await self.store.aexec(
+                self.store._remember, rec.id, rec.transport, self._saved_address(rec),
+                str(rec.status.get("device_id") or ""), str(rec.status.get("model") or ""), rec.last_seen or 0.0)
+        except StoreError as e:
+            if e.code != "db.newer":
+                raise
+            return
+        self._apply_saved(rec, saved)
+        self.dispatcher.emit("device.state", rec.to_dict())
+
+    async def _restore_after_failed_connect(self, dev_id: str, was_live: bool, err: BaseException) -> None:
+        """connect_adb drops the previous session before probing. If that probe fails, put the card back."""
+        if not dev_id or any(r.id == dev_id for r in self.devices.list()):
+            return
+        saved = None
+        try:
+            saved = await self.store.aexec(self.store._get, dev_id)
+        except StoreError:
+            saved = None
+        if saved is not None:
+            self.dispatcher.emit("device.state", self._offline_view(saved, str(err)))
+        elif was_live:
+            self.dispatcher.emit("device.removed", {"id": dev_id})
+
+    async def _persist_seen(self, rec: DeviceRecord) -> None:
+        if self.store.read_only:
+            return
+        try:
+            await self.store.aexec(
+                self.store._touch, rec.id, str(rec.status.get("device_id") or ""),
+                str(rec.status.get("model") or ""), rec.last_seen or 0.0)
+        except StoreError:
+            return
+
+    @staticmethod
+    def _offline_view(saved: SavedDevice, error: str = "") -> dict[str, Any]:
+        info = summarize_status({"name": saved.name, "model": saved.model, "device_id": saved.device_id})
+        info.pop("capture", None)  # unknown until /status; a missing flag must not say capture was denied
+        warning = ""
+        if saved.transport == "lan":
+            host = saved.address[1:saved.address.find("]")] if saved.address.startswith("[") else saved.address.rsplit(":", 1)[0]
+            if not DeviceManager._is_loopback(host):
+                warning = LAN_WARNING
+        return {
+            "id": saved.id, "transport": saved.transport, "address": saved.address,
+            "serial": saved.address if saved.transport == "adb" else "", "forwardPort": 0,
+            "state": "offline", "error": error, "warning": warning, "lastSeen": saved.last_seen or 0,
+            "info": info, "status": {}, "name": saved.name, "group": saved.grp, "note": saved.note,
+            "autoConnect": bool(saved.auto_connect), "sortOrder": saved.sort_order, "saved": True,
+        }
+
+    async def connect_saved(self) -> list[dict[str, Any]]:
+        """Connect devices with auto_connect=1. Everyone else stays an offline card (design §14.5)."""
+        rows = await self.store.aexec(self.store._auto_connect)
+        out: list[dict[str, Any]] = []
+        any_live = False
+        for row in rows:
+            try:
+                if row.transport == "adb":
+                    rec = await self.devices.connect_adb(row.address)
+                elif row.transport == "lan":
+                    rec = await self.devices.connect_address(row.address)
+                else:
+                    view = self._offline_view(row, "暂不支持自动连接 %s" % row.transport)
+                    self.dispatcher.emit("device.state", view)
+                    out.append(view)
+                    continue
+                await self._remember(rec)
+                any_live = True
+                out.append(rec.to_dict())
+            except (AdbError, DeviceError, StoreError) as e:
+                view = self._offline_view(row, str(e))
+                self.dispatcher.emit("device.state", view)
+                out.append(view)
+        if any_live:
+            self.devices.start_polling()
+        return out
+
     def _debug(self, params: dict[str, Any]) -> DebugSession:
         sess = self.debug_sessions.get(param(params, "id", str))
         if sess is None or sess.state == "ended":
@@ -134,6 +255,7 @@ class AppContext:
                     pass
             self.debug_sessions.clear()
             await self.devices.shutdown()
+            self.store.close()
 
     # ---- RPC methods ---------------------------------------------------------------------------------------------------------------------------
 
@@ -152,9 +274,15 @@ class AppContext:
             return {"version": __version__, "platform": sys.platform, "adbPath": self.adb.path(), "methods": d.methods}
 
         @d.method("app.settings.set")
-        def set_settings(params: dict[str, Any]) -> dict[str, Any]:
+        @_map_errors
+        async def set_settings(params: dict[str, Any]) -> dict[str, Any]:
             if "adbPath" in params:
-                self.adb.set_path(param(params, "adbPath", str, default="") or None)
+                raw = param(params, "adbPath", str, default="") or ""
+                self.adb.set_path(raw or None)
+                if raw:
+                    await self.store.aexec(self.store._set_setting, "adbPath", raw)
+                else:
+                    await self.store.aexec(self.store._delete_setting, "adbPath")
             return {"adbPath": self.adb.path()}
 
         @d.method("device.adb.list")
@@ -168,17 +296,45 @@ class AppContext:
         async def connect(params: dict[str, Any]) -> dict[str, Any]:
             transport = param(params, "transport", str)
             if transport == "adb":
-                rec = await self.devices.connect_adb(param(params, "serial", str), param(params, "localPort", int, default=0))
+                serial = param(params, "serial", str)
+                dev_id, op = "adb:" + serial, lambda: self.devices.connect_adb(serial, param(params, "localPort", int, default=0))
             elif transport == "lan":
-                rec = await self.devices.connect_address(param(params, "address", str))
+                address = param(params, "address", str)
+                try:
+                    dev_id = "lan:" + DeviceTarget.parse(address).address
+                except ValueError:
+                    dev_id = ""
+                op = lambda: self.devices.connect_address(address)
             else:
                 raise RpcError("rpc.bad_params", "unknown transport: %s" % transport)
+            was_live = bool(dev_id) and any(r.id == dev_id for r in self.devices.list())
+            try:
+                rec = await op()
+            except Exception as e:
+                await self._restore_after_failed_connect(dev_id, was_live, e)
+                raise
+            await self._remember(rec)
             self.devices.start_polling()
             return rec.to_dict()
 
         @d.method("device.list")
-        def list_devices(params: dict[str, Any]) -> dict[str, Any]:
-            return {"devices": [r.to_dict() for r in self.devices.list()]}
+        async def list_devices(params: dict[str, Any]) -> dict[str, Any]:
+            saved = await self.store.aexec(self.store._list_devices)
+            live = {r.id: r for r in self.devices.list()}
+            out: list[dict[str, Any]] = []
+            seen: set[str] = set()
+            for row in saved:
+                seen.add(row.id)
+                rec = live.get(row.id)
+                if rec is not None:
+                    self._apply_saved(rec, row)
+                    out.append(rec.to_dict())
+                else:
+                    out.append(self._offline_view(row))
+            for rec in self.devices.list():
+                if rec.id not in seen:
+                    out.append(rec.to_dict())
+            return {"devices": out, "notice": self.store.notice, "noticeDetail": self.store.notice_detail}
 
         @d.method("device.refresh")
         @_map_errors
@@ -190,7 +346,52 @@ class AppContext:
         async def disconnect(params: dict[str, Any]) -> dict[str, Any]:
             dev_id = param(params, "id", str)
             await self.mirror.close(dev_id)  # release the stream slot while the HTTP client still exists
-            return {"removed": await self.devices.disconnect(dev_id)}
+            closed = await self.devices.disconnect(dev_id)
+            saved = await self.store.aexec(self.store._get, dev_id)
+            if saved is not None:
+                view = self._offline_view(saved)  # the card stays; only the live connection is gone
+                self.dispatcher.emit("device.state", view)
+                return {"removed": closed, "device": view} if closed else {"removed": False}
+            if closed:
+                self.dispatcher.emit("device.removed", {"id": dev_id})
+            return {"removed": closed}
+
+        @d.method("device.update")
+        @_map_errors
+        async def update_device(params: dict[str, Any]) -> dict[str, Any]:
+            dev_id = param(params, "id", str)
+            fields: dict[str, Any] = {}
+            if "name" in params:
+                fields["name"] = param(params, "name", str)
+            if "group" in params:
+                fields["grp"] = param(params, "group", str)
+            if "note" in params:
+                fields["note"] = param(params, "note", str)
+            if "autoConnect" in params:
+                fields["auto_connect"] = param(params, "autoConnect", bool)
+            if "sortOrder" in params:
+                fields["sort_order"] = param(params, "sortOrder", int)
+            if not fields:
+                raise RpcError("rpc.bad_params", "nothing to update")
+            saved = await self.store.aexec(self.store._update, dev_id, fields)
+            rec = self.devices._devices.get(dev_id)
+            if rec is not None:
+                self._apply_saved(rec, saved)
+                view = rec.to_dict()
+            else:
+                view = self._offline_view(saved)
+            self.dispatcher.emit("device.state", view)
+            return view
+
+        @d.method("device.forget")
+        @_map_errors
+        async def forget_device(params: dict[str, Any]) -> dict[str, Any]:
+            dev_id = param(params, "id", str)
+            await self.mirror.close(dev_id)
+            await self.devices.disconnect(dev_id)
+            gone = await self.store.aexec(self.store._forget, dev_id)
+            self.dispatcher.emit("device.removed", {"id": dev_id})
+            return {"forgotten": gone}
 
         @d.method("device.scan")
         @_map_errors
@@ -314,7 +515,7 @@ class AppContext:
                 await client.upload_files(project, [f.upload_body() for f in chunk])
                 sent += len(chunk)
                 self.dispatcher.emit("sync.progress", {"id": params["id"], "project": project, "sent": sent, "total": len(plan.upload)})
-            self.sync_cache.put(self._sync_key(params), plan.hashes)
+            self.sync_cache.put(self._sync_key(params), plan.hashes, plan.sizes)
             return dict(plan.summary(), uploaded=sent)
 
         @d.method("sync.pull")
@@ -332,7 +533,11 @@ class AppContext:
                 return dict(diff, written=0)
             written = await asyncio.to_thread(syncmod.write_pulled, root, pulled, diff)
             # what we just wrote equals the device: remember it so the next incremental upload skips it
-            self.sync_cache.put(self._sync_key(params), {rel: hashlib.sha1(data).hexdigest() for rel, data in pulled})
+            self.sync_cache.put(
+                self._sync_key(params),
+                {rel: hashlib.sha1(data).hexdigest() for rel, data in pulled},
+                {rel: len(data) for rel, data in pulled},
+            )
             return dict(diff, written=written)
 
         # ---- breakpoint debugging (/debug/*; port of ide/vscode-extension/src/dap.ts) --------------------------------------------
@@ -433,3 +638,97 @@ class AppContext:
         @_map_errors
         async def mirror_retry(params: dict[str, Any]) -> dict[str, Any]:
             return await self.mirror.retry(param(params, "id", str))
+
+        # ---- credentials (design §5.2). The value is never part of the result. ---------------------------------------------
+
+        @d.method("secret.list")
+        @_map_errors
+        async def secret_list(params: dict[str, Any]) -> dict[str, Any]:
+            return await asyncio.to_thread(self.secrets.list_slots)
+
+        @d.method("secret.set")
+        @_map_errors
+        async def secret_set(params: dict[str, Any]) -> dict[str, Any]:
+            return await asyncio.to_thread(self.secrets.set, param(params, "kind", str), param(params, "name", str), param(params, "value", str))
+
+        @d.method("secret.delete")
+        @_map_errors
+        async def secret_delete(params: dict[str, Any]) -> dict[str, Any]:
+            return await asyncio.to_thread(self.secrets.delete, param(params, "kind", str), param(params, "name", str))
+
+        @d.method("secret.has")
+        @_map_errors
+        async def secret_has(params: dict[str, Any]) -> dict[str, Any]:
+            return await asyncio.to_thread(self.secrets.has, param(params, "kind", str), param(params, "name", str))
+
+        @d.method("app.copyText")
+        async def copy_text(params: dict[str, Any]) -> dict[str, Any]:
+            text = param(params, "text", str)
+            if text == "" or "\0" in text or len(text) > 16_000:
+                raise RpcError("rpc.bad_params", "clipboard text must be 1–16000 characters")
+            if self.copy_text is None:
+                raise RpcError("app.unavailable", "no clipboard in this mode")
+            await self.copy_text(text)
+            return {"ok": True}
+
+        # ---- device tools window, inspector, color, screenshot (design §11.1, §12.1) ----------------------------------------
+
+        @d.method("tools.open")
+        @_map_errors
+        async def tools_open(params: dict[str, Any]) -> dict[str, Any]:
+            page = param(params, "page", str, default="home")
+            rec = self.devices.get(param(params, "id", str))
+            if rec.state != "online" or rec.client is None:
+                raise RpcError("tools.offline", "设备不在线，打不开工具页")
+            if rec.transport not in ("adb", "lan"):
+                raise RpcError("tools.no_direct", "这种连接没有本机地址，打不开设备上的工具页")
+            try:
+                url = tool_url(rec.target.host, rec.target.port, page)
+            except ValueError as e:
+                raise RpcError("rpc.bad_params", str(e)) from e
+            if self.open_tools is None:
+                raise RpcError("app.unavailable", "no tool window in this mode")
+            await self.open_tools(rec.target.host, rec.target.port, url, TITLES.get(page, "XScript"))
+            return {"url": url, "page": page, "warning": rec.warning}
+
+        @d.method("device.uiTree")
+        @_map_errors
+        async def device_ui_tree(params: dict[str, Any]) -> dict[str, Any]:
+            mode = param(params, "mode", int, default=0)
+            if mode not in (0, 1):
+                raise RpcError("rpc.bad_params", "mode must be 0 or 1")
+            data = await self._client(params).ui_tree(mode)
+            if len(json.dumps(data)) > 1_500_000:
+                raise RpcError("rpc.too_large", "控件树太大")
+            return data
+
+        @d.method("device.pixel")
+        @_map_errors
+        async def device_pixel(params: dict[str, Any]) -> dict[str, Any]:
+            x, y = param(params, "x", int), param(params, "y", int)
+            if x < 0 or y < 0 or x > 20000 or y > 20000:
+                raise RpcError("rpc.bad_params", "pixel coordinates are out of range")
+            client = self._client(params)
+            snap = await client.capture_snapshot()
+            out = await client.vision_pixel(str(snap["id"]), x, y)
+            color = out.get("color")
+            if not isinstance(color, str) or len(color) != 7 or not color.startswith("#"):
+                color = None
+            return {"color": color, "x": x, "y": y}
+
+        @d.method("device.saveScreenshot")
+        @_map_errors
+        async def device_save_screenshot(params: dict[str, Any]) -> dict[str, Any]:
+            if self.save_file is None:
+                raise RpcError("app.unavailable", "no save dialog in this mode")
+            chosen = await self.save_file()
+            if not chosen:
+                return {"saved": False}
+            data, _ctype = await self._client(params).screen("png", 95, None)
+            if not data.startswith(b"\x89PNG"):
+                raise RpcError("device.protocol", "screenshot was not a PNG")
+            dest = Path(chosen)
+            if dest.suffix.lower() != ".png":
+                dest = dest.with_suffix(".png")
+            await asyncio.to_thread(dest.write_bytes, data)
+            return {"saved": True, "path": str(dest), "bytes": len(data)}

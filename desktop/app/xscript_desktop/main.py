@@ -86,9 +86,20 @@ def main(argv: list[str] | None = None) -> int:
             win.resize(max(320, w), max(240, h))
         except ValueError:
             print("ignoring bad --size %r (expected WxH)" % args.size, file=sys.stderr)
-    from .dialogs import DirectoryPicker
+    from .dialogs import DirectoryPicker, FileSaver, TextClipboard
+    from .services.secrets import KeyringBackend
+    from .tools_view import ToolHost
+
     picker = DirectoryPicker(win)
     ctx.pick_directory = picker.pick
+    saver = FileSaver(win)
+    ctx.save_file = saver.save
+    clip = TextClipboard(win)
+    ctx.copy_text = clip.write
+    tools = ToolHost(win)
+    ctx.open_tools = tools.open
+    if not (args.selftest or args.screenshot):
+        ctx.secrets.backend = KeyringBackend()
     win.show()
     win.load()
 
@@ -113,6 +124,8 @@ def main(argv: list[str] | None = None) -> int:
             return
         if elapsed["ready_at"] is None:
             elapsed["ready_at"] = elapsed["t"]
+            if not args.selftest and not args.screenshot:
+                runtime.submit(ctx.connect_saved())  # only rows with auto_connect=1; design §14.5
             if args.connect_adb:
                 runtime.submit(_connect(ctx, args.connect_adb))
         if args.theme and elapsed["theme_clicks"] < theme_order.index(args.theme):
@@ -139,6 +152,7 @@ def main(argv: list[str] | None = None) -> int:
     poll.start()
 
     def on_quit() -> None:
+        tools.dispose()
         win.dispose()
         try:
             runtime.run(ctx.shutdown(), timeout=10)  # removes the adb forwards we created
@@ -153,7 +167,8 @@ def main(argv: list[str] | None = None) -> int:
 
 async def _connect(ctx, serial: str) -> None:
     try:
-        await ctx.devices.connect_adb(serial)
+        rec = await ctx.devices.connect_adb(serial)
+        await ctx._remember(rec)  # serial only; the forward port stays in memory
         ctx.devices.start_polling()
     except Exception as e:
         print("connect failed: %s" % e, file=sys.stderr)

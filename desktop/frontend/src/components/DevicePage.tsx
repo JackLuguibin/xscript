@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useServices } from "../app-context";
 import type { AdbDevice, Device, ScanHit } from "../api";
 import { RpcError } from "../bridge/types";
@@ -13,7 +13,7 @@ function errText(e: unknown): string {
   return e instanceof Error ? e.message : String(e);
 }
 
-export function DevicePage() {
+export function DevicePage({ refreshToken = 0, focusToken = 0 }: { refreshToken?: number; focusToken?: number }) {
   const { api, rpc } = useServices();
   const [adb, setAdb] = useState<AdbDevice[] | null>(null);
   const [adbError, setAdbError] = useState<{ code: string; text: string } | null>(null);
@@ -24,6 +24,8 @@ export function DevicePage() {
   const [address, setAddress] = useState("");
   const [scan, setScan] = useState<ScanHit[] | null>(null);
   const [scanning, setScanning] = useState(false);
+  const [dbNotice, setDbNotice] = useState("");
+  const [dbDetail, setDbDetail] = useState("");
 
   const loadAdb = useCallback(async () => {
     setAdbError(null);
@@ -38,9 +40,33 @@ export function DevicePage() {
     }
   }, [api]);
 
+  // The mount effect already loads the list. A non-zero token on first paint (palette
+  // opened this page and asked for a refresh together) must not fetch a second time.
+  const seenRefresh = useRef(refreshToken);
+  useEffect(() => {
+    if (refreshToken === seenRefresh.current) return;
+    seenRefresh.current = refreshToken;
+    void loadAdb();
+  }, [refreshToken, loadAdb]);
+
+  useEffect(() => {
+    if (!focusToken) return;
+    let dead = false;
+    queueMicrotask(() => {
+      if (!dead) document.getElementById("device-address")?.focus();
+    });
+    return () => {
+      dead = true;
+    };
+  }, [focusToken]);
+
   useEffect(() => {
     void loadAdb();
-    void api.listDevices().then((r) => setDevices(r.devices)).catch(() => undefined);
+    void api.listDevices().then((r) => {
+      setDevices(r.devices);
+      setDbNotice(r.notice || "");
+      setDbDetail(r.noticeDetail || "");
+    }).catch(() => undefined);
   }, [api, loadAdb]);
 
   // device.state is pushed by Python (health polling); device.removed on disconnect.
@@ -74,7 +100,20 @@ export function DevicePage() {
 
   const connectAdb = (serial: string) => run("adb:" + serial, async () => upsert(await api.connectAdb(serial)));
   const connectLan = (addr: string) => run("lan", async () => upsert(await api.connectLan(addr)));
-  const disconnect = (id: string) => run("rm:" + id, async () => { await api.disconnect(id); setDevices((cur) => cur.filter((d) => d.id !== id)); });
+  const disconnect = (id: string) => run("rm:" + id, async () => {
+    const res = await api.disconnect(id);
+    if (res.device) upsert(res.device);
+    else setDevices((cur) => cur.filter((d) => d.id !== id));
+  });
+  const forget = (id: string) => run("fg:" + id, async () => {
+    await api.forgetDevice(id);
+    setDevices((cur) => cur.filter((d) => d.id !== id));
+  });
+  const retry = (d: Device) => run("re:" + d.id, async () => {
+    upsert(d.transport === "adb" ? await api.connectAdb(d.serial || d.address) : await api.connectLan(d.address));
+  });
+  const saveMeta = (d: Device, patch: { name: string; group: string; note: string; autoConnect: boolean }) =>
+    run("sv:" + d.id, async () => upsert(await api.updateDevice(d.id, patch)));
   const doScan = () => run("scan", async () => {
     setScanning(true);
     try {
@@ -84,11 +123,23 @@ export function DevicePage() {
     }
   });
 
-  const connectedIds = new Set(devices.map((d) => d.id));
+  const liveIds = new Set(devices.filter((d) => d.state === "online" || d.state === "connecting").map((d) => d.id));
   const adbHint = (state: string) => (state === "unauthorized" ? t.adbUnauthorized : state === "offline" ? t.adbOffline : "");
 
   return (
     <div className="page">
+      {dbNotice === "db.newer" && (
+        <div className="banner warn" role="status">
+          <IconAlert size={16} />
+          <span className="grow">{t.saved.newer}</span>
+        </div>
+      )}
+      {dbNotice === "db.corrupt" && (
+        <div className="banner warn" role="status">
+          <IconAlert size={16} />
+          <span className="grow">{t.saved.corrupt(dbDetail)}</span>
+        </div>
+      )}
       {error && (
         <div className="banner error" role="alert">
           <IconAlert size={16} />
@@ -110,7 +161,15 @@ export function DevicePage() {
         ) : (
           <div className="cards">
             {devices.map((d) => (
-              <DeviceCard key={d.id} device={d} onDisconnect={() => disconnect(d.id)} busy={busy === "rm:" + d.id} />
+              <DeviceCard
+                key={d.id}
+                device={d}
+                onDisconnect={() => disconnect(d.id)}
+                onForget={() => forget(d.id)}
+                onRetry={() => retry(d)}
+                onSave={(patch) => saveMeta(d, patch)}
+                busy={busy === "rm:" + d.id || busy === "fg:" + d.id || busy === "re:" + d.id || busy === "sv:" + d.id}
+              />
             ))}
           </div>
         )}
@@ -164,10 +223,10 @@ export function DevicePage() {
                 </span>
                 <Badge tone={d.state === "device" ? "ok" : d.state === "unauthorized" ? "warn" : "bad"}>{d.state}</Badge>
                 <button
-                  className={d.state === "device" && !connectedIds.has("adb:" + d.serial) ? "primary" : ""}
+                  className={d.state === "device" && !liveIds.has("adb:" + d.serial) ? "primary" : ""}
                   aria-label={`${t.connect} ${d.serial}`}
                   onClick={() => void connectAdb(d.serial)}
-                  disabled={d.state !== "device" || busy !== "" || connectedIds.has("adb:" + d.serial)}
+                  disabled={d.state !== "device" || busy !== "" || liveIds.has("adb:" + d.serial)}
                 >
                   {busy === "adb:" + d.serial ? <Spinner /> : t.connect}
                 </button>
@@ -194,7 +253,7 @@ export function DevicePage() {
               if (address.trim()) void connectLan(address.trim());
             }}
           >
-            <input aria-label="device address" className="grow" value={address} onChange={(e) => setAddress(e.target.value)} placeholder={t.lanPlaceholder} autoComplete="off" spellCheck={false} />
+            <input id="device-address" aria-label="device address" className="grow" value={address} onChange={(e) => setAddress(e.target.value)} placeholder={t.lanPlaceholder} autoComplete="off" spellCheck={false} />
             <button type="submit" className="primary" aria-label={t.addressConnect} disabled={busy !== "" || !address.trim()}>
               {busy === "lan" ? <Spinner /> : t.connect}
             </button>
@@ -216,7 +275,7 @@ export function DevicePage() {
                     <strong>{h.address}</strong>
                     <span className="muted">{h.info.name || h.info.model}</span>
                   </span>
-                  <button aria-label={`${t.connect} ${h.address}`} onClick={() => void connectLan(h.address)} disabled={busy !== "" || connectedIds.has("lan:" + h.address)}>
+                  <button aria-label={`${t.connect} ${h.address}`} onClick={() => void connectLan(h.address)} disabled={busy !== "" || liveIds.has("lan:" + h.address)}>
                     {t.connect}
                   </button>
                 </li>

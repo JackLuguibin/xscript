@@ -49,12 +49,19 @@ export function createDemoTransport(): MemoryTransport {
     if (!dbg || dbg.id !== p.id || dbg.state === "ended") throw { code: "debug.no_session", message: "no active debug session on this device" };
     return dbg;
   };
+  let configuredAdb: string | null = null;
+  const secrets = new Map<string, string>();
   const transport = new MemoryTransport(
     {
       "app.ping": (p) => ({ pong: p.echo, version: "demo", python: "-", platform: "browser" }),
-      "app.hello": () => ({ version: "demo", platform: "browser", adbPath: null, methods: [] }),
+      "app.hello": () => ({ version: "demo", platform: "browser", adbPath: configuredAdb, methods: [] }),
+      "app.settings.set": (p) => {
+        const raw = String(p.adbPath ?? "").trim();
+        configuredAdb = raw || null;
+        return { adbPath: configuredAdb };
+      },
       "device.adb.list": () => ({
-        adbPath: "/demo/adb",
+        adbPath: configuredAdb || "/demo/adb",
         devices: [{ serial: "emulator-5554", state: "device", model: "sdk_gphone64_arm64", product: "", device: "", transportId: "1", isEmulator: true }],
       }),
       "device.connect": (p) => {
@@ -62,6 +69,7 @@ export function createDemoTransport(): MemoryTransport {
         const d: Device = {
           id: `${p.transport}:${serial}`, transport: p.transport as "adb" | "lan", address: "127.0.0.1:41000", serial: p.transport === "adb" ? serial : "",
           forwardPort: 41000, state: "online", error: "", warning: p.transport === "lan" ? "demo warning" : "", lastSeen: Date.now() / 1000,
+          saved: true, name: "", group: "", note: "", autoConnect: false, sortOrder: 0,
           info: { name: status.name, model: status.model, brand: status.brand, android: status.release, sdk: status.sdk, width: status.width, height: status.height,
             density: status.density, ip: status.ip, port: 9860, version: status.version, deviceId: status.device_id, appId: status.app_id, running: false,
             project: "", accessibility: false, root: false, capture: false, channel: "none", cloud: "未连接" },
@@ -72,7 +80,29 @@ export function createDemoTransport(): MemoryTransport {
       },
       "device.list": () => ({ devices: [...devices.values()] }),
       "device.refresh": (p) => devices.get(String(p.id)),
-      "device.disconnect": (p) => ({ removed: devices.delete(String(p.id)) }),
+      "device.disconnect": (p) => {
+        const d = devices.get(String(p.id));
+        if (!d || d.state !== "online") return { removed: false };
+        const offline: Device = { ...d, state: "offline", forwardPort: 0, saved: true };
+        devices.set(d.id, offline);
+        return { removed: true, device: offline };
+      },
+      "device.forget": (p) => ({ forgotten: devices.delete(String(p.id)) }),
+      "device.update": (p) => {
+        const d = devices.get(String(p.id));
+        if (!d) throw { code: "db.not_found", message: "没有这台已保存设备" };
+        const next: Device = {
+          ...d,
+          name: p.name !== undefined ? String(p.name) : d.name,
+          group: p.group !== undefined ? String(p.group) : d.group,
+          note: p.note !== undefined ? String(p.note) : d.note,
+          autoConnect: p.autoConnect !== undefined ? Boolean(p.autoConnect) : d.autoConnect,
+          saved: true,
+          info: { ...d.info, name: p.name !== undefined && String(p.name) ? String(p.name) : d.info.name },
+        };
+        devices.set(d.id, next);
+        return next;
+      },
       "device.scan": () => ({ found: [] }),
       "project.list": () => ({ projects: [...projects.keys()].map((name) => ({ name })) }),
       "project.create": (p) => {
@@ -176,6 +206,35 @@ export function createDemoTransport(): MemoryTransport {
       }),
       "mirror.unsubscribe": () => ({ ok: true, viewers: 0 }),
       "mirror.retry": (p) => ({ id: String(p.id), state: "connecting", reason: "", seq: 1, w: 1080, h: 2209, viewers: 1, fps: 12, scale: 0.5, quality: 60 }),
+      "secret.list": () => ({ slots: [...secrets.keys()].map((k) => ({ kind: k.split("\t")[0], name: k.split("\t")[1] })) }),
+      "secret.set": (p) => {
+        const kind = String(p.kind || "");
+        const name = String(p.name || "").trim();
+        const value = String(p.value ?? "");
+        if (!["env", "backend", "device"].includes(kind) || !name || !value) throw { code: "rpc.bad_params", message: "bad credential" };
+        secrets.set(`${kind}\t${name}`, value);
+        return { ok: true, kind, name };
+      },
+      "secret.delete": (p) => ({ deleted: secrets.delete(`${String(p.kind)}\t${String(p.name)}`) }),
+      "secret.has": (p) => ({ present: secrets.has(`${String(p.kind)}\t${String(p.name)}`) }),
+      "app.copyText": () => ({ ok: true }),
+      "tools.open": (p) => {
+        const page = String(p.page || "home");
+        const path = { home: "/tools/", color: "/tools/ui/color.html", label: "/tools/ui/label.html", mirror: "/tools/ui/mirror.html" }[page];
+        if (!path) throw { code: "rpc.bad_params", message: "unknown tool page" };
+        return { url: `http://127.0.0.1:41000${path}`, page, warning: "" };
+      },
+      "device.uiTree": (p) => ({
+        mode: Number(p.mode ?? 0),
+        width: 1080,
+        height: 2400,
+        roots: [{
+          path: "0/0", id: "com.android.settings:id/search", text: "Search", desc: "Search settings",
+          type: "android.widget.TextView", rect: { l: 40, t: 80, r: 280, b: 160 }, clickable: true, children: [],
+        }],
+      }),
+      "device.pixel": (p) => ({ color: "#336699", x: p.x, y: p.y }),
+      "device.saveScreenshot": () => ({ saved: true, path: "/demo/screen.png", bytes: 8 }),
     },
     30,
   );

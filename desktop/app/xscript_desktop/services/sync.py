@@ -150,6 +150,7 @@ class UploadPlan:
     upload: list[LocalFile]
     skipped: list[str]
     hashes: dict[str, str]
+    sizes: dict[str, int] = field(default_factory=dict)
 
     def summary(self) -> dict[str, Any]:
         return {"upload": [f.path for f in self.upload], "skipped": self.skipped, "bytes": sum(len(f.data) for f in self.upload)}
@@ -161,13 +162,15 @@ def plan_upload(files: list[LocalFile], remote: list[dict[str, Any]] | None, cac
     upload: list[LocalFile] = []
     skipped: list[str] = []
     hashes: dict[str, str] = {}
+    sizes: dict[str, int] = {}
     for f in files:
         hashes[f.path] = f.sha1
+        sizes[f.path] = len(f.data)
         if remote is not None and remote_size.get(f.path) == len(f.data) and cache.get(f.path) == f.sha1:
             skipped.append(f.path)
         else:
             upload.append(f)
-    return UploadPlan(upload, skipped, hashes)
+    return UploadPlan(upload, skipped, hashes, sizes)
 
 
 def batches(files: Iterable[LocalFile], max_bytes: int = BATCH_BYTES) -> list[list[LocalFile]]:
@@ -233,7 +236,7 @@ class SyncCache:
         with self._lock:
             return dict(self._data.get(key, {}))
 
-    def put(self, key: str, hashes: dict[str, str]) -> None:
+    def put(self, key: str, hashes: dict[str, str], sizes: dict[str, int] | None = None) -> None:
         with self._lock:
             self._data[key] = dict(hashes)
             if self.path is not None:

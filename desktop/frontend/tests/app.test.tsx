@@ -36,7 +36,7 @@ describe("App shell", () => {
   it("sidebar: the current page is marked, planned pages are disabled and tagged (not fake links)", () => {
     mount(true);
     const nav = within(screen.getByRole("navigation", { name: "main" }));
-    expect(nav.getByRole("button", { name: /设备/ }).getAttribute("aria-current")).toBe("page");
+    expect(nav.getByRole("button", { name: (n) => n === "设备" }).getAttribute("aria-current")).toBe("page");
     for (const name of [/流程/]) {
       const b = nav.getByRole("button", { name }) as HTMLButtonElement;
       expect(b.disabled).toBe(true);

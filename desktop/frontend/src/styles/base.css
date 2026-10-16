@@ -17,3 +17,24 @@ button, input { font: inherit; color: inherit; }
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { animation-duration: 0.001ms !important; animation-iteration-count: 1 !important; transition-duration: 0.001ms !important; scroll-behavior: auto !important; }
 }
+
+/* High contrast (design §14.13). System colors keep borders and the focus ring when the OS forces a palette.
+   Windows forced-colors itself is still unverified; this is the query Chromium applies. */
+@media (forced-colors: active) {
+  :root {
+    --bg: Canvas;
+    --surface: Canvas;
+    --surface-2: Canvas;
+    --sidebar: Canvas;
+    --text: CanvasText;
+    --text-muted: CanvasText;
+    --border: CanvasText;
+    --border-strong: ButtonText;
+    --focus-ring: Highlight;
+    --primary: LinkText;
+    --text-on-primary: HighlightText;
+  }
+  :focus-visible { outline: 2px solid Highlight; }
+  button, input, .list-item, .panel, .empty, .banner, .sidebar, .badge, .nav-item { border-color: ButtonText; }
+  .nav-item[aria-current="page"], .skip-link:focus { background: Highlight; color: HighlightText; }
+}

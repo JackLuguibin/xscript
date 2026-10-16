@@ -25,6 +25,7 @@ export const IconLink = (p: P) => (<Svg {...p}><path d="M9.5 14.5l5-5" /><path d
 export const IconUnlink = (p: P) => (<Svg {...p}><path d="M11 6.5l1.2-1.2a4 4 0 0 1 5.6 5.6L16.5 12" /><path d="M13 17.5l-1.2 1.2a4 4 0 0 1-5.6-5.6L7.5 12" /><path d="M4 4l16 16" /></Svg>);
 export const IconFolder = (p: P) => (<Svg {...p}><path d="M3 7.5a2 2 0 0 1 2-2h4l2 2.5h8a2 2 0 0 1 2 2V18a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z" /></Svg>);
 export const IconFlow = (p: P) => (<Svg {...p}><rect x="3" y="3.5" width="6.5" height="6" rx="1.4" /><rect x="14.5" y="14.5" width="6.5" height="6" rx="1.4" /><path d="M9.5 6.5h3.5a2 2 0 0 1 2 2v6" /></Svg>);
+export const IconGrid = (p: P) => (<Svg {...p}><rect x="3.5" y="3.5" width="7" height="7" rx="1.4" /><rect x="13.5" y="3.5" width="7" height="7" rx="1.4" /><rect x="3.5" y="13.5" width="7" height="7" rx="1.4" /><rect x="13.5" y="13.5" width="7" height="7" rx="1.4" /></Svg>);
 export const IconMark = (p: P) => (<Svg {...p}><path d="M5 5l14 14M19 5L5 19" strokeWidth={2.4} /></Svg>);
 
 export function Spinner() {

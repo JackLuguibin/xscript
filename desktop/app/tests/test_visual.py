@@ -32,6 +32,7 @@ def prepare(sh, qtbot, theme: str, size=(1100, 720), devices=DEVICES, adb_missin
     fd.status.clear()
     fd.status.update(STATUS)
     sh.run_async(sh.ctx.devices.shutdown())
+    sh.ctx.store.forget_all()
     sh.fake.forwards.clear()
     sh.fake._next = 41000
     sh.fake.devices = [(s, st, fd.port) for s, st in devices]

@@ -45,6 +45,25 @@ export interface Device {
   lastSeen: number;
   info: Partial<DeviceInfo>;
   status: Record<string, unknown>;
+  /** User-facing label from the saved-device row (design §14.5). Empty until the user sets one. */
+  name?: string;
+  group?: string;
+  note?: string;
+  autoConnect?: boolean;
+  sortOrder?: number;
+  saved?: boolean;
+}
+
+export interface SecretSlot {
+  kind: "env" | "backend" | "device";
+  name: string;
+}
+
+export interface UiTreeResult {
+  mode?: number;
+  width?: number;
+  height?: number;
+  roots?: Array<Record<string, unknown>>;
 }
 
 export interface Hello {
@@ -153,9 +172,12 @@ export function createApi(rpc: RpcClient) {
     adbList: () => rpc.call<{ adbPath: string | null; devices: AdbDevice[] }>("device.adb.list", {}, { timeoutMs: 20_000 }),
     connectAdb: (serial: string) => rpc.call<Device>("device.connect", { transport: "adb", serial }, { timeoutMs: 30_000 }),
     connectLan: (address: string) => rpc.call<Device>("device.connect", { transport: "lan", address }, { timeoutMs: 30_000 }),
-    listDevices: () => rpc.call<{ devices: Device[] }>("device.list"),
+    listDevices: () => rpc.call<{ devices: Device[]; notice?: string; noticeDetail?: string }>("device.list"),
     refresh: (id: string) => rpc.call<Device>("device.refresh", { id }),
-    disconnect: (id: string) => rpc.call<{ removed: boolean }>("device.disconnect", { id }),
+    disconnect: (id: string) => rpc.call<{ removed: boolean; device?: Device }>("device.disconnect", { id }),
+    updateDevice: (id: string, patch: { name?: string; group?: string; note?: string; autoConnect?: boolean }) =>
+      rpc.call<Device>("device.update", { id, ...patch }),
+    forgetDevice: (id: string) => rpc.call<{ forgotten: boolean }>("device.forget", { id }),
     projects: (id: string) => rpc.call<{ projects: ProjectSummary[] }>("project.list", { id }),
     createProject: (id: string, project: string) => rpc.call<{ ok: boolean }>("project.create", { id, project }),
     files: (id: string, project: string) => rpc.call<ProjectFiles>("project.files", { id, project }),
@@ -192,6 +214,15 @@ export function createApi(rpc: RpcClient) {
     mirrorUnsubscribe: (id: string) => rpc.call<{ ok: boolean; viewers: number }>("mirror.unsubscribe", { id, viewer: "mirror" }),
     mirrorRetry: (id: string) => rpc.call<MirrorStatus>("mirror.retry", { id }),
     scan: (cidr?: string) => rpc.call<{ found: ScanHit[] }>("device.scan", cidr ? { cidr } : {}, { timeoutMs: 60_000 }),
+    secretList: () => rpc.call<{ slots: SecretSlot[] }>("secret.list"),
+    secretSet: (kind: string, name: string, value: string) => rpc.call<{ ok: boolean; kind: string; name: string }>("secret.set", { kind, name, value }),
+    secretDelete: (kind: string, name: string) => rpc.call<{ deleted: boolean }>("secret.delete", { kind, name }),
+    secretHas: (kind: string, name: string) => rpc.call<{ present: boolean }>("secret.has", { kind, name }),
+    copyText: (text: string) => rpc.call<{ ok: boolean }>("app.copyText", { text }),
+    toolsOpen: (id: string, page: string) => rpc.call<{ url: string; page: string; warning: string }>("tools.open", { id, page }),
+    uiTree: (id: string, mode = 0) => rpc.call<UiTreeResult>("device.uiTree", { id, mode }),
+    pixel: (id: string, x: number, y: number) => rpc.call<{ color: string | null; x: number; y: number }>("device.pixel", { id, x, y }),
+    saveScreenshot: (id: string) => rpc.call<{ saved: boolean; path?: string; bytes?: number }>("device.saveScreenshot", { id }, { timeoutMs: 600_000 }),
   };
 }
 

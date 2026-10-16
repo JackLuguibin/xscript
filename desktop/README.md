@@ -23,16 +23,22 @@
 | --- | --- | --- |
 | **工程页** | 选在线设备 → 工程列表 / 新建 → 文件列表 → 编辑与保存（⌘/Ctrl+S）→ 保存并运行（F6）/ 停止（Shift+F6）→ 按 `seq` 游标跟随 `/logs`（约 1 s 轮询，最多 2000 行）；文件 **新建 / 重命名 / 删除**（入口 `__init__.py` 受保护）；返回 / 主页 / 最近任务 按键 | `frontend/src/components/ProjectsPage.tsx` |
 | **Monaco 编辑器** | 本地打包（无 CDN，CSP 下可用），只注册 Python；按需加载（约 4 MB 的独立 chunk）；**补全** 来自 `ide/python-stubs`：`import` / `from … import` / 别名 `x.` / 类成员，带签名与文档。数据重新生成：`python3 frontend/scripts/gen_stub_completions.py`（`--check` 由 pytest 守着）。浏览器演示模式与 jsdom 测试里回退为 `<textarea>` | `frontend/src/editor/`、`components/CodeEditor.tsx` |
-| **本地文件夹同步** | 移植 VS Code 插件 `sync.ts`：`.vscode/.syncignore`、跳过点文件 / `__pycache__` / `*.pyc` / 虚拟环境；**增量**＝设备上大小相同 *且* 内容哈希等于上次本机上传的才跳过；分批 `PUT /files`（每批约 2 MB，推送 `sync.progress`）；全量上传；拉取到本地（只写新增/变化，本地多出的不动）。哈希缓存在 `<数据目录>/sync-cache.json`。文件夹必须含 `__init__.py` 或 `build.as`，上限 5000 个文件 / 200 MB。原生「选择文件夹」对话框 | `app/xscript_desktop/services/sync.py`、`dialogs.py`、`frontend/src/components/SyncPanel.tsx` |
+| **本地文件夹同步** | 移植 VS Code 插件 `sync.ts`：`.vscode/.syncignore`、跳过点文件 / `__pycache__` / `*.pyc` / 虚拟环境；**增量**＝设备上大小相同 *且* 内容哈希等于上次本机上传的才跳过；分批 `PUT /files`（每批约 2 MB，推送 `sync.progress`）；全量上传；拉取到本地（只写新增/变化，本地多出的不动）。哈希在应用数据库的 `sync_cache` 表（设计 §14.5）；若数据目录里还有旧的 `sync-cache.json`，启动时导入一次。文件夹必须含 `__init__.py` 或 `build.as`，上限 5000 个文件 / 200 MB。原生「选择文件夹」对话框 | `app/xscript_desktop/services/sync.py`、`store.py`、`dialogs.py`、`frontend/src/components/SyncPanel.tsx` |
 | **屏幕（投屏 + 操控）** | 每台设备只开一条 `GET /screen/stream`（MJPEG，默认 fps=12、scale=0.5、quality=60），扇出给订阅者。最新一帧放内存，页面用 `xsapp://app/_frame/<id>?seq=N` 取（事件 `mirror.frame`，加载中到达的帧丢掉）。开流前先看 `/status.capture`，未授权绝不开流。429 时改轮询 `GET /screen`（约 2 fps，max=480）并按 0.5–8 秒退避重试（每次不早于关闭后 1.5 秒），成功后回到流。3 秒无帧则主动断开且不自动重试。最后一个订阅者离开、断开设备或退出时立刻关闭上游。点按/长按/滑动与按键、文字仍走 `device.action`。设备卡片上的单张截图仍走 `/_shot/`，不占观看槽 | `app/xscript_desktop/services/mirror.py`、`frontend/src/components/MirrorPage.tsx` |
 | **断点调试** | 移植 VS Code 插件 `dap.ts`：Python 侧 `DebugSession` 当 DAP 客户端（页面不能联网），经 `POST /projects/{name}/debug` → `/debug/connect`（409 时重试）→ `/debug/request` + `/debug/messages?since=` 轮询驱动设备上的 debugpy；握手顺序 initialize → attach（不等响应）→ `initialized` → setBreakpoints → setExceptionBreakpoints(uncaught) → configurationDone。Monaco **装订线断点**（点行号左侧或 F9），暂停行高亮并自动打开对应文件；工具栏 调试/继续（F5）、单步跳过（F10）、进入（F11）、跳出（Shift+F11）、暂停、分离、停止（Shift+F5）；**调用栈**（工程外的帧会标出来）、**变量**（Locals 自动展开，Globals 与子对象按需展开）、在栈帧上**求值**、调试控制台。停止时先发 DAP `disconnect(terminateDebuggee=false)` 再关通道，然后只停自己启动的脚本（设备忙时报 409「已在运行」，不会停别人的脚本）；会话中切换断点会立即下发 | `app/xscript_desktop/services/debugger.py`、`frontend/src/components/DebugPanel.tsx` |
 | **中 / 英界面** | 侧栏底部切换，记住选择，设置 `<html lang>`；两套词典键由类型和测试保证一致 | `frontend/src/strings.ts`、`src/i18n.ts` |
+| **已保存设备** | SQLite `desktop.db`（WAL，专用线程）。连接成功后记住设备；**不保存 adb 自动分配的本地端口**，下次按序列号重新 `forward`。断开后卡片留在列表里显示离线，忘记才删除。可改名称、分组、备注，以及「启动时自动连接」（只有勾上的才会在打开窗口时重连）。数据库损坏会改名后重建并提示；来自更新版本则只读。不写密钥 | `app/xscript_desktop/services/store.py`、`frontend/src/components/DevicePage.tsx` |
+| **全局快捷键** | `⌘/Ctrl+K` 命令面板；`⌘/Ctrl+1…4` 切换设备/屏幕/工程/设备墙（「流程」仍禁用，排在第 5 项）；设备页 `⌘/Ctrl+R` 与 `F5` 刷新 ADB（其它页的 `F5` 仍留给调试）；`⌘/Ctrl+L` 聚焦地址；`⌘/Ctrl+B` 侧栏只留图标；`⌘/Ctrl+Shift+T` 循环主题；`⌘/Ctrl+,` 打开设置（语言、主题、adb 路径、凭据、单键快捷键、图标侧栏）；`?` 快捷键帮助，可在设置里关闭（WCAG 2.1.4）。`Esc` 关闭浮层并归还焦点。输入框里 `?` 不触发。macOS 上修饰键是 `⌘` | `frontend/src/shortcuts.ts`、`components/GlobalShortcuts.tsx` |
+| **凭据** | 设置里按名称保存环境变量、后台地址、设备配对槽。值只进系统凭据库（`keyring`；Windows 凭据管理器 ⚠ 未在 Windows 上验证）。保存后界面不再显示值，RPC 应答也不带回值。名称记在数据目录的 `slot-index.json`，**不进** SQLite | `services/secrets.py`、`components/CredentialsForm.tsx` |
+| **设备工具页** | 图色 / 标注 / 投屏网页 / 工具首页在**独立窗口、独立 profile** 里打开设备自己的 `/tools/`。没有桥，所以那个页面调不了桌面 RPC。请求只允许这台设备的地址；点外部链接交给系统浏览器。页面传入的 URL 一律忽略 | `tools_view.py`、`services/tool_pages.py` |
+| **控件树 / 取色 / 截图** | 屏幕页可切换操控、选控件、取色。选控件读 `GET /ui-tree`，点画面或点树里的一行，高亮并复制 `Selector()` 片段和 XPath。取色先 `POST /tools/snapshots` 再 `POST /tools/vision`（`op=pixel`）。保存截图由系统对话框选路径，页面不能指定路径。把节点拖到画布上仍是 P2 | `components/ScreenTools.tsx`、`ui-tree.ts` |
+| **设备墙** | 每台设备一张 `/_shot/` 缩略图（约 2 秒刷新），**不开** `/screen/stream`，所以不占两个观看槽。勾选后按键广播；在一张图上点击，把同一相对位置发给所有勾选的在线设备（没勾选时只发给被点的那台） | `components/WallPage.tsx` |
 
-新增 RPC：`project.list|create|files|read|write|deleteFile|move|run|stop`、`device.logs`、`device.action`（仅 `click|swipe|input|key`）、`sync.preview|upload|pull`、`app.pickDirectory`、`debug.start|status|setBreakpoints|step|scopes|variables|evaluate|stop`、`mirror.subscribe|unsubscribe|retry`；事件 `sync.progress`、`debug.state`、`debug.output`、`mirror.frame`、`mirror.state`。所有路径参数按设备同样的规则校验（相对、无 `..` / `.` / 空段 / 反斜杠）。
+新增 RPC：`project.list|create|files|read|write|deleteFile|move|run|stop`、`device.logs`、`device.action`（仅 `click|swipe|input|key`）、`device.update|forget`、`device.uiTree`、`device.pixel`、`device.saveScreenshot`、`sync.preview|upload|pull`、`app.pickDirectory`、`app.copyText`、`secret.list|set|delete|has`、`tools.open`、`debug.start|status|setBreakpoints|step|scopes|variables|evaluate|stop`、`mirror.subscribe|unsubscribe|retry`；事件 `sync.progress`、`debug.state`、`debug.output`、`mirror.frame`、`mirror.state`。`device.list` 含已保存但未连接的设备（状态「离线」）。所有路径参数按设备同样的规则校验（相对、无 `..` / `.` / 空段 / 反斜杠）。`secret.set` 的值不会出现在应答里。
 
 调试的限制：每台设备一个会话；条件断点、日志点、监视表达式和多线程切换还没做。测试用的是 `app/tests/fake_debug_device.py` 里脚本化的 debugpy（`scripts/mock_device.py` 不支持 `/debug/*`）；真机调试是按协议文档实现的，还没在真机上验证。
 
-**没做**：SQLite 已保存设备、trace 节流（设计 §14.5、§14.7）、流程编辑器 / React Flow / DSL / 编译器（P2）、凭据管理器、云控与后台（P4）、打包与安装器（P5）、`pyside6-deploy` 与 PyInstaller 对比。镜像流的方案 A（scheme 直接吐 multipart）没做，方案 B 已实现；本轮没有对真机开流。
+**没做**：trace 节流（设计 §14.7；要等流程编译器生成 `__xf_trace`，并在真机上核对预算）、流程编辑器 / React Flow / DSL / 编译器（P2；控件树里的「放到画布」也等这一阶段）、云控与后台（P4）、打包与安装器（P5）、`pyside6-deploy` 与 PyInstaller 对比。镜像流的方案 A（scheme 直接吐 multipart）没做，方案 B 已实现；本轮没有对真机开流。Windows 凭据管理器只按 `keyring` 的接口接上，没有在 Windows 上读写过。
 
 **设备页美化前 → 后**（macOS 真实外壳，经 adb forward 连接 5554 模拟器；设计细节见设计文档 §14.15）：
 
@@ -84,10 +90,10 @@ cd ../app && python3.10 -m venv .venv && .venv/bin/pip install -e '.[test]'
 完整方案与用例编号表：[`docs/桌面端-测试方案.md`](../docs/桌面端-测试方案.md)（分层：单元 / 集成 / 前端组件 / 真实外壳 e2e / 安全 / 视觉回归 / 性能 / Windows 逻辑模拟 / 真机）。
 
 ```bash
-cd desktop/app && .venv/bin/python -m pytest -q                                   # 379 个通过、5 个真机用例默认跳过（macOS，约 75 s；含 10 张视觉回归与工程页/投屏 e2e）
+cd desktop/app && .venv/bin/python -m pytest -q                                   # 433 个通过、5 个真机用例默认跳过（macOS，约 2 min；含 10 张视觉回归与工程页/投屏 e2e）
 cd desktop/app && .venv/bin/python -m pytest -q --cov --cov-report=term-missing   # 覆盖率 96%（含子进程里的 --selftest/--screenshot）
 cd desktop/app && XSCRIPT_DEVICE_TESTS=1 .venv/bin/python -m pytest -m device -v  # 真机/模拟器（只读 + adb forward；5554 与 5556 已通过）
-cd desktop/frontend && npm run typecheck && npm run test:coverage                  # tsc + vitest（174 个，含 77 项对比度/令牌检查；语句 93% / 分支 82%）
+cd desktop/frontend && npm run typecheck && npm run test:coverage                  # tsc + vitest（216 个，含对比度/令牌检查）
 python desktop/app/tools/gen_test_matrix.py --check                                # 测试方案里的编号表没有过期
 ```
 

@@ -1,10 +1,13 @@
 import { useState, type ReactElement } from "react";
 import { useServices } from "./app-context";
 import { DevicePage } from "./components/DevicePage";
+import { useGlobalShortcuts } from "./components/GlobalShortcuts";
 import { MirrorPage } from "./components/MirrorPage";
 import { ProjectsPage } from "./components/ProjectsPage";
-import { IconFlow, IconFolder, IconMark, IconMonitor, IconMoon, IconPhone, IconSun } from "./components/icons";
+import { WallPage } from "./components/WallPage";
+import { IconFlow, IconFolder, IconGrid, IconMark, IconMonitor, IconMoon, IconPhone, IconSun } from "./components/icons";
 import { useLanguage } from "./i18n";
+import type { ShellPage } from "./shortcuts";
 import { t } from "./strings";
 import { ThemeProvider, useTheme, type ThemeMode } from "./theme";
 
@@ -38,9 +41,10 @@ function LangToggle({ lang, onChange }: { lang: "zh" | "en"; onChange: (l: "zh" 
 function Shell() {
   const { inShell } = useServices();
   const [lang, setLang] = useLanguage();
-  const [page, setPage] = useState<"devices" | "mirror" | "projects">("devices");
+  const [page, setPage] = useState<ShellPage>("devices");
+  const shortcuts = useGlobalShortcuts(page, setPage, lang, setLang);
   return (
-    <div className="app">
+    <div className={shortcuts.collapsed ? "app sidebar-collapsed" : "app"}>
       <a className="skip-link" href="#main">
         {t.skip}
       </a>
@@ -64,6 +68,10 @@ function Shell() {
             <IconFolder />
             <span className="label">{t.nav.projects}</span>
           </button>
+          <button className="nav-item" aria-current={page === "wall" ? "page" : undefined} onClick={() => setPage("wall")}>
+            <IconGrid />
+            <span className="label">{t.nav.wall}</span>
+          </button>
           <button className="nav-item" disabled title={`${t.nav.soon}（${t.nav.p2}）`}>
             <IconFlow />
             <span className="label">{t.nav.flows}</span>
@@ -79,7 +87,7 @@ function Shell() {
         <header className="topbar">
           <div>
             <h1>{t.nav[page]}</h1>
-            <p className="sub">{page === "devices" ? t.subtitle : page === "mirror" ? t.mirror.subtitle : t.projects.subtitle}</p>
+            <p className="sub">{page === "devices" ? t.subtitle : page === "mirror" ? t.mirror.subtitle : page === "wall" ? t.wall.subtitle : t.projects.subtitle}</p>
           </div>
         </header>
         {!inShell && (
@@ -88,9 +96,18 @@ function Shell() {
           </div>
         )}
         <main id="main" tabIndex={-1}>
-          {page === "devices" ? <DevicePage /> : page === "mirror" ? <MirrorPage /> : <ProjectsPage />}
+          {page === "devices" ? (
+            <DevicePage refreshToken={shortcuts.refreshToken} focusToken={shortcuts.focusToken} />
+          ) : page === "mirror" ? (
+            <MirrorPage />
+          ) : page === "wall" ? (
+            <WallPage />
+          ) : (
+            <ProjectsPage />
+          )}
         </main>
       </div>
+      {shortcuts.dialog}
     </div>
   );
 }

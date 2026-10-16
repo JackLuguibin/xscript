@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import type { Device } from "../api";
 import { t } from "../strings";
 import { Badge } from "./Badge";
@@ -23,7 +23,14 @@ function shotMax(): number {
   return Math.min(1080, Math.round(360 * Math.max(1, dpr)));
 }
 
-export function DeviceCard({ device, onDisconnect, busy }: { device: Device; onDisconnect: () => void; busy: boolean }) {
+export function DeviceCard({ device, onDisconnect, onForget, onRetry, onSave, busy }: {
+  device: Device;
+  onDisconnect: () => void;
+  onForget?: () => void;
+  onRetry?: () => void;
+  onSave?: (patch: { name: string; group: string; note: string; autoConnect: boolean }) => void;
+  busy: boolean;
+}) {
   const i = device.info;
   // A per-click nonce, not a counter: a counter restarts at 1 for every new card and Chromium would serve the cached image of the previous session.
   const [shotTick, setShotTick] = useState(0);
@@ -32,6 +39,16 @@ export function DeviceCard({ device, onDisconnect, busy }: { device: Device; onD
   const shotUrl = shotTick ? `/_shot/${encodeURIComponent(device.id)}.jpg?max=${shotMax()}&t=${shotTick}` : "";
   const ratio = i.width && i.height ? `${i.width} / ${i.height}` : "9 / 19.5";
   const tone = device.state === "online" ? "ok" : device.state === "connecting" ? "warn" : "bad";
+  const [name, setName] = useState(device.name ?? "");
+  const [group, setGroup] = useState(device.group ?? "");
+  const [note, setNote] = useState(device.note ?? "");
+  const [autoConnect, setAutoConnect] = useState(Boolean(device.autoConnect));
+  useEffect(() => {
+    setName(device.name ?? "");
+    setGroup(device.group ?? "");
+    setNote(device.note ?? "");
+    setAutoConnect(Boolean(device.autoConnect));
+  }, [device.name, device.group, device.note, device.autoConnect]);
   const requestShot = () => {
     setShot("loading");
     setShotTick((n) => Math.max(Date.now(), n + 1));
@@ -44,21 +61,81 @@ export function DeviceCard({ device, onDisconnect, busy }: { device: Device; onD
         </span>
         <div className="titles">
           <div className="name">
-            <h3>{i.name || i.model || device.id}</h3>
+            <h3>{device.name || i.name || i.model || device.id}</h3>
+            {device.group ? <span className="muted">{device.group}</span> : null}
             <Badge tone={tone} busy={device.state === "connecting"}>
               {t.state[device.state] ?? device.state}
             </Badge>
           </div>
           <p className="muted mono addr">
-            {device.transport === "adb" ? `adb ${device.serial} → ${device.address}` : device.address}
+            {device.transport === "adb"
+              ? device.forwardPort
+                ? `adb ${device.serial} → ${device.address}`
+                : `adb ${device.serial || device.address}`
+              : device.address}
             {device.transport === "adb" && device.forwardPort ? ` (${t.forward} ${device.forwardPort})` : ""}
           </p>
         </div>
-        <button className="danger" onClick={onDisconnect} disabled={busy}>
-          {busy ? <Spinner /> : <IconUnlink size={16} />}
-          {t.disconnect}
-        </button>
+        {device.state === "offline" && onRetry ? (
+          <div className="card-actions">
+            <button type="button" onClick={onRetry} disabled={busy} aria-label={`${t.saved.retry} ${device.serial || device.address}`}>
+              {t.saved.retry}
+            </button>
+            {(device.forwardPort > 0 || Boolean(device.error) || !device.saved) && (
+              <button type="button" className="danger" onClick={onDisconnect} disabled={busy}>
+                {busy ? <Spinner /> : <IconUnlink size={16} />}
+                {t.disconnect}
+              </button>
+            )}
+            {device.saved && onForget && (
+              <button type="button" className="small" onClick={onForget} disabled={busy} aria-label={`${t.saved.forget} ${device.id}`}>
+                {t.saved.forget}
+              </button>
+            )}
+          </div>
+        ) : (
+          <>
+            <button className="danger" onClick={onDisconnect} disabled={busy}>
+              {busy ? <Spinner /> : <IconUnlink size={16} />}
+              {t.disconnect}
+            </button>
+            {device.saved && onForget && (
+              <button type="button" className="small" onClick={onForget} disabled={busy} aria-label={`${t.saved.forget} ${device.id}`}>
+                {t.saved.forget}
+              </button>
+            )}
+          </>
+        )}
       </header>
+      {device.saved && onSave && (
+        <form
+          className="saved-meta"
+          onSubmit={(e) => {
+            e.preventDefault();
+            onSave({ name, group, note, autoConnect });
+          }}
+        >
+          <label>
+            {t.saved.name}
+            <input aria-label={`${t.saved.name} ${device.id}`} value={name} onChange={(e) => setName(e.target.value)} maxLength={80} />
+          </label>
+          <label>
+            {t.saved.group}
+            <input aria-label={`${t.saved.group} ${device.id}`} value={group} onChange={(e) => setGroup(e.target.value)} maxLength={80} />
+          </label>
+          <label>
+            {t.saved.note}
+            <input aria-label={`${t.saved.note} ${device.id}`} value={note} onChange={(e) => setNote(e.target.value)} maxLength={500} />
+          </label>
+          <label className="check">
+            <input type="checkbox" aria-label={`${t.saved.auto} ${device.id}`} checked={autoConnect} onChange={(e) => setAutoConnect(e.target.checked)} />
+            {t.saved.auto}
+          </label>
+          <button type="submit" className="small" disabled={busy} aria-label={`${t.saved.save} ${device.id}`}>
+            {t.saved.save}
+          </button>
+        </form>
+      )}
       {device.warning && (
         <div className="banner warn">
           <IconAlert size={16} />
@@ -71,7 +148,7 @@ export function DeviceCard({ device, onDisconnect, busy }: { device: Device; onD
           <span className="grow">{device.error}</span>
         </div>
       )}
-      <div className="card-body">
+      {!(device.saved && device.state === "offline" && Object.keys(device.status).length === 0) && <div className="card-body">
         <dl className="kv">
           <Row k={t.info.model} v={[i.brand, i.model].filter(Boolean).join(" ")} />
           <Row k={t.info.android} v={i.android} />
@@ -111,9 +188,9 @@ export function DeviceCard({ device, onDisconnect, busy }: { device: Device; onD
               </div>
             )}
           </div>
-          {!i.capture && <p className="hint">{t.captureHint}</p>}
+          {i.capture === false && (device.state !== "offline" || Boolean(device.error)) && <p className="hint">{t.captureHint}</p>}
         </div>
-      </div>
+      </div>}
     </article>
   );
 }

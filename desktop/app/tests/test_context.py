@@ -39,7 +39,10 @@ async def test_full_flow_list_connect_info_disconnect(mock_device):
     assert con["ok"] and con["result"]["info"]["model"] == "XScript Mock"
     assert (await rpc(ctx, "device.list"))["result"]["devices"][0]["id"] == "adb:emulator-5554"
     assert (await rpc(ctx, "device.refresh", id="adb:emulator-5554"))["result"]["state"] == "online"
-    assert (await rpc(ctx, "device.disconnect", id="adb:emulator-5554"))["result"] == {"removed": True}
+    gone = (await rpc(ctx, "device.disconnect", id="adb:emulator-5554"))["result"]
+    assert gone["removed"] is True and gone["device"]["state"] == "offline" and gone["device"]["forwardPort"] == 0
+    assert ctx.store.get("adb:emulator-5554").address == "emulator-5554"  # serial, not the forward port
+    assert "41000" not in ctx.store.dump_devices()
     assert fake.forwards == {}
     await ctx.shutdown()
 

@@ -128,8 +128,9 @@ def test_selftest_connect_adb_unreachable_device_times_out_cleanly(fake_adb):
 def test_screenshot_writes_a_png_of_the_window(fake_adb, tmp_path):
     exe, log, fd = fake_adb
     out = tmp_path / "shot.png"
-    r = run_app("--screenshot", str(out), "--screenshot-delay", "1", "--adb", str(exe), "--connect-adb", "emulator-5554", "--click-screenshot",
-                "--timeout", "40", env={"FAKE_ADB_LOG": str(log), "FAKE_ADB_PORT": str(fd.port)})
+    r = run_app("--screenshot", str(out), "--screenshot-delay", "1", "--data-dir", str(tmp_path / "data"), "--adb", str(exe),
+                "--connect-adb", "emulator-5554", "--click-screenshot", "--timeout", "40",
+                env={"FAKE_ADB_LOG": str(log), "FAKE_ADB_PORT": str(fd.port)})
     assert r.returncode == 0, r.stderr
     assert out.read_bytes().startswith(b"\x89PNG") and out.stat().st_size > 5000
     assert any(p == "/screen?format=jpg&quality=60&max=360" or p.startswith("/screen") for _, p in fd.requests)
@@ -151,8 +152,9 @@ def test_screenshot_with_size_and_theme(fake_adb, tmp_path, theme):
 
     exe, log, fd = fake_adb
     out = tmp_path / ("shot-%s.png" % theme)
-    r = run_app("--screenshot", str(out), "--screenshot-delay", "1", "--size", "900x600", "--theme", theme, "--adb", str(exe), "--connect-adb",
-                "emulator-5554", "--timeout", "40", env={"FAKE_ADB_LOG": str(log), "FAKE_ADB_PORT": str(fd.port)})
+    r = run_app("--screenshot", str(out), "--screenshot-delay", "1", "--size", "900x600", "--theme", theme, "--data-dir", str(tmp_path / "data"),
+                "--adb", str(exe), "--connect-adb", "emulator-5554", "--timeout", "40",
+                env={"FAKE_ADB_LOG": str(log), "FAKE_ADB_PORT": str(fd.port)})
     assert r.returncode == 0, r.stderr
     img = QImage(str(out))
     assert (img.width(), img.height()) == (900, 600)

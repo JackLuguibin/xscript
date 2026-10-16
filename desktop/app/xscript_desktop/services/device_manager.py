@@ -10,7 +10,7 @@ import ipaddress
 import socket
 import time
 from dataclasses import dataclass, field
-from typing import Any, Callable
+from typing import Any, Awaitable, Callable
 
 import httpx
 
@@ -21,6 +21,8 @@ EventEmitter = Callable[[str, Any], None]
 ClientFactory = Callable[[DeviceTarget], DeviceClient]
 
 SCAN_PORTS = tuple(range(9860, 9870))  # device API: 9860, taken ports are skipped up to 9869 (openapi.yaml)
+LAN_WARNING = "此设备经局域网直连：设备 API 没有鉴权，同网段任何人都能运行代码。仅在可信网络使用，优先用 ADB。"
+OnOnline = Callable[["DeviceRecord"], Awaitable[None]]
 
 
 @dataclass
@@ -36,21 +38,31 @@ class DeviceRecord:
     last_seen: float = 0.0
     client: DeviceClient | None = None
     warning: str = ""  # e.g. unauthenticated LAN endpoint
+    # copied from the saved row (design §14.5) so health events don't wipe the name the user typed
+    saved_name: str = ""
+    group: str = ""
+    note: str = ""
+    auto_connect: bool = False
+    sort_order: int = 0
+    saved: bool = False
 
     def to_dict(self) -> dict[str, Any]:
         return {
             "id": self.id, "transport": self.transport, "address": self.target.address, "serial": self.serial,
             "forwardPort": self.forward_port, "state": self.state, "error": self.error, "warning": self.warning,
             "lastSeen": self.last_seen, "info": summarize_status(self.status) if self.status else {}, "status": self.status,
+            "name": self.saved_name, "group": self.group, "note": self.note, "autoConnect": self.auto_connect,
+            "sortOrder": self.sort_order, "saved": self.saved,
         }
 
 
 class DeviceManager:
     def __init__(self, adb: AdbService, emit: EventEmitter | None = None, client_factory: ClientFactory | None = None,
-                 poll_interval: float = 5.0) -> None:
+                 poll_interval: float = 5.0, on_online: OnOnline | None = None) -> None:
         self.adb = adb
         self._emit = emit or (lambda topic, data: None)
         self._factory = client_factory or (lambda t: DeviceClient(t))
+        self._on_online = on_online
         self._devices: dict[str, DeviceRecord] = {}
         self._poll_interval = poll_interval
         self._poll_task: asyncio.Task | None = None
@@ -140,7 +152,7 @@ class DeviceManager:
             await client.aclose()
             raise DeviceError("%s 有响应，但不像 XScript 设备（/status 缺少 device_id/app_id/model）" % target.address, kind="protocol")
         client.timeout = 10.0
-        warning = "" if self._is_loopback(target.host) else "此设备经局域网直连：设备 API 没有鉴权，同网段任何人都能运行代码。仅在可信网络使用，优先用 ADB。"
+        warning = "" if self._is_loopback(target.host) else LAN_WARNING
         rec = DeviceRecord(id=dev_id, transport="lan", target=target, state="online", status=status, last_seen=time.time(),
                            client=client, warning=warning)
         self._devices[dev_id] = rec
@@ -159,7 +171,7 @@ class DeviceManager:
             except AdbError:
                 pass  # device already gone: nothing left to remove
         rec.state = "offline"
-        self._emit("device.removed", {"id": device_id})
+        # no device.removed here: a saved device stays as an offline card. AppContext emits removed only on forget.
         return True
 
     async def refresh(self, device_id: str) -> DeviceRecord:
@@ -169,6 +181,7 @@ class DeviceManager:
             rec.status = await rec.client.status()
             rec.last_seen = time.time()
             self._set_state(rec, "online")
+            await self._note_online(rec)
         except DeviceError as e:
             self._set_state(rec, "offline", str(e))
         return rec
@@ -190,10 +203,19 @@ class DeviceManager:
                     rec.status = await rec.client.status()
                     rec.last_seen = time.time()
                     self._set_state(rec, "online")
+                    await self._note_online(rec)
                     if before[1:] != (rec.status.get("running"), rec.status.get("project")):
                         self._emit("device.state", rec.to_dict())
                 except DeviceError as e:
                     self._set_state(rec, "offline", str(e))
+
+    async def _note_online(self, rec: DeviceRecord) -> None:
+        if self._on_online is None:
+            return
+        try:
+            await self._on_online(rec)
+        except Exception:
+            pass  # remembering last_seen must not kill the health loop
 
     async def shutdown(self) -> None:
         if self._poll_task is not None:

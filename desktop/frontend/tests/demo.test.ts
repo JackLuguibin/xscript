@@ -22,8 +22,13 @@ describe("demo backend (plain-browser mode)", () => {
     expect(lan.warning).not.toBe("");
     expect((await a.listDevices()).devices.map((d) => d.id).sort()).toEqual(["adb:emulator-5554", "lan:192.168.1.20:9860"]);
     expect((await a.refresh(adb.id)).id).toBe(adb.id);
-    expect(await a.disconnect(adb.id)).toEqual({ removed: true });
+    const gone = await a.disconnect(adb.id);
+    expect(gone.removed).toBe(true);
+    expect(gone.device?.state).toBe("offline");
+    expect((await a.listDevices()).devices.find((d) => d.id === adb.id)?.state).toBe("offline");
     expect(await a.disconnect(adb.id)).toEqual({ removed: false });
+    expect((await a.forgetDevice(adb.id)).forgotten).toBe(true);
+    expect((await a.listDevices()).devices.map((d) => d.id)).toEqual(["lan:192.168.1.20:9860"]);
     expect((await a.scan()).found).toEqual([]);
   });
 });

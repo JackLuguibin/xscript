@@ -5,6 +5,7 @@ import asyncio
 import concurrent.futures
 
 from PySide6.QtCore import QObject, Qt, Signal
+from PySide6.QtGui import QGuiApplication
 from PySide6.QtWidgets import QFileDialog, QWidget
 
 
@@ -27,3 +28,48 @@ class DirectoryPicker(QObject):
         fut: concurrent.futures.Future = concurrent.futures.Future()
         self._ask.emit(title, fut)
         return await asyncio.wrap_future(fut)
+
+
+class FileSaver(QObject):
+    """Save dialog for a screenshot. The page never chooses the path (design §5.3: the shell owns the filesystem)."""
+
+    _ask = Signal(object)
+
+    def __init__(self, parent: QWidget) -> None:
+        super().__init__(parent)
+        self._parent = parent
+        self._ask.connect(self._show, Qt.ConnectionType.QueuedConnection)
+
+    def _show(self, fut: concurrent.futures.Future) -> None:
+        try:
+            path, _selected = QFileDialog.getSaveFileName(self._parent, "保存截图", "xscript-screen.png", "PNG (*.png)")
+            fut.set_result(path or None)
+        except Exception as e:  # pragma: no cover - Qt failure
+            fut.set_exception(e)
+
+    async def save(self) -> str | None:
+        fut: concurrent.futures.Future = concurrent.futures.Future()
+        self._ask.emit(fut)
+        return await asyncio.wrap_future(fut)
+
+
+class TextClipboard(QObject):
+    """Puts text on the system clipboard. The RPC result does not echo it back."""
+
+    _ask = Signal(str, object)
+
+    def __init__(self, parent: QWidget) -> None:
+        super().__init__(parent)
+        self._ask.connect(self._write, Qt.ConnectionType.QueuedConnection)
+
+    def _write(self, text: str, fut: concurrent.futures.Future) -> None:
+        try:
+            QGuiApplication.clipboard().setText(text)
+            fut.set_result(None)
+        except Exception as e:  # pragma: no cover - Qt failure
+            fut.set_exception(e)
+
+    async def write(self, text: str) -> None:
+        fut: concurrent.futures.Future = concurrent.futures.Future()
+        self._ask.emit(text, fut)
+        await asyncio.wrap_future(fut)

@@ -248,6 +248,26 @@ class DeviceClient:
     async def action(self, payload: dict[str, Any]) -> dict[str, Any]:
         return await self._json("POST", "/action", json=payload)
 
+    async def ui_tree(self, mode: int = 0) -> dict[str, Any]:
+        data = await self._json("GET", "/ui-tree", params={"mode": int(mode)})
+        if not isinstance(data, dict):
+            raise DeviceError("unexpected /ui-tree response", kind="protocol")
+        return data
+
+    async def capture_snapshot(self) -> dict[str, Any]:
+        """Empty body freezes the current screen. A body would be uploaded as a PNG (openapi /tools/snapshots)."""
+        data = await self._json("POST", "/tools/snapshots", content=b"")
+        if not isinstance(data, dict) or not isinstance(data.get("id"), str) or not data["id"]:
+            raise DeviceError("unexpected /tools/snapshots response", kind="protocol")
+        return data
+
+    async def vision_pixel(self, snapshot: str, x: int, y: int) -> dict[str, Any]:
+        data = await self._json("POST", "/tools/vision", json={"snapshot": snapshot, "op": "pixel", "x": int(x), "y": int(y)},
+                                timeout=max(self.timeout, 20))
+        if not isinstance(data, dict):
+            raise DeviceError("unexpected /tools/vision response", kind="protocol")
+        return data
+
 
 def is_xscript_status(st: Any) -> bool:
     """Does a /status body look like an XScript device? (any JSON object is not enough: a random local web server answers too)"""

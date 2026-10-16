@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type PointerEvent as RPointerEvent } from "react";
+import { useEffect, useRef, useState, type CSSProperties, type PointerEvent as RPointerEvent } from "react";
 import { useServices } from "../app-context";
 import type { MirrorStatus } from "../api";
 import { RpcError } from "../bridge/types";
@@ -7,6 +7,7 @@ import { t } from "../strings";
 import { useDevices, useSelectedDevice } from "../useDevices";
 import { EmptyState } from "./EmptyState";
 import { IconAlert, IconMonitor, IconPhone } from "./icons";
+import { ScreenTools, rectPercent, type PointerMode } from "./ScreenTools";
 
 const FPS = [5, 8, 12, 15];
 
@@ -34,6 +35,10 @@ export function MirrorPage() {
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
   const [text, setText] = useState("");
+  const [mode, setMode] = useState<PointerMode>("control");
+  const [hover, setHover] = useState<{ x: number; y: number } | null>(null);
+  const [picked, setPicked] = useState<{ x: number; y: number; n: number } | null>(null);
+  const [hitBox, setHitBox] = useState<CSSProperties | null>(null);
   const [trackDev, setTrackDev] = useState(devId);
   const img = useRef<HTMLImageElement>(null);
   const frameRef = useRef<HTMLDivElement>(null);
@@ -43,6 +48,7 @@ export function MirrorPage() {
   const shown = useRef(0);
   const inflight = useRef(false);
   const nonce = useRef(0);
+  const pickN = useRef(0);
   const ticket = useRef(0);
   const currentDev = useRef(devId);
 
@@ -53,6 +59,9 @@ export function MirrorPage() {
     setMirrorState("");
     setReason("");
     setError("");
+    setHover(null);
+    setPicked(null);
+    setHitBox(null);
     screenSize.current = null;
     want.current = 0;
     shown.current = 0;
@@ -236,6 +245,7 @@ export function MirrorPage() {
       <div className="mirror-grid">
         <div className="mirror-frame" ref={frameRef}>
           {src && (
+            <div className="mirror-shot">
             <img
               ref={img}
               src={src}
@@ -254,14 +264,25 @@ export function MirrorPage() {
                 e.currentTarget.setPointerCapture?.(e.pointerId);
                 down.current = point(e);
               }}
+              onPointerMove={(e) => {
+                const p = point(e);
+                setHover({ x: p.x, y: p.y });
+              }}
               onPointerUp={(e) => {
                 const d = down.current;
                 down.current = null;
                 if (!d) return;
-                void send(classify(d, point(e)));
+                const up = point(e);
+                if (mode !== "control") {
+                  setPicked({ x: up.x, y: up.y, n: ++pickN.current });
+                  return;
+                }
+                void send(classify(d, up));
               }}
               onPointerCancel={() => (down.current = null)}
             />
+            {hitBox && <div className="hitbox" style={hitBox} />}
+            </div>
           )}
           {blocked && (
             <div className="overlay fail" role="status">
@@ -320,6 +341,14 @@ export function MirrorPage() {
             </p>
           )}
           <p className="hint">{t.mirror.hint}</p>
+          <ScreenTools
+            device={device}
+            mode={mode}
+            onMode={setMode}
+            hover={hover}
+            picked={picked}
+            onHit={(rect, screen) => setHitBox(rect && screen ? rectPercent(rect, screen) : null)}
+          />
         </div>
       </div>
     </div>

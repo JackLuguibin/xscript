@@ -186,4 +186,5 @@ async def test_pick_directory_hook():
 
 def test_app_context_data_dir_holds_the_cache(tmp_path):
     ctx = AppContext(adb=None, poll_interval=60, data_dir=tmp_path)
-    assert ctx.sync_cache.path == tmp_path / "sync-cache.json"
+    assert ctx.store.path == tmp_path / "desktop.db"
+    ctx.store.close()

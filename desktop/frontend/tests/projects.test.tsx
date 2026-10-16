@@ -81,7 +81,7 @@ describe("App navigation", () => {
     fireEvent.click(screen.getByRole("button", { name: /工程/ }));
     expect(screen.getByRole("heading", { level: 1 }).textContent).toBe("工程");
     expect(await screen.findByText("还没有在线设备")).toBeTruthy();
-    fireEvent.click(screen.getByRole("button", { name: /设备/ }));
+    fireEvent.click(screen.getByRole("button", { name: (n) => n === "设备" }));
     expect(screen.getByRole("heading", { level: 1 }).textContent).toBe("设备");
   });
 });

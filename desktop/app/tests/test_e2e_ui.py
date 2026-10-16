@@ -34,6 +34,7 @@ def ui(_shell, qtbot):
     fd.status.update(STATUS)
     fd.requests.clear()
     sh.run_async(sh.ctx.devices.shutdown())
+    sh.ctx.store.forget_all()  # saved rows survive a live disconnect; the next case starts from an empty list
     sh.fake.forwards.clear()
     sh.fake.devices = [("emulator-5554", "device", fd.port), ("R58M", "unauthorized", fd.port), ("emulator-5556", "offline", fd.port)]
     sh.fake._next = 41000
@@ -64,7 +65,7 @@ def test_e2e_01_startup_lists_adb_devices_and_marks_unusable_ones(ui, qtbot):
 
 
 def test_e2e_02_connect_shows_info_screenshot_and_disconnect_cleans_forward(ui, qtbot):
-    """E-02 connect over adb → card with /status info + forward port → screenshot over xsapp:// → disconnect removes our forward."""
+    """E-02 connect over adb → card with /status info + forward port → screenshot over xsapp:// → disconnect drops the forward but keeps the saved offline card → forget removes it."""
     ui.wait_text(qtbot, "emulator-5554")
     ui.click(qtbot, "连接 emulator-5554")
     ui.wait_text(qtbot, "在线")
@@ -76,9 +77,12 @@ def test_e2e_02_connect_shows_info_screenshot_and_disconnect_cleans_forward(ui, 
     ui.wait_js(qtbot, "document.querySelector('img[alt=\"截图\"]') && document.querySelector('img[alt=\"截图\"]').complete && document.querySelector('img[alt=\"截图\"]').naturalWidth > 0", timeout=10000)
     assert ui.js(qtbot, "document.querySelector('img[alt=\"截图\"]').naturalWidth") == 270  # the FakeDevice gradient, decoded by the browser
     ui.click(qtbot, "断开")
+    ui.wait_text(qtbot, "离线")
     ui.wait_no_text(qtbot, "在线")
     assert ui.fake.forwards == {}
-    assert ui.js(qtbot, "document.querySelectorAll('article').length") == 0
+    assert ui.js(qtbot, "document.querySelectorAll('article').length") == 1  # saved device stays as an offline card
+    ui.click(qtbot, "忘记 adb:emulator-5554")
+    ui.wait_js(qtbot, "document.querySelectorAll('article').length === 0")
 
 
 def test_e2e_03_screenshot_failure_when_capture_not_authorised(ui, qtbot):
