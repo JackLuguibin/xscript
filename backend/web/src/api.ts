@@ -196,7 +196,7 @@ export interface Task {
   created_at: number;
 }
 
-export type CardStatus = "unused" | "active" | "expired" | "unbound" | "revoked";
+export type CardStatus = "unused" | "active" | "expired" | "exhausted" | "unbound" | "revoked";
 
 export interface Card {
   card: string;
@@ -212,9 +212,11 @@ export interface Card {
   revoked: boolean;
   last_verified_at: number | null;
   status: CardStatus;
-  kind: "normal" | "trial";
+  kind: "normal" | "trial" | "count";
   max_devices: number;
   stack: boolean;
+  uses_total: number;
+  uses_left: number;
   devices: { device: string; model: string }[];
 }
 
@@ -247,7 +249,7 @@ export interface Batch {
   count: number;
   bound: number;
   created_at: number;
-  kind: "normal" | "trial";
+  kind: "normal" | "trial" | "count";
   max_devices: number;
 }
 
