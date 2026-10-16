@@ -111,3 +111,16 @@ input:focus-visible { outline-offset: 0; }
 .shot .hint { font-size: var(--fs-xs); color: var(--text-muted); text-align: center; }
 
 @media (max-width: 520px) { .card-body { flex-direction: column; } .shot { width: min(100%, 12rem); } }
+
+/* ---- projects page (P1 slice) ---- */
+.toolbar { gap: var(--sp-3); align-items: center; margin-bottom: var(--sp-4); flex-wrap: wrap; }
+.toolbar select { min-width: 12rem; }
+.projects-grid { display: grid; grid-template-columns: minmax(14rem, 18rem) 1fr; gap: var(--sp-4); align-items: start; }
+@media (max-width: 760px) { .projects-grid { grid-template-columns: 1fr; } }
+.sub-head { font-size: var(--fs-sm); color: var(--text-muted); margin: var(--sp-4) 0 var(--sp-2); }
+.list-btn { width: 100%; justify-content: space-between; text-align: left; background: transparent; border-color: transparent; }
+.list-btn.active { border-color: var(--border-strong); background: var(--surface-2, var(--surface)); }
+.editor-panel { display: flex; flex-direction: column; min-width: 0; }
+textarea.code { width: 100%; min-height: 18rem; resize: vertical; font-family: var(--font-mono, ui-monospace, monospace); font-size: var(--fs-sm); tab-size: 4; padding: var(--sp-3); border: 1px solid var(--border); border-radius: var(--r-md); background: var(--surface); color: var(--text); }
+pre.logs { margin: 0; min-height: 8rem; max-height: 16rem; overflow: auto; padding: var(--sp-3); border: 1px solid var(--border); border-radius: var(--r-md); background: var(--surface); font-size: var(--fs-sm); white-space: pre-wrap; word-break: break-word; }
+pre.logs .err { color: var(--danger-fg); }

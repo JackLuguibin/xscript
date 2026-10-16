@@ -1,6 +1,7 @@
-import type { ReactElement } from "react";
+import { useState, type ReactElement } from "react";
 import { useServices } from "./app-context";
 import { DevicePage } from "./components/DevicePage";
+import { ProjectsPage } from "./components/ProjectsPage";
 import { IconFlow, IconFolder, IconMark, IconMonitor, IconMoon, IconPhone, IconSun } from "./components/icons";
 import { t } from "./strings";
 import { ThemeProvider, useTheme, type ThemeMode } from "./theme";
@@ -22,6 +23,7 @@ function ThemeToggle() {
 
 function Shell() {
   const { inShell } = useServices();
+  const [page, setPage] = useState<"devices" | "projects">("devices");
   return (
     <div className="app">
       <a className="skip-link" href="#main">
@@ -35,14 +37,13 @@ function Shell() {
           <span className="brand-text">{t.appTitle}</span>
         </div>
         <nav className="nav" aria-label="main">
-          <button className="nav-item" aria-current="page">
+          <button className="nav-item" aria-current={page === "devices" ? "page" : undefined} onClick={() => setPage("devices")}>
             <IconPhone />
             <span className="label">{t.nav.devices}</span>
           </button>
-          <button className="nav-item" disabled title={`${t.nav.soon}（${t.nav.p1}）`}>
+          <button className="nav-item" aria-current={page === "projects" ? "page" : undefined} onClick={() => setPage("projects")}>
             <IconFolder />
             <span className="label">{t.nav.projects}</span>
-            <span className="tag">{t.nav.p1}</span>
           </button>
           <button className="nav-item" disabled title={`${t.nav.soon}（${t.nav.p2}）`}>
             <IconFlow />
@@ -57,8 +58,8 @@ function Shell() {
       <div className="content">
         <header className="topbar">
           <div>
-            <h1>{t.nav.devices}</h1>
-            <p className="sub">{t.subtitle}</p>
+            <h1>{page === "devices" ? t.nav.devices : t.nav.projects}</h1>
+            <p className="sub">{page === "devices" ? t.subtitle : t.projects.subtitle}</p>
           </div>
         </header>
         {!inShell && (
@@ -67,7 +68,7 @@ function Shell() {
           </div>
         )}
         <main id="main" tabIndex={-1}>
-          <DevicePage />
+          {page === "devices" ? <DevicePage /> : <ProjectsPage />}
         </main>
       </div>
     </div>

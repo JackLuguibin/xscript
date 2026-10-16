@@ -17,6 +17,9 @@
 | React 19 + Vite + TypeScript 前端：设备页（侧边栏导航、设备卡片、状态徽标、截图预览、空/加载/错误状态、浅/深/跟随系统主题、设计令牌、键盘焦点与对比度）；网页里没有 `fetch`/`WebSocket`（有测试守着） | `frontend/` | macOS ✅ |
 | 设备如何执行工程入口的实测 + 探针工具 | `docs/桌面端-入口执行实测.md`、`app/tools/entry_probe.py` | 两台模拟器 ✅ |
 
+**P1 先行切片（工程页）**：侧栏「工程」已启用——选在线设备 → 工程列表 / 新建 → 文件列表 → 文本编辑与保存（⌘/Ctrl+S）→ 保存并运行（F6）/ 停止（Shift+F6）→ 按 `seq` 游标跟随 `/logs`（约 1 s 轮询，最多 2000 行）；顶部有 返回 / 主页 / 最近任务 按键。
+对应 RPC：`project.list|create|files|read|write|run|stop`、`device.logs`、`device.action`（仅 `click|swipe|input|key`，路径与设备同规则校验）。编辑器暂时是 `<textarea>`，Monaco、增量同步、投屏仍属 P1 后续。
+
 **没做（不在 P0 范围）**：流程编辑器 / React Flow / DSL / 编译器（P2）、Monaco 与工程同步（P1）、投屏流（P1）、云控与后台（P4）、打包与安装器（P5）、`pyside6-deploy` 与 PyInstaller 对比。
 
 **设备页美化前 → 后**（macOS 真实外壳，经 adb forward 连接 5554 模拟器；设计细节见设计文档 §14.15）：
