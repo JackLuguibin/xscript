@@ -50,6 +50,22 @@ cd ide/vscode-extension && npm ci && npm run package     # 生成 xscript-vscode
 
 设置：`xscript.device`、`xscript.logPollMs`、`xscript.evalTimeoutMs`、`xscript.adbPath`（空 = 自动找 ANDROID_HOME / 常见 SDK 目录 / PATH）、`xscript.scanLan`（扫描时是否也扫局域网，默认开）。
 
+## UI 设计器
+
+`XScript: 新建界面（UI 设计器）`（命令面板，或在工程里右键）创建 `res/ui/<name>.ui.json` 并用设计器打开；任何 `*.ui.json` 都默认用设计器打开（「重新打开编辑器的方式…」可切回文本）。左边点或拖控件进表单（文本、密码、多行、数字、勾选、下拉、单选、说明文字），中间拖动排序，右边改属性和窗口标题/按钮/大小，最右是预览。保存时生成：
+
+- `res/ui/<name>.html`：给 `ui.Window` 显示的页面（提交时 `xscript.call("submit", JSON)`）；
+- `ui_<name>.py`：`show(values=None)` 显示表单、阻塞到提交，返回按类型转换好的 dict（取消返回 None）。
+
+```python
+from ui_settings import show
+values = show({"rounds": 5})   # 预填
+if values:
+    print(values["name"], values["rounds"], values["loop"])
+```
+
+两个生成文件每次保存都会重写，改界面请改 `.ui.json`。
+
 ## 和 AScript 官方扩展的对照
 
 对照依据（2026-10-15）：
