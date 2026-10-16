@@ -19,6 +19,8 @@
 
 **没做（不在 P0 范围）**：流程编辑器 / React Flow / DSL / 编译器（P2）、Monaco 与工程同步（P1）、投屏流（P1）、云控与后台（P4）、打包与安装器（P5）、`pyside6-deploy` 与 PyInstaller 对比。
 
+![P0 设备页：macOS 上经 adb forward 连接 5554 模拟器，显示 /status 信息和截图](../docs/images/desktop-p0.png)
+
 ## 目录
 
 ```text
