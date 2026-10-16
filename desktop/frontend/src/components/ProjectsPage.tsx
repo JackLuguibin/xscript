@@ -1,11 +1,12 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useServices } from "../app-context";
-import type { FileContent, LogEntry, ProjectFiles, ProjectSummary } from "../api";
+import type { Breakpoints, DebugStep, FileContent, LogEntry, ProjectFiles, ProjectSummary } from "../api";
 import { RpcError } from "../bridge/types";
 import { t } from "../strings";
 import { useDevices, useSelectedDevice } from "../useDevices";
 import { Badge } from "./Badge";
 import { CodeEditor } from "./CodeEditor";
+import { DebugPanel, useDebugSession } from "./DebugPanel";
 import { SyncPanel } from "./SyncPanel";
 import { EmptyState } from "./EmptyState";
 import { IconAlert, IconFolder, IconPhone, IconRefresh, Spinner } from "./icons";
@@ -36,6 +37,8 @@ export function ProjectsPage({ pollMs = LOG_POLL_MS }: { pollMs?: number }) {
   const [logs, setLogs] = useState<LogEntry[]>([]);
   const cursor = useRef<number | null>(null);
   const logRef = useRef<HTMLPreElement>(null);
+  const [breakpoints, setBreakpoints] = useState<Breakpoints>({});
+  const debug = useDebugSession(devId);
 
   const online = devices.filter((d) => d.state === "online");
   const device = devices.find((d) => d.id === devId);
@@ -69,6 +72,7 @@ export function ProjectsPage({ pollMs = LOG_POLL_MS }: { pollMs?: number }) {
     setFiles(null);
     setFile(null);
     setLogs([]);
+    setBreakpoints({});
     cursor.current = null;
     void loadProjects();
   }, [loadProjects]);
@@ -108,14 +112,15 @@ export function ProjectsPage({ pollMs = LOG_POLL_MS }: { pollMs?: number }) {
     if (!confirmDiscard()) return;
     void act("open:" + name, async () => {
       setProject(name);
+      setBreakpoints({});
       setFile(null);
       setDirty(false);
       setFiles(await api.files(devId, name));
     });
   };
 
-  const openFile = (path: string) => {
-    if (!confirmDiscard()) return;
+  const openFile = (path: string, ask = true) => {
+    if (ask && !confirmDiscard()) return;
     void act("file:" + path, async () => {
       const f = await api.readFile(devId, project, path);
       setFile(f);
@@ -169,6 +174,7 @@ export function ProjectsPage({ pollMs = LOG_POLL_MS }: { pollMs?: number }) {
       setNewName("");
       await loadProjects();
       setProject(name);
+      setBreakpoints({});
       setFile(null);
       setFiles(await api.files(devId, name));
     });
@@ -184,6 +190,58 @@ export function ProjectsPage({ pollMs = LOG_POLL_MS }: { pollMs?: number }) {
     });
   const stopProject = () => act("stop", async () => void (await api.stop(devId, runningProject || project)));
   const key = (name: string) => act("key:" + name, async () => void (await api.key(devId, name)));
+
+  // ---- debugging -------------------------------------------------------------------------------------------------------------
+  const dbgState = debug.state;
+  const debuggingHere = debug.active && (!dbgState.project || dbgState.project === project);
+
+  const toggleBreakpoint = (path: string, line: number) => {
+    const cur = breakpoints[path] ?? [];
+    const lines = cur.includes(line) ? cur.filter((n) => n !== line) : [...cur, line].sort((a, b) => a - b);
+    const next = { ...breakpoints };
+    if (lines.length) next[path] = lines;
+    else delete next[path];
+    setBreakpoints(next);
+    if (debuggingHere) void api.debugSetBreakpoints(devId, path, lines).catch((e) => setError(errText(e)));
+  };
+
+  const startDebug = () =>
+    act("debug", async () => {
+      if (dirty) await save(); // debug what is in the editor
+      debug.clearOutput();
+      debug.setState(await api.debugStart(devId, project, breakpoints));
+    });
+  const onDebugError = useCallback((e: unknown) => setError(errText(e)), []);
+  const debugStep = (cmd: DebugStep) => void api.debugStep(devId, cmd).catch((e) => setError(errText(e)));
+  const stopDebug = (terminate: boolean) => void api.debugStop(devId, terminate).catch((e) => setError(errText(e)));
+
+  const openLocation = (path: string) => {
+    if (file?.path !== path) openFile(path);
+  };
+
+  // follow the paused location into the editor (only when that does not throw away edits)
+  useEffect(() => {
+    const p = dbgState.state === "stopped" ? dbgState.path : null;
+    if (p && project && file?.path !== p && !dirty) openFile(p, false);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [dbgState]);
+
+  const currentLine = dbgState.state === "stopped" && file && dbgState.path === file.path ? dbgState.line ?? null : null;
+
+  const debugKeys = (e: KeyboardEvent): boolean => {
+    const stoppedNow = dbgState.state === "stopped";
+    if (e.key === "F5" && e.shiftKey) {
+      if (debug.active) stopDebug(true);
+    } else if (e.key === "F5") {
+      if (stoppedNow) debugStep("continue");
+      else if (!debug.active && project) void startDebug();
+    } else if (e.key === "F10" && stoppedNow) debugStep("next");
+    else if (e.key === "F11" && e.shiftKey && stoppedNow) debugStep("stepOut");
+    else if (e.key === "F11" && stoppedNow) debugStep("stepIn");
+    else return false;
+    e.preventDefault();
+    return true;
+  };
 
   if (online.length === 0 && !device) {
     return (
@@ -371,11 +429,15 @@ export function ProjectsPage({ pollMs = LOG_POLL_MS }: { pollMs?: number }) {
               path={file.path}
               label={t.projects.editor}
               value={text}
+              breakpoints={breakpoints[file.path]}
+              currentLine={currentLine}
+              onToggleBreakpoint={(ln) => toggleBreakpoint(file.path, ln)}
               onChange={(v) => {
                 setText(v);
                 setDirty(true);
               }}
               onKeyDown={(e) => {
+                if (debugKeys(e)) return;
                 if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "s") {
                   e.preventDefault();
                   void act("save", save);
@@ -387,6 +449,21 @@ export function ProjectsPage({ pollMs = LOG_POLL_MS }: { pollMs?: number }) {
                   void stopProject();
                 }
               }}
+            />
+          )}
+          {project && (
+            <DebugPanel
+              devId={devId}
+              project={project}
+              session={debug}
+              breakpoints={breakpoints}
+              busy={busy === "debug"}
+              onStart={() => void startDebug()}
+              onStep={debugStep}
+              onStop={stopDebug}
+              onRemoveBreakpoint={toggleBreakpoint}
+              onOpenLocation={openLocation}
+              onError={onDebugError}
             />
           )}
           <div className="section-head" style={{ marginTop: "var(--sp-3)" }}>

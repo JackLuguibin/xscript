@@ -9,12 +9,13 @@ afterEach(() => {
 });
 
 function fakeMonaco() {
-  const calls = { created: 0, disposed: 0, theme: [] as boolean[], set: [] as string[] };
+  const calls = { created: 0, disposed: 0, theme: [] as boolean[], set: [] as string[], bps: [] as number[][], cur: [] as Array<number | null> };
   let value = "";
-  let opts: { onChange: (v: string) => void; onKey: (e: KeyboardEvent) => void; dark: boolean; language: string } | null = null;
+  type O = { value: string; onChange: (v: string) => void; onKey: (e: KeyboardEvent) => void; dark: boolean; language: string; breakpoints?: number[]; currentLine?: number | null; onToggleBreakpoint?: (n: number) => void };
+  let opts: O | null = null;
   const mod = {
     languageFor: (p: string) => (p.endsWith(".py") ? "python" : "plaintext"),
-    createEditor: (el: HTMLElement, o: { value: string; onChange: (v: string) => void; onKey: (e: KeyboardEvent) => void; dark: boolean; language: string }) => {
+    createEditor: (el: HTMLElement, o: O) => {
       calls.created++;
       value = o.value;
       opts = o;
@@ -27,6 +28,8 @@ function fakeMonaco() {
         },
         setTheme: (d: boolean) => calls.theme.push(d),
         dispose: () => calls.disposed++,
+        setBreakpoints: (l: number[]) => calls.bps.push(l),
+        setCurrentLine: (n: number | null) => calls.cur.push(n),
       };
     },
   };
@@ -75,5 +78,33 @@ describe("CodeEditor", () => {
     render(<CodeEditor path="a.py" value="x" label="ed" onChange={() => undefined} onKeyDown={() => undefined} />);
     await act(async () => undefined);
     expect(screen.getByRole("textbox", { name: "ed" })).toBeTruthy();
+  });
+
+  it("textarea fallback: F9 toggles a breakpoint on the caret line and shows the paused line", () => {
+    const toggle = vi.fn();
+    const onKey = vi.fn();
+    const { rerender } = render(<CodeEditor path="a.py" value={"a = 1\nb = 2\nc = 3\n"} label="ed" onChange={() => undefined} onKeyDown={onKey} onToggleBreakpoint={toggle} />);
+    const ta = screen.getByRole("textbox", { name: "ed" }) as HTMLTextAreaElement;
+    ta.setSelectionRange(8, 8);
+    fireEvent.keyDown(ta, { key: "F9" });
+    expect(toggle).toHaveBeenCalledWith(2);
+    expect(onKey).not.toHaveBeenCalled();
+    rerender(<CodeEditor path="a.py" value={"a = 1\nb = 2\nc = 3\n"} label="ed" onChange={() => undefined} onKeyDown={onKey} currentLine={3} />);
+    expect(screen.getByTestId("current-line").textContent).toContain("3: c = 3");
+  });
+
+  it("Monaco: passes breakpoints/current line through and forwards gutter toggles", async () => {
+    const f = fakeMonaco();
+    editorLoader.load = () => Promise.resolve(f.mod);
+    const toggle = vi.fn();
+    const props = { path: "m.py", value: "x", label: "ed", onChange: () => undefined, onKeyDown: () => undefined, onToggleBreakpoint: toggle };
+    const { rerender } = render(<CodeEditor {...props} breakpoints={[2]} currentLine={null} />);
+    await act(async () => undefined);
+    expect(f.opts().breakpoints).toEqual([2]);
+    f.opts().onToggleBreakpoint!(4);
+    expect(toggle).toHaveBeenCalledWith(4);
+    rerender(<CodeEditor {...props} breakpoints={[2, 4]} currentLine={4} />);
+    expect(f.calls.bps.at(-1)).toEqual([2, 4]);
+    expect(f.calls.cur.at(-1)).toBe(4);
   });
 });
