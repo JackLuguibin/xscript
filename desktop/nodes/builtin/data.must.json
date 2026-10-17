@@ -1,0 +1,13 @@
+{
+  "type": "data.must",
+  "category": "data",
+  "title": {"zh": "断言非空", "en": "Must"},
+  "doc": {"zh": "可空值接到非空引脚前先经过这里。值是空时中断。", "en": "Place this between a nullable pin and a required pin. An empty value stops the line."},
+  "exec": {"in": ["exec"], "out": ["then"]},
+  "inputs": [{"name": "value", "type": "any"}],
+  "outputs": [{"name": "result", "type": "any"}],
+  "py": {"stmt": "{id} = {value}; assert {id} is not None"},
+  "dsl": {"alias": "must"},
+  "since": "0.2.6",
+  "availability": "ok"
+}

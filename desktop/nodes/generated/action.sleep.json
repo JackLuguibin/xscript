@@ -1,0 +1,45 @@
+{
+  "type": "action.sleep",
+  "category": "action",
+  "title": {
+    "zh": "action.sleep",
+    "en": "action.sleep"
+  },
+  "doc": {
+    "zh": "sleep",
+    "en": "sleep"
+  },
+  "exec": {
+    "in": [
+      "exec"
+    ],
+    "out": [
+      "then"
+    ]
+  },
+  "inputs": [
+    {
+      "name": "seconds",
+      "type": "any"
+    }
+  ],
+  "outputs": [
+    {
+      "name": "result",
+      "type": "any"
+    }
+  ],
+  "py": {
+    "imports": [
+      "from xscript.android import action"
+    ],
+    "stmt": "{id} = action.sleep({seconds})"
+  },
+  "dsl": {
+    "alias": "action.sleep"
+  },
+  "since": "0.2.6",
+  "origin": "xscript.android.action.sleep",
+  "availability": "ok",
+  "latent": true
+}

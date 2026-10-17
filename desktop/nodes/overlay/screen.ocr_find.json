@@ -1,0 +1,33 @@
+{
+  "type": "screen.ocr_find",
+  "title": {
+    "zh": "查找文字",
+    "en": "Find text"
+  },
+  "doc": {
+    "zh": "在画面上查找一段文字。",
+    "en": "Find a text pattern."
+  },
+  "icon": "search",
+  "inputs": [
+    {
+      "name": "pattern",
+      "type": "string",
+      "ui": "text"
+    },
+    {
+      "name": "rect",
+      "type": "rect",
+      "ui": "text"
+    },
+    {
+      "name": "image",
+      "type": "image"
+    },
+    {
+      "name": "engine",
+      "type": "string",
+      "ui": "text"
+    }
+  ]
+}

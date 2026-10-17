@@ -1,0 +1,13 @@
+{
+  "type": "math.bool",
+  "category": "math",
+  "title": {"zh": "转布尔", "en": "To bool"},
+  "doc": {"zh": "把整数或浮点转成布尔。拖线时自动插入。", "en": "Convert an int or float to bool. Inserted when a wire needs it."},
+  "exec": {"in": [], "out": []},
+  "inputs": [{"name": "value", "type": "any"}],
+  "outputs": [{"name": "result", "type": "bool"}],
+  "py": {"stmt": "bool({value})"},
+  "dsl": {"alias": "bool"},
+  "since": "0.2.6",
+  "availability": "ok"
+}

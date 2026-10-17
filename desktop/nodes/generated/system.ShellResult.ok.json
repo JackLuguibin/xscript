@@ -1,0 +1,39 @@
+{
+  "type": "system.ShellResult.ok",
+  "category": "system",
+  "title": {
+    "zh": "system.ShellResult.ok",
+    "en": "system.ShellResult.ok"
+  },
+  "doc": {
+    "zh": "ok",
+    "en": "ok"
+  },
+  "exec": {
+    "in": [
+      "exec"
+    ],
+    "out": [
+      "then"
+    ]
+  },
+  "inputs": [],
+  "outputs": [
+    {
+      "name": "result",
+      "type": "any"
+    }
+  ],
+  "py": {
+    "imports": [
+      "from xscript.android import system"
+    ],
+    "stmt": "{id} = system.ShellResult.ok()"
+  },
+  "dsl": {
+    "alias": "system.ShellResult.ok"
+  },
+  "since": "0.2.6",
+  "origin": "xscript.android.system.ShellResult.ok",
+  "availability": "ok"
+}

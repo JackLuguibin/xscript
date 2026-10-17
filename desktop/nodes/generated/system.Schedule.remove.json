@@ -1,0 +1,44 @@
+{
+  "type": "system.Schedule.remove",
+  "category": "system",
+  "title": {
+    "zh": "system.Schedule.remove",
+    "en": "system.Schedule.remove"
+  },
+  "doc": {
+    "zh": "remove",
+    "en": "remove"
+  },
+  "exec": {
+    "in": [
+      "exec"
+    ],
+    "out": [
+      "then"
+    ]
+  },
+  "inputs": [
+    {
+      "name": "schedule_id",
+      "type": "any"
+    }
+  ],
+  "outputs": [
+    {
+      "name": "result",
+      "type": "any"
+    }
+  ],
+  "py": {
+    "imports": [
+      "from xscript.android import system"
+    ],
+    "stmt": "{id} = system.Schedule.remove({schedule_id})"
+  },
+  "dsl": {
+    "alias": "system.Schedule.remove"
+  },
+  "since": "0.2.6",
+  "origin": "xscript.android.system.Schedule.remove",
+  "availability": "ok"
+}

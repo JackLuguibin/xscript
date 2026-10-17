@@ -1,0 +1,55 @@
+{
+  "type": "models.paddle",
+  "category": "models",
+  "title": {
+    "zh": "models.paddle",
+    "en": "models.paddle"
+  },
+  "doc": {
+    "zh": "PaddleOCR files for `version` (\"v5\" or \"v4\"): {\"det\", \"rec\", \"cls\"?} absolute paths.",
+    "en": "PaddleOCR files for `version` (\"v5\" or \"v4\"): {\"det\", \"rec\", \"cls\"?} absolute paths."
+  },
+  "exec": {
+    "in": [
+      "exec"
+    ],
+    "out": [
+      "then"
+    ]
+  },
+  "inputs": [
+    {
+      "name": "version",
+      "type": "any",
+      "default": "v5"
+    },
+    {
+      "name": "with_cls",
+      "type": "any",
+      "default": true
+    },
+    {
+      "name": "progress",
+      "type": "any",
+      "default": null
+    }
+  ],
+  "outputs": [
+    {
+      "name": "result",
+      "type": "any"
+    }
+  ],
+  "py": {
+    "imports": [
+      "from xscript.android import models"
+    ],
+    "stmt": "{id} = models.paddle({version}, with_cls={with_cls}, progress={progress})"
+  },
+  "dsl": {
+    "alias": "models.paddle"
+  },
+  "since": "0.2.6",
+  "origin": "xscript.android.models.paddle",
+  "availability": "ok"
+}

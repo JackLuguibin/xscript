@@ -1,0 +1,45 @@
+{
+  "type": "node.Selector.long_clickable",
+  "category": "node",
+  "title": {
+    "zh": "node.Selector.long_clickable",
+    "en": "node.Selector.long_clickable"
+  },
+  "doc": {
+    "zh": "long_clickable",
+    "en": "long_clickable"
+  },
+  "exec": {
+    "in": [
+      "exec"
+    ],
+    "out": [
+      "then"
+    ]
+  },
+  "inputs": [
+    {
+      "name": "value",
+      "type": "any",
+      "default": true
+    }
+  ],
+  "outputs": [
+    {
+      "name": "result",
+      "type": "any"
+    }
+  ],
+  "py": {
+    "imports": [
+      "from xscript.android import node"
+    ],
+    "stmt": "{id} = node.Selector.long_clickable({value})"
+  },
+  "dsl": {
+    "alias": "node.Selector.long_clickable"
+  },
+  "since": "0.2.6",
+  "origin": "xscript.android.node.Selector.long_clickable",
+  "availability": "ok"
+}

@@ -1,0 +1,50 @@
+{
+  "type": "system.wait_for_package",
+  "category": "system",
+  "title": {
+    "zh": "system.wait_for_package",
+    "en": "system.wait_for_package"
+  },
+  "doc": {
+    "zh": "wait_for_package",
+    "en": "wait_for_package"
+  },
+  "exec": {
+    "in": [
+      "exec"
+    ],
+    "out": [
+      "then"
+    ]
+  },
+  "inputs": [
+    {
+      "name": "package",
+      "type": "any"
+    },
+    {
+      "name": "timeout",
+      "type": "any",
+      "default": 30
+    }
+  ],
+  "outputs": [
+    {
+      "name": "result",
+      "type": "any"
+    }
+  ],
+  "py": {
+    "imports": [
+      "from xscript.android import system"
+    ],
+    "stmt": "{id} = system.wait_for_package({package}, timeout={timeout})"
+  },
+  "dsl": {
+    "alias": "system.wait_for_package"
+  },
+  "since": "0.2.6",
+  "origin": "xscript.android.system.wait_for_package",
+  "availability": "ok",
+  "latent": true
+}

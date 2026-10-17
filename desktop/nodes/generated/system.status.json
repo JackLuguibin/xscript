@@ -1,0 +1,39 @@
+{
+  "type": "system.status",
+  "category": "system",
+  "title": {
+    "zh": "system.status",
+    "en": "system.status"
+  },
+  "doc": {
+    "zh": "App status: channel, accessibility, root, capture source, resolution...",
+    "en": "App status: channel, accessibility, root, capture source, resolution..."
+  },
+  "exec": {
+    "in": [
+      "exec"
+    ],
+    "out": [
+      "then"
+    ]
+  },
+  "inputs": [],
+  "outputs": [
+    {
+      "name": "result",
+      "type": "any"
+    }
+  ],
+  "py": {
+    "imports": [
+      "from xscript.android import system"
+    ],
+    "stmt": "{id} = system.status()"
+  },
+  "dsl": {
+    "alias": "system.status"
+  },
+  "since": "0.2.6",
+  "origin": "xscript.android.system.status",
+  "availability": "ok"
+}

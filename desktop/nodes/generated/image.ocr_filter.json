@@ -1,0 +1,53 @@
+{
+  "type": "image.ocr_filter",
+  "category": "image",
+  "title": {
+    "zh": "image.ocr_filter",
+    "en": "image.ocr_filter"
+  },
+  "doc": {
+    "zh": "AScript semantics: keep lines where regex `pattern` matches; text becomes the joined matches.",
+    "en": "AScript semantics: keep lines where regex `pattern` matches; text becomes the joined matches."
+  },
+  "exec": {
+    "in": [
+      "exec"
+    ],
+    "out": [
+      "then"
+    ]
+  },
+  "inputs": [
+    {
+      "name": "results",
+      "type": "any"
+    },
+    {
+      "name": "pattern",
+      "type": "any"
+    },
+    {
+      "name": "confidence",
+      "type": "any",
+      "default": 0.0
+    }
+  ],
+  "outputs": [
+    {
+      "name": "result",
+      "type": "any"
+    }
+  ],
+  "py": {
+    "imports": [
+      "from xscript.android import image"
+    ],
+    "stmt": "{id} = image.ocr_filter({results}, pattern={pattern}, confidence={confidence})"
+  },
+  "dsl": {
+    "alias": "image.ocr_filter"
+  },
+  "since": "0.2.6",
+  "origin": "xscript.android.image.ocr_filter",
+  "availability": "ok"
+}

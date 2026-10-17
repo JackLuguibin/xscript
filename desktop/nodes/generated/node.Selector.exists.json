@@ -1,0 +1,51 @@
+{
+  "type": "node.Selector.exists",
+  "category": "node",
+  "title": {
+    "zh": "node.Selector.exists",
+    "en": "node.Selector.exists"
+  },
+  "doc": {
+    "zh": "exists",
+    "en": "exists"
+  },
+  "exec": {
+    "in": [
+      "exec"
+    ],
+    "out": [
+      "then"
+    ]
+  },
+  "inputs": [
+    {
+      "name": "timeout",
+      "type": "any",
+      "default": 0
+    },
+    {
+      "name": "interval",
+      "type": "any",
+      "default": 0.25
+    }
+  ],
+  "outputs": [
+    {
+      "name": "result",
+      "type": "any"
+    }
+  ],
+  "py": {
+    "imports": [
+      "from xscript.android import node"
+    ],
+    "stmt": "{id} = node.Selector.exists({timeout}, interval={interval})"
+  },
+  "dsl": {
+    "alias": "node.Selector.exists"
+  },
+  "since": "0.2.6",
+  "origin": "xscript.android.node.Selector.exists",
+  "availability": "ok",
+  "latent": true
+}

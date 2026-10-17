@@ -1,0 +1,30 @@
+{
+  "type": "action.Touch.down",
+  "title": {
+    "zh": "按下",
+    "en": "Touch down"
+  },
+  "doc": {
+    "zh": "手指按下。",
+    "en": "Touch down."
+  },
+  "icon": "move",
+  "inputs": [
+    {
+      "name": "x",
+      "type": "int",
+      "ui": "number"
+    },
+    {
+      "name": "y",
+      "type": "int",
+      "ui": "number"
+    },
+    {
+      "name": "dur",
+      "type": "int",
+      "ui": "number",
+      "min": 0
+    }
+  ]
+}

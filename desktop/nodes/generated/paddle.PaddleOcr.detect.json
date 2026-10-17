@@ -1,0 +1,44 @@
+{
+  "type": "paddle.PaddleOcr.detect",
+  "category": "paddle",
+  "title": {
+    "zh": "paddle.PaddleOcr.detect",
+    "en": "paddle.PaddleOcr.detect"
+  },
+  "doc": {
+    "zh": "detect",
+    "en": "detect"
+  },
+  "exec": {
+    "in": [
+      "exec"
+    ],
+    "out": [
+      "then"
+    ]
+  },
+  "inputs": [
+    {
+      "name": "img",
+      "type": "any"
+    }
+  ],
+  "outputs": [
+    {
+      "name": "result",
+      "type": "any"
+    }
+  ],
+  "py": {
+    "imports": [
+      "from xscript.android import paddle"
+    ],
+    "stmt": "{id} = paddle.PaddleOcr.detect({img})"
+  },
+  "dsl": {
+    "alias": "paddle.PaddleOcr.detect"
+  },
+  "since": "0.2.6",
+  "origin": "xscript.android.paddle.PaddleOcr.detect",
+  "availability": "ok"
+}

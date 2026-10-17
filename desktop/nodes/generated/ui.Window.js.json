@@ -1,0 +1,50 @@
+{
+  "type": "ui.Window.js",
+  "category": "ui",
+  "title": {
+    "zh": "ui.Window.js",
+    "en": "ui.Window.js"
+  },
+  "doc": {
+    "zh": "Evaluate JS in the page; returns the JSON-encoded result string (or None on timeout).",
+    "en": "Evaluate JS in the page; returns the JSON-encoded result string (or None on timeout)."
+  },
+  "exec": {
+    "in": [
+      "exec"
+    ],
+    "out": [
+      "then"
+    ]
+  },
+  "inputs": [
+    {
+      "name": "code",
+      "type": "any"
+    },
+    {
+      "name": "timeout",
+      "type": "any",
+      "default": 5
+    }
+  ],
+  "outputs": [
+    {
+      "name": "result",
+      "type": "any"
+    }
+  ],
+  "py": {
+    "imports": [
+      "from xscript.android import ui"
+    ],
+    "stmt": "{id} = ui.Window.js({code}, timeout={timeout})"
+  },
+  "dsl": {
+    "alias": "ui.Window.js"
+  },
+  "since": "0.2.6",
+  "origin": "xscript.android.ui.Window.js",
+  "availability": "ok",
+  "latent": true
+}

@@ -1,0 +1,39 @@
+{
+  "type": "node.Selector.copy",
+  "category": "node",
+  "title": {
+    "zh": "node.Selector.copy",
+    "en": "node.Selector.copy"
+  },
+  "doc": {
+    "zh": "copy",
+    "en": "copy"
+  },
+  "exec": {
+    "in": [
+      "exec"
+    ],
+    "out": [
+      "then"
+    ]
+  },
+  "inputs": [],
+  "outputs": [
+    {
+      "name": "result",
+      "type": "any"
+    }
+  ],
+  "py": {
+    "imports": [
+      "from xscript.android import node"
+    ],
+    "stmt": "{id} = node.Selector.copy()"
+  },
+  "dsl": {
+    "alias": "node.Selector.copy"
+  },
+  "since": "0.2.6",
+  "origin": "xscript.android.node.Selector.copy",
+  "availability": "ok"
+}

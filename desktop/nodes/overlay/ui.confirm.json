@@ -1,0 +1,34 @@
+{
+  "type": "ui.confirm",
+  "title": {
+    "zh": "确认框",
+    "en": "Confirm"
+  },
+  "doc": {
+    "zh": "弹出确认框。",
+    "en": "Ask for confirmation."
+  },
+  "icon": "toast",
+  "inputs": [
+    {
+      "name": "msg",
+      "type": "string",
+      "ui": "text"
+    },
+    {
+      "name": "title",
+      "type": "string",
+      "ui": "text"
+    },
+    {
+      "name": "submit",
+      "type": "string",
+      "ui": "text"
+    },
+    {
+      "name": "cancel",
+      "type": "string",
+      "ui": "text"
+    }
+  ]
+}

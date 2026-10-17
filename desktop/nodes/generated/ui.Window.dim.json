@@ -1,0 +1,45 @@
+{
+  "type": "ui.Window.dim",
+  "category": "ui",
+  "title": {
+    "zh": "ui.Window.dim",
+    "en": "ui.Window.dim"
+  },
+  "doc": {
+    "zh": "dim",
+    "en": "dim"
+  },
+  "exec": {
+    "in": [
+      "exec"
+    ],
+    "out": [
+      "then"
+    ]
+  },
+  "inputs": [
+    {
+      "name": "amount",
+      "type": "any",
+      "default": 0.5
+    }
+  ],
+  "outputs": [
+    {
+      "name": "result",
+      "type": "any"
+    }
+  ],
+  "py": {
+    "imports": [
+      "from xscript.android import ui"
+    ],
+    "stmt": "{id} = ui.Window.dim({amount})"
+  },
+  "dsl": {
+    "alias": "ui.Window.dim"
+  },
+  "since": "0.2.6",
+  "origin": "xscript.android.ui.Window.dim",
+  "availability": "ok"
+}

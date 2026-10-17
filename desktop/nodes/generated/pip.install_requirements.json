@@ -1,0 +1,53 @@
+{
+  "type": "pip.install_requirements",
+  "category": "pip",
+  "title": {
+    "zh": "pip.install_requirements",
+    "en": "pip.install_requirements"
+  },
+  "doc": {
+    "zh": "install_requirements",
+    "en": "install_requirements"
+  },
+  "exec": {
+    "in": [
+      "exec"
+    ],
+    "out": [
+      "then"
+    ]
+  },
+  "inputs": [
+    {
+      "name": "path",
+      "type": "any"
+    },
+    {
+      "name": "index_url",
+      "type": "any",
+      "default": null
+    },
+    {
+      "name": "log",
+      "type": "any"
+    }
+  ],
+  "outputs": [
+    {
+      "name": "result",
+      "type": "any"
+    }
+  ],
+  "py": {
+    "imports": [
+      "from xscript.android import pip"
+    ],
+    "stmt": "{id} = pip.install_requirements({path}, index_url={index_url}, log={log})"
+  },
+  "dsl": {
+    "alias": "pip.install_requirements"
+  },
+  "since": "0.2.6",
+  "origin": "xscript.android.pip.install_requirements",
+  "availability": "ok"
+}

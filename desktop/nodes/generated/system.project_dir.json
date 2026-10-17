@@ -1,0 +1,39 @@
+{
+  "type": "system.project_dir",
+  "category": "system",
+  "title": {
+    "zh": "system.project_dir",
+    "en": "system.project_dir"
+  },
+  "doc": {
+    "zh": "project_dir",
+    "en": "project_dir"
+  },
+  "exec": {
+    "in": [
+      "exec"
+    ],
+    "out": [
+      "then"
+    ]
+  },
+  "inputs": [],
+  "outputs": [
+    {
+      "name": "result",
+      "type": "any"
+    }
+  ],
+  "py": {
+    "imports": [
+      "from xscript.android import system"
+    ],
+    "stmt": "{id} = system.project_dir()"
+  },
+  "dsl": {
+    "alias": "system.project_dir"
+  },
+  "since": "0.2.6",
+  "origin": "xscript.android.system.project_dir",
+  "availability": "ok"
+}

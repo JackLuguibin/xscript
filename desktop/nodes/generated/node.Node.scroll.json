@@ -1,0 +1,45 @@
+{
+  "type": "node.Node.scroll",
+  "category": "node",
+  "title": {
+    "zh": "node.Node.scroll",
+    "en": "node.Node.scroll"
+  },
+  "doc": {
+    "zh": "scroll",
+    "en": "scroll"
+  },
+  "exec": {
+    "in": [
+      "exec"
+    ],
+    "out": [
+      "then"
+    ]
+  },
+  "inputs": [
+    {
+      "name": "forward",
+      "type": "any",
+      "default": true
+    }
+  ],
+  "outputs": [
+    {
+      "name": "result",
+      "type": "any"
+    }
+  ],
+  "py": {
+    "imports": [
+      "from xscript.android import node"
+    ],
+    "stmt": "{id} = node.Node.scroll({forward})"
+  },
+  "dsl": {
+    "alias": "node.Node.scroll"
+  },
+  "since": "0.2.6",
+  "origin": "xscript.android.node.Node.scroll",
+  "availability": "ok"
+}

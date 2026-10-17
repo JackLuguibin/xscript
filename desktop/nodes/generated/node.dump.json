@@ -1,0 +1,45 @@
+{
+  "type": "node.dump",
+  "category": "node",
+  "title": {
+    "zh": "node.dump",
+    "en": "node.dump"
+  },
+  "doc": {
+    "zh": "Full tree payload as a dict: {\"mode\", \"width\", \"height\", \"roots\": [...]}.",
+    "en": "Full tree payload as a dict: {\"mode\", \"width\", \"height\", \"roots\": [...]}."
+  },
+  "exec": {
+    "in": [
+      "exec"
+    ],
+    "out": [
+      "then"
+    ]
+  },
+  "inputs": [
+    {
+      "name": "mode",
+      "type": "any",
+      "default": 0
+    }
+  ],
+  "outputs": [
+    {
+      "name": "result",
+      "type": "any"
+    }
+  ],
+  "py": {
+    "imports": [
+      "from xscript.android import node"
+    ],
+    "stmt": "{id} = node.dump({mode})"
+  },
+  "dsl": {
+    "alias": "node.dump"
+  },
+  "since": "0.2.6",
+  "origin": "xscript.android.node.dump",
+  "availability": "ok"
+}

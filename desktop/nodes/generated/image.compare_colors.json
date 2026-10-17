@@ -1,0 +1,59 @@
+{
+  "type": "image.compare_colors",
+  "category": "image",
+  "title": {
+    "zh": "image.compare_colors",
+    "en": "image.compare_colors"
+  },
+  "doc": {
+    "zh": "True if the color points match at their absolute positions.",
+    "en": "True if the color points match at their absolute positions."
+  },
+  "exec": {
+    "in": [
+      "exec"
+    ],
+    "out": [
+      "then"
+    ]
+  },
+  "inputs": [
+    {
+      "name": "colors",
+      "type": "any"
+    },
+    {
+      "name": "sim",
+      "type": "any",
+      "default": 0.9
+    },
+    {
+      "name": "image",
+      "type": "any",
+      "default": null
+    },
+    {
+      "name": "count_sim",
+      "type": "any",
+      "default": 1.0
+    }
+  ],
+  "outputs": [
+    {
+      "name": "result",
+      "type": "any"
+    }
+  ],
+  "py": {
+    "imports": [
+      "from xscript.android import image"
+    ],
+    "stmt": "{id} = image.compare_colors({colors}, sim={sim}, image={image}, count_sim={count_sim})"
+  },
+  "dsl": {
+    "alias": "image.compare_colors"
+  },
+  "since": "0.2.6",
+  "origin": "xscript.android.image.compare_colors",
+  "availability": "ok"
+}

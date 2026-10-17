@@ -1,0 +1,49 @@
+{
+  "type": "paddle.PaddleOcr.classify",
+  "category": "paddle",
+  "title": {
+    "zh": "paddle.PaddleOcr.classify",
+    "en": "paddle.PaddleOcr.classify"
+  },
+  "doc": {
+    "zh": "Flip crops the orientation model calls 180° (with confidence > threshold).",
+    "en": "Flip crops the orientation model calls 180° (with confidence > threshold)."
+  },
+  "exec": {
+    "in": [
+      "exec"
+    ],
+    "out": [
+      "then"
+    ]
+  },
+  "inputs": [
+    {
+      "name": "crops",
+      "type": "any"
+    },
+    {
+      "name": "threshold",
+      "type": "any",
+      "default": 0.9
+    }
+  ],
+  "outputs": [
+    {
+      "name": "result",
+      "type": "any"
+    }
+  ],
+  "py": {
+    "imports": [
+      "from xscript.android import paddle"
+    ],
+    "stmt": "{id} = paddle.PaddleOcr.classify({crops}, threshold={threshold})"
+  },
+  "dsl": {
+    "alias": "paddle.PaddleOcr.classify"
+  },
+  "since": "0.2.6",
+  "origin": "xscript.android.paddle.PaddleOcr.classify",
+  "availability": "ok"
+}

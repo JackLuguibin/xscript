@@ -1,0 +1,60 @@
+{
+  "type": "paddle.PaddleOcr.ocr",
+  "category": "paddle",
+  "title": {
+    "zh": "paddle.PaddleOcr.ocr",
+    "en": "paddle.PaddleOcr.ocr"
+  },
+  "doc": {
+    "zh": "Text lines as [OcrResult] (same type ML Kit OCR returns), in screen coordinates.",
+    "en": "Text lines as [OcrResult] (same type ML Kit OCR returns), in screen coordinates."
+  },
+  "exec": {
+    "in": [
+      "exec"
+    ],
+    "out": [
+      "then"
+    ]
+  },
+  "inputs": [
+    {
+      "name": "image",
+      "type": "any",
+      "default": null
+    },
+    {
+      "name": "rect",
+      "type": "any",
+      "default": null
+    },
+    {
+      "name": "confidence",
+      "type": "any",
+      "default": 0.5
+    },
+    {
+      "name": "use_cls",
+      "type": "any",
+      "default": null
+    }
+  ],
+  "outputs": [
+    {
+      "name": "result",
+      "type": "any"
+    }
+  ],
+  "py": {
+    "imports": [
+      "from xscript.android import paddle"
+    ],
+    "stmt": "{id} = paddle.PaddleOcr.ocr({image}, rect={rect}, confidence={confidence}, use_cls={use_cls})"
+  },
+  "dsl": {
+    "alias": "paddle.PaddleOcr.ocr"
+  },
+  "since": "0.2.6",
+  "origin": "xscript.android.paddle.PaddleOcr.ocr",
+  "availability": "ok"
+}

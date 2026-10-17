@@ -1,0 +1,44 @@
+{
+  "type": "yolo.Yolo.label",
+  "category": "yolo",
+  "title": {
+    "zh": "yolo.Yolo.label",
+    "en": "yolo.Yolo.label"
+  },
+  "doc": {
+    "zh": "label",
+    "en": "label"
+  },
+  "exec": {
+    "in": [
+      "exec"
+    ],
+    "out": [
+      "then"
+    ]
+  },
+  "inputs": [
+    {
+      "name": "class_id",
+      "type": "any"
+    }
+  ],
+  "outputs": [
+    {
+      "name": "result",
+      "type": "any"
+    }
+  ],
+  "py": {
+    "imports": [
+      "from xscript.android import yolo"
+    ],
+    "stmt": "{id} = yolo.Yolo.label({class_id})"
+  },
+  "dsl": {
+    "alias": "yolo.Yolo.label"
+  },
+  "since": "0.2.6",
+  "origin": "xscript.android.yolo.Yolo.label",
+  "availability": "ok"
+}

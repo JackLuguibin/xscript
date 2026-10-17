@@ -1,0 +1,12 @@
+{
+  "type": "system.is_screen_on",
+  "title": {
+    "zh": "屏幕是否点亮",
+    "en": "Screen on"
+  },
+  "doc": {
+    "zh": "屏幕是否亮着。",
+    "en": "Whether the screen is on."
+  },
+  "icon": "app"
+}

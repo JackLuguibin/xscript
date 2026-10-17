@@ -1,0 +1,54 @@
+{
+  "type": "screen.compare_colors",
+  "category": "screen",
+  "title": {
+    "zh": "screen.compare_colors",
+    "en": "screen.compare_colors"
+  },
+  "doc": {
+    "zh": "True if all color points match at their positions. `colors` = 'x,y,#RRGGBB|...'.",
+    "en": "True if all color points match at their positions. `colors` = 'x,y,#RRGGBB|...'."
+  },
+  "exec": {
+    "in": [
+      "exec"
+    ],
+    "out": [
+      "then"
+    ]
+  },
+  "inputs": [
+    {
+      "name": "colors",
+      "type": "any"
+    },
+    {
+      "name": "sim",
+      "type": "any",
+      "default": 0.9
+    },
+    {
+      "name": "image",
+      "type": "any",
+      "default": null
+    }
+  ],
+  "outputs": [
+    {
+      "name": "result",
+      "type": "any"
+    }
+  ],
+  "py": {
+    "imports": [
+      "from xscript.android import screen"
+    ],
+    "stmt": "{id} = screen.compare_colors({colors}, sim={sim}, image={image})"
+  },
+  "dsl": {
+    "alias": "screen.compare_colors"
+  },
+  "since": "0.2.6",
+  "origin": "xscript.android.screen.compare_colors",
+  "availability": "ok"
+}

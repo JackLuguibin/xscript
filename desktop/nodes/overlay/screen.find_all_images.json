@@ -1,0 +1,34 @@
+{
+  "type": "screen.find_all_images",
+  "title": {
+    "zh": "找全部图片",
+    "en": "Find all images"
+  },
+  "doc": {
+    "zh": "找出全部模板匹配。",
+    "en": "Every template match."
+  },
+  "icon": "image",
+  "inputs": [
+    {
+      "name": "template",
+      "type": "string",
+      "ui": "text"
+    },
+    {
+      "name": "rect",
+      "type": "rect",
+      "ui": "text"
+    },
+    {
+      "name": "confidence",
+      "type": "float",
+      "ui": "number",
+      "min": 0
+    },
+    {
+      "name": "image",
+      "type": "image"
+    }
+  ]
+}

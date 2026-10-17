@@ -1,0 +1,13 @@
+{
+  "type": "math.float",
+  "category": "math",
+  "title": {"zh": "转浮点", "en": "To float"},
+  "doc": {"zh": "把整数或布尔转成浮点。类型不同又可以转换时，拖线会自动插入。", "en": "Convert an int or bool to float. A convertible wire inserts this node."},
+  "exec": {"in": [], "out": []},
+  "inputs": [{"name": "value", "type": "any"}],
+  "outputs": [{"name": "result", "type": "float"}],
+  "py": {"stmt": "float({value})"},
+  "dsl": {"alias": "float"},
+  "since": "0.2.6",
+  "availability": "ok"
+}

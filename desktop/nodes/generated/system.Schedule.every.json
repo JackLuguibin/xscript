@@ -1,0 +1,64 @@
+{
+  "type": "system.Schedule.every",
+  "category": "system",
+  "title": {
+    "zh": "system.Schedule.every",
+    "en": "system.Schedule.every"
+  },
+  "doc": {
+    "zh": "Run every `minutes`, optionally only inside `window` (\"08:00-23:00\", may cross midnight).",
+    "en": "Run every `minutes`, optionally only inside `window` (\"08:00-23:00\", may cross midnight)."
+  },
+  "exec": {
+    "in": [
+      "exec"
+    ],
+    "out": [
+      "then"
+    ]
+  },
+  "inputs": [
+    {
+      "name": "minutes",
+      "type": "any"
+    },
+    {
+      "name": "window",
+      "type": "any",
+      "default": ""
+    },
+    {
+      "name": "project",
+      "type": "any",
+      "default": null
+    },
+    {
+      "name": "if_running",
+      "type": "any",
+      "default": "skip"
+    },
+    {
+      "name": "wake",
+      "type": "any",
+      "default": true
+    }
+  ],
+  "outputs": [
+    {
+      "name": "result",
+      "type": "any"
+    }
+  ],
+  "py": {
+    "imports": [
+      "from xscript.android import system"
+    ],
+    "stmt": "{id} = system.Schedule.every({minutes}, window={window}, project={project}, if_running={if_running}, wake={wake})"
+  },
+  "dsl": {
+    "alias": "system.Schedule.every"
+  },
+  "since": "0.2.6",
+  "origin": "xscript.android.system.Schedule.every",
+  "availability": "ok"
+}

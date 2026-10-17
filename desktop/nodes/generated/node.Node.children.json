@@ -1,0 +1,39 @@
+{
+  "type": "node.Node.children",
+  "category": "node",
+  "title": {
+    "zh": "node.Node.children",
+    "en": "node.Node.children"
+  },
+  "doc": {
+    "zh": "children",
+    "en": "children"
+  },
+  "exec": {
+    "in": [
+      "exec"
+    ],
+    "out": [
+      "then"
+    ]
+  },
+  "inputs": [],
+  "outputs": [
+    {
+      "name": "result",
+      "type": "any"
+    }
+  ],
+  "py": {
+    "imports": [
+      "from xscript.android import node"
+    ],
+    "stmt": "{id} = node.Node.children()"
+  },
+  "dsl": {
+    "alias": "node.Node.children"
+  },
+  "since": "0.2.6",
+  "origin": "xscript.android.node.Node.children",
+  "availability": "ok"
+}

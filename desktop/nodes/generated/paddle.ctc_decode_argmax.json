@@ -1,0 +1,52 @@
+{
+  "type": "paddle.ctc_decode_argmax",
+  "category": "paddle",
+  "title": {
+    "zh": "paddle.ctc_decode_argmax",
+    "en": "paddle.ctc_decode_argmax"
+  },
+  "doc": {
+    "zh": "CTC greedy decode from per-step best class `idx` [T] and its probability `conf` [T].",
+    "en": "CTC greedy decode from per-step best class `idx` [T] and its probability `conf` [T]."
+  },
+  "exec": {
+    "in": [
+      "exec"
+    ],
+    "out": [
+      "then"
+    ]
+  },
+  "inputs": [
+    {
+      "name": "idx",
+      "type": "any"
+    },
+    {
+      "name": "conf",
+      "type": "any"
+    },
+    {
+      "name": "chars",
+      "type": "any"
+    }
+  ],
+  "outputs": [
+    {
+      "name": "result",
+      "type": "any"
+    }
+  ],
+  "py": {
+    "imports": [
+      "from xscript.android import paddle"
+    ],
+    "stmt": "{id} = paddle.ctc_decode_argmax({idx}, conf={conf}, chars={chars})"
+  },
+  "dsl": {
+    "alias": "paddle.ctc_decode_argmax"
+  },
+  "since": "0.2.6",
+  "origin": "xscript.android.paddle.ctc_decode_argmax",
+  "availability": "ok"
+}

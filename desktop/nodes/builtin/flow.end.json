@@ -1,0 +1,13 @@
+{
+  "type": "flow.end",
+  "category": "flow",
+  "title": {"zh": "结束", "en": "End"},
+  "doc": {"zh": "停止当前脚本。code 是退出码，默认 0。", "en": "Stop the current script. code is the exit status, 0 by default."},
+  "exec": {"in": ["exec"], "out": []},
+  "inputs": [{"name": "code", "type": "int", "default": 0, "ui": "number"}],
+  "outputs": [],
+  "py": {"stmt": "raise SystemExit({code})"},
+  "dsl": {"alias": "end"},
+  "since": "0.2.6",
+  "availability": "ok"
+}

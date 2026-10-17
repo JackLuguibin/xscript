@@ -1,0 +1,12 @@
+{
+  "type": "screen.ocr_find_all",
+  "title": {
+    "zh": "查找全部文字",
+    "en": "Find all text"
+  },
+  "doc": {
+    "zh": "找出全部文字匹配。",
+    "en": "Every text match."
+  },
+  "icon": "search"
+}

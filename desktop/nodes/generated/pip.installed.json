@@ -1,0 +1,45 @@
+{
+  "type": "pip.installed",
+  "category": "pip",
+  "title": {
+    "zh": "pip.installed",
+    "en": "pip.installed"
+  },
+  "doc": {
+    "zh": "{normalized name: (version, location)} of every importable distribution.",
+    "en": "{normalized name: (version, location)} of every importable distribution."
+  },
+  "exec": {
+    "in": [
+      "exec"
+    ],
+    "out": [
+      "then"
+    ]
+  },
+  "inputs": [
+    {
+      "name": "include_builtin",
+      "type": "any",
+      "default": true
+    }
+  ],
+  "outputs": [
+    {
+      "name": "result",
+      "type": "any"
+    }
+  ],
+  "py": {
+    "imports": [
+      "from xscript.android import pip"
+    ],
+    "stmt": "{id} = pip.installed({include_builtin})"
+  },
+  "dsl": {
+    "alias": "pip.installed"
+  },
+  "since": "0.2.6",
+  "origin": "xscript.android.pip.installed",
+  "availability": "ok"
+}

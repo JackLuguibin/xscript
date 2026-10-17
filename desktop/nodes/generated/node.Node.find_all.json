@@ -1,0 +1,55 @@
+{
+  "type": "node.Node.find_all",
+  "category": "node",
+  "title": {
+    "zh": "node.Node.find_all",
+    "en": "node.Node.find_all"
+  },
+  "doc": {
+    "zh": "find_all",
+    "en": "find_all"
+  },
+  "exec": {
+    "in": [
+      "exec"
+    ],
+    "out": [
+      "then"
+    ]
+  },
+  "inputs": [
+    {
+      "name": "selector",
+      "type": "any"
+    },
+    {
+      "name": "timeout",
+      "type": "any",
+      "default": 0
+    },
+    {
+      "name": "interval",
+      "type": "any",
+      "default": 0.25
+    }
+  ],
+  "outputs": [
+    {
+      "name": "result",
+      "type": "any"
+    }
+  ],
+  "py": {
+    "imports": [
+      "from xscript.android import node"
+    ],
+    "stmt": "{id} = node.Node.find_all({selector}, timeout={timeout}, interval={interval})"
+  },
+  "dsl": {
+    "alias": "node.Node.find_all"
+  },
+  "since": "0.2.6",
+  "origin": "xscript.android.node.Node.find_all",
+  "availability": "ok",
+  "latent": true
+}

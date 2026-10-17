@@ -1,0 +1,12 @@
+{
+  "type": "action.gesture",
+  "title": {
+    "zh": "多点手势",
+    "en": "Gesture"
+  },
+  "doc": {
+    "zh": "多指手势。",
+    "en": "Multi-finger gesture."
+  },
+  "icon": "move"
+}

@@ -1,0 +1,44 @@
+{
+  "type": "node.Selector.desc",
+  "category": "node",
+  "title": {
+    "zh": "node.Selector.desc",
+    "en": "node.Selector.desc"
+  },
+  "doc": {
+    "zh": "desc",
+    "en": "desc"
+  },
+  "exec": {
+    "in": [
+      "exec"
+    ],
+    "out": [
+      "then"
+    ]
+  },
+  "inputs": [
+    {
+      "name": "value",
+      "type": "any"
+    }
+  ],
+  "outputs": [
+    {
+      "name": "result",
+      "type": "any"
+    }
+  ],
+  "py": {
+    "imports": [
+      "from xscript.android import node"
+    ],
+    "stmt": "{id} = node.Selector.desc({value})"
+  },
+  "dsl": {
+    "alias": "node.Selector.desc"
+  },
+  "since": "0.2.6",
+  "origin": "xscript.android.node.Selector.desc",
+  "availability": "ok"
+}

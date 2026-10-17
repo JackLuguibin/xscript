@@ -1,0 +1,44 @@
+{
+  "type": "node.Selector.id",
+  "category": "node",
+  "title": {
+    "zh": "node.Selector.id",
+    "en": "node.Selector.id"
+  },
+  "doc": {
+    "zh": "id",
+    "en": "id"
+  },
+  "exec": {
+    "in": [
+      "exec"
+    ],
+    "out": [
+      "then"
+    ]
+  },
+  "inputs": [
+    {
+      "name": "value",
+      "type": "any"
+    }
+  ],
+  "outputs": [
+    {
+      "name": "result",
+      "type": "any"
+    }
+  ],
+  "py": {
+    "imports": [
+      "from xscript.android import node"
+    ],
+    "stmt": "{id} = node.Selector.id({value})"
+  },
+  "dsl": {
+    "alias": "node.Selector.id"
+  },
+  "since": "0.2.6",
+  "origin": "xscript.android.node.Selector.id",
+  "availability": "ok"
+}

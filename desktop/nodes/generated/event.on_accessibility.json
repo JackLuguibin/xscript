@@ -1,0 +1,50 @@
+{
+  "type": "event.on_accessibility",
+  "category": "event",
+  "title": {
+    "zh": "event.on_accessibility",
+    "en": "event.on_accessibility"
+  },
+  "doc": {
+    "zh": "@on_accessibility(): raw events (e.event_type, e.event_name, e.package, e.class, e.text).",
+    "en": "@on_accessibility(): raw events (e.event_type, e.event_name, e.package, e.class, e.text)."
+  },
+  "exec": {
+    "in": [
+      "exec"
+    ],
+    "out": [
+      "then"
+    ]
+  },
+  "inputs": [
+    {
+      "name": "mask",
+      "type": "any",
+      "default": 0
+    },
+    {
+      "name": "package",
+      "type": "any",
+      "default": null
+    }
+  ],
+  "outputs": [
+    {
+      "name": "result",
+      "type": "any"
+    }
+  ],
+  "py": {
+    "imports": [
+      "from xscript.android import event"
+    ],
+    "stmt": "{id} = event.on_accessibility({mask}, package={package})"
+  },
+  "dsl": {
+    "alias": "event.on_accessibility"
+  },
+  "since": "0.2.6",
+  "origin": "xscript.android.event.on_accessibility",
+  "availability": "ok"
+}

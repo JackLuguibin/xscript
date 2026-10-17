@@ -1,0 +1,12 @@
+{
+  "type": "ui.select",
+  "title": {
+    "zh": "选择",
+    "en": "Select"
+  },
+  "doc": {
+    "zh": "弹出选择。",
+    "en": "Show a selection."
+  },
+  "icon": "grid"
+}

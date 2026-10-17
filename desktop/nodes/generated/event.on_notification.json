@@ -1,0 +1,45 @@
+{
+  "type": "event.on_notification",
+  "category": "event",
+  "title": {
+    "zh": "event.on_notification",
+    "en": "event.on_notification"
+  },
+  "doc": {
+    "zh": "@on_notification(\"com.tencent.mm\"): e.package, e.title, e.text, e.time, e.send().",
+    "en": "@on_notification(\"com.tencent.mm\"): e.package, e.title, e.text, e.time, e.send()."
+  },
+  "exec": {
+    "in": [
+      "exec"
+    ],
+    "out": [
+      "then"
+    ]
+  },
+  "inputs": [
+    {
+      "name": "package",
+      "type": "any",
+      "default": null
+    }
+  ],
+  "outputs": [
+    {
+      "name": "result",
+      "type": "any"
+    }
+  ],
+  "py": {
+    "imports": [
+      "from xscript.android import event"
+    ],
+    "stmt": "{id} = event.on_notification({package})"
+  },
+  "dsl": {
+    "alias": "event.on_notification"
+  },
+  "since": "0.2.6",
+  "origin": "xscript.android.event.on_notification",
+  "availability": "ok"
+}

@@ -1,0 +1,46 @@
+{
+  "type": "ui.Window.wait",
+  "category": "ui",
+  "title": {
+    "zh": "ui.Window.wait",
+    "en": "ui.Window.wait"
+  },
+  "doc": {
+    "zh": "wait",
+    "en": "wait"
+  },
+  "exec": {
+    "in": [
+      "exec"
+    ],
+    "out": [
+      "then"
+    ]
+  },
+  "inputs": [
+    {
+      "name": "timeout",
+      "type": "any",
+      "default": null
+    }
+  ],
+  "outputs": [
+    {
+      "name": "result",
+      "type": "any"
+    }
+  ],
+  "py": {
+    "imports": [
+      "from xscript.android import ui"
+    ],
+    "stmt": "{id} = ui.Window.wait({timeout})"
+  },
+  "dsl": {
+    "alias": "ui.Window.wait"
+  },
+  "since": "0.2.6",
+  "origin": "xscript.android.ui.Window.wait",
+  "availability": "ok",
+  "latent": true
+}

@@ -1,0 +1,39 @@
+{
+  "type": "image.OcrRegion.width",
+  "category": "image",
+  "title": {
+    "zh": "image.OcrRegion.width",
+    "en": "image.OcrRegion.width"
+  },
+  "doc": {
+    "zh": "width",
+    "en": "width"
+  },
+  "exec": {
+    "in": [
+      "exec"
+    ],
+    "out": [
+      "then"
+    ]
+  },
+  "inputs": [],
+  "outputs": [
+    {
+      "name": "result",
+      "type": "any"
+    }
+  ],
+  "py": {
+    "imports": [
+      "from xscript.android import image"
+    ],
+    "stmt": "{id} = image.OcrRegion.width()"
+  },
+  "dsl": {
+    "alias": "image.OcrRegion.width"
+  },
+  "since": "0.2.6",
+  "origin": "xscript.android.image.OcrRegion.width",
+  "availability": "ok"
+}

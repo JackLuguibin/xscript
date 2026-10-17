@@ -1,0 +1,49 @@
+{
+  "type": "cloud.connect",
+  "category": "cloud",
+  "title": {
+    "zh": "cloud.connect",
+    "en": "cloud.connect"
+  },
+  "doc": {
+    "zh": "Connect the app to a 云控 server (ws:// or wss://). The URL is saved for reconnects.",
+    "en": "Connect the app to a 云控 server (ws:// or wss://). The URL is saved for reconnects."
+  },
+  "exec": {
+    "in": [
+      "exec"
+    ],
+    "out": [
+      "then"
+    ]
+  },
+  "inputs": [
+    {
+      "name": "url",
+      "type": "any"
+    },
+    {
+      "name": "group",
+      "type": "any",
+      "default": null
+    }
+  ],
+  "outputs": [
+    {
+      "name": "result",
+      "type": "any"
+    }
+  ],
+  "py": {
+    "imports": [
+      "from xscript.android import cloud"
+    ],
+    "stmt": "{id} = cloud.connect({url}, group={group})"
+  },
+  "dsl": {
+    "alias": "cloud.connect"
+  },
+  "since": "0.2.6",
+  "origin": "xscript.android.cloud.connect",
+  "availability": "ok"
+}

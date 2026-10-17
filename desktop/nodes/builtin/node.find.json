@@ -1,0 +1,25 @@
+{
+  "type": "node.find",
+  "category": "find",
+  "title": {"zh": "查找控件", "en": "Find node"},
+  "doc": {"zh": "按文本查找界面控件，找不到则 node 为空。", "en": "Find a UI node by text. node is empty when nothing matches."},
+  "icon": "search",
+  "latent": true,
+  "exec": {"in": ["exec"], "out": ["then"]},
+  "inputs": [
+    {"name": "text", "type": "string", "default": "", "ui": "text"},
+    {"name": "timeout", "type": "float", "default": 5, "ui": "number", "min": 0}
+  ],
+  "outputs": [
+    {"name": "node", "type": "node?"},
+    {"name": "found", "type": "bool", "derive": "{node} is not None"}
+  ],
+  "py": {
+    "imports": ["from xscript.android import node"],
+    "stmt": "{node} = node.Selector().text({text}).find(timeout={timeout})"
+  },
+  "dsl": {"alias": "node.find"},
+  "since": "0.2.6",
+  "origin": "xscript.android.node.Selector.find",
+  "availability": "ok"
+}

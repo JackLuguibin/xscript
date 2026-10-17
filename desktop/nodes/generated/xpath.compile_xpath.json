@@ -1,0 +1,44 @@
+{
+  "type": "xpath.compile_xpath",
+  "category": "xpath",
+  "title": {
+    "zh": "xpath.compile_xpath",
+    "en": "xpath.compile_xpath"
+  },
+  "doc": {
+    "zh": "Parse `text` into an AST (cached). Raises XPathError on syntax errors.",
+    "en": "Parse `text` into an AST (cached). Raises XPathError on syntax errors."
+  },
+  "exec": {
+    "in": [
+      "exec"
+    ],
+    "out": [
+      "then"
+    ]
+  },
+  "inputs": [
+    {
+      "name": "text",
+      "type": "any"
+    }
+  ],
+  "outputs": [
+    {
+      "name": "result",
+      "type": "any"
+    }
+  ],
+  "py": {
+    "imports": [
+      "from xscript.android import xpath"
+    ],
+    "stmt": "{id} = xpath.compile_xpath({text})"
+  },
+  "dsl": {
+    "alias": "xpath.compile_xpath"
+  },
+  "since": "0.2.6",
+  "origin": "xscript.android.xpath.compile_xpath",
+  "availability": "ok"
+}

@@ -1,0 +1,39 @@
+{
+  "type": "pip.Target.environment",
+  "category": "pip",
+  "title": {
+    "zh": "pip.Target.environment",
+    "en": "pip.Target.environment"
+  },
+  "doc": {
+    "zh": "environment",
+    "en": "environment"
+  },
+  "exec": {
+    "in": [
+      "exec"
+    ],
+    "out": [
+      "then"
+    ]
+  },
+  "inputs": [],
+  "outputs": [
+    {
+      "name": "result",
+      "type": "any"
+    }
+  ],
+  "py": {
+    "imports": [
+      "from xscript.android import pip"
+    ],
+    "stmt": "{id} = pip.Target.environment()"
+  },
+  "dsl": {
+    "alias": "pip.Target.environment"
+  },
+  "since": "0.2.6",
+  "origin": "xscript.android.pip.Target.environment",
+  "availability": "ok"
+}

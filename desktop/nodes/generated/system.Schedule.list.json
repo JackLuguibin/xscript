@@ -1,0 +1,45 @@
+{
+  "type": "system.Schedule.list",
+  "category": "system",
+  "title": {
+    "zh": "system.Schedule.list",
+    "en": "system.Schedule.list"
+  },
+  "doc": {
+    "zh": "Schedules for `project` (default: the running project); pass project=\"*\" for all.",
+    "en": "Schedules for `project` (default: the running project); pass project=\"*\" for all."
+  },
+  "exec": {
+    "in": [
+      "exec"
+    ],
+    "out": [
+      "then"
+    ]
+  },
+  "inputs": [
+    {
+      "name": "project",
+      "type": "any",
+      "default": null
+    }
+  ],
+  "outputs": [
+    {
+      "name": "result",
+      "type": "any"
+    }
+  ],
+  "py": {
+    "imports": [
+      "from xscript.android import system"
+    ],
+    "stmt": "{id} = system.Schedule.list({project})"
+  },
+  "dsl": {
+    "alias": "system.Schedule.list"
+  },
+  "since": "0.2.6",
+  "origin": "xscript.android.system.Schedule.list",
+  "availability": "ok"
+}

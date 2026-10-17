@@ -1,0 +1,39 @@
+{
+  "type": "models.directory",
+  "category": "models",
+  "title": {
+    "zh": "models.directory",
+    "en": "models.directory"
+  },
+  "doc": {
+    "zh": "Model directory: the app's external files dir on the device, ~/.xscript/models on a PC.",
+    "en": "Model directory: the app's external files dir on the device, ~/.xscript/models on a PC."
+  },
+  "exec": {
+    "in": [
+      "exec"
+    ],
+    "out": [
+      "then"
+    ]
+  },
+  "inputs": [],
+  "outputs": [
+    {
+      "name": "result",
+      "type": "any"
+    }
+  ],
+  "py": {
+    "imports": [
+      "from xscript.android import models"
+    ],
+    "stmt": "{id} = models.directory()"
+  },
+  "dsl": {
+    "alias": "models.directory"
+  },
+  "since": "0.2.6",
+  "origin": "xscript.android.models.directory",
+  "availability": "ok"
+}

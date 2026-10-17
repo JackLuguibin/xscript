@@ -1,0 +1,39 @@
+{
+  "type": "node.Node.bottom",
+  "category": "node",
+  "title": {
+    "zh": "node.Node.bottom",
+    "en": "node.Node.bottom"
+  },
+  "doc": {
+    "zh": "bottom",
+    "en": "bottom"
+  },
+  "exec": {
+    "in": [
+      "exec"
+    ],
+    "out": [
+      "then"
+    ]
+  },
+  "inputs": [],
+  "outputs": [
+    {
+      "name": "result",
+      "type": "any"
+    }
+  ],
+  "py": {
+    "imports": [
+      "from xscript.android import node"
+    ],
+    "stmt": "{id} = node.Node.bottom()"
+  },
+  "dsl": {
+    "alias": "node.Node.bottom"
+  },
+  "since": "0.2.6",
+  "origin": "xscript.android.node.Node.bottom",
+  "availability": "ok"
+}

@@ -1,0 +1,48 @@
+{
+  "type": "image.sort_by_ori",
+  "category": "image",
+  "title": {
+    "zh": "image.sort_by_ori",
+    "en": "image.sort_by_ori"
+  },
+  "doc": {
+    "zh": "AScript scan-direction ordering (1..8) of template/OCR dicts by center.",
+    "en": "AScript scan-direction ordering (1..8) of template/OCR dicts by center."
+  },
+  "exec": {
+    "in": [
+      "exec"
+    ],
+    "out": [
+      "then"
+    ]
+  },
+  "inputs": [
+    {
+      "name": "items",
+      "type": "any"
+    },
+    {
+      "name": "ori",
+      "type": "any"
+    }
+  ],
+  "outputs": [
+    {
+      "name": "result",
+      "type": "any"
+    }
+  ],
+  "py": {
+    "imports": [
+      "from xscript.android import image"
+    ],
+    "stmt": "{id} = image.sort_by_ori({items}, ori={ori})"
+  },
+  "dsl": {
+    "alias": "image.sort_by_ori"
+  },
+  "since": "0.2.6",
+  "origin": "xscript.android.image.sort_by_ori",
+  "availability": "ok"
+}

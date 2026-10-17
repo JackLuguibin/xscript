@@ -66,6 +66,8 @@ else
 fi
 echo "== ide: stubs up to date =="
 "$PY" "$ROOT/scripts/gen_stubs.py" --check
+echo "== desktop: generated node specs up to date =="
+"$PY" "$ROOT/scripts/gen_nodespecs.py" --check
 echo "== android: Web IDE completion index up to date =="
 "$PY" "$ROOT/scripts/gen_completions.py" --check
 echo "== android: Web IDE state + HTTP contract + browser UI (headless Chrome if found) =="

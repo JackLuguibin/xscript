@@ -1,0 +1,39 @@
+{
+  "type": "node.Selector.descendant",
+  "category": "node",
+  "title": {
+    "zh": "node.Selector.descendant",
+    "en": "node.Selector.descendant"
+  },
+  "doc": {
+    "zh": "descendant",
+    "en": "descendant"
+  },
+  "exec": {
+    "in": [
+      "exec"
+    ],
+    "out": [
+      "then"
+    ]
+  },
+  "inputs": [],
+  "outputs": [
+    {
+      "name": "result",
+      "type": "any"
+    }
+  ],
+  "py": {
+    "imports": [
+      "from xscript.android import node"
+    ],
+    "stmt": "{id} = node.Selector.descendant()"
+  },
+  "dsl": {
+    "alias": "node.Selector.descendant"
+  },
+  "since": "0.2.6",
+  "origin": "xscript.android.node.Selector.descendant",
+  "availability": "ok"
+}

@@ -1,0 +1,45 @@
+{
+  "type": "screen.capture_pil",
+  "category": "screen",
+  "title": {
+    "zh": "screen.capture_pil",
+    "en": "screen.capture_pil"
+  },
+  "doc": {
+    "zh": "capture_pil",
+    "en": "capture_pil"
+  },
+  "exec": {
+    "in": [
+      "exec"
+    ],
+    "out": [
+      "then"
+    ]
+  },
+  "inputs": [
+    {
+      "name": "rect",
+      "type": "any",
+      "default": null
+    }
+  ],
+  "outputs": [
+    {
+      "name": "result",
+      "type": "any"
+    }
+  ],
+  "py": {
+    "imports": [
+      "from xscript.android import screen"
+    ],
+    "stmt": "{id} = screen.capture_pil({rect})"
+  },
+  "dsl": {
+    "alias": "screen.capture_pil"
+  },
+  "since": "0.2.6",
+  "origin": "xscript.android.screen.capture_pil",
+  "availability": "ok"
+}

@@ -1,0 +1,39 @@
+{
+  "type": "image.OcrResult.keys",
+  "category": "image",
+  "title": {
+    "zh": "image.OcrResult.keys",
+    "en": "image.OcrResult.keys"
+  },
+  "doc": {
+    "zh": "keys",
+    "en": "keys"
+  },
+  "exec": {
+    "in": [
+      "exec"
+    ],
+    "out": [
+      "then"
+    ]
+  },
+  "inputs": [],
+  "outputs": [
+    {
+      "name": "result",
+      "type": "any"
+    }
+  ],
+  "py": {
+    "imports": [
+      "from xscript.android import image"
+    ],
+    "stmt": "{id} = image.OcrResult.keys()"
+  },
+  "dsl": {
+    "alias": "image.OcrResult.keys"
+  },
+  "since": "0.2.6",
+  "origin": "xscript.android.image.OcrResult.keys",
+  "availability": "ok"
+}

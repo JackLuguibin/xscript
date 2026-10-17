@@ -1,0 +1,12 @@
+{
+  "type": "flow.def",
+  "category": "flow",
+  "title": {"zh": "子流程", "en": "Subflow"},
+  "doc": {"zh": "定义一个可调用的子流程。编译成 Python 函数。入参在体内可直接当名字用。对应 UE 的函数和 Dify 的可复用工作流。", "en": "Defines a callable subflow. Compiles to a Python function. Parameters are names inside the body. Same role as a UE function or a reusable Dify workflow."},
+  "exec": {"in": [], "out": ["body"]},
+  "inputs": [],
+  "outputs": [],
+  "dsl": {"alias": "def"},
+  "since": "0.2.6",
+  "availability": "ok"
+}

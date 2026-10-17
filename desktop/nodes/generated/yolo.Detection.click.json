@@ -1,0 +1,39 @@
+{
+  "type": "yolo.Detection.click",
+  "category": "yolo",
+  "title": {
+    "zh": "yolo.Detection.click",
+    "en": "yolo.Detection.click"
+  },
+  "doc": {
+    "zh": "click",
+    "en": "click"
+  },
+  "exec": {
+    "in": [
+      "exec"
+    ],
+    "out": [
+      "then"
+    ]
+  },
+  "inputs": [],
+  "outputs": [
+    {
+      "name": "result",
+      "type": "any"
+    }
+  ],
+  "py": {
+    "imports": [
+      "from xscript.android import yolo"
+    ],
+    "stmt": "{id} = yolo.Detection.click()"
+  },
+  "dsl": {
+    "alias": "yolo.Detection.click"
+  },
+  "since": "0.2.6",
+  "origin": "xscript.android.yolo.Detection.click",
+  "availability": "ok"
+}

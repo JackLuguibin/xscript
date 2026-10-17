@@ -1,0 +1,16 @@
+{
+  "type": "flow.merge",
+  "category": "flow",
+  "title": {"zh": "合并", "en": "Merge"},
+  "doc": {"zh": "几条互斥分支汇合后，取第一个已经赋过值、且不是 None 的输入。0 和 False 算有值。", "en": "After mutually exclusive branches join, take the first input that was assigned and is not None. 0 and False count."},
+  "exec": {"in": ["exec"], "out": ["then"]},
+  "inputs": [
+    {"name": "a", "type": "any"},
+    {"name": "b", "type": "any"},
+    {"name": "c", "type": "any"}
+  ],
+  "outputs": [{"name": "value", "type": "any"}],
+  "dsl": {"alias": "merge"},
+  "since": "0.2.6",
+  "availability": "ok"
+}

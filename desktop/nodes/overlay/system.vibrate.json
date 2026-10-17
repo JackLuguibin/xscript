@@ -1,0 +1,20 @@
+{
+  "type": "system.vibrate",
+  "title": {
+    "zh": "振动",
+    "en": "Vibrate"
+  },
+  "doc": {
+    "zh": "振动一段时间。",
+    "en": "Vibrate."
+  },
+  "icon": "move",
+  "inputs": [
+    {
+      "name": "ms",
+      "type": "int",
+      "ui": "number",
+      "min": 0
+    }
+  ]
+}

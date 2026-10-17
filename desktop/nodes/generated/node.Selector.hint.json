@@ -1,0 +1,44 @@
+{
+  "type": "node.Selector.hint",
+  "category": "node",
+  "title": {
+    "zh": "node.Selector.hint",
+    "en": "node.Selector.hint"
+  },
+  "doc": {
+    "zh": "hint",
+    "en": "hint"
+  },
+  "exec": {
+    "in": [
+      "exec"
+    ],
+    "out": [
+      "then"
+    ]
+  },
+  "inputs": [
+    {
+      "name": "value",
+      "type": "any"
+    }
+  ],
+  "outputs": [
+    {
+      "name": "result",
+      "type": "any"
+    }
+  ],
+  "py": {
+    "imports": [
+      "from xscript.android import node"
+    ],
+    "stmt": "{id} = node.Selector.hint({value})"
+  },
+  "dsl": {
+    "alias": "node.Selector.hint"
+  },
+  "since": "0.2.6",
+  "origin": "xscript.android.node.Selector.hint",
+  "availability": "ok"
+}

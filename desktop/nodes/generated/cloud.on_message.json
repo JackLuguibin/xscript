@@ -1,0 +1,45 @@
+{
+  "type": "cloud.on_message",
+  "category": "cloud",
+  "title": {
+    "zh": "cloud.on_message",
+    "en": "cloud.on_message"
+  },
+  "doc": {
+    "zh": "Register `fn(data)` for server messages. Works as a decorator. Returns a token for off().",
+    "en": "Register `fn(data)` for server messages. Works as a decorator. Returns a token for off()."
+  },
+  "exec": {
+    "in": [
+      "exec"
+    ],
+    "out": [
+      "then"
+    ]
+  },
+  "inputs": [
+    {
+      "name": "fn",
+      "type": "any",
+      "default": null
+    }
+  ],
+  "outputs": [
+    {
+      "name": "result",
+      "type": "any"
+    }
+  ],
+  "py": {
+    "imports": [
+      "from xscript.android import cloud"
+    ],
+    "stmt": "{id} = cloud.on_message({fn})"
+  },
+  "dsl": {
+    "alias": "cloud.on_message"
+  },
+  "since": "0.2.6",
+  "origin": "xscript.android.cloud.on_message",
+  "availability": "ok"
+}

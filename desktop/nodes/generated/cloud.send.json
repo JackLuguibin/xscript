@@ -1,0 +1,44 @@
+{
+  "type": "cloud.send",
+  "category": "cloud",
+  "title": {
+    "zh": "cloud.send",
+    "en": "cloud.send"
+  },
+  "doc": {
+    "zh": "Send a dict / list / str to the server (`{\"type\": \"data\"}` frame). False when offline.",
+    "en": "Send a dict / list / str to the server (`{\"type\": \"data\"}` frame). False when offline."
+  },
+  "exec": {
+    "in": [
+      "exec"
+    ],
+    "out": [
+      "then"
+    ]
+  },
+  "inputs": [
+    {
+      "name": "data",
+      "type": "any"
+    }
+  ],
+  "outputs": [
+    {
+      "name": "result",
+      "type": "any"
+    }
+  ],
+  "py": {
+    "imports": [
+      "from xscript.android import cloud"
+    ],
+    "stmt": "{id} = cloud.send({data})"
+  },
+  "dsl": {
+    "alias": "cloud.send"
+  },
+  "since": "0.2.6",
+  "origin": "xscript.android.cloud.send",
+  "availability": "ok"
+}

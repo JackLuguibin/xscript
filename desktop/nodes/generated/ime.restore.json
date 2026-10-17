@@ -1,0 +1,39 @@
+{
+  "type": "ime.restore",
+  "category": "ime",
+  "title": {
+    "zh": "ime.restore",
+    "en": "ime.restore"
+  },
+  "doc": {
+    "zh": "Switch back to the IME that was current before switch(). True when switched back.",
+    "en": "Switch back to the IME that was current before switch(). True when switched back."
+  },
+  "exec": {
+    "in": [
+      "exec"
+    ],
+    "out": [
+      "then"
+    ]
+  },
+  "inputs": [],
+  "outputs": [
+    {
+      "name": "result",
+      "type": "any"
+    }
+  ],
+  "py": {
+    "imports": [
+      "from xscript.android import ime"
+    ],
+    "stmt": "{id} = ime.restore()"
+  },
+  "dsl": {
+    "alias": "ime.restore"
+  },
+  "since": "0.2.6",
+  "origin": "xscript.android.ime.restore",
+  "availability": "ok"
+}

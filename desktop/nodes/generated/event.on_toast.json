@@ -1,0 +1,45 @@
+{
+  "type": "event.on_toast",
+  "category": "event",
+  "title": {
+    "zh": "event.on_toast",
+    "en": "event.on_toast"
+  },
+  "doc": {
+    "zh": "@on_toast(): e.package, e.text.",
+    "en": "@on_toast(): e.package, e.text."
+  },
+  "exec": {
+    "in": [
+      "exec"
+    ],
+    "out": [
+      "then"
+    ]
+  },
+  "inputs": [
+    {
+      "name": "package",
+      "type": "any",
+      "default": null
+    }
+  ],
+  "outputs": [
+    {
+      "name": "result",
+      "type": "any"
+    }
+  ],
+  "py": {
+    "imports": [
+      "from xscript.android import event"
+    ],
+    "stmt": "{id} = event.on_toast({package})"
+  },
+  "dsl": {
+    "alias": "event.on_toast"
+  },
+  "since": "0.2.6",
+  "origin": "xscript.android.event.on_toast",
+  "availability": "ok"
+}

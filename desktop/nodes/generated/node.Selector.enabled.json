@@ -1,0 +1,45 @@
+{
+  "type": "node.Selector.enabled",
+  "category": "node",
+  "title": {
+    "zh": "node.Selector.enabled",
+    "en": "node.Selector.enabled"
+  },
+  "doc": {
+    "zh": "enabled",
+    "en": "enabled"
+  },
+  "exec": {
+    "in": [
+      "exec"
+    ],
+    "out": [
+      "then"
+    ]
+  },
+  "inputs": [
+    {
+      "name": "value",
+      "type": "any",
+      "default": true
+    }
+  ],
+  "outputs": [
+    {
+      "name": "result",
+      "type": "any"
+    }
+  ],
+  "py": {
+    "imports": [
+      "from xscript.android import node"
+    ],
+    "stmt": "{id} = node.Selector.enabled({value})"
+  },
+  "dsl": {
+    "alias": "node.Selector.enabled"
+  },
+  "since": "0.2.6",
+  "origin": "xscript.android.node.Selector.enabled",
+  "availability": "ok"
+}

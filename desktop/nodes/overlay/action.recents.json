@@ -1,0 +1,12 @@
+{
+  "type": "action.recents",
+  "title": {
+    "zh": "多任务",
+    "en": "Recents"
+  },
+  "doc": {
+    "zh": "打开多任务。",
+    "en": "Open recents."
+  },
+  "icon": "grid"
+}

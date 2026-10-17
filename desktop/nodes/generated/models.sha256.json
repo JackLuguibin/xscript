@@ -1,0 +1,44 @@
+{
+  "type": "models.sha256",
+  "category": "models",
+  "title": {
+    "zh": "models.sha256",
+    "en": "models.sha256"
+  },
+  "doc": {
+    "zh": "sha256",
+    "en": "sha256"
+  },
+  "exec": {
+    "in": [
+      "exec"
+    ],
+    "out": [
+      "then"
+    ]
+  },
+  "inputs": [
+    {
+      "name": "file_path",
+      "type": "any"
+    }
+  ],
+  "outputs": [
+    {
+      "name": "result",
+      "type": "any"
+    }
+  ],
+  "py": {
+    "imports": [
+      "from xscript.android import models"
+    ],
+    "stmt": "{id} = models.sha256({file_path})"
+  },
+  "dsl": {
+    "alias": "models.sha256"
+  },
+  "since": "0.2.6",
+  "origin": "xscript.android.models.sha256",
+  "availability": "ok"
+}

@@ -1,0 +1,16 @@
+{
+  "type": "math.add",
+  "category": "math",
+  "title": {"zh": "相加", "en": "Add"},
+  "doc": {"zh": "纯数据节点，没有执行引脚。被一处使用时内联，写成 let 或被多处使用时先赋给局部变量。", "en": "Pure data node with no exec pin. Inlined at a single use. A let, or several uses, becomes one local."},
+  "exec": {"in": [], "out": []},
+  "inputs": [
+    {"name": "a", "type": "any"},
+    {"name": "b", "type": "any"}
+  ],
+  "outputs": [{"name": "result", "type": "any"}],
+  "py": {"stmt": "({a} + {b})"},
+  "dsl": {"alias": "add"},
+  "since": "0.2.6",
+  "availability": "ok"
+}

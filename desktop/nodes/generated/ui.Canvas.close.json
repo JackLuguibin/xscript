@@ -1,0 +1,39 @@
+{
+  "type": "ui.Canvas.close",
+  "category": "ui",
+  "title": {
+    "zh": "ui.Canvas.close",
+    "en": "ui.Canvas.close"
+  },
+  "doc": {
+    "zh": "close",
+    "en": "close"
+  },
+  "exec": {
+    "in": [
+      "exec"
+    ],
+    "out": [
+      "then"
+    ]
+  },
+  "inputs": [],
+  "outputs": [
+    {
+      "name": "result",
+      "type": "any"
+    }
+  ],
+  "py": {
+    "imports": [
+      "from xscript.android import ui"
+    ],
+    "stmt": "{id} = ui.Canvas.close()"
+  },
+  "dsl": {
+    "alias": "ui.Canvas.close"
+  },
+  "since": "0.2.6",
+  "origin": "xscript.android.ui.Canvas.close",
+  "availability": "ok"
+}

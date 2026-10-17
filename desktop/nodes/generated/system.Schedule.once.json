@@ -1,0 +1,59 @@
+{
+  "type": "system.Schedule.once",
+  "category": "system",
+  "title": {
+    "zh": "system.Schedule.once",
+    "en": "system.Schedule.once"
+  },
+  "doc": {
+    "zh": "Run once at `at`: epoch seconds, a datetime, or \"yyyy-MM-dd HH:mm\".",
+    "en": "Run once at `at`: epoch seconds, a datetime, or \"yyyy-MM-dd HH:mm\"."
+  },
+  "exec": {
+    "in": [
+      "exec"
+    ],
+    "out": [
+      "then"
+    ]
+  },
+  "inputs": [
+    {
+      "name": "at",
+      "type": "any"
+    },
+    {
+      "name": "project",
+      "type": "any",
+      "default": null
+    },
+    {
+      "name": "if_running",
+      "type": "any",
+      "default": "skip"
+    },
+    {
+      "name": "wake",
+      "type": "any",
+      "default": true
+    }
+  ],
+  "outputs": [
+    {
+      "name": "result",
+      "type": "any"
+    }
+  ],
+  "py": {
+    "imports": [
+      "from xscript.android import system"
+    ],
+    "stmt": "{id} = system.Schedule.once({at}, project={project}, if_running={if_running}, wake={wake})"
+  },
+  "dsl": {
+    "alias": "system.Schedule.once"
+  },
+  "since": "0.2.6",
+  "origin": "xscript.android.system.Schedule.once",
+  "availability": "ok"
+}

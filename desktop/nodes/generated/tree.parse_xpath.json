@@ -1,0 +1,44 @@
+{
+  "type": "tree.parse_xpath",
+  "category": "tree",
+  "title": {
+    "zh": "tree.parse_xpath",
+    "en": "tree.parse_xpath"
+  },
+  "doc": {
+    "zh": "Legacy step parser: //Type[@attr='v']/Child... -> list of (axis, type, attrs).",
+    "en": "Legacy step parser: //Type[@attr='v']/Child... -> list of (axis, type, attrs)."
+  },
+  "exec": {
+    "in": [
+      "exec"
+    ],
+    "out": [
+      "then"
+    ]
+  },
+  "inputs": [
+    {
+      "name": "xpath",
+      "type": "any"
+    }
+  ],
+  "outputs": [
+    {
+      "name": "result",
+      "type": "any"
+    }
+  ],
+  "py": {
+    "imports": [
+      "from xscript.android import tree"
+    ],
+    "stmt": "{id} = tree.parse_xpath({xpath})"
+  },
+  "dsl": {
+    "alias": "tree.parse_xpath"
+  },
+  "since": "0.2.6",
+  "origin": "xscript.android.tree.parse_xpath",
+  "availability": "ok"
+}

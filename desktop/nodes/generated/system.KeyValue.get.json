@@ -1,0 +1,49 @@
+{
+  "type": "system.KeyValue.get",
+  "category": "system",
+  "title": {
+    "zh": "system.KeyValue.get",
+    "en": "system.KeyValue.get"
+  },
+  "doc": {
+    "zh": "get",
+    "en": "get"
+  },
+  "exec": {
+    "in": [
+      "exec"
+    ],
+    "out": [
+      "then"
+    ]
+  },
+  "inputs": [
+    {
+      "name": "key",
+      "type": "any"
+    },
+    {
+      "name": "default",
+      "type": "any",
+      "default": null
+    }
+  ],
+  "outputs": [
+    {
+      "name": "result",
+      "type": "any"
+    }
+  ],
+  "py": {
+    "imports": [
+      "from xscript.android import system"
+    ],
+    "stmt": "{id} = system.KeyValue.get({key}, default={default})"
+  },
+  "dsl": {
+    "alias": "system.KeyValue.get"
+  },
+  "since": "0.2.6",
+  "origin": "xscript.android.system.KeyValue.get",
+  "availability": "ok"
+}

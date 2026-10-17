@@ -1,0 +1,39 @@
+{
+  "type": "system.device",
+  "category": "system",
+  "title": {
+    "zh": "system.device",
+    "en": "system.device"
+  },
+  "doc": {
+    "zh": "device",
+    "en": "device"
+  },
+  "exec": {
+    "in": [
+      "exec"
+    ],
+    "out": [
+      "then"
+    ]
+  },
+  "inputs": [],
+  "outputs": [
+    {
+      "name": "result",
+      "type": "any"
+    }
+  ],
+  "py": {
+    "imports": [
+      "from xscript.android import system"
+    ],
+    "stmt": "{id} = system.device()"
+  },
+  "dsl": {
+    "alias": "system.device"
+  },
+  "since": "0.2.6",
+  "origin": "xscript.android.system.device",
+  "availability": "ok"
+}

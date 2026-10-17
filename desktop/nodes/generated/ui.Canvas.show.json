@@ -1,0 +1,39 @@
+{
+  "type": "ui.Canvas.show",
+  "category": "ui",
+  "title": {
+    "zh": "ui.Canvas.show",
+    "en": "ui.Canvas.show"
+  },
+  "doc": {
+    "zh": "show",
+    "en": "show"
+  },
+  "exec": {
+    "in": [
+      "exec"
+    ],
+    "out": [
+      "then"
+    ]
+  },
+  "inputs": [],
+  "outputs": [
+    {
+      "name": "result",
+      "type": "any"
+    }
+  ],
+  "py": {
+    "imports": [
+      "from xscript.android import ui"
+    ],
+    "stmt": "{id} = ui.Canvas.show()"
+  },
+  "dsl": {
+    "alias": "ui.Canvas.show"
+  },
+  "since": "0.2.6",
+  "origin": "xscript.android.ui.Canvas.show",
+  "availability": "ok"
+}

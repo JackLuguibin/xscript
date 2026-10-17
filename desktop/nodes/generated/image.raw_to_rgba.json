@@ -1,0 +1,44 @@
+{
+  "type": "image.raw_to_rgba",
+  "category": "image",
+  "title": {
+    "zh": "image.raw_to_rgba",
+    "en": "image.raw_to_rgba"
+  },
+  "doc": {
+    "zh": "Device raw frame -> HxWx4 uint8 RGBA ndarray (or None).",
+    "en": "Device raw frame -> HxWx4 uint8 RGBA ndarray (or None)."
+  },
+  "exec": {
+    "in": [
+      "exec"
+    ],
+    "out": [
+      "then"
+    ]
+  },
+  "inputs": [
+    {
+      "name": "raw",
+      "type": "any"
+    }
+  ],
+  "outputs": [
+    {
+      "name": "result",
+      "type": "any"
+    }
+  ],
+  "py": {
+    "imports": [
+      "from xscript.android import image"
+    ],
+    "stmt": "{id} = image.raw_to_rgba({raw})"
+  },
+  "dsl": {
+    "alias": "image.raw_to_rgba"
+  },
+  "since": "0.2.6",
+  "origin": "xscript.android.image.raw_to_rgba",
+  "availability": "ok"
+}

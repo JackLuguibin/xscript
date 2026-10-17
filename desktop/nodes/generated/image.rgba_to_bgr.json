@@ -1,0 +1,44 @@
+{
+  "type": "image.rgba_to_bgr",
+  "category": "image",
+  "title": {
+    "zh": "image.rgba_to_bgr",
+    "en": "image.rgba_to_bgr"
+  },
+  "doc": {
+    "zh": "rgba_to_bgr",
+    "en": "rgba_to_bgr"
+  },
+  "exec": {
+    "in": [
+      "exec"
+    ],
+    "out": [
+      "then"
+    ]
+  },
+  "inputs": [
+    {
+      "name": "rgba",
+      "type": "any"
+    }
+  ],
+  "outputs": [
+    {
+      "name": "result",
+      "type": "any"
+    }
+  ],
+  "py": {
+    "imports": [
+      "from xscript.android import image"
+    ],
+    "stmt": "{id} = image.rgba_to_bgr({rgba})"
+  },
+  "dsl": {
+    "alias": "image.rgba_to_bgr"
+  },
+  "since": "0.2.6",
+  "origin": "xscript.android.image.rgba_to_bgr",
+  "availability": "ok"
+}

@@ -1,0 +1,50 @@
+{
+  "type": "ime.delete",
+  "category": "ime",
+  "title": {
+    "zh": "ime.delete",
+    "en": "ime.delete"
+  },
+  "doc": {
+    "zh": "delete",
+    "en": "delete"
+  },
+  "exec": {
+    "in": [
+      "exec"
+    ],
+    "out": [
+      "then"
+    ]
+  },
+  "inputs": [
+    {
+      "name": "before",
+      "type": "any",
+      "default": 1
+    },
+    {
+      "name": "after",
+      "type": "any",
+      "default": 0
+    }
+  ],
+  "outputs": [
+    {
+      "name": "result",
+      "type": "any"
+    }
+  ],
+  "py": {
+    "imports": [
+      "from xscript.android import ime"
+    ],
+    "stmt": "{id} = ime.delete({before}, after={after})"
+  },
+  "dsl": {
+    "alias": "ime.delete"
+  },
+  "since": "0.2.6",
+  "origin": "xscript.android.ime.delete",
+  "availability": "ok"
+}

@@ -1,0 +1,91 @@
+{
+  "type": "ui.Canvas.region",
+  "category": "ui",
+  "title": {
+    "zh": "ui.Canvas.region",
+    "en": "ui.Canvas.region"
+  },
+  "doc": {
+    "zh": "region",
+    "en": "region"
+  },
+  "exec": {
+    "in": [
+      "exec"
+    ],
+    "out": [
+      "then"
+    ]
+  },
+  "inputs": [
+    {
+      "name": "x1",
+      "type": "any"
+    },
+    {
+      "name": "y1",
+      "type": "any"
+    },
+    {
+      "name": "x2",
+      "type": "any"
+    },
+    {
+      "name": "y2",
+      "type": "any"
+    },
+    {
+      "name": "color",
+      "type": "any",
+      "default": "#ff00ff"
+    },
+    {
+      "name": "fill",
+      "type": "any",
+      "default": "rgba(255,0,255,0.15)"
+    },
+    {
+      "name": "stroke_width",
+      "type": "any",
+      "default": 1
+    },
+    {
+      "name": "duration",
+      "type": "any",
+      "default": 3000
+    },
+    {
+      "name": "label",
+      "type": "any",
+      "default": null
+    },
+    {
+      "name": "font_size",
+      "type": "any",
+      "default": 12
+    },
+    {
+      "name": "id",
+      "type": "any",
+      "default": null
+    }
+  ],
+  "outputs": [
+    {
+      "name": "result",
+      "type": "any"
+    }
+  ],
+  "py": {
+    "imports": [
+      "from xscript.android import ui"
+    ],
+    "stmt": "{id} = ui.Canvas.region({x1}, y1={y1}, x2={x2}, y2={y2}, color={color}, fill={fill}, stroke_width={stroke_width}, duration={duration}, label={label}, font_size={font_size}, id={p_id})"
+  },
+  "dsl": {
+    "alias": "ui.Canvas.region"
+  },
+  "since": "0.2.6",
+  "origin": "xscript.android.ui.Canvas.region",
+  "availability": "ok"
+}

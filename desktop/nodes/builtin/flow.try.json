@@ -1,0 +1,12 @@
+{
+  "type": "flow.try",
+  "category": "flow",
+  "title": {"zh": "尝试", "en": "Try"},
+  "doc": {"zh": "body 出错时进入 handler，异常名写在 config.err。completed 是 try 结束后的下一步。", "en": "handler runs when body raises. config.err is the exception name. completed runs after the try."},
+  "exec": {"in": ["exec"], "out": ["body", "handler", "completed"]},
+  "inputs": [],
+  "outputs": [{"name": "err", "type": "string"}],
+  "dsl": {"alias": "try"},
+  "since": "0.2.6",
+  "availability": "ok"
+}

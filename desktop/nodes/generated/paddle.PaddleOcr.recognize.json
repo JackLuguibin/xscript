@@ -1,0 +1,44 @@
+{
+  "type": "paddle.PaddleOcr.recognize",
+  "category": "paddle",
+  "title": {
+    "zh": "paddle.PaddleOcr.recognize",
+    "en": "paddle.PaddleOcr.recognize"
+  },
+  "doc": {
+    "zh": "[(text, confidence)] for BGR line crops.",
+    "en": "[(text, confidence)] for BGR line crops."
+  },
+  "exec": {
+    "in": [
+      "exec"
+    ],
+    "out": [
+      "then"
+    ]
+  },
+  "inputs": [
+    {
+      "name": "crops",
+      "type": "any"
+    }
+  ],
+  "outputs": [
+    {
+      "name": "result",
+      "type": "any"
+    }
+  ],
+  "py": {
+    "imports": [
+      "from xscript.android import paddle"
+    ],
+    "stmt": "{id} = paddle.PaddleOcr.recognize({crops})"
+  },
+  "dsl": {
+    "alias": "paddle.PaddleOcr.recognize"
+  },
+  "since": "0.2.6",
+  "origin": "xscript.android.paddle.PaddleOcr.recognize",
+  "availability": "ok"
+}

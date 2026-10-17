@@ -1,0 +1,39 @@
+{
+  "type": "action.back",
+  "category": "action",
+  "title": {
+    "zh": "action.back",
+    "en": "action.back"
+  },
+  "doc": {
+    "zh": "back",
+    "en": "back"
+  },
+  "exec": {
+    "in": [
+      "exec"
+    ],
+    "out": [
+      "then"
+    ]
+  },
+  "inputs": [],
+  "outputs": [
+    {
+      "name": "result",
+      "type": "any"
+    }
+  ],
+  "py": {
+    "imports": [
+      "from xscript.android import action"
+    ],
+    "stmt": "{id} = action.back()"
+  },
+  "dsl": {
+    "alias": "action.back"
+  },
+  "since": "0.2.6",
+  "origin": "xscript.android.action.back",
+  "availability": "ok"
+}

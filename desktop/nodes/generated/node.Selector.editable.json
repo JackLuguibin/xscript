@@ -1,0 +1,45 @@
+{
+  "type": "node.Selector.editable",
+  "category": "node",
+  "title": {
+    "zh": "node.Selector.editable",
+    "en": "node.Selector.editable"
+  },
+  "doc": {
+    "zh": "editable",
+    "en": "editable"
+  },
+  "exec": {
+    "in": [
+      "exec"
+    ],
+    "out": [
+      "then"
+    ]
+  },
+  "inputs": [
+    {
+      "name": "value",
+      "type": "any",
+      "default": true
+    }
+  ],
+  "outputs": [
+    {
+      "name": "result",
+      "type": "any"
+    }
+  ],
+  "py": {
+    "imports": [
+      "from xscript.android import node"
+    ],
+    "stmt": "{id} = node.Selector.editable({value})"
+  },
+  "dsl": {
+    "alias": "node.Selector.editable"
+  },
+  "since": "0.2.6",
+  "origin": "xscript.android.node.Selector.editable",
+  "availability": "ok"
+}

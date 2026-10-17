@@ -1,0 +1,44 @@
+{
+  "type": "pip.run_b64",
+  "category": "pip",
+  "title": {
+    "zh": "pip.run_b64",
+    "en": "pip.run_b64"
+  },
+  "doc": {
+    "zh": "run_b64",
+    "en": "run_b64"
+  },
+  "exec": {
+    "in": [
+      "exec"
+    ],
+    "out": [
+      "then"
+    ]
+  },
+  "inputs": [
+    {
+      "name": "payload",
+      "type": "any"
+    }
+  ],
+  "outputs": [
+    {
+      "name": "result",
+      "type": "any"
+    }
+  ],
+  "py": {
+    "imports": [
+      "from xscript.android import pip"
+    ],
+    "stmt": "{id} = pip.run_b64({payload})"
+  },
+  "dsl": {
+    "alias": "pip.run_b64"
+  },
+  "since": "0.2.6",
+  "origin": "xscript.android.pip.run_b64",
+  "availability": "ok"
+}

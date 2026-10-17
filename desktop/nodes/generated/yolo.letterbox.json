@@ -1,0 +1,63 @@
+{
+  "type": "yolo.letterbox",
+  "category": "yolo",
+  "title": {
+    "zh": "yolo.letterbox",
+    "en": "yolo.letterbox"
+  },
+  "doc": {
+    "zh": "Resize keeping aspect ratio and pad to `size` (h, w). Returns (padded, scale, (pad_x, pad_y)).",
+    "en": "Resize keeping aspect ratio and pad to `size` (h, w). Returns (padded, scale, (pad_x, pad_y))."
+  },
+  "exec": {
+    "in": [
+      "exec"
+    ],
+    "out": [
+      "then"
+    ]
+  },
+  "inputs": [
+    {
+      "name": "img",
+      "type": "any"
+    },
+    {
+      "name": "size",
+      "type": "any"
+    },
+    {
+      "name": "stride",
+      "type": "any",
+      "default": 32
+    },
+    {
+      "name": "auto",
+      "type": "any",
+      "default": false
+    },
+    {
+      "name": "color",
+      "type": "any",
+      "default": 114
+    }
+  ],
+  "outputs": [
+    {
+      "name": "result",
+      "type": "any"
+    }
+  ],
+  "py": {
+    "imports": [
+      "from xscript.android import yolo"
+    ],
+    "stmt": "{id} = yolo.letterbox({img}, size={size}, stride={stride}, auto={auto}, color={color})"
+  },
+  "dsl": {
+    "alias": "yolo.letterbox"
+  },
+  "since": "0.2.6",
+  "origin": "xscript.android.yolo.letterbox",
+  "availability": "ok"
+}

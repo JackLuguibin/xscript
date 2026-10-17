@@ -1,0 +1,44 @@
+{
+  "type": "node.Node.set_text",
+  "category": "node",
+  "title": {
+    "zh": "node.Node.set_text",
+    "en": "node.Node.set_text"
+  },
+  "doc": {
+    "zh": "set_text",
+    "en": "set_text"
+  },
+  "exec": {
+    "in": [
+      "exec"
+    ],
+    "out": [
+      "then"
+    ]
+  },
+  "inputs": [
+    {
+      "name": "text",
+      "type": "any"
+    }
+  ],
+  "outputs": [
+    {
+      "name": "result",
+      "type": "any"
+    }
+  ],
+  "py": {
+    "imports": [
+      "from xscript.android import node"
+    ],
+    "stmt": "{id} = node.Node.set_text({text})"
+  },
+  "dsl": {
+    "alias": "node.Node.set_text"
+  },
+  "since": "0.2.6",
+  "origin": "xscript.android.node.Node.set_text",
+  "availability": "ok"
+}

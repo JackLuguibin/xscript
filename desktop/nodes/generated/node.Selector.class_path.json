@@ -1,0 +1,44 @@
+{
+  "type": "node.Selector.class_path",
+  "category": "node",
+  "title": {
+    "zh": "node.Selector.class_path",
+    "en": "node.Selector.class_path"
+  },
+  "doc": {
+    "zh": "class_path",
+    "en": "class_path"
+  },
+  "exec": {
+    "in": [
+      "exec"
+    ],
+    "out": [
+      "then"
+    ]
+  },
+  "inputs": [
+    {
+      "name": "value",
+      "type": "any"
+    }
+  ],
+  "outputs": [
+    {
+      "name": "result",
+      "type": "any"
+    }
+  ],
+  "py": {
+    "imports": [
+      "from xscript.android import node"
+    ],
+    "stmt": "{id} = node.Selector.class_path({value})"
+  },
+  "dsl": {
+    "alias": "node.Selector.class_path"
+  },
+  "since": "0.2.6",
+  "origin": "xscript.android.node.Selector.class_path",
+  "availability": "ok"
+}

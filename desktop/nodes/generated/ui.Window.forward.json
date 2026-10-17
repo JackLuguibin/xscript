@@ -1,0 +1,39 @@
+{
+  "type": "ui.Window.forward",
+  "category": "ui",
+  "title": {
+    "zh": "ui.Window.forward",
+    "en": "ui.Window.forward"
+  },
+  "doc": {
+    "zh": "forward",
+    "en": "forward"
+  },
+  "exec": {
+    "in": [
+      "exec"
+    ],
+    "out": [
+      "then"
+    ]
+  },
+  "inputs": [],
+  "outputs": [
+    {
+      "name": "result",
+      "type": "any"
+    }
+  ],
+  "py": {
+    "imports": [
+      "from xscript.android import ui"
+    ],
+    "stmt": "{id} = ui.Window.forward()"
+  },
+  "dsl": {
+    "alias": "ui.Window.forward"
+  },
+  "since": "0.2.6",
+  "origin": "xscript.android.ui.Window.forward",
+  "availability": "ok"
+}

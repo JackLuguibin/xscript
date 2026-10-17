@@ -1,0 +1,39 @@
+{
+  "type": "yolo.Detection.width",
+  "category": "yolo",
+  "title": {
+    "zh": "yolo.Detection.width",
+    "en": "yolo.Detection.width"
+  },
+  "doc": {
+    "zh": "width",
+    "en": "width"
+  },
+  "exec": {
+    "in": [
+      "exec"
+    ],
+    "out": [
+      "then"
+    ]
+  },
+  "inputs": [],
+  "outputs": [
+    {
+      "name": "result",
+      "type": "any"
+    }
+  ],
+  "py": {
+    "imports": [
+      "from xscript.android import yolo"
+    ],
+    "stmt": "{id} = yolo.Detection.width()"
+  },
+  "dsl": {
+    "alias": "yolo.Detection.width"
+  },
+  "since": "0.2.6",
+  "origin": "xscript.android.yolo.Detection.width",
+  "availability": "ok"
+}

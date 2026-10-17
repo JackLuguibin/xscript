@@ -1,0 +1,45 @@
+{
+  "type": "system.vibrate",
+  "category": "system",
+  "title": {
+    "zh": "system.vibrate",
+    "en": "system.vibrate"
+  },
+  "doc": {
+    "zh": "vibrate",
+    "en": "vibrate"
+  },
+  "exec": {
+    "in": [
+      "exec"
+    ],
+    "out": [
+      "then"
+    ]
+  },
+  "inputs": [
+    {
+      "name": "ms",
+      "type": "any",
+      "default": 200
+    }
+  ],
+  "outputs": [
+    {
+      "name": "result",
+      "type": "any"
+    }
+  ],
+  "py": {
+    "imports": [
+      "from xscript.android import system"
+    ],
+    "stmt": "{id} = system.vibrate({ms})"
+  },
+  "dsl": {
+    "alias": "system.vibrate"
+  },
+  "since": "0.2.6",
+  "origin": "xscript.android.system.vibrate",
+  "availability": "ok"
+}

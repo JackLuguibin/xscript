@@ -1,0 +1,39 @@
+{
+  "type": "image.OcrResult.to_dict",
+  "category": "image",
+  "title": {
+    "zh": "image.OcrResult.to_dict",
+    "en": "image.OcrResult.to_dict"
+  },
+  "doc": {
+    "zh": "to_dict",
+    "en": "to_dict"
+  },
+  "exec": {
+    "in": [
+      "exec"
+    ],
+    "out": [
+      "then"
+    ]
+  },
+  "inputs": [],
+  "outputs": [
+    {
+      "name": "result",
+      "type": "any"
+    }
+  ],
+  "py": {
+    "imports": [
+      "from xscript.android import image"
+    ],
+    "stmt": "{id} = image.OcrResult.to_dict()"
+  },
+  "dsl": {
+    "alias": "image.OcrResult.to_dict"
+  },
+  "since": "0.2.6",
+  "origin": "xscript.android.image.OcrResult.to_dict",
+  "availability": "ok"
+}

@@ -1,0 +1,57 @@
+{
+  "type": "tree.relate",
+  "category": "tree",
+  "title": {
+    "zh": "tree.relate",
+    "en": "tree.relate"
+  },
+  "doc": {
+    "zh": "relate",
+    "en": "relate"
+  },
+  "exec": {
+    "in": [
+      "exec"
+    ],
+    "out": [
+      "then"
+    ]
+  },
+  "inputs": [
+    {
+      "name": "nodes",
+      "type": "any"
+    },
+    {
+      "name": "relation",
+      "type": "any"
+    },
+    {
+      "name": "args",
+      "type": "any"
+    },
+    {
+      "name": "tops",
+      "type": "any",
+      "default": null
+    }
+  ],
+  "outputs": [
+    {
+      "name": "result",
+      "type": "any"
+    }
+  ],
+  "py": {
+    "imports": [
+      "from xscript.android import tree"
+    ],
+    "stmt": "{id} = tree.relate({nodes}, relation={relation}, args={args}, tops={tops})"
+  },
+  "dsl": {
+    "alias": "tree.relate"
+  },
+  "since": "0.2.6",
+  "origin": "xscript.android.tree.relate",
+  "availability": "ok"
+}

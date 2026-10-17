@@ -1,0 +1,60 @@
+{
+  "type": "screen.ocr",
+  "category": "screen",
+  "title": {
+    "zh": "screen.ocr",
+    "en": "screen.ocr"
+  },
+  "doc": {
+    "zh": "All text lines → [OcrResult(text, rect, center_x, center_y, confidence)].",
+    "en": "All text lines → [OcrResult(text, rect, center_x, center_y, confidence)]."
+  },
+  "exec": {
+    "in": [
+      "exec"
+    ],
+    "out": [
+      "then"
+    ]
+  },
+  "inputs": [
+    {
+      "name": "rect",
+      "type": "any",
+      "default": null
+    },
+    {
+      "name": "image",
+      "type": "any",
+      "default": null
+    },
+    {
+      "name": "engine",
+      "type": "any",
+      "default": null
+    },
+    {
+      "name": "confidence",
+      "type": "any",
+      "default": null
+    }
+  ],
+  "outputs": [
+    {
+      "name": "result",
+      "type": "any"
+    }
+  ],
+  "py": {
+    "imports": [
+      "from xscript.android import screen"
+    ],
+    "stmt": "{id} = screen.ocr({rect}, image={image}, engine={engine}, confidence={confidence})"
+  },
+  "dsl": {
+    "alias": "screen.ocr"
+  },
+  "since": "0.2.6",
+  "origin": "xscript.android.screen.ocr",
+  "availability": "ok"
+}

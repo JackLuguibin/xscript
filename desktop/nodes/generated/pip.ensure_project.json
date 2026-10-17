@@ -1,0 +1,48 @@
+{
+  "type": "pip.ensure_project",
+  "category": "pip",
+  "title": {
+    "zh": "pip.ensure_project",
+    "en": "pip.ensure_project"
+  },
+  "doc": {
+    "zh": "Before a run: install the project's requirements.txt entries that are missing.",
+    "en": "Before a run: install the project's requirements.txt entries that are missing."
+  },
+  "exec": {
+    "in": [
+      "exec"
+    ],
+    "out": [
+      "then"
+    ]
+  },
+  "inputs": [
+    {
+      "name": "project_dir",
+      "type": "any"
+    },
+    {
+      "name": "log",
+      "type": "any"
+    }
+  ],
+  "outputs": [
+    {
+      "name": "result",
+      "type": "any"
+    }
+  ],
+  "py": {
+    "imports": [
+      "from xscript.android import pip"
+    ],
+    "stmt": "{id} = pip.ensure_project({project_dir}, log={log})"
+  },
+  "dsl": {
+    "alias": "pip.ensure_project"
+  },
+  "since": "0.2.6",
+  "origin": "xscript.android.pip.ensure_project",
+  "availability": "ok"
+}

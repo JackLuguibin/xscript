@@ -1,0 +1,50 @@
+{
+  "type": "ui.Window.size",
+  "category": "ui",
+  "title": {
+    "zh": "ui.Window.size",
+    "en": "ui.Window.size"
+  },
+  "doc": {
+    "zh": "size",
+    "en": "size"
+  },
+  "exec": {
+    "in": [
+      "exec"
+    ],
+    "out": [
+      "then"
+    ]
+  },
+  "inputs": [
+    {
+      "name": "width",
+      "type": "any",
+      "default": null
+    },
+    {
+      "name": "height",
+      "type": "any",
+      "default": null
+    }
+  ],
+  "outputs": [
+    {
+      "name": "result",
+      "type": "any"
+    }
+  ],
+  "py": {
+    "imports": [
+      "from xscript.android import ui"
+    ],
+    "stmt": "{id} = ui.Window.size({width}, height={height})"
+  },
+  "dsl": {
+    "alias": "ui.Window.size"
+  },
+  "since": "0.2.6",
+  "origin": "xscript.android.ui.Window.size",
+  "availability": "ok"
+}

@@ -1,0 +1,12 @@
+{
+  "type": "flow.macro",
+  "category": "flow",
+  "title": {"zh": "宏", "en": "Macro"},
+  "doc": {"zh": "形状和子流程一样，编译时把函数体展开到每个调用点。对应 UE 的宏。", "en": "Same shape as a subflow. The body is inlined at each call. Same role as a UE macro."},
+  "exec": {"in": [], "out": ["body"]},
+  "inputs": [],
+  "outputs": [],
+  "dsl": {"alias": "macro"},
+  "since": "0.2.6",
+  "availability": "ok"
+}

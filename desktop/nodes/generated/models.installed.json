@@ -1,0 +1,39 @@
+{
+  "type": "models.installed",
+  "category": "models",
+  "title": {
+    "zh": "models.installed",
+    "en": "models.installed"
+  },
+  "doc": {
+    "zh": "Files under the model directory: [{\"path\", \"size\"}].",
+    "en": "Files under the model directory: [{\"path\", \"size\"}]."
+  },
+  "exec": {
+    "in": [
+      "exec"
+    ],
+    "out": [
+      "then"
+    ]
+  },
+  "inputs": [],
+  "outputs": [
+    {
+      "name": "result",
+      "type": "any"
+    }
+  ],
+  "py": {
+    "imports": [
+      "from xscript.android import models"
+    ],
+    "stmt": "{id} = models.installed()"
+  },
+  "dsl": {
+    "alias": "models.installed"
+  },
+  "since": "0.2.6",
+  "origin": "xscript.android.models.installed",
+  "availability": "ok"
+}

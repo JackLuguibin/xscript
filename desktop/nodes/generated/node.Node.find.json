@@ -1,0 +1,55 @@
+{
+  "type": "node.Node.find",
+  "category": "node",
+  "title": {
+    "zh": "node.Node.find",
+    "en": "node.Node.find"
+  },
+  "doc": {
+    "zh": "First match of `selector` inside this node's subtree.",
+    "en": "First match of `selector` inside this node's subtree."
+  },
+  "exec": {
+    "in": [
+      "exec"
+    ],
+    "out": [
+      "then"
+    ]
+  },
+  "inputs": [
+    {
+      "name": "selector",
+      "type": "any"
+    },
+    {
+      "name": "timeout",
+      "type": "any",
+      "default": 0
+    },
+    {
+      "name": "interval",
+      "type": "any",
+      "default": 0.25
+    }
+  ],
+  "outputs": [
+    {
+      "name": "result",
+      "type": "any"
+    }
+  ],
+  "py": {
+    "imports": [
+      "from xscript.android import node"
+    ],
+    "stmt": "{id} = node.Node.find({selector}, timeout={timeout}, interval={interval})"
+  },
+  "dsl": {
+    "alias": "node.Node.find"
+  },
+  "since": "0.2.6",
+  "origin": "xscript.android.node.Node.find",
+  "availability": "ok",
+  "latent": true
+}

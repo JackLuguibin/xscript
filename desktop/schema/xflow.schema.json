@@ -1,0 +1,77 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://xscript.dev/schema/xflow-1.json",
+  "title": "XScript flow document (semantic graph)",
+  "type": "object",
+  "required": ["xflow", "name", "nodes", "edges"],
+  "additionalProperties": false,
+  "properties": {
+    "xflow": {"const": 1},
+    "name": {"$ref": "#/$defs/id"},
+    "registry": {
+      "type": "object",
+      "additionalProperties": {"type": "string"}
+    },
+    "variables": {
+      "type": "array",
+      "items": {"$ref": "#/$defs/variable"}
+    },
+    "env": {
+      "type": "array",
+      "items": {"$ref": "#/$defs/env"}
+    },
+    "nodes": {
+      "type": "array",
+      "items": {"$ref": "#/$defs/node"}
+    },
+    "edges": {
+      "type": "array",
+      "items": {"$ref": "#/$defs/edge"}
+    }
+  },
+  "$defs": {
+    "id": {"type": "string", "pattern": "^[A-Za-z_][A-Za-z0-9_]*$"},
+    "pinref": {"type": "string", "pattern": "^[A-Za-z_][A-Za-z0-9_]*\\.[A-Za-z_][A-Za-z0-9_]*$"},
+    "node": {
+      "type": "object",
+      "required": ["id", "type"],
+      "additionalProperties": false,
+      "properties": {
+        "id": {"$ref": "#/$defs/id"},
+        "type": {"type": "string", "minLength": 1},
+        "v": {"type": "integer", "minimum": 1},
+        "inputs": {"type": "object"},
+        "config": {"type": "object"},
+        "meta": {"type": "object"}
+      }
+    },
+    "edge": {
+      "type": "object",
+      "required": ["from", "to"],
+      "additionalProperties": false,
+      "properties": {
+        "from": {"$ref": "#/$defs/pinref"},
+        "to": {"$ref": "#/$defs/pinref"}
+      }
+    },
+    "variable": {
+      "type": "object",
+      "required": ["name", "type"],
+      "additionalProperties": false,
+      "properties": {
+        "name": {"$ref": "#/$defs/id"},
+        "type": {"type": "string", "minLength": 1},
+        "default": {}
+      }
+    },
+    "env": {
+      "type": "object",
+      "required": ["name"],
+      "additionalProperties": false,
+      "properties": {
+        "name": {"$ref": "#/$defs/id"},
+        "secret": {"type": "boolean"}
+      }
+    }
+  }
+}

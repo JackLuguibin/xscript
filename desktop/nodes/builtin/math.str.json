@@ -1,0 +1,13 @@
+{
+  "type": "math.str",
+  "category": "math",
+  "title": {"zh": "转文本", "en": "To string"},
+  "doc": {"zh": "把值转成文本。拖到 string 引脚时自动插入。", "en": "Convert a value with str. Inserted when the target pin is string."},
+  "exec": {"in": [], "out": []},
+  "inputs": [{"name": "value", "type": "any"}],
+  "outputs": [{"name": "result", "type": "string"}],
+  "py": {"stmt": "str({value})"},
+  "dsl": {"alias": "str"},
+  "since": "0.2.6",
+  "availability": "ok"
+}

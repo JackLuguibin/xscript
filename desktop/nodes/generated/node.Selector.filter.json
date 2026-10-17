@@ -1,0 +1,44 @@
+{
+  "type": "node.Selector.filter",
+  "category": "node",
+  "title": {
+    "zh": "node.Selector.filter",
+    "en": "node.Selector.filter"
+  },
+  "doc": {
+    "zh": "Custom predicate on the raw node dict.",
+    "en": "Custom predicate on the raw node dict."
+  },
+  "exec": {
+    "in": [
+      "exec"
+    ],
+    "out": [
+      "then"
+    ]
+  },
+  "inputs": [
+    {
+      "name": "fn",
+      "type": "any"
+    }
+  ],
+  "outputs": [
+    {
+      "name": "result",
+      "type": "any"
+    }
+  ],
+  "py": {
+    "imports": [
+      "from xscript.android import node"
+    ],
+    "stmt": "{id} = node.Selector.filter({fn})"
+  },
+  "dsl": {
+    "alias": "node.Selector.filter"
+  },
+  "since": "0.2.6",
+  "origin": "xscript.android.node.Selector.filter",
+  "availability": "ok"
+}

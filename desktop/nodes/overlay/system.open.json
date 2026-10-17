@@ -1,0 +1,19 @@
+{
+  "type": "system.open",
+  "title": {
+    "zh": "按名称打开",
+    "en": "Open by name"
+  },
+  "doc": {
+    "zh": "按包名或应用名启动。",
+    "en": "Launch an app by package or label."
+  },
+  "icon": "app",
+  "inputs": [
+    {
+      "name": "name_or_package",
+      "type": "string",
+      "ui": "text"
+    }
+  ]
+}

@@ -1,0 +1,43 @@
+{
+  "type": "string.contains",
+  "category": "string",
+  "title": {
+    "zh": "包含",
+    "en": "Contains"
+  },
+  "doc": {
+    "zh": "纯数据节点，没有执行引脚。被一处使用时内联，写成 let 或被多处使用时先赋给局部变量。",
+    "en": "Pure data node with no exec pin. Inlined at a single use. A let, or several uses, becomes one local."
+  },
+  "icon": "text",
+  "exec": {
+    "in": [],
+    "out": []
+  },
+  "inputs": [
+    {
+      "name": "a",
+      "type": "string",
+      "default": ""
+    },
+    {
+      "name": "part",
+      "type": "string",
+      "default": ""
+    }
+  ],
+  "outputs": [
+    {
+      "name": "result",
+      "type": "bool"
+    }
+  ],
+  "py": {
+    "stmt": "({part} in str({a}))"
+  },
+  "dsl": {
+    "alias": "contains"
+  },
+  "since": "0.2.6",
+  "availability": "ok"
+}

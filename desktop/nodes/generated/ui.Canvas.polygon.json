@@ -1,0 +1,69 @@
+{
+  "type": "ui.Canvas.polygon",
+  "category": "ui",
+  "title": {
+    "zh": "ui.Canvas.polygon",
+    "en": "ui.Canvas.polygon"
+  },
+  "doc": {
+    "zh": "polygon",
+    "en": "polygon"
+  },
+  "exec": {
+    "in": [
+      "exec"
+    ],
+    "out": [
+      "then"
+    ]
+  },
+  "inputs": [
+    {
+      "name": "points",
+      "type": "any"
+    },
+    {
+      "name": "color",
+      "type": "any",
+      "default": "#00ffff"
+    },
+    {
+      "name": "stroke_width",
+      "type": "any",
+      "default": 2
+    },
+    {
+      "name": "duration",
+      "type": "any",
+      "default": 3000
+    },
+    {
+      "name": "close",
+      "type": "any",
+      "default": true
+    },
+    {
+      "name": "id",
+      "type": "any",
+      "default": null
+    }
+  ],
+  "outputs": [
+    {
+      "name": "result",
+      "type": "any"
+    }
+  ],
+  "py": {
+    "imports": [
+      "from xscript.android import ui"
+    ],
+    "stmt": "{id} = ui.Canvas.polygon({points}, color={color}, stroke_width={stroke_width}, duration={duration}, close={close}, id={p_id})"
+  },
+  "dsl": {
+    "alias": "ui.Canvas.polygon"
+  },
+  "since": "0.2.6",
+  "origin": "xscript.android.ui.Canvas.polygon",
+  "availability": "ok"
+}

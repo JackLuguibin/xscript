@@ -1,0 +1,48 @@
+{
+  "type": "tree.run_xpath",
+  "category": "tree",
+  "title": {
+    "zh": "tree.run_xpath",
+    "en": "tree.run_xpath"
+  },
+  "doc": {
+    "zh": "Evaluate an XPath expression (see xscript.android.xpath for the supported subset).",
+    "en": "Evaluate an XPath expression (see xscript.android.xpath for the supported subset)."
+  },
+  "exec": {
+    "in": [
+      "exec"
+    ],
+    "out": [
+      "then"
+    ]
+  },
+  "inputs": [
+    {
+      "name": "roots",
+      "type": "any"
+    },
+    {
+      "name": "xpath",
+      "type": "any"
+    }
+  ],
+  "outputs": [
+    {
+      "name": "result",
+      "type": "any"
+    }
+  ],
+  "py": {
+    "imports": [
+      "from xscript.android import tree"
+    ],
+    "stmt": "{id} = tree.run_xpath({roots}, xpath={xpath})"
+  },
+  "dsl": {
+    "alias": "tree.run_xpath"
+  },
+  "since": "0.2.6",
+  "origin": "xscript.android.tree.run_xpath",
+  "availability": "ok"
+}

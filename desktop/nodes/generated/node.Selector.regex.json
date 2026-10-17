@@ -1,0 +1,45 @@
+{
+  "type": "node.Selector.regex",
+  "category": "node",
+  "title": {
+    "zh": "node.Selector.regex",
+    "en": "node.Selector.regex"
+  },
+  "doc": {
+    "zh": "Treat string filters as full-match regular expressions (AScript semantics).",
+    "en": "Treat string filters as full-match regular expressions (AScript semantics)."
+  },
+  "exec": {
+    "in": [
+      "exec"
+    ],
+    "out": [
+      "then"
+    ]
+  },
+  "inputs": [
+    {
+      "name": "enabled",
+      "type": "any",
+      "default": true
+    }
+  ],
+  "outputs": [
+    {
+      "name": "result",
+      "type": "any"
+    }
+  ],
+  "py": {
+    "imports": [
+      "from xscript.android import node"
+    ],
+    "stmt": "{id} = node.Selector.regex({enabled})"
+  },
+  "dsl": {
+    "alias": "node.Selector.regex"
+  },
+  "since": "0.2.6",
+  "origin": "xscript.android.node.Selector.regex",
+  "availability": "ok"
+}

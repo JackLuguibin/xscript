@@ -1,0 +1,12 @@
+{
+  "type": "system.reboot",
+  "title": {
+    "zh": "重启",
+    "en": "Reboot"
+  },
+  "doc": {
+    "zh": "重启设备。",
+    "en": "Reboot the device."
+  },
+  "icon": "shell"
+}

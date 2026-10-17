@@ -1,0 +1,13 @@
+{
+  "type": "math.int",
+  "category": "math",
+  "title": {"zh": "转整数", "en": "To int"},
+  "doc": {"zh": "把浮点或布尔转成整数。类型不同又可以转换时，拖线会自动插入。", "en": "Convert a float or bool to int. A convertible wire inserts this node."},
+  "exec": {"in": [], "out": []},
+  "inputs": [{"name": "value", "type": "any"}],
+  "outputs": [{"name": "result", "type": "int"}],
+  "py": {"stmt": "int({value})"},
+  "dsl": {"alias": "int"},
+  "since": "0.2.6",
+  "availability": "ok"
+}

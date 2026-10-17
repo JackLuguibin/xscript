@@ -1,0 +1,44 @@
+{
+  "type": "node.Selector.text_matches",
+  "category": "node",
+  "title": {
+    "zh": "node.Selector.text_matches",
+    "en": "node.Selector.text_matches"
+  },
+  "doc": {
+    "zh": "text_matches",
+    "en": "text_matches"
+  },
+  "exec": {
+    "in": [
+      "exec"
+    ],
+    "out": [
+      "then"
+    ]
+  },
+  "inputs": [
+    {
+      "name": "pattern",
+      "type": "any"
+    }
+  ],
+  "outputs": [
+    {
+      "name": "result",
+      "type": "any"
+    }
+  ],
+  "py": {
+    "imports": [
+      "from xscript.android import node"
+    ],
+    "stmt": "{id} = node.Selector.text_matches({pattern})"
+  },
+  "dsl": {
+    "alias": "node.Selector.text_matches"
+  },
+  "since": "0.2.6",
+  "origin": "xscript.android.node.Selector.text_matches",
+  "availability": "ok"
+}

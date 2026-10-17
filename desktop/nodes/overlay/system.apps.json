@@ -1,0 +1,12 @@
+{
+  "type": "system.apps",
+  "title": {
+    "zh": "应用列表",
+    "en": "Apps"
+  },
+  "doc": {
+    "zh": "列出已安装应用。",
+    "en": "List installed apps."
+  },
+  "icon": "app"
+}

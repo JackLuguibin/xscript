@@ -1,0 +1,44 @@
+{
+  "type": "system.open_app_setting",
+  "category": "system",
+  "title": {
+    "zh": "system.open_app_setting",
+    "en": "system.open_app_setting"
+  },
+  "doc": {
+    "zh": "open_app_setting",
+    "en": "open_app_setting"
+  },
+  "exec": {
+    "in": [
+      "exec"
+    ],
+    "out": [
+      "then"
+    ]
+  },
+  "inputs": [
+    {
+      "name": "package",
+      "type": "any"
+    }
+  ],
+  "outputs": [
+    {
+      "name": "result",
+      "type": "any"
+    }
+  ],
+  "py": {
+    "imports": [
+      "from xscript.android import system"
+    ],
+    "stmt": "{id} = system.open_app_setting({package})"
+  },
+  "dsl": {
+    "alias": "system.open_app_setting"
+  },
+  "since": "0.2.6",
+  "origin": "xscript.android.system.open_app_setting",
+  "availability": "ok"
+}

@@ -1,0 +1,64 @@
+{
+  "type": "system.Schedule.daily",
+  "category": "system",
+  "title": {
+    "zh": "system.Schedule.daily",
+    "en": "system.Schedule.daily"
+  },
+  "doc": {
+    "zh": "Run at \"HH:mm\" every day, or on `weekdays` (1 = Monday .. 7 = Sunday).",
+    "en": "Run at \"HH:mm\" every day, or on `weekdays` (1 = Monday .. 7 = Sunday)."
+  },
+  "exec": {
+    "in": [
+      "exec"
+    ],
+    "out": [
+      "then"
+    ]
+  },
+  "inputs": [
+    {
+      "name": "time",
+      "type": "any"
+    },
+    {
+      "name": "weekdays",
+      "type": "any",
+      "default": null
+    },
+    {
+      "name": "project",
+      "type": "any",
+      "default": null
+    },
+    {
+      "name": "if_running",
+      "type": "any",
+      "default": "skip"
+    },
+    {
+      "name": "wake",
+      "type": "any",
+      "default": true
+    }
+  ],
+  "outputs": [
+    {
+      "name": "result",
+      "type": "any"
+    }
+  ],
+  "py": {
+    "imports": [
+      "from xscript.android import system"
+    ],
+    "stmt": "{id} = system.Schedule.daily({time}, weekdays={weekdays}, project={project}, if_running={if_running}, wake={wake})"
+  },
+  "dsl": {
+    "alias": "system.Schedule.daily"
+  },
+  "since": "0.2.6",
+  "origin": "xscript.android.system.Schedule.daily",
+  "availability": "ok"
+}

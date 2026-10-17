@@ -1,0 +1,45 @@
+{
+  "type": "screen.capture_bitmap",
+  "category": "screen",
+  "title": {
+    "zh": "screen.capture_bitmap",
+    "en": "screen.capture_bitmap"
+  },
+  "doc": {
+    "zh": "android.graphics.Bitmap of the screen (or region).",
+    "en": "android.graphics.Bitmap of the screen (or region)."
+  },
+  "exec": {
+    "in": [
+      "exec"
+    ],
+    "out": [
+      "then"
+    ]
+  },
+  "inputs": [
+    {
+      "name": "rect",
+      "type": "any",
+      "default": null
+    }
+  ],
+  "outputs": [
+    {
+      "name": "result",
+      "type": "any"
+    }
+  ],
+  "py": {
+    "imports": [
+      "from xscript.android import screen"
+    ],
+    "stmt": "{id} = screen.capture_bitmap({rect})"
+  },
+  "dsl": {
+    "alias": "screen.capture_bitmap"
+  },
+  "since": "0.2.6",
+  "origin": "xscript.android.screen.capture_bitmap",
+  "availability": "ok"
+}

@@ -1,0 +1,54 @@
+{
+  "type": "onnx.load",
+  "category": "onnx",
+  "title": {
+    "zh": "onnx.load",
+    "en": "onnx.load"
+  },
+  "doc": {
+    "zh": "Cached Session per (path, accel): loading a model costs far more than running it.",
+    "en": "Cached Session per (path, accel): loading a model costs far more than running it."
+  },
+  "exec": {
+    "in": [
+      "exec"
+    ],
+    "out": [
+      "then"
+    ]
+  },
+  "inputs": [
+    {
+      "name": "path",
+      "type": "any"
+    },
+    {
+      "name": "threads",
+      "type": "any",
+      "default": 4
+    },
+    {
+      "name": "accel",
+      "type": "any",
+      "default": ""
+    }
+  ],
+  "outputs": [
+    {
+      "name": "result",
+      "type": "any"
+    }
+  ],
+  "py": {
+    "imports": [
+      "from xscript.android import onnx"
+    ],
+    "stmt": "{id} = onnx.load({path}, threads={threads}, accel={accel})"
+  },
+  "dsl": {
+    "alias": "onnx.load"
+  },
+  "since": "0.2.6",
+  "origin": "xscript.android.onnx.load",
+  "availability": "ok"
+}

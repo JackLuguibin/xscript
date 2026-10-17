@@ -1,0 +1,19 @@
+{
+  "type": "screen.capture",
+  "title": {
+    "zh": "保存截屏",
+    "en": "Save screenshot"
+  },
+  "doc": {
+    "zh": "把当前画面存成设备上的 PNG。",
+    "en": "Save a PNG on the device."
+  },
+  "icon": "image",
+  "inputs": [
+    {
+      "name": "path",
+      "type": "string",
+      "ui": "text"
+    }
+  ]
+}

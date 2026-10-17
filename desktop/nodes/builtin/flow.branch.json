@@ -1,0 +1,12 @@
+{
+  "type": "flow.branch",
+  "category": "flow",
+  "title": {"zh": "分支", "en": "Branch"},
+  "doc": {"zh": "条件为真走 then，否则走 else。", "en": "True takes then, otherwise else."},
+  "exec": {"in": ["exec"], "out": ["then", "else"]},
+  "inputs": [{"name": "cond", "type": "bool"}],
+  "outputs": [],
+  "dsl": {"alias": "if"},
+  "since": "0.2.6",
+  "availability": "ok"
+}

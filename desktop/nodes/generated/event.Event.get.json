@@ -1,0 +1,49 @@
+{
+  "type": "event.Event.get",
+  "category": "event",
+  "title": {
+    "zh": "event.Event.get",
+    "en": "event.Event.get"
+  },
+  "doc": {
+    "zh": "get",
+    "en": "get"
+  },
+  "exec": {
+    "in": [
+      "exec"
+    ],
+    "out": [
+      "then"
+    ]
+  },
+  "inputs": [
+    {
+      "name": "key",
+      "type": "any"
+    },
+    {
+      "name": "default",
+      "type": "any",
+      "default": null
+    }
+  ],
+  "outputs": [
+    {
+      "name": "result",
+      "type": "any"
+    }
+  ],
+  "py": {
+    "imports": [
+      "from xscript.android import event"
+    ],
+    "stmt": "{id} = event.Event.get({key}, default={default})"
+  },
+  "dsl": {
+    "alias": "event.Event.get"
+  },
+  "since": "0.2.6",
+  "origin": "xscript.android.event.Event.get",
+  "availability": "ok"
+}

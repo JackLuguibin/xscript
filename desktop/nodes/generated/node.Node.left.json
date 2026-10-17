@@ -1,0 +1,39 @@
+{
+  "type": "node.Node.left",
+  "category": "node",
+  "title": {
+    "zh": "node.Node.left",
+    "en": "node.Node.left"
+  },
+  "doc": {
+    "zh": "left",
+    "en": "left"
+  },
+  "exec": {
+    "in": [
+      "exec"
+    ],
+    "out": [
+      "then"
+    ]
+  },
+  "inputs": [],
+  "outputs": [
+    {
+      "name": "result",
+      "type": "any"
+    }
+  ],
+  "py": {
+    "imports": [
+      "from xscript.android import node"
+    ],
+    "stmt": "{id} = node.Node.left()"
+  },
+  "dsl": {
+    "alias": "node.Node.left"
+  },
+  "since": "0.2.6",
+  "origin": "xscript.android.node.Node.left",
+  "availability": "ok"
+}

@@ -1,0 +1,44 @@
+{
+  "type": "system.browser",
+  "category": "system",
+  "title": {
+    "zh": "system.browser",
+    "en": "system.browser"
+  },
+  "doc": {
+    "zh": "browser",
+    "en": "browser"
+  },
+  "exec": {
+    "in": [
+      "exec"
+    ],
+    "out": [
+      "then"
+    ]
+  },
+  "inputs": [
+    {
+      "name": "url",
+      "type": "any"
+    }
+  ],
+  "outputs": [
+    {
+      "name": "result",
+      "type": "any"
+    }
+  ],
+  "py": {
+    "imports": [
+      "from xscript.android import system"
+    ],
+    "stmt": "{id} = system.browser({url})"
+  },
+  "dsl": {
+    "alias": "system.browser"
+  },
+  "since": "0.2.6",
+  "origin": "xscript.android.system.browser",
+  "availability": "ok"
+}

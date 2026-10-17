@@ -1,0 +1,12 @@
+{
+  "type": "data.get",
+  "category": "data",
+  "title": {"zh": "读取变量", "en": "Get"},
+  "doc": {"zh": "纯数据节点。输出这个变量的当前值，环境变量和循环变量也可以读。", "en": "Pure node. Outputs the current value of a flow, environment, or loop variable."},
+  "exec": {"in": [], "out": []},
+  "inputs": [{"name": "name", "type": "string"}],
+  "outputs": [{"name": "value", "type": "any"}],
+  "dsl": {"alias": "get"},
+  "since": "0.2.6",
+  "availability": "ok"
+}

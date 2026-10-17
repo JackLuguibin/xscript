@@ -1,0 +1,45 @@
+{
+  "type": "system.exit",
+  "category": "system",
+  "title": {
+    "zh": "system.exit",
+    "en": "system.exit"
+  },
+  "doc": {
+    "zh": "Stop the running script.",
+    "en": "Stop the running script."
+  },
+  "exec": {
+    "in": [
+      "exec"
+    ],
+    "out": [
+      "then"
+    ]
+  },
+  "inputs": [
+    {
+      "name": "code",
+      "type": "any",
+      "default": 0
+    }
+  ],
+  "outputs": [
+    {
+      "name": "result",
+      "type": "any"
+    }
+  ],
+  "py": {
+    "imports": [
+      "from xscript.android import system"
+    ],
+    "stmt": "{id} = system.exit({code})"
+  },
+  "dsl": {
+    "alias": "system.exit"
+  },
+  "since": "0.2.6",
+  "origin": "xscript.android.system.exit",
+  "availability": "ok"
+}

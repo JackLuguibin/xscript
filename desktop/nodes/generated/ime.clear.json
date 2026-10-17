@@ -1,0 +1,39 @@
+{
+  "type": "ime.clear",
+  "category": "ime",
+  "title": {
+    "zh": "ime.clear",
+    "en": "ime.clear"
+  },
+  "doc": {
+    "zh": "clear",
+    "en": "clear"
+  },
+  "exec": {
+    "in": [
+      "exec"
+    ],
+    "out": [
+      "then"
+    ]
+  },
+  "inputs": [],
+  "outputs": [
+    {
+      "name": "result",
+      "type": "any"
+    }
+  ],
+  "py": {
+    "imports": [
+      "from xscript.android import ime"
+    ],
+    "stmt": "{id} = ime.clear()"
+  },
+  "dsl": {
+    "alias": "ime.clear"
+  },
+  "since": "0.2.6",
+  "origin": "xscript.android.ime.clear",
+  "availability": "ok"
+}

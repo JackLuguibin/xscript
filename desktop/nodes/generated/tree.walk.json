@@ -1,0 +1,44 @@
+{
+  "type": "tree.walk",
+  "category": "tree",
+  "title": {
+    "zh": "tree.walk",
+    "en": "tree.walk"
+  },
+  "doc": {
+    "zh": "walk",
+    "en": "walk"
+  },
+  "exec": {
+    "in": [
+      "exec"
+    ],
+    "out": [
+      "then"
+    ]
+  },
+  "inputs": [
+    {
+      "name": "nodes",
+      "type": "any"
+    }
+  ],
+  "outputs": [
+    {
+      "name": "result",
+      "type": "any"
+    }
+  ],
+  "py": {
+    "imports": [
+      "from xscript.android import tree"
+    ],
+    "stmt": "{id} = tree.walk({nodes})"
+  },
+  "dsl": {
+    "alias": "tree.walk"
+  },
+  "since": "0.2.6",
+  "origin": "xscript.android.tree.walk",
+  "availability": "ok"
+}

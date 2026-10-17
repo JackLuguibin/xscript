@@ -1,0 +1,45 @@
+{
+  "type": "image.capture_bgr",
+  "category": "image",
+  "title": {
+    "zh": "image.capture_bgr",
+    "en": "image.capture_bgr"
+  },
+  "doc": {
+    "zh": "capture_bgr",
+    "en": "capture_bgr"
+  },
+  "exec": {
+    "in": [
+      "exec"
+    ],
+    "out": [
+      "then"
+    ]
+  },
+  "inputs": [
+    {
+      "name": "rect",
+      "type": "any",
+      "default": null
+    }
+  ],
+  "outputs": [
+    {
+      "name": "result",
+      "type": "any"
+    }
+  ],
+  "py": {
+    "imports": [
+      "from xscript.android import image"
+    ],
+    "stmt": "{id} = image.capture_bgr({rect})"
+  },
+  "dsl": {
+    "alias": "image.capture_bgr"
+  },
+  "since": "0.2.6",
+  "origin": "xscript.android.image.capture_bgr",
+  "availability": "ok"
+}

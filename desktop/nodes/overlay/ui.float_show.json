@@ -1,0 +1,24 @@
+{
+  "type": "ui.float_show",
+  "title": {
+    "zh": "显示悬浮窗",
+    "en": "Show overlay"
+  },
+  "doc": {
+    "zh": "显示本次运行的悬浮窗。",
+    "en": "Show the floating window."
+  },
+  "icon": "app",
+  "inputs": [
+    {
+      "name": "x",
+      "type": "int",
+      "ui": "number"
+    },
+    {
+      "name": "y",
+      "type": "int",
+      "ui": "number"
+    }
+  ]
+}

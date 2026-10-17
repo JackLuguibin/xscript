@@ -1,0 +1,44 @@
+{
+  "type": "paddle.sort_boxes",
+  "category": "paddle",
+  "title": {
+    "zh": "paddle.sort_boxes",
+    "en": "paddle.sort_boxes"
+  },
+  "doc": {
+    "zh": "Reading order: top to bottom, left to right within a line (10 px tolerance).",
+    "en": "Reading order: top to bottom, left to right within a line (10 px tolerance)."
+  },
+  "exec": {
+    "in": [
+      "exec"
+    ],
+    "out": [
+      "then"
+    ]
+  },
+  "inputs": [
+    {
+      "name": "boxes",
+      "type": "any"
+    }
+  ],
+  "outputs": [
+    {
+      "name": "result",
+      "type": "any"
+    }
+  ],
+  "py": {
+    "imports": [
+      "from xscript.android import paddle"
+    ],
+    "stmt": "{id} = paddle.sort_boxes({boxes})"
+  },
+  "dsl": {
+    "alias": "paddle.sort_boxes"
+  },
+  "since": "0.2.6",
+  "origin": "xscript.android.paddle.sort_boxes",
+  "availability": "ok"
+}

@@ -1,0 +1,20 @@
+{
+  "type": "action.path",
+  "title": {
+    "zh": "路径",
+    "en": "Path"
+  },
+  "doc": {
+    "zh": "单指沿路径滑动。",
+    "en": "Single-finger path."
+  },
+  "icon": "move",
+  "inputs": [
+    {
+      "name": "dur",
+      "type": "int",
+      "ui": "number",
+      "min": 0
+    }
+  ]
+}

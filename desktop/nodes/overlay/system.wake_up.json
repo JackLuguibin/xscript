@@ -1,0 +1,12 @@
+{
+  "type": "system.wake_up",
+  "title": {
+    "zh": "唤醒屏幕",
+    "en": "Wake screen"
+  },
+  "doc": {
+    "zh": "点亮屏幕。",
+    "en": "Wake the screen."
+  },
+  "icon": "app"
+}

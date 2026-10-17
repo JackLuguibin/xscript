@@ -1,0 +1,39 @@
+{
+  "type": "system.memory",
+  "category": "system",
+  "title": {
+    "zh": "system.memory",
+    "en": "system.memory"
+  },
+  "doc": {
+    "zh": "memory",
+    "en": "memory"
+  },
+  "exec": {
+    "in": [
+      "exec"
+    ],
+    "out": [
+      "then"
+    ]
+  },
+  "inputs": [],
+  "outputs": [
+    {
+      "name": "result",
+      "type": "any"
+    }
+  ],
+  "py": {
+    "imports": [
+      "from xscript.android import system"
+    ],
+    "stmt": "{id} = system.memory()"
+  },
+  "dsl": {
+    "alias": "system.memory"
+  },
+  "since": "0.2.6",
+  "origin": "xscript.android.system.memory",
+  "availability": "ok"
+}

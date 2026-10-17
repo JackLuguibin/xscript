@@ -1,0 +1,59 @@
+{
+  "type": "paddle.ocr_find",
+  "category": "paddle",
+  "title": {
+    "zh": "paddle.ocr_find",
+    "en": "paddle.ocr_find"
+  },
+  "doc": {
+    "zh": "ocr_find",
+    "en": "ocr_find"
+  },
+  "exec": {
+    "in": [
+      "exec"
+    ],
+    "out": [
+      "then"
+    ]
+  },
+  "inputs": [
+    {
+      "name": "pattern",
+      "type": "any"
+    },
+    {
+      "name": "rect",
+      "type": "any",
+      "default": null
+    },
+    {
+      "name": "image",
+      "type": "any",
+      "default": null
+    },
+    {
+      "name": "confidence",
+      "type": "any",
+      "default": 0.5
+    }
+  ],
+  "outputs": [
+    {
+      "name": "result",
+      "type": "any"
+    }
+  ],
+  "py": {
+    "imports": [
+      "from xscript.android import paddle"
+    ],
+    "stmt": "{id} = paddle.ocr_find({pattern}, rect={rect}, image={image}, confidence={confidence})"
+  },
+  "dsl": {
+    "alias": "paddle.ocr_find"
+  },
+  "since": "0.2.6",
+  "origin": "xscript.android.paddle.ocr_find",
+  "availability": "ok"
+}

@@ -1,0 +1,53 @@
+{
+  "type": "screen.get_color",
+  "category": "screen",
+  "title": {
+    "zh": "screen.get_color",
+    "en": "screen.get_color"
+  },
+  "doc": {
+    "zh": "'#rrggbb' at (x, y) or None.",
+    "en": "'#rrggbb' at (x, y) or None."
+  },
+  "exec": {
+    "in": [
+      "exec"
+    ],
+    "out": [
+      "then"
+    ]
+  },
+  "inputs": [
+    {
+      "name": "x",
+      "type": "any"
+    },
+    {
+      "name": "y",
+      "type": "any"
+    },
+    {
+      "name": "image",
+      "type": "any",
+      "default": null
+    }
+  ],
+  "outputs": [
+    {
+      "name": "result",
+      "type": "any"
+    }
+  ],
+  "py": {
+    "imports": [
+      "from xscript.android import screen"
+    ],
+    "stmt": "{id} = screen.get_color({x}, y={y}, image={image})"
+  },
+  "dsl": {
+    "alias": "screen.get_color"
+  },
+  "since": "0.2.6",
+  "origin": "xscript.android.screen.get_color",
+  "availability": "ok"
+}

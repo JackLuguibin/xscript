@@ -1,0 +1,70 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://xscript.dev/schema/nodespec-1.json",
+  "title": "XScript node spec",
+  "type": "object",
+  "required": ["type", "category", "title", "exec", "inputs", "outputs", "dsl", "since", "availability"],
+  "additionalProperties": false,
+  "properties": {
+    "type": {"type": "string", "minLength": 1},
+    "category": {"type": "string", "minLength": 1},
+    "title": {"$ref": "#/$defs/text"},
+    "doc": {"$ref": "#/$defs/text"},
+    "icon": {"type": "string"},
+    "latent": {"type": "boolean"},
+    "exec": {
+      "type": "object",
+      "required": ["in", "out"],
+      "additionalProperties": false,
+      "properties": {
+        "in": {"type": "array", "items": {"type": "string", "minLength": 1}},
+        "out": {"type": "array", "items": {"type": "string", "minLength": 1}}
+      }
+    },
+    "inputs": {"type": "array", "items": {"$ref": "#/$defs/pin"}},
+    "outputs": {"type": "array", "items": {"$ref": "#/$defs/pin"}},
+    "py": {
+      "type": "object",
+      "required": ["stmt"],
+      "additionalProperties": false,
+      "properties": {
+        "imports": {"type": "array", "items": {"type": "string", "minLength": 1}},
+        "stmt": {"type": "string", "minLength": 1}
+      }
+    },
+    "dsl": {
+      "type": "object",
+      "required": ["alias"],
+      "additionalProperties": false,
+      "properties": {"alias": {"type": "string", "minLength": 1}}
+    },
+    "since": {"type": "string", "minLength": 1},
+    "origin": {"type": "string"},
+    "availability": {"enum": ["ok", "partial", "stub", "hidden"]}
+  },
+  "$defs": {
+    "text": {
+      "type": "object",
+      "required": ["zh", "en"],
+      "additionalProperties": false,
+      "properties": {
+        "zh": {"type": "string", "minLength": 1},
+        "en": {"type": "string", "minLength": 1}
+      }
+    },
+    "pin": {
+      "type": "object",
+      "required": ["name", "type"],
+      "additionalProperties": false,
+      "properties": {
+        "name": {"type": "string", "pattern": "^[A-Za-z_][A-Za-z0-9_]*$"},
+        "type": {"type": "string", "minLength": 1},
+        "default": {},
+        "ui": {"enum": ["text", "number", "toggle", "select"]},
+        "options": {"type": "array", "items": {"type": "string", "minLength": 1}, "minItems": 1},
+        "min": {"type": "number"},
+        "derive": {"type": "string"}
+      }
+    }
+  }
+}

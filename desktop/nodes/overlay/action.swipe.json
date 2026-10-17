@@ -1,0 +1,40 @@
+{
+  "type": "action.swipe",
+  "title": {
+    "zh": "滑动",
+    "en": "Swipe"
+  },
+  "doc": {
+    "zh": "从一点滑到另一点。",
+    "en": "Swipe from one point to another."
+  },
+  "icon": "move",
+  "inputs": [
+    {
+      "name": "x1",
+      "type": "int",
+      "ui": "number"
+    },
+    {
+      "name": "y1",
+      "type": "int",
+      "ui": "number"
+    },
+    {
+      "name": "x2",
+      "type": "int",
+      "ui": "number"
+    },
+    {
+      "name": "y2",
+      "type": "int",
+      "ui": "number"
+    },
+    {
+      "name": "dur",
+      "type": "int",
+      "ui": "number",
+      "min": 0
+    }
+  ]
+}

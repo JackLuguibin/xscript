@@ -1,0 +1,46 @@
+{
+  "type": "time.format",
+  "category": "time",
+  "title": {
+    "zh": "格式化时间",
+    "en": "Format time"
+  },
+  "doc": {
+    "zh": "纯数据节点，没有执行引脚。被一处使用时内联，写成 let 或被多处使用时先赋给局部变量。",
+    "en": "Pure data node with no exec pin. Inlined at a single use. A let, or several uses, becomes one local."
+  },
+  "icon": "sleep",
+  "exec": {
+    "in": [],
+    "out": []
+  },
+  "inputs": [
+    {
+      "name": "a",
+      "type": "float",
+      "default": 0
+    },
+    {
+      "name": "fmt",
+      "type": "string",
+      "default": "%H:%M:%S"
+    }
+  ],
+  "outputs": [
+    {
+      "name": "result",
+      "type": "string"
+    }
+  ],
+  "py": {
+    "stmt": "time.strftime({fmt}, time.localtime({a}))",
+    "imports": [
+      "import time"
+    ]
+  },
+  "dsl": {
+    "alias": "tformat"
+  },
+  "since": "0.2.6",
+  "availability": "ok"
+}

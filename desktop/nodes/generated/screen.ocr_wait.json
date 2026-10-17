@@ -1,0 +1,65 @@
+{
+  "type": "screen.ocr_wait",
+  "category": "screen",
+  "title": {
+    "zh": "screen.ocr_wait",
+    "en": "screen.ocr_wait"
+  },
+  "doc": {
+    "zh": "OCR every `interval` seconds until `pattern` shows up or `timeout` seconds pass (one last look at the deadline).",
+    "en": "OCR every `interval` seconds until `pattern` shows up or `timeout` seconds pass (one last look at the deadline)."
+  },
+  "exec": {
+    "in": [
+      "exec"
+    ],
+    "out": [
+      "then"
+    ]
+  },
+  "inputs": [
+    {
+      "name": "pattern",
+      "type": "any"
+    },
+    {
+      "name": "timeout",
+      "type": "any",
+      "default": 10
+    },
+    {
+      "name": "rect",
+      "type": "any",
+      "default": null
+    },
+    {
+      "name": "engine",
+      "type": "any",
+      "default": null
+    },
+    {
+      "name": "interval",
+      "type": "any",
+      "default": 0.3
+    }
+  ],
+  "outputs": [
+    {
+      "name": "result",
+      "type": "any"
+    }
+  ],
+  "py": {
+    "imports": [
+      "from xscript.android import screen"
+    ],
+    "stmt": "{id} = screen.ocr_wait({pattern}, timeout={timeout}, rect={rect}, engine={engine}, interval={interval})"
+  },
+  "dsl": {
+    "alias": "screen.ocr_wait"
+  },
+  "since": "0.2.6",
+  "origin": "xscript.android.screen.ocr_wait",
+  "availability": "ok",
+  "latent": true
+}

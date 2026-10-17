@@ -1,0 +1,44 @@
+{
+  "type": "pip.parse_requirements",
+  "category": "pip",
+  "title": {
+    "zh": "pip.parse_requirements",
+    "en": "pip.parse_requirements"
+  },
+  "doc": {
+    "zh": "requirements.txt lines → requirement strings (comments, blanks and pip options skipped).",
+    "en": "requirements.txt lines → requirement strings (comments, blanks and pip options skipped)."
+  },
+  "exec": {
+    "in": [
+      "exec"
+    ],
+    "out": [
+      "then"
+    ]
+  },
+  "inputs": [
+    {
+      "name": "text",
+      "type": "any"
+    }
+  ],
+  "outputs": [
+    {
+      "name": "result",
+      "type": "any"
+    }
+  ],
+  "py": {
+    "imports": [
+      "from xscript.android import pip"
+    ],
+    "stmt": "{id} = pip.parse_requirements({text})"
+  },
+  "dsl": {
+    "alias": "pip.parse_requirements"
+  },
+  "since": "0.2.6",
+  "origin": "xscript.android.pip.parse_requirements",
+  "availability": "ok"
+}

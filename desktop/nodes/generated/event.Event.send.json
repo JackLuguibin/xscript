@@ -1,0 +1,39 @@
+{
+  "type": "event.Event.send",
+  "category": "event",
+  "title": {
+    "zh": "event.Event.send",
+    "en": "event.Event.send"
+  },
+  "doc": {
+    "zh": "Notifications: open the notification (fire its contentIntent). Returns success.",
+    "en": "Notifications: open the notification (fire its contentIntent). Returns success."
+  },
+  "exec": {
+    "in": [
+      "exec"
+    ],
+    "out": [
+      "then"
+    ]
+  },
+  "inputs": [],
+  "outputs": [
+    {
+      "name": "result",
+      "type": "any"
+    }
+  ],
+  "py": {
+    "imports": [
+      "from xscript.android import event"
+    ],
+    "stmt": "{id} = event.Event.send()"
+  },
+  "dsl": {
+    "alias": "event.Event.send"
+  },
+  "since": "0.2.6",
+  "origin": "xscript.android.event.Event.send",
+  "availability": "ok"
+}

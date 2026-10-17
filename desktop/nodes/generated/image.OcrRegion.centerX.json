@@ -1,0 +1,39 @@
+{
+  "type": "image.OcrRegion.centerX",
+  "category": "image",
+  "title": {
+    "zh": "image.OcrRegion.centerX",
+    "en": "image.OcrRegion.centerX"
+  },
+  "doc": {
+    "zh": "centerX",
+    "en": "centerX"
+  },
+  "exec": {
+    "in": [
+      "exec"
+    ],
+    "out": [
+      "then"
+    ]
+  },
+  "inputs": [],
+  "outputs": [
+    {
+      "name": "result",
+      "type": "any"
+    }
+  ],
+  "py": {
+    "imports": [
+      "from xscript.android import image"
+    ],
+    "stmt": "{id} = image.OcrRegion.centerX()"
+  },
+  "dsl": {
+    "alias": "image.OcrRegion.centerX"
+  },
+  "since": "0.2.6",
+  "origin": "xscript.android.image.OcrRegion.centerX",
+  "availability": "ok"
+}

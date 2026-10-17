@@ -1,0 +1,39 @@
+{
+  "type": "ui.Canvas.clear",
+  "category": "ui",
+  "title": {
+    "zh": "ui.Canvas.clear",
+    "en": "ui.Canvas.clear"
+  },
+  "doc": {
+    "zh": "clear",
+    "en": "clear"
+  },
+  "exec": {
+    "in": [
+      "exec"
+    ],
+    "out": [
+      "then"
+    ]
+  },
+  "inputs": [],
+  "outputs": [
+    {
+      "name": "result",
+      "type": "any"
+    }
+  ],
+  "py": {
+    "imports": [
+      "from xscript.android import ui"
+    ],
+    "stmt": "{id} = ui.Canvas.clear()"
+  },
+  "dsl": {
+    "alias": "ui.Canvas.clear"
+  },
+  "since": "0.2.6",
+  "origin": "xscript.android.ui.Canvas.clear",
+  "availability": "ok"
+}

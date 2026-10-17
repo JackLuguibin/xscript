@@ -1,0 +1,51 @@
+{
+  "type": "node.Selector.find",
+  "category": "node",
+  "title": {
+    "zh": "node.Selector.find",
+    "en": "node.Selector.find"
+  },
+  "doc": {
+    "zh": "find",
+    "en": "find"
+  },
+  "exec": {
+    "in": [
+      "exec"
+    ],
+    "out": [
+      "then"
+    ]
+  },
+  "inputs": [
+    {
+      "name": "timeout",
+      "type": "any",
+      "default": 5
+    },
+    {
+      "name": "interval",
+      "type": "any",
+      "default": 0.25
+    }
+  ],
+  "outputs": [
+    {
+      "name": "result",
+      "type": "any"
+    }
+  ],
+  "py": {
+    "imports": [
+      "from xscript.android import node"
+    ],
+    "stmt": "{id} = node.Selector.find({timeout}, interval={interval})"
+  },
+  "dsl": {
+    "alias": "node.Selector.find"
+  },
+  "since": "0.2.6",
+  "origin": "xscript.android.node.Selector.find",
+  "availability": "ok",
+  "latent": true
+}

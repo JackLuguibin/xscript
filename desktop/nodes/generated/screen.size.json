@@ -1,0 +1,39 @@
+{
+  "type": "screen.size",
+  "category": "screen",
+  "title": {
+    "zh": "screen.size",
+    "en": "screen.size"
+  },
+  "doc": {
+    "zh": "(width, height) in pixels.",
+    "en": "(width, height) in pixels."
+  },
+  "exec": {
+    "in": [
+      "exec"
+    ],
+    "out": [
+      "then"
+    ]
+  },
+  "inputs": [],
+  "outputs": [
+    {
+      "name": "result",
+      "type": "any"
+    }
+  ],
+  "py": {
+    "imports": [
+      "from xscript.android import screen"
+    ],
+    "stmt": "{id} = screen.size()"
+  },
+  "dsl": {
+    "alias": "screen.size"
+  },
+  "since": "0.2.6",
+  "origin": "xscript.android.screen.size",
+  "availability": "ok"
+}

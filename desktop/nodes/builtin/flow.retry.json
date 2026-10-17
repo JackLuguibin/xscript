@@ -1,0 +1,13 @@
+{
+  "type": "flow.retry",
+  "category": "flow",
+  "title": {"zh": "重试", "en": "Retry"},
+  "doc": {"zh": "把 body 最多做 times 次。体内写 fail 表示这次失败并再试。没有 fail 走完算成功，走 ok。次数用完走 failed。", "en": "Run body up to times. fail retries. Finishing without fail takes ok. failed runs when every attempt fails."},
+  "latent": true,
+  "exec": {"in": ["exec", "fail"], "out": ["body", "ok", "failed"]},
+  "inputs": [{"name": "times", "type": "int", "default": 3, "ui": "number", "min": 1}],
+  "outputs": [],
+  "dsl": {"alias": "retry"},
+  "since": "0.2.6",
+  "availability": "ok"
+}

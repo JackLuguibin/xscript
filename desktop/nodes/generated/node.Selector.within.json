@@ -1,0 +1,44 @@
+{
+  "type": "node.Selector.within",
+  "category": "node",
+  "title": {
+    "zh": "node.Selector.within",
+    "en": "node.Selector.within"
+  },
+  "doc": {
+    "zh": "within",
+    "en": "within"
+  },
+  "exec": {
+    "in": [
+      "exec"
+    ],
+    "out": [
+      "then"
+    ]
+  },
+  "inputs": [
+    {
+      "name": "node",
+      "type": "any"
+    }
+  ],
+  "outputs": [
+    {
+      "name": "result",
+      "type": "any"
+    }
+  ],
+  "py": {
+    "imports": [
+      "from xscript.android import node"
+    ],
+    "stmt": "{id} = node.Selector.within({p_node})"
+  },
+  "dsl": {
+    "alias": "node.Selector.within"
+  },
+  "since": "0.2.6",
+  "origin": "xscript.android.node.Selector.within",
+  "availability": "ok"
+}

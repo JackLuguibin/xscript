@@ -1,0 +1,44 @@
+{
+  "type": "system.clipboard_set",
+  "category": "system",
+  "title": {
+    "zh": "system.clipboard_set",
+    "en": "system.clipboard_set"
+  },
+  "doc": {
+    "zh": "clipboard_set",
+    "en": "clipboard_set"
+  },
+  "exec": {
+    "in": [
+      "exec"
+    ],
+    "out": [
+      "then"
+    ]
+  },
+  "inputs": [
+    {
+      "name": "text",
+      "type": "any"
+    }
+  ],
+  "outputs": [
+    {
+      "name": "result",
+      "type": "any"
+    }
+  ],
+  "py": {
+    "imports": [
+      "from xscript.android import system"
+    ],
+    "stmt": "{id} = system.clipboard_set({text})"
+  },
+  "dsl": {
+    "alias": "system.clipboard_set"
+  },
+  "since": "0.2.6",
+  "origin": "xscript.android.system.clipboard_set",
+  "availability": "ok"
+}

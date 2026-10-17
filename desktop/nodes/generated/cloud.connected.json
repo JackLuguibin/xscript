@@ -1,0 +1,39 @@
+{
+  "type": "cloud.connected",
+  "category": "cloud",
+  "title": {
+    "zh": "cloud.connected",
+    "en": "cloud.connected"
+  },
+  "doc": {
+    "zh": "connected",
+    "en": "connected"
+  },
+  "exec": {
+    "in": [
+      "exec"
+    ],
+    "out": [
+      "then"
+    ]
+  },
+  "inputs": [],
+  "outputs": [
+    {
+      "name": "result",
+      "type": "any"
+    }
+  ],
+  "py": {
+    "imports": [
+      "from xscript.android import cloud"
+    ],
+    "stmt": "{id} = cloud.connected()"
+  },
+  "dsl": {
+    "alias": "cloud.connected"
+  },
+  "since": "0.2.6",
+  "origin": "xscript.android.cloud.connected",
+  "availability": "ok"
+}

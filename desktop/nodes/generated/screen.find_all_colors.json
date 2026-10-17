@@ -1,0 +1,74 @@
+{
+  "type": "screen.find_all_colors",
+  "category": "screen",
+  "title": {
+    "zh": "screen.find_all_colors",
+    "en": "screen.find_all_colors"
+  },
+  "doc": {
+    "zh": "find_all_colors",
+    "en": "find_all_colors"
+  },
+  "exec": {
+    "in": [
+      "exec"
+    ],
+    "out": [
+      "then"
+    ]
+  },
+  "inputs": [
+    {
+      "name": "colors",
+      "type": "any"
+    },
+    {
+      "name": "rect",
+      "type": "any",
+      "default": null
+    },
+    {
+      "name": "sim",
+      "type": "any",
+      "default": 0.9
+    },
+    {
+      "name": "space",
+      "type": "any",
+      "default": 5
+    },
+    {
+      "name": "ori",
+      "type": "any",
+      "default": 2
+    },
+    {
+      "name": "max_num",
+      "type": "any",
+      "default": 0
+    },
+    {
+      "name": "image",
+      "type": "any",
+      "default": null
+    }
+  ],
+  "outputs": [
+    {
+      "name": "result",
+      "type": "any"
+    }
+  ],
+  "py": {
+    "imports": [
+      "from xscript.android import screen"
+    ],
+    "stmt": "{id} = screen.find_all_colors({colors}, rect={rect}, sim={sim}, space={space}, ori={ori}, max_num={max_num}, image={image})"
+  },
+  "dsl": {
+    "alias": "screen.find_all_colors"
+  },
+  "since": "0.2.6",
+  "origin": "xscript.android.screen.find_all_colors",
+  "availability": "ok"
+}

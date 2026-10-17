@@ -1,0 +1,12 @@
+{
+  "type": "screen.size",
+  "title": {
+    "zh": "屏幕尺寸",
+    "en": "Screen size"
+  },
+  "doc": {
+    "zh": "读取屏幕宽高。",
+    "en": "Screen width and height."
+  },
+  "icon": "image"
+}

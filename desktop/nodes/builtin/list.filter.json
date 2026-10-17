@@ -1,0 +1,17 @@
+{
+  "type": "list.filter",
+  "category": "list",
+  "title": {"zh": "过滤", "en": "Filter"},
+  "doc": {"zh": "纯数据节点。保留与 item 相等的项，返回新列表。", "en": "Pure data node. Keep items equal to item and return a new list."},
+  "icon": "grid",
+  "exec": {"in": [], "out": []},
+  "inputs": [
+    {"name": "a", "type": "any", "default": ""},
+    {"name": "item", "type": "any", "default": ""}
+  ],
+  "outputs": [{"name": "result", "type": "any"}],
+  "py": {"stmt": "[x for x in list({a}) if x == {item}]"},
+  "dsl": {"alias": "filter"},
+  "since": "0.2.6",
+  "availability": "ok"
+}

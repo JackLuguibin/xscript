@@ -1,0 +1,49 @@
+{
+  "type": "tree.Pipeline.run",
+  "category": "tree",
+  "title": {
+    "zh": "tree.Pipeline.run",
+    "en": "tree.Pipeline.run"
+  },
+  "doc": {
+    "zh": "Evaluate against dumped `roots`. `scope`: optional path whose subtree bounds stage 0.",
+    "en": "Evaluate against dumped `roots`. `scope`: optional path whose subtree bounds stage 0."
+  },
+  "exec": {
+    "in": [
+      "exec"
+    ],
+    "out": [
+      "then"
+    ]
+  },
+  "inputs": [
+    {
+      "name": "roots",
+      "type": "any"
+    },
+    {
+      "name": "scope",
+      "type": "any",
+      "default": null
+    }
+  ],
+  "outputs": [
+    {
+      "name": "result",
+      "type": "any"
+    }
+  ],
+  "py": {
+    "imports": [
+      "from xscript.android import tree"
+    ],
+    "stmt": "{id} = tree.Pipeline.run({roots}, scope={scope})"
+  },
+  "dsl": {
+    "alias": "tree.Pipeline.run"
+  },
+  "since": "0.2.6",
+  "origin": "xscript.android.tree.Pipeline.run",
+  "availability": "ok"
+}

@@ -1,0 +1,48 @@
+{
+  "type": "paddle.ctc_decode",
+  "category": "paddle",
+  "title": {
+    "zh": "paddle.ctc_decode",
+    "en": "paddle.ctc_decode"
+  },
+  "doc": {
+    "zh": "[T, C] probabilities → (text, confidence). Index 0 is the CTC blank.",
+    "en": "[T, C] probabilities → (text, confidence). Index 0 is the CTC blank."
+  },
+  "exec": {
+    "in": [
+      "exec"
+    ],
+    "out": [
+      "then"
+    ]
+  },
+  "inputs": [
+    {
+      "name": "probs",
+      "type": "any"
+    },
+    {
+      "name": "chars",
+      "type": "any"
+    }
+  ],
+  "outputs": [
+    {
+      "name": "result",
+      "type": "any"
+    }
+  ],
+  "py": {
+    "imports": [
+      "from xscript.android import paddle"
+    ],
+    "stmt": "{id} = paddle.ctc_decode({probs}, chars={chars})"
+  },
+  "dsl": {
+    "alias": "paddle.ctc_decode"
+  },
+  "since": "0.2.6",
+  "origin": "xscript.android.paddle.ctc_decode",
+  "availability": "ok"
+}

@@ -1,0 +1,78 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://xscript.dev/schema/xflow-layout-1.json",
+  "title": "XScript flow layout (not executed)",
+  "type": "object",
+  "required": ["xflowLayout"],
+  "additionalProperties": false,
+  "properties": {
+    "xflowLayout": {"const": 1},
+    "viewport": {"$ref": "#/$defs/viewport"},
+    "nodes": {
+      "type": "object",
+      "additionalProperties": {"$ref": "#/$defs/node"}
+    },
+    "groups": {"type": "array", "items": {"$ref": "#/$defs/group"}},
+    "comments": {"type": "array", "items": {"$ref": "#/$defs/comment"}},
+    "reroutes": {"type": "array", "items": {"$ref": "#/$defs/reroute"}}
+  },
+  "$defs": {
+    "viewport": {
+      "type": "object",
+      "required": ["x", "y", "zoom"],
+      "additionalProperties": false,
+      "properties": {
+        "x": {"type": "number"},
+        "y": {"type": "number"},
+        "zoom": {"type": "number", "exclusiveMinimum": 0}
+      }
+    },
+    "node": {
+      "type": "object",
+      "required": ["x", "y"],
+      "additionalProperties": false,
+      "properties": {
+        "x": {"type": "number"},
+        "y": {"type": "number"},
+        "collapsed": {"type": "boolean"},
+        "title": {"type": "string"}
+      }
+    },
+    "group": {
+      "type": "object",
+      "required": ["id", "title", "rect"],
+      "additionalProperties": false,
+      "properties": {
+        "id": {"type": "string", "minLength": 1},
+        "title": {"type": "string"},
+        "color": {"type": "string"},
+        "rect": {
+          "type": "array",
+          "minItems": 4,
+          "maxItems": 4,
+          "items": {"type": "number"}
+        }
+      }
+    },
+    "comment": {
+      "type": "object",
+      "required": ["id", "text", "at"],
+      "additionalProperties": false,
+      "properties": {
+        "id": {"type": "string", "minLength": 1},
+        "text": {"type": "string"},
+        "at": {"type": "array", "minItems": 2, "maxItems": 2, "items": {"type": "number"}}
+      }
+    },
+    "reroute": {
+      "type": "object",
+      "required": ["id", "at", "edge"],
+      "additionalProperties": false,
+      "properties": {
+        "id": {"type": "string", "minLength": 1},
+        "at": {"type": "array", "minItems": 2, "maxItems": 2, "items": {"type": "number"}},
+        "edge": {"type": "string", "minLength": 1}
+      }
+    }
+  }
+}

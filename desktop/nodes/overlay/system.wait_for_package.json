@@ -1,0 +1,25 @@
+{
+  "type": "system.wait_for_package",
+  "title": {
+    "zh": "等待应用",
+    "en": "Wait for app"
+  },
+  "doc": {
+    "zh": "等到某个应用出现在前台。",
+    "en": "Wait until a package is in front."
+  },
+  "icon": "app",
+  "inputs": [
+    {
+      "name": "package",
+      "type": "string",
+      "ui": "text"
+    },
+    {
+      "name": "timeout",
+      "type": "float",
+      "ui": "number",
+      "min": 0
+    }
+  ]
+}

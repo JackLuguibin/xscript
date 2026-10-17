@@ -1,0 +1,25 @@
+{
+  "type": "ui.toast",
+  "title": {
+    "zh": "提示",
+    "en": "Toast"
+  },
+  "doc": {
+    "zh": "弹出一条提示。",
+    "en": "Show a toast."
+  },
+  "icon": "toast",
+  "inputs": [
+    {
+      "name": "msg",
+      "type": "string",
+      "ui": "text"
+    },
+    {
+      "name": "dur",
+      "type": "int",
+      "ui": "number",
+      "min": 0
+    }
+  ]
+}

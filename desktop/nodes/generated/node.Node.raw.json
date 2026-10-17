@@ -1,0 +1,39 @@
+{
+  "type": "node.Node.raw",
+  "category": "node",
+  "title": {
+    "zh": "node.Node.raw",
+    "en": "node.Node.raw"
+  },
+  "doc": {
+    "zh": "raw",
+    "en": "raw"
+  },
+  "exec": {
+    "in": [
+      "exec"
+    ],
+    "out": [
+      "then"
+    ]
+  },
+  "inputs": [],
+  "outputs": [
+    {
+      "name": "result",
+      "type": "any"
+    }
+  ],
+  "py": {
+    "imports": [
+      "from xscript.android import node"
+    ],
+    "stmt": "{id} = node.Node.raw()"
+  },
+  "dsl": {
+    "alias": "node.Node.raw"
+  },
+  "since": "0.2.6",
+  "origin": "xscript.android.node.Node.raw",
+  "availability": "ok"
+}

@@ -1,0 +1,44 @@
+{
+  "type": "image.diff_from_similarity",
+  "category": "image",
+  "title": {
+    "zh": "image.diff_from_similarity",
+    "en": "image.diff_from_similarity"
+  },
+  "doc": {
+    "zh": "AScript similarity 0..1 → per-channel tolerance (1 → exact, 0.9 → ±25).",
+    "en": "AScript similarity 0..1 → per-channel tolerance (1 → exact, 0.9 → ±25)."
+  },
+  "exec": {
+    "in": [
+      "exec"
+    ],
+    "out": [
+      "then"
+    ]
+  },
+  "inputs": [
+    {
+      "name": "sim",
+      "type": "any"
+    }
+  ],
+  "outputs": [
+    {
+      "name": "result",
+      "type": "any"
+    }
+  ],
+  "py": {
+    "imports": [
+      "from xscript.android import image"
+    ],
+    "stmt": "{id} = image.diff_from_similarity({sim})"
+  },
+  "dsl": {
+    "alias": "image.diff_from_similarity"
+  },
+  "since": "0.2.6",
+  "origin": "xscript.android.image.diff_from_similarity",
+  "availability": "ok"
+}

@@ -1,0 +1,49 @@
+{
+  "type": "system.toast",
+  "category": "system",
+  "title": {
+    "zh": "system.toast",
+    "en": "system.toast"
+  },
+  "doc": {
+    "zh": "toast",
+    "en": "toast"
+  },
+  "exec": {
+    "in": [
+      "exec"
+    ],
+    "out": [
+      "then"
+    ]
+  },
+  "inputs": [
+    {
+      "name": "msg",
+      "type": "any"
+    },
+    {
+      "name": "dur",
+      "type": "any",
+      "default": 2000
+    }
+  ],
+  "outputs": [
+    {
+      "name": "result",
+      "type": "any"
+    }
+  ],
+  "py": {
+    "imports": [
+      "from xscript.android import system"
+    ],
+    "stmt": "{id} = system.toast({msg}, dur={dur})"
+  },
+  "dsl": {
+    "alias": "system.toast"
+  },
+  "since": "0.2.6",
+  "origin": "xscript.android.system.toast",
+  "availability": "ok"
+}

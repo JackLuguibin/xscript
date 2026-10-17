@@ -1,0 +1,39 @@
+{
+  "type": "pip.Finder.chaquopy_names",
+  "category": "pip",
+  "title": {
+    "zh": "pip.Finder.chaquopy_names",
+    "en": "pip.Finder.chaquopy_names"
+  },
+  "doc": {
+    "zh": "chaquopy_names",
+    "en": "chaquopy_names"
+  },
+  "exec": {
+    "in": [
+      "exec"
+    ],
+    "out": [
+      "then"
+    ]
+  },
+  "inputs": [],
+  "outputs": [
+    {
+      "name": "result",
+      "type": "any"
+    }
+  ],
+  "py": {
+    "imports": [
+      "from xscript.android import pip"
+    ],
+    "stmt": "{id} = pip.Finder.chaquopy_names()"
+  },
+  "dsl": {
+    "alias": "pip.Finder.chaquopy_names"
+  },
+  "since": "0.2.6",
+  "origin": "xscript.android.pip.Finder.chaquopy_names",
+  "availability": "ok"
+}

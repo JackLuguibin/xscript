@@ -1,0 +1,45 @@
+{
+  "type": "node.Selector.scrollable",
+  "category": "node",
+  "title": {
+    "zh": "node.Selector.scrollable",
+    "en": "node.Selector.scrollable"
+  },
+  "doc": {
+    "zh": "scrollable",
+    "en": "scrollable"
+  },
+  "exec": {
+    "in": [
+      "exec"
+    ],
+    "out": [
+      "then"
+    ]
+  },
+  "inputs": [
+    {
+      "name": "value",
+      "type": "any",
+      "default": true
+    }
+  ],
+  "outputs": [
+    {
+      "name": "result",
+      "type": "any"
+    }
+  ],
+  "py": {
+    "imports": [
+      "from xscript.android import node"
+    ],
+    "stmt": "{id} = node.Selector.scrollable({value})"
+  },
+  "dsl": {
+    "alias": "node.Selector.scrollable"
+  },
+  "since": "0.2.6",
+  "origin": "xscript.android.node.Selector.scrollable",
+  "availability": "ok"
+}

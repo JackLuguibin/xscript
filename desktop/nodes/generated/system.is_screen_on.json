@@ -1,0 +1,39 @@
+{
+  "type": "system.is_screen_on",
+  "category": "system",
+  "title": {
+    "zh": "system.is_screen_on",
+    "en": "system.is_screen_on"
+  },
+  "doc": {
+    "zh": "is_screen_on",
+    "en": "is_screen_on"
+  },
+  "exec": {
+    "in": [
+      "exec"
+    ],
+    "out": [
+      "then"
+    ]
+  },
+  "inputs": [],
+  "outputs": [
+    {
+      "name": "result",
+      "type": "any"
+    }
+  ],
+  "py": {
+    "imports": [
+      "from xscript.android import system"
+    ],
+    "stmt": "{id} = system.is_screen_on()"
+  },
+  "dsl": {
+    "alias": "system.is_screen_on"
+  },
+  "since": "0.2.6",
+  "origin": "xscript.android.system.is_screen_on",
+  "availability": "ok"
+}

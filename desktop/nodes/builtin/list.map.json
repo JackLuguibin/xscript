@@ -1,0 +1,17 @@
+{
+  "type": "list.map",
+  "category": "list",
+  "title": {"zh": "映射", "en": "Map"},
+  "doc": {"zh": "纯数据节点。对每一项做 str、int、float、len 或 bool，返回新列表。", "en": "Pure data node. Apply str, int, float, len, or bool to each item and return a new list."},
+  "icon": "grid",
+  "exec": {"in": [], "out": []},
+  "inputs": [
+    {"name": "a", "type": "any", "default": ""},
+    {"name": "op", "type": "string", "default": "str", "ui": "select", "options": ["str", "int", "float", "len", "bool"]}
+  ],
+  "outputs": [{"name": "result", "type": "any"}],
+  "py": {"stmt": "[{\"str\": str, \"int\": int, \"float\": float, \"len\": len, \"bool\": bool}[{op}](x) for x in list({a})]"},
+  "dsl": {"alias": "map"},
+  "since": "0.2.6",
+  "availability": "ok"
+}

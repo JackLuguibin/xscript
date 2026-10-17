@@ -1,0 +1,55 @@
+{
+  "type": "ui.Window.position",
+  "category": "ui",
+  "title": {
+    "zh": "ui.Window.position",
+    "en": "ui.Window.position"
+  },
+  "doc": {
+    "zh": "position",
+    "en": "position"
+  },
+  "exec": {
+    "in": [
+      "exec"
+    ],
+    "out": [
+      "then"
+    ]
+  },
+  "inputs": [
+    {
+      "name": "gravity",
+      "type": "any",
+      "default": null
+    },
+    {
+      "name": "x",
+      "type": "any",
+      "default": null
+    },
+    {
+      "name": "y",
+      "type": "any",
+      "default": null
+    }
+  ],
+  "outputs": [
+    {
+      "name": "result",
+      "type": "any"
+    }
+  ],
+  "py": {
+    "imports": [
+      "from xscript.android import ui"
+    ],
+    "stmt": "{id} = ui.Window.position({gravity}, x={x}, y={y})"
+  },
+  "dsl": {
+    "alias": "ui.Window.position"
+  },
+  "since": "0.2.6",
+  "origin": "xscript.android.ui.Window.position",
+  "availability": "ok"
+}

@@ -1,0 +1,39 @@
+{
+  "type": "system.wake_up",
+  "category": "system",
+  "title": {
+    "zh": "system.wake_up",
+    "en": "system.wake_up"
+  },
+  "doc": {
+    "zh": "wake_up",
+    "en": "wake_up"
+  },
+  "exec": {
+    "in": [
+      "exec"
+    ],
+    "out": [
+      "then"
+    ]
+  },
+  "inputs": [],
+  "outputs": [
+    {
+      "name": "result",
+      "type": "any"
+    }
+  ],
+  "py": {
+    "imports": [
+      "from xscript.android import system"
+    ],
+    "stmt": "{id} = system.wake_up()"
+  },
+  "dsl": {
+    "alias": "system.wake_up"
+  },
+  "since": "0.2.6",
+  "origin": "xscript.android.system.wake_up",
+  "availability": "ok"
+}

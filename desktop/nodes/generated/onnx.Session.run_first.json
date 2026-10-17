@@ -1,0 +1,49 @@
+{
+  "type": "onnx.Session.run_first",
+  "category": "onnx",
+  "title": {
+    "zh": "onnx.Session.run_first",
+    "en": "onnx.Session.run_first"
+  },
+  "doc": {
+    "zh": "First output only.",
+    "en": "First output only."
+  },
+  "exec": {
+    "in": [
+      "exec"
+    ],
+    "out": [
+      "then"
+    ]
+  },
+  "inputs": [
+    {
+      "name": "tensor",
+      "type": "any"
+    },
+    {
+      "name": "input_name",
+      "type": "any",
+      "default": null
+    }
+  ],
+  "outputs": [
+    {
+      "name": "result",
+      "type": "any"
+    }
+  ],
+  "py": {
+    "imports": [
+      "from xscript.android import onnx"
+    ],
+    "stmt": "{id} = onnx.Session.run_first({tensor}, input_name={input_name})"
+  },
+  "dsl": {
+    "alias": "onnx.Session.run_first"
+  },
+  "since": "0.2.6",
+  "origin": "xscript.android.onnx.Session.run_first",
+  "availability": "ok"
+}

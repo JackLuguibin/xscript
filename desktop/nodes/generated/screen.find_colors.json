@@ -1,0 +1,69 @@
+{
+  "type": "screen.find_colors",
+  "category": "screen",
+  "title": {
+    "zh": "screen.find_colors",
+    "en": "screen.find_colors"
+  },
+  "doc": {
+    "zh": "First match of a multi-point color pattern → Point or None.",
+    "en": "First match of a multi-point color pattern → Point or None."
+  },
+  "exec": {
+    "in": [
+      "exec"
+    ],
+    "out": [
+      "then"
+    ]
+  },
+  "inputs": [
+    {
+      "name": "colors",
+      "type": "any"
+    },
+    {
+      "name": "rect",
+      "type": "any",
+      "default": null
+    },
+    {
+      "name": "sim",
+      "type": "any",
+      "default": 0.9
+    },
+    {
+      "name": "space",
+      "type": "any",
+      "default": 5
+    },
+    {
+      "name": "ori",
+      "type": "any",
+      "default": 2
+    },
+    {
+      "name": "image",
+      "type": "any",
+      "default": null
+    }
+  ],
+  "outputs": [
+    {
+      "name": "result",
+      "type": "any"
+    }
+  ],
+  "py": {
+    "imports": [
+      "from xscript.android import screen"
+    ],
+    "stmt": "{id} = screen.find_colors({colors}, rect={rect}, sim={sim}, space={space}, ori={ori}, image={image})"
+  },
+  "dsl": {
+    "alias": "screen.find_colors"
+  },
+  "since": "0.2.6",
+  "origin": "xscript.android.screen.find_colors",
+  "availability": "ok"
+}

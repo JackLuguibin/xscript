@@ -1,0 +1,45 @@
+{
+  "type": "node.Selector.checked",
+  "category": "node",
+  "title": {
+    "zh": "node.Selector.checked",
+    "en": "node.Selector.checked"
+  },
+  "doc": {
+    "zh": "checked",
+    "en": "checked"
+  },
+  "exec": {
+    "in": [
+      "exec"
+    ],
+    "out": [
+      "then"
+    ]
+  },
+  "inputs": [
+    {
+      "name": "value",
+      "type": "any",
+      "default": true
+    }
+  ],
+  "outputs": [
+    {
+      "name": "result",
+      "type": "any"
+    }
+  ],
+  "py": {
+    "imports": [
+      "from xscript.android import node"
+    ],
+    "stmt": "{id} = node.Selector.checked({value})"
+  },
+  "dsl": {
+    "alias": "node.Selector.checked"
+  },
+  "since": "0.2.6",
+  "origin": "xscript.android.node.Selector.checked",
+  "availability": "ok"
+}

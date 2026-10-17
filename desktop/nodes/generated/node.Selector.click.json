@@ -1,0 +1,39 @@
+{
+  "type": "node.Selector.click",
+  "category": "node",
+  "title": {
+    "zh": "node.Selector.click",
+    "en": "node.Selector.click"
+  },
+  "doc": {
+    "zh": "click",
+    "en": "click"
+  },
+  "exec": {
+    "in": [
+      "exec"
+    ],
+    "out": [
+      "then"
+    ]
+  },
+  "inputs": [],
+  "outputs": [
+    {
+      "name": "result",
+      "type": "any"
+    }
+  ],
+  "py": {
+    "imports": [
+      "from xscript.android import node"
+    ],
+    "stmt": "{id} = node.Selector.click()"
+  },
+  "dsl": {
+    "alias": "node.Selector.click"
+  },
+  "since": "0.2.6",
+  "origin": "xscript.android.node.Selector.click",
+  "availability": "ok"
+}

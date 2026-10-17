@@ -1,0 +1,39 @@
+{
+  "type": "ui.Window.close",
+  "category": "ui",
+  "title": {
+    "zh": "ui.Window.close",
+    "en": "ui.Window.close"
+  },
+  "doc": {
+    "zh": "close",
+    "en": "close"
+  },
+  "exec": {
+    "in": [
+      "exec"
+    ],
+    "out": [
+      "then"
+    ]
+  },
+  "inputs": [],
+  "outputs": [
+    {
+      "name": "result",
+      "type": "any"
+    }
+  ],
+  "py": {
+    "imports": [
+      "from xscript.android import ui"
+    ],
+    "stmt": "{id} = ui.Window.close()"
+  },
+  "dsl": {
+    "alias": "ui.Window.close"
+  },
+  "since": "0.2.6",
+  "origin": "xscript.android.ui.Window.close",
+  "availability": "ok"
+}

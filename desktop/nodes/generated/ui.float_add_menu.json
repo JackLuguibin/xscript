@@ -1,0 +1,57 @@
+{
+  "type": "ui.float_add_menu",
+  "category": "ui",
+  "title": {
+    "zh": "ui.float_add_menu",
+    "en": "ui.float_add_menu"
+  },
+  "doc": {
+    "zh": "Add a round button to the floating window's panel (AScript ``FloatWindow.add_menu``).",
+    "en": "Add a round button to the floating window's panel (AScript ``FloatWindow.add_menu``)."
+  },
+  "exec": {
+    "in": [
+      "exec"
+    ],
+    "out": [
+      "then"
+    ]
+  },
+  "inputs": [
+    {
+      "name": "menu_id",
+      "type": "any"
+    },
+    {
+      "name": "icon",
+      "type": "any"
+    },
+    {
+      "name": "callback",
+      "type": "any"
+    },
+    {
+      "name": "remove_system",
+      "type": "any",
+      "default": false
+    }
+  ],
+  "outputs": [
+    {
+      "name": "result",
+      "type": "any"
+    }
+  ],
+  "py": {
+    "imports": [
+      "from xscript.android import ui"
+    ],
+    "stmt": "{id} = ui.float_add_menu({menu_id}, icon={icon}, callback={callback}, remove_system={remove_system})"
+  },
+  "dsl": {
+    "alias": "ui.float_add_menu"
+  },
+  "since": "0.2.6",
+  "origin": "xscript.android.ui.float_add_menu",
+  "availability": "ok"
+}

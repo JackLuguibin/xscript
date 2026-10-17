@@ -1,0 +1,50 @@
+{
+  "type": "system.Config.set_auto_run",
+  "category": "system",
+  "title": {
+    "zh": "system.Config.set_auto_run",
+    "en": "system.Config.set_auto_run"
+  },
+  "doc": {
+    "zh": "开机自启: start this project after the device boots. Only one project can be the boot project.",
+    "en": "开机自启: start this project after the device boots. Only one project can be the boot project."
+  },
+  "exec": {
+    "in": [
+      "exec"
+    ],
+    "out": [
+      "then"
+    ]
+  },
+  "inputs": [
+    {
+      "name": "on",
+      "type": "any",
+      "default": true
+    },
+    {
+      "name": "project",
+      "type": "any",
+      "default": null
+    }
+  ],
+  "outputs": [
+    {
+      "name": "result",
+      "type": "any"
+    }
+  ],
+  "py": {
+    "imports": [
+      "from xscript.android import system"
+    ],
+    "stmt": "{id} = system.Config.set_auto_run({on}, project={project})"
+  },
+  "dsl": {
+    "alias": "system.Config.set_auto_run"
+  },
+  "since": "0.2.6",
+  "origin": "xscript.android.system.Config.set_auto_run",
+  "availability": "ok"
+}

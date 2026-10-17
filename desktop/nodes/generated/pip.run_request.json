@@ -1,0 +1,44 @@
+{
+  "type": "pip.run_request",
+  "category": "pip",
+  "title": {
+    "zh": "pip.run_request",
+    "en": "pip.run_request"
+  },
+  "doc": {
+    "zh": "HTTP / MCP entry (runs in :eval): {\"op\": \"install\"|\"uninstall\"|\"list\", ...} → dict.",
+    "en": "HTTP / MCP entry (runs in :eval): {\"op\": \"install\"|\"uninstall\"|\"list\", ...} → dict."
+  },
+  "exec": {
+    "in": [
+      "exec"
+    ],
+    "out": [
+      "then"
+    ]
+  },
+  "inputs": [
+    {
+      "name": "req",
+      "type": "any"
+    }
+  ],
+  "outputs": [
+    {
+      "name": "result",
+      "type": "any"
+    }
+  ],
+  "py": {
+    "imports": [
+      "from xscript.android import pip"
+    ],
+    "stmt": "{id} = pip.run_request({req})"
+  },
+  "dsl": {
+    "alias": "pip.run_request"
+  },
+  "since": "0.2.6",
+  "origin": "xscript.android.pip.run_request",
+  "availability": "ok"
+}

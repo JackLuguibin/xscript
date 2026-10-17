@@ -1,0 +1,45 @@
+{
+  "type": "screen.capture",
+  "category": "screen",
+  "title": {
+    "zh": "screen.capture",
+    "en": "screen.capture"
+  },
+  "doc": {
+    "zh": "Save a PNG on the device. Returns the file path or None.",
+    "en": "Save a PNG on the device. Returns the file path or None."
+  },
+  "exec": {
+    "in": [
+      "exec"
+    ],
+    "out": [
+      "then"
+    ]
+  },
+  "inputs": [
+    {
+      "name": "path",
+      "type": "any",
+      "default": null
+    }
+  ],
+  "outputs": [
+    {
+      "name": "result",
+      "type": "any"
+    }
+  ],
+  "py": {
+    "imports": [
+      "from xscript.android import screen"
+    ],
+    "stmt": "{id} = screen.capture({path})"
+  },
+  "dsl": {
+    "alias": "screen.capture"
+  },
+  "since": "0.2.6",
+  "origin": "xscript.android.screen.capture",
+  "availability": "ok"
+}

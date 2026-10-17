@@ -1,0 +1,39 @@
+{
+  "type": "system.params",
+  "category": "system",
+  "title": {
+    "zh": "system.params",
+    "en": "system.params"
+  },
+  "doc": {
+    "zh": "Launch parameters of this run: the 云控 app_run \"param\" object ({} otherwise).",
+    "en": "Launch parameters of this run: the 云控 app_run \"param\" object ({} otherwise)."
+  },
+  "exec": {
+    "in": [
+      "exec"
+    ],
+    "out": [
+      "then"
+    ]
+  },
+  "inputs": [],
+  "outputs": [
+    {
+      "name": "result",
+      "type": "any"
+    }
+  ],
+  "py": {
+    "imports": [
+      "from xscript.android import system"
+    ],
+    "stmt": "{id} = system.params()"
+  },
+  "dsl": {
+    "alias": "system.params"
+  },
+  "since": "0.2.6",
+  "origin": "xscript.android.system.params",
+  "availability": "ok"
+}

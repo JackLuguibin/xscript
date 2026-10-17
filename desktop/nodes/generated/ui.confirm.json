@@ -1,0 +1,59 @@
+{
+  "type": "ui.confirm",
+  "category": "ui",
+  "title": {
+    "zh": "ui.confirm",
+    "en": "ui.confirm"
+  },
+  "doc": {
+    "zh": "confirm",
+    "en": "confirm"
+  },
+  "exec": {
+    "in": [
+      "exec"
+    ],
+    "out": [
+      "then"
+    ]
+  },
+  "inputs": [
+    {
+      "name": "msg",
+      "type": "any"
+    },
+    {
+      "name": "title",
+      "type": "any",
+      "default": null
+    },
+    {
+      "name": "submit",
+      "type": "any",
+      "default": "确认"
+    },
+    {
+      "name": "cancel",
+      "type": "any",
+      "default": "取消"
+    }
+  ],
+  "outputs": [
+    {
+      "name": "result",
+      "type": "any"
+    }
+  ],
+  "py": {
+    "imports": [
+      "from xscript.android import ui"
+    ],
+    "stmt": "{id} = ui.confirm({msg}, title={title}, submit={submit}, cancel={cancel})"
+  },
+  "dsl": {
+    "alias": "ui.confirm"
+  },
+  "since": "0.2.6",
+  "origin": "xscript.android.ui.confirm",
+  "availability": "ok"
+}

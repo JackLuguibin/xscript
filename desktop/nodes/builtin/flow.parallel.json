@@ -1,0 +1,12 @@
+{
+  "type": "flow.parallel",
+  "category": "flow",
+  "title": {"zh": "并行", "en": "Parallel"},
+  "doc": {"zh": "每个 branch 在自己的线程里跑，全部分支汇合后走 joined。对应 UE 多条执行线加汇合。", "en": "Each branch runs on its own thread. joined runs after every branch finishes. Same shape as a UE sequence of exec pins plus a join."},
+  "exec": {"in": ["exec"], "out": ["joined"]},
+  "inputs": [],
+  "outputs": [],
+  "dsl": {"alias": "parallel"},
+  "since": "0.2.6",
+  "availability": "ok"
+}

@@ -1,0 +1,44 @@
+{
+  "type": "pip.Target.wheel_ok",
+  "category": "pip",
+  "title": {
+    "zh": "pip.Target.wheel_ok",
+    "en": "pip.Target.wheel_ok"
+  },
+  "doc": {
+    "zh": "True if the wheel can be installed here. Returns (ok, native).",
+    "en": "True if the wheel can be installed here. Returns (ok, native)."
+  },
+  "exec": {
+    "in": [
+      "exec"
+    ],
+    "out": [
+      "then"
+    ]
+  },
+  "inputs": [
+    {
+      "name": "filename",
+      "type": "any"
+    }
+  ],
+  "outputs": [
+    {
+      "name": "result",
+      "type": "any"
+    }
+  ],
+  "py": {
+    "imports": [
+      "from xscript.android import pip"
+    ],
+    "stmt": "{id} = pip.Target.wheel_ok({filename})"
+  },
+  "dsl": {
+    "alias": "pip.Target.wheel_ok"
+  },
+  "since": "0.2.6",
+  "origin": "xscript.android.pip.Target.wheel_ok",
+  "availability": "ok"
+}

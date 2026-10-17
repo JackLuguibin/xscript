@@ -1,0 +1,16 @@
+{
+  "type": "data.default",
+  "category": "data",
+  "title": {"zh": "默认值", "en": "Default"},
+  "doc": {"zh": "可空值是空时改用 fallback。接到非空引脚前可以经过这里。", "en": "Use fallback when a nullable value is empty. Place this before a required pin."},
+  "exec": {"in": ["exec"], "out": ["then"]},
+  "inputs": [
+    {"name": "value", "type": "any"},
+    {"name": "fallback", "type": "any"}
+  ],
+  "outputs": [{"name": "result", "type": "any"}],
+  "py": {"stmt": "{id} = {value} if {value} is not None else {fallback}"},
+  "dsl": {"alias": "default"},
+  "since": "0.2.6",
+  "availability": "ok"
+}

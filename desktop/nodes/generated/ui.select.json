@@ -1,0 +1,59 @@
+{
+  "type": "ui.select",
+  "category": "ui",
+  "title": {
+    "zh": "ui.select",
+    "en": "ui.select"
+  },
+  "doc": {
+    "zh": "select",
+    "en": "select"
+  },
+  "exec": {
+    "in": [
+      "exec"
+    ],
+    "out": [
+      "then"
+    ]
+  },
+  "inputs": [
+    {
+      "name": "items",
+      "type": "any"
+    },
+    {
+      "name": "msg",
+      "type": "any",
+      "default": "请选择"
+    },
+    {
+      "name": "title",
+      "type": "any",
+      "default": null
+    },
+    {
+      "name": "cancel",
+      "type": "any",
+      "default": "取消"
+    }
+  ],
+  "outputs": [
+    {
+      "name": "result",
+      "type": "any"
+    }
+  ],
+  "py": {
+    "imports": [
+      "from xscript.android import ui"
+    ],
+    "stmt": "{id} = ui.select({items}, msg={msg}, title={title}, cancel={cancel})"
+  },
+  "dsl": {
+    "alias": "ui.select"
+  },
+  "since": "0.2.6",
+  "origin": "xscript.android.ui.select",
+  "availability": "ok"
+}

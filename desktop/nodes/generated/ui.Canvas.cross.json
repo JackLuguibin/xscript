@@ -1,0 +1,83 @@
+{
+  "type": "ui.Canvas.cross",
+  "category": "ui",
+  "title": {
+    "zh": "ui.Canvas.cross",
+    "en": "ui.Canvas.cross"
+  },
+  "doc": {
+    "zh": "cross",
+    "en": "cross"
+  },
+  "exec": {
+    "in": [
+      "exec"
+    ],
+    "out": [
+      "then"
+    ]
+  },
+  "inputs": [
+    {
+      "name": "x",
+      "type": "any"
+    },
+    {
+      "name": "y",
+      "type": "any"
+    },
+    {
+      "name": "size",
+      "type": "any",
+      "default": 30
+    },
+    {
+      "name": "color",
+      "type": "any",
+      "default": "#ff0000"
+    },
+    {
+      "name": "stroke_width",
+      "type": "any",
+      "default": 2
+    },
+    {
+      "name": "duration",
+      "type": "any",
+      "default": 3000
+    },
+    {
+      "name": "label",
+      "type": "any",
+      "default": null
+    },
+    {
+      "name": "font_size",
+      "type": "any",
+      "default": 12
+    },
+    {
+      "name": "id",
+      "type": "any",
+      "default": null
+    }
+  ],
+  "outputs": [
+    {
+      "name": "result",
+      "type": "any"
+    }
+  ],
+  "py": {
+    "imports": [
+      "from xscript.android import ui"
+    ],
+    "stmt": "{id} = ui.Canvas.cross({x}, y={y}, size={size}, color={color}, stroke_width={stroke_width}, duration={duration}, label={label}, font_size={font_size}, id={p_id})"
+  },
+  "dsl": {
+    "alias": "ui.Canvas.cross"
+  },
+  "since": "0.2.6",
+  "origin": "xscript.android.ui.Canvas.cross",
+  "availability": "ok"
+}

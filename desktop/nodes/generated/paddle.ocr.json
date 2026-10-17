@@ -1,0 +1,60 @@
+{
+  "type": "paddle.ocr",
+  "category": "paddle",
+  "title": {
+    "zh": "paddle.ocr",
+    "en": "paddle.ocr"
+  },
+  "doc": {
+    "zh": "ocr",
+    "en": "ocr"
+  },
+  "exec": {
+    "in": [
+      "exec"
+    ],
+    "out": [
+      "then"
+    ]
+  },
+  "inputs": [
+    {
+      "name": "rect",
+      "type": "any",
+      "default": null
+    },
+    {
+      "name": "image",
+      "type": "any",
+      "default": null
+    },
+    {
+      "name": "confidence",
+      "type": "any",
+      "default": 0.5
+    },
+    {
+      "name": "version",
+      "type": "any",
+      "default": "v5"
+    }
+  ],
+  "outputs": [
+    {
+      "name": "result",
+      "type": "any"
+    }
+  ],
+  "py": {
+    "imports": [
+      "from xscript.android import paddle"
+    ],
+    "stmt": "{id} = paddle.ocr({rect}, image={image}, confidence={confidence}, version={version})"
+  },
+  "dsl": {
+    "alias": "paddle.ocr"
+  },
+  "since": "0.2.6",
+  "origin": "xscript.android.paddle.ocr",
+  "availability": "ok"
+}

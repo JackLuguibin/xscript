@@ -1,0 +1,39 @@
+{
+  "type": "system.battery",
+  "category": "system",
+  "title": {
+    "zh": "system.battery",
+    "en": "system.battery"
+  },
+  "doc": {
+    "zh": "battery",
+    "en": "battery"
+  },
+  "exec": {
+    "in": [
+      "exec"
+    ],
+    "out": [
+      "then"
+    ]
+  },
+  "inputs": [],
+  "outputs": [
+    {
+      "name": "result",
+      "type": "any"
+    }
+  ],
+  "py": {
+    "imports": [
+      "from xscript.android import system"
+    ],
+    "stmt": "{id} = system.battery()"
+  },
+  "dsl": {
+    "alias": "system.battery"
+  },
+  "since": "0.2.6",
+  "origin": "xscript.android.system.battery",
+  "availability": "ok"
+}

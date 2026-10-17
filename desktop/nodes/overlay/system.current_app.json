@@ -1,0 +1,12 @@
+{
+  "type": "system.current_app",
+  "title": {
+    "zh": "当前应用",
+    "en": "Current app"
+  },
+  "doc": {
+    "zh": "读取前台应用。",
+    "en": "Read the foreground app."
+  },
+  "icon": "app"
+}
