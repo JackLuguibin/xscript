@@ -4,6 +4,9 @@ import type { Breakpoints, DebugScope, DebugState, DebugStep, DebugVar } from ".
 import { t } from "../strings";
 import { Badge } from "./Badge";
 import { Spinner } from "./icons";
+import { Alert } from "./ui/alert";
+import { Button } from "./ui/button";
+import { Input } from "./ui/input";
 
 const MAX_OUT = 1000;
 const IDLE: DebugState = { id: "", state: "idle", frames: [] };
@@ -67,9 +70,9 @@ function VarTree({ devId, vars, depth }: { devId: string; vars: DebugVar[]; dept
         return (
           <li key={v.name} role="treeitem" aria-expanded={v.ref > 0 ? !!kids : undefined}>
             {v.ref > 0 ? (
-              <button className="twisty" aria-label={kids ? t.debug.collapse(v.name) : t.debug.expand(v.name)} onClick={() => toggle(v)}>
+              <Button variant="bare" className="twisty" aria-label={kids ? t.debug.collapse(v.name) : t.debug.expand(v.name)} onClick={() => toggle(v)}>
                 {kids ? "▾" : "▸"}
-              </button>
+              </Button>
             ) : (
               <span className="twisty" aria-hidden="true">
                 {" "}
@@ -175,22 +178,22 @@ export function DebugPanel({ devId, project, session, breakpoints, busy, onStart
         {stopped && state.path && state.line ? <span className="muted mono">{t.debug.pausedAt(state.path, state.line)}</span> : null}
         <span className="grow" />
         {!active && (
-          <button className="primary" onClick={onStart} disabled={!project || busy}>
+          <Button variant="primary" onClick={onStart} disabled={!project || busy}>
             {busy ? <Spinner /> : t.debug.start}
-          </button>
+          </Button>
         )}
         {active && (
           <>
             {stopped ? (
-              <button className="primary" onClick={() => onStep("continue")}>{t.debug.cont}</button>
+              <Button variant="primary" onClick={() => onStep("continue")}>{t.debug.cont}</Button>
             ) : (
-              <button onClick={() => onStep("pause")} disabled={state.state !== "running"}>{t.debug.pause}</button>
+              <Button onClick={() => onStep("pause")} disabled={state.state !== "running"}>{t.debug.pause}</Button>
             )}
-            <button onClick={() => onStep("next")} disabled={!stopped}>{t.debug.next}</button>
-            <button onClick={() => onStep("stepIn")} disabled={!stopped}>{t.debug.stepIn}</button>
-            <button onClick={() => onStep("stepOut")} disabled={!stopped}>{t.debug.stepOut}</button>
-            <button onClick={() => onStop(false)}>{t.debug.detach}</button>
-            <button className="danger" onClick={() => onStop(true)}>{t.debug.stop}</button>
+            <Button onClick={() => onStep("next")} disabled={!stopped}>{t.debug.next}</Button>
+            <Button onClick={() => onStep("stepIn")} disabled={!stopped}>{t.debug.stepIn}</Button>
+            <Button onClick={() => onStep("stepOut")} disabled={!stopped}>{t.debug.stepOut}</Button>
+            <Button onClick={() => onStop(false)}>{t.debug.detach}</Button>
+            <Button variant="danger" onClick={() => onStop(true)}>{t.debug.stop}</Button>
           </>
         )}
       </div>
@@ -201,9 +204,9 @@ export function DebugPanel({ devId, project, session, breakpoints, busy, onStart
         </p>
       )}
       {stopped && state.reason === "exception" && state.error && (
-        <p className="banner error" role="alert">
+        <Alert tone="error" role="alert">
           {state.error}
-        </p>
+        </Alert>
       )}
 
       <div className="debug-grid">
@@ -215,7 +218,8 @@ export function DebugPanel({ devId, project, session, breakpoints, busy, onStart
             <ul className="list" aria-label={t.debug.stack}>
               {state.frames.map((f) => (
                 <li key={f.id}>
-                  <button
+                  <Button
+                    variant="bare"
                     className={"list-btn mono" + (f.id === frameId ? " active" : "")}
                     aria-current={f.id === frameId ? "true" : undefined}
                     onClick={() => {
@@ -225,7 +229,7 @@ export function DebugPanel({ devId, project, session, breakpoints, busy, onStart
                   >
                     {f.name}
                     <span className="muted">{`${f.path ?? f.file + " " + t.debug.external}:${f.line}`}</span>
-                  </button>
+                  </Button>
                 </li>
               ))}
             </ul>
@@ -237,12 +241,12 @@ export function DebugPanel({ devId, project, session, breakpoints, busy, onStart
             <ul className="list" aria-label={t.debug.breakpoints}>
               {bpList.map(([p, ln]) => (
                 <li key={`${p}:${ln}`} className="file-row">
-                  <button className="list-btn mono" onClick={() => onOpenLocation(p, ln)}>
+                  <Button variant="bare" className="list-btn mono" onClick={() => onOpenLocation(p, ln)}>
                     {`● ${p}:${ln}`}
-                  </button>
-                  <button className="small ghost" aria-label={t.debug.removeBp(p, ln)} onClick={() => onRemoveBreakpoint(p, ln)}>
+                  </Button>
+                  <Button variant="ghost" size="sm" aria-label={t.debug.removeBp(p, ln)} onClick={() => onRemoveBreakpoint(p, ln)}>
                     ✕
-                  </button>
+                  </Button>
                 </li>
               ))}
             </ul>
@@ -258,9 +262,9 @@ export function DebugPanel({ devId, project, session, breakpoints, busy, onStart
                 <div className="row">
                   <strong>{s.name}</strong>
                   {!s.vars && s.ref > 0 && (
-                    <button className="small ghost" aria-label={t.debug.expand(s.name)} onClick={() => void loadScope(i)}>
+                    <Button variant="ghost" size="sm" aria-label={t.debug.expand(s.name)} onClick={() => void loadScope(i)}>
                       ▸
-                    </button>
+                    </Button>
                   )}
                 </div>
                 {s.vars && <VarTree devId={devId} vars={s.vars} depth={0} />}
@@ -275,10 +279,10 @@ export function DebugPanel({ devId, project, session, breakpoints, busy, onStart
               void evaluate();
             }}
           >
-            <input aria-label={t.debug.evaluate} className="grow mono" value={expr} placeholder={t.debug.evalPlaceholder} spellCheck={false} onChange={(e) => setExpr(e.target.value)} disabled={!stopped} />
-            <button type="submit" className="small" disabled={!stopped || !expr.trim()}>
+            <Input aria-label={t.debug.evaluate} className="grow mono w-auto" value={expr} placeholder={t.debug.evalPlaceholder} spellCheck={false} onChange={(e) => setExpr(e.target.value)} disabled={!stopped} />
+            <Button size="sm" type="submit" disabled={!stopped || !expr.trim()}>
               {t.debug.evaluate}
-            </button>
+            </Button>
           </form>
           {evals.length > 0 && (
             <ul className="var-tree" aria-label={t.debug.evaluate}>

@@ -47,7 +47,9 @@ main { width: 100%; max-width: var(--content-max); padding: 0 var(--sp-5) var(--
 .list-item .hint { font-size: var(--fs-sm); color: var(--text-muted); }
 .cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 26rem), 1fr)); gap: var(--sp-4); }
 
-/* ---- buttons / inputs --------------------------------------------------------------------------------------------------------------- */
+/* ---- buttons / inputs. Inside @layer components so Tailwind utilities (a later layer) can restyle Button and Input.
+   Raw buttons keep this look. Nav layout stays unlayered above, so the collapsed rail still wins. -------------------- */
+@layer components {
 .btn, button { display: inline-flex; align-items: center; justify-content: center; gap: var(--sp-2); min-height: 2rem; padding: var(--sp-1) var(--sp-3); border-radius: var(--r-sm); border: 1px solid var(--border-strong); background: var(--surface); color: var(--text); cursor: pointer; white-space: nowrap; transition: background var(--dur-fast) var(--ease), border-color var(--dur-fast) var(--ease), transform var(--dur-fast) var(--ease), box-shadow var(--dur-fast) var(--ease); }
 .nav-item { min-height: 2.25rem; border: 0; }
 .nav .nav-item { justify-content: flex-start; }
@@ -68,15 +70,10 @@ input { min-height: 2.25rem; padding: var(--sp-1) var(--sp-3); border-radius: va
 input::placeholder { color: var(--text-muted); opacity: 1; }
 input:hover { border-color: var(--primary); }
 input:focus-visible { outline-offset: 0; }
+}
 
-/* ---- badges ------------------------------------------------------------------------------------------------------------------------ */
-.badge { display: inline-flex; align-items: center; gap: var(--sp-1); padding: 0 var(--sp-2); min-height: 1.25rem; border-radius: var(--r-pill); font-size: var(--fs-xs); font-weight: 600; line-height: 1.25rem; background: var(--neutral-bg); color: var(--neutral-fg); vertical-align: middle; }
-.badge .dot { width: 0.5rem; height: 0.5rem; border-radius: 50%; background: currentColor; flex: none; }
-.badge.ok { background: var(--success-bg); color: var(--success-fg); } .badge.ok .dot { background: var(--success-dot); }
-.badge.bad { background: var(--danger-bg); color: var(--danger-fg); } .badge.bad .dot { background: var(--danger-dot); }
-.badge.warn { background: var(--warning-bg); color: var(--warning-fg); }
-.badge.busy .dot { animation: pulse 1.2s var(--ease) infinite; }
-@keyframes pulse { 0%, 100% { opacity: 1; transform: scale(1); } 50% { opacity: 0.35; transform: scale(0.7); } }
+/* Native checks, outside the button/input layer so they are not stretched into text fields. */
+input[type="checkbox"], input[type="radio"] { width: 1rem; height: 1rem; min-height: 1rem; margin: 0; padding: 0; flex: none; accent-color: var(--primary); vertical-align: middle; }
 
 /* ---- banners ------------------------------------------------------------------------------------------------------------------------ */
 .banner { display: flex; align-items: flex-start; gap: var(--sp-2); padding: var(--sp-2) var(--sp-3); border-radius: var(--r-md); border: 1px solid transparent; }
@@ -97,13 +94,7 @@ input:focus-visible { outline-offset: 0; }
 @media (prefers-reduced-motion: no-preference) { .toast { animation: toast-in 160ms ease-out; } }
 @keyframes toast-in { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
 
-/* ---- empty / loading / error states ------------------------------------------------------------------------------------------------- */
-.empty { display: flex; flex-direction: column; align-items: center; gap: var(--sp-2); text-align: center; padding: var(--sp-6) var(--sp-4); border: 1px dashed var(--border-strong); border-radius: var(--r-lg); background: color-mix(in srgb, var(--surface) 70%, transparent); }
-.empty .art { display: grid; place-items: center; width: 3.5rem; height: 3.5rem; border-radius: 50%; background: var(--primary-soft); color: var(--primary); margin-bottom: var(--sp-1); }
-.empty.error .art { background: var(--danger-bg); color: var(--danger-fg); }
-.empty .title { font-weight: 650; font-size: var(--fs-lg); }
-.empty .desc { color: var(--text-muted); max-width: 34rem; }
-.empty .actions { display: flex; gap: var(--sp-2); margin-top: var(--sp-2); }
+/* ---- empty / loading / error states: layout lives on EmptyState (Tailwind). Class names stay for forced-colors. */
 .skeleton { position: relative; overflow: hidden; background: var(--surface-2); border-radius: var(--r-md); }
 .skeleton::after { content: ""; position: absolute; inset: 0; transform: translateX(-100%); background: linear-gradient(90deg, transparent, color-mix(in srgb, var(--surface) 70%, transparent), transparent); animation: shimmer 1.4s infinite; }
 @keyframes shimmer { to { transform: translateX(100%); } }
@@ -172,14 +163,17 @@ input:focus-visible { outline-offset: 0; }
 /* ---- projects page (P1 slice) ---- */
 .toolbar { gap: var(--sp-3); align-items: center; margin-bottom: var(--sp-4); flex-wrap: wrap; }
 .toolbar select { min-width: 12rem; }
+.toolbar .ui-select { width: auto; min-width: 12rem; }
+.ui-select { appearance: none; background-image: linear-gradient(45deg, transparent 50%, currentColor 50%), linear-gradient(135deg, currentColor 50%, transparent 50%); background-position: calc(100% - 0.95rem) center, calc(100% - 0.65rem) center; background-size: 0.28rem 0.28rem, 0.28rem 0.28rem; background-repeat: no-repeat; color: var(--text); }
 /* address + connect + scan: the buttons drop below the field in a narrow window instead of overflowing (CJK labels are wide) */
 .lan-form { flex-wrap: wrap; }
 .lan-form input.grow { min-width: 10rem; }
 .projects-grid { display: grid; grid-template-columns: minmax(14rem, 18rem) 1fr; gap: var(--sp-4); align-items: start; }
 @media (max-width: 760px) { .projects-grid { grid-template-columns: 1fr; } }
 .sub-head { font-size: var(--fs-sm); color: var(--text-muted); margin: var(--sp-4) 0 var(--sp-2); }
-.list-btn { width: 100%; justify-content: space-between; text-align: left; background: transparent; border-color: transparent; }
-.list-btn.active { border-color: var(--border-strong); background: var(--surface-2, var(--surface)); }
+.list-btn { width: 100%; justify-content: space-between; text-align: left; background: transparent; border-color: transparent; color: var(--text); font-weight: 450; }
+.list-btn:hover:not(:disabled) { background: var(--surface-2); }
+.list-btn.active, .list-btn[aria-current="true"] { border-color: transparent; background: var(--primary-soft); color: var(--primary); font-weight: 600; }
 .editor-panel { display: flex; flex-direction: column; min-width: 0; }
 textarea.code { width: 100%; min-height: 18rem; resize: vertical; font-family: var(--font-mono, ui-monospace, monospace); font-size: var(--fs-sm); tab-size: 4; padding: var(--sp-3); border: 1px solid var(--border); border-radius: var(--r-md); background: var(--surface); color: var(--text); }
 pre.logs { margin: 0; min-height: 8rem; max-height: 16rem; overflow: auto; padding: var(--sp-3); border: 1px solid var(--border); border-radius: var(--r-md); background: var(--surface); font-size: var(--fs-sm); white-space: pre-wrap; word-break: break-word; }
@@ -225,11 +219,7 @@ pre.logs .err { color: var(--danger-fg); }
 .var-tree .twisty { background: none; border: 0; padding: 0 4px; cursor: pointer; color: inherit; min-height: 0; }
 pre.logs.debug-console { min-height: 4rem; max-height: 10rem; }
 
-/* command palette, settings, shortcut help (design §14.13). Absent from the tree until opened. */
-.overlay-backdrop { position: fixed; inset: 0; z-index: 40; display: grid; align-items: start; justify-items: center; padding: 12vh var(--sp-4) var(--sp-4); background: color-mix(in srgb, var(--bg) 35%, transparent); }
-.overlay-panel { width: min(32rem, 100%); max-height: min(70vh, 32rem); overflow: auto; display: flex; flex-direction: column; gap: var(--sp-3); padding: var(--sp-4); background: var(--surface); color: var(--text); border: 1px solid var(--border-strong); border-radius: var(--r-lg); box-shadow: var(--shadow-2); }
-.overlay-head { display: flex; align-items: center; gap: var(--sp-2); }
-.overlay-head h2 { flex: 1; font-size: var(--fs-lg); font-weight: 650; }
+/* command palette, settings, shortcut help (design §14.13). The shell is Dialog; these rules style the form inside it. */
 .overlay-panel label { display: inline-flex; align-items: center; gap: var(--sp-2); }
 .overlay-panel label.stack { display: flex; flex-direction: column; align-items: stretch; width: 100%; }
 .overlay-panel fieldset { border: 0; margin: 0; padding: 0; display: flex; flex-wrap: wrap; gap: var(--sp-2) var(--sp-3); }

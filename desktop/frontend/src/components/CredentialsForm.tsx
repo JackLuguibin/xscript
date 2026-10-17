@@ -3,6 +3,10 @@ import { useServices } from "../app-context";
 import type { SecretSlot } from "../api";
 import { errorLine } from "../errors";
 import { t } from "../strings";
+import { Alert } from "./ui/alert";
+import { Button } from "./ui/button";
+import { Input } from "./ui/input";
+import { Select } from "./ui/select";
 
 const KINDS = ["env", "backend", "device"] as const;
 
@@ -52,21 +56,21 @@ export function CredentialsForm() {
       </fieldset>
       <label className="stack">
         {t.secrets.kind}
-        <select aria-label={t.secrets.kind} value={kind} onChange={(e) => setKind(e.target.value as (typeof KINDS)[number])}>
+        <Select aria-label={t.secrets.kind} value={kind} onChange={(e) => setKind(e.target.value as (typeof KINDS)[number])}>
           {KINDS.map((k) => (
             <option key={k} value={k}>
               {t.secrets.kinds[k]}
             </option>
           ))}
-        </select>
+        </Select>
       </label>
       <label className="stack">
         {t.secrets.name}
-        <input aria-label={t.secrets.name} value={name} placeholder={placeholder} autoComplete="off" spellCheck={false} onChange={(e) => setName(e.target.value)} />
+        <Input aria-label={t.secrets.name} value={name} placeholder={placeholder} autoComplete="off" spellCheck={false} onChange={(e) => setName(e.target.value)} />
       </label>
       <label className="stack">
         {t.secrets.value}
-        <input
+        <Input
           aria-label={t.secrets.value}
           type="password"
           value={value}
@@ -77,18 +81,18 @@ export function CredentialsForm() {
         />
       </label>
       {err && (
-        <p className="banner error" role="alert">
+        <Alert tone="error" role="alert">
           {err}
-        </p>
+        </Alert>
       )}
       {msg && (
         <p role="status" className="muted">
           {msg}
         </p>
       )}
-      <button type="submit" disabled={busy || !name.trim() || !value}>
+      <Button type="submit" disabled={busy || !name.trim() || !value}>
         {t.secrets.save}
-      </button>
+      </Button>
       {slots.length === 0 ? (
         <p className="muted">{t.secrets.empty}</p>
       ) : (
@@ -98,9 +102,9 @@ export function CredentialsForm() {
               <span>
                 {t.secrets.kinds[s.kind]} · {s.name}
               </span>
-              <button
+              <Button variant="danger" size="sm"
                 type="button"
-                className="small danger"
+               
                 onClick={() => {
                   setErr("");
                   setMsg("");
@@ -114,7 +118,7 @@ export function CredentialsForm() {
                 }}
               >
                 {t.secrets.remove}
-              </button>
+              </Button>
             </li>
           ))}
         </ul>

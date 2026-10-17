@@ -10,6 +10,9 @@ import { DeviceCard, type DevicePageTarget } from "./DeviceCard";
 import { EmptyState } from "./EmptyState";
 import { ErrorBanner } from "./ErrorBanner";
 import { IconAlert, IconPhone, IconPlus, IconRefresh, IconSearch, IconUsb, IconWifi, Spinner } from "./icons";
+import { Alert } from "./ui/alert";
+import { Button } from "./ui/button";
+import { Input } from "./ui/input";
 
 /** ADB list refresh while the device page is visible: plug-in detection (Python auto-connects saved devices on it). */
 export const ADB_POLL_MS = 2500;
@@ -257,16 +260,16 @@ export function DevicePage({
   return (
     <div className="page">
       {dbNotice === "db.newer" && (
-        <div className="banner warn" role="status">
+        <Alert tone="warn" role="status">
           <IconAlert size={16} />
           <span className="grow">{t.saved.newer}</span>
-        </div>
+        </Alert>
       )}
       {dbNotice === "db.corrupt" && (
-        <div className="banner warn" role="status">
+        <Alert tone="warn" role="status">
           <IconAlert size={16} />
           <span className="grow">{t.saved.corrupt(dbDetail)}</span>
-        </div>
+        </Alert>
       )}
       {error !== null && <ErrorBanner error={error} onDismiss={() => setError(null)} />}
 
@@ -281,16 +284,16 @@ export function DevicePage({
               {t.flow.autoReconnect}
             </label>
           )}
-          <button
-            type="button"
-            className={addOpen ? "small" : "small primary"}
+          <Button
+            size="sm"
+            variant={addOpen ? "default" : "primary"}
             aria-expanded={Boolean(addOpen)}
             aria-controls="add-device"
             onClick={() => setAddOpen((o) => !o)}
           >
             <IconPlus size={14} />
             {t.flow.addDevice}
-          </button>
+          </Button>
         </div>
 
         {addOpen && (
@@ -301,10 +304,10 @@ export function DevicePage({
                   <IconUsb size={16} /> {t.adbDevices}
                 </h3>
                 <span className="grow" />
-                <button className="small" onClick={() => void loadAdb()} disabled={adb === null || adbLoading}>
+                <Button size="sm" onClick={() => void loadAdb()} disabled={adb === null || adbLoading}>
                   {adbLoading ? <Spinner /> : <IconRefresh size={14} />}
                   {t.refresh}
-                </button>
+                </Button>
               </div>
               {adb === null && (
                 <div className="list" aria-busy="true" aria-label={t.adbLoading}>
@@ -318,7 +321,7 @@ export function DevicePage({
                     title={t.adbMissingTitle}
                     tone="error"
                     role="alert"
-                    actions={<button onClick={() => void loadAdb()}>{t.retry}</button>}
+                    actions={<Button onClick={() => void loadAdb()}>{t.retry}</Button>}
                   >
                     {t.adbMissing}
                   </EmptyState>
@@ -328,7 +331,7 @@ export function DevicePage({
                     title={t.adbErrorTitle}
                     tone="error"
                     role="alert"
-                    actions={<button onClick={() => void loadAdb()}>{t.retry}</button>}
+                    actions={<Button onClick={() => void loadAdb()}>{t.retry}</Button>}
                   >
                     <ErrorBanner error={adbError.error} />
                   </EmptyState>
@@ -353,14 +356,14 @@ export function DevicePage({
                         {hint && <span className="hint">{hint}</span>}
                       </span>
                       <Badge tone={d.state === "device" ? "ok" : d.state === "unauthorized" ? "warn" : "bad"}>{d.state}</Badge>
-                      <button
-                        className={d.state === "device" && !liveIds.has("adb:" + d.serial) ? "primary" : ""}
+                      <Button
+                        variant={d.state === "device" && !liveIds.has("adb:" + d.serial) ? "primary" : "default"}
                         aria-label={`${t.connect} ${d.serial}`}
                         onClick={() => void connectAdb(d.serial)}
                         disabled={d.state !== "device" || has("adb:" + d.serial) || liveIds.has("adb:" + d.serial)}
                       >
                         {has("adb:" + d.serial) ? <Spinner /> : t.connect}
-                      </button>
+                      </Button>
                     </li>
                   );
                 })}
@@ -383,31 +386,31 @@ export function DevicePage({
                   if (address.trim()) void connectLan(address.trim());
                 }}
               >
-                <input
+                <Input
                   id="device-address"
                   aria-label="device address"
-                  className="grow"
+                  className="grow w-auto"
                   value={address}
                   onChange={(e) => setAddress(e.target.value)}
                   placeholder={t.lanPlaceholder}
                   autoComplete="off"
                   spellCheck={false}
                 />
-                <button type="submit" className="primary" aria-label={t.addressConnect} disabled={has("lan:" + address.trim()) || !address.trim()}>
+                <Button type="submit" variant="primary" aria-label={t.addressConnect} disabled={has("lan:" + address.trim()) || !address.trim()}>
                   {has("lan:" + address.trim()) ? <Spinner /> : t.connect}
-                </button>
+                </Button>
               </form>
               <div className="row scan-row">
                 {scan?.running ? (
-                  <button type="button" onClick={cancelScan}>
+                  <Button onClick={cancelScan}>
                     <Spinner />
                     {t.flow.scanCancel}
-                  </button>
+                  </Button>
                 ) : (
-                  <button type="button" onClick={() => void doScan()} disabled={has("scan")}>
+                  <Button onClick={() => void doScan()} disabled={has("scan")}>
                     <IconSearch size={16} />
                     {t.scan}
-                  </button>
+                  </Button>
                 )}
                 {scan && (
                   <span className="muted grow" role="status" aria-live="polite">
@@ -437,13 +440,13 @@ export function DevicePage({
                         <strong>{h.address}</strong>
                         <span className="muted">{h.info.name || h.info.model}</span>
                       </span>
-                      <button
+                      <Button
                         aria-label={`${t.connect} ${h.address}`}
                         onClick={() => void connectLan(h.address)}
                         disabled={has("lan:" + h.address) || liveIds.has("lan:" + h.address)}
                       >
                         {t.connect}
-                      </button>
+                      </Button>
                     </li>
                   ))}
                 </ul>

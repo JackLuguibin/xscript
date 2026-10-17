@@ -2,6 +2,8 @@ import { useEffect, useState } from "react";
 import { useServices } from "../app-context";
 import { t } from "../strings";
 import { Spinner } from "./icons";
+import { Button } from "./ui/button";
+import { Input } from "./ui/input";
 
 const KEY = "xscript.syncdir.";
 
@@ -86,24 +88,24 @@ export function SyncPanel({ devId, project, onSynced, onError }: { devId: string
         {t.sync.title}
       </h3>
       <div className="row">
-        <input aria-label={t.sync.dir} className="grow mono" value={dir} onChange={(e) => remember(e.target.value)} placeholder={t.sync.dirPlaceholder} spellCheck={false} />
-        <button className="small" onClick={() => void pick()} disabled={busy !== ""}>
+        <Input aria-label={t.sync.dir} className="grow mono w-auto" value={dir} onChange={(e) => remember(e.target.value)} placeholder={t.sync.dirPlaceholder} spellCheck={false} />
+        <Button size="sm" onClick={() => void pick()} disabled={busy !== ""}>
           {busy === "pick" ? <Spinner /> : t.sync.pick}
-        </button>
+        </Button>
       </div>
       <div className="row wrap" style={{ marginTop: "var(--sp-2)" }}>
-        <button className="small" onClick={() => void preview()} disabled={off}>
+        <Button size="sm" onClick={() => void preview()} disabled={off}>
           {busy === "preview" ? <Spinner /> : t.sync.preview}
-        </button>
-        <button className="small primary" onClick={() => void upload(false)} disabled={off}>
+        </Button>
+        <Button variant="primary" size="sm" onClick={() => void upload(false)} disabled={off}>
           {busy === "upload" ? <Spinner /> : t.sync.upload}
-        </button>
-        <button className="small" onClick={() => void upload(true)} disabled={off}>
+        </Button>
+        <Button size="sm" onClick={() => void upload(true)} disabled={off}>
           {busy === "full" ? <Spinner /> : t.sync.full}
-        </button>
-        <button className="small" onClick={() => void pull()} disabled={off}>
+        </Button>
+        <Button size="sm" onClick={() => void pull()} disabled={off}>
           {busy === "pull" ? <Spinner /> : t.sync.pull}
-        </button>
+        </Button>
       </div>
       {msg && (
         <p className="hint" role="status">

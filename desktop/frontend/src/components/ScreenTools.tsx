@@ -5,6 +5,8 @@ import { t } from "../strings";
 import { ErrorBanner } from "./ErrorBanner";
 import { useToast } from "./Toast";
 import { flattenTree, hitTest, nodeLabel, nodeXPath, rectPercent, selectorCode, type UiNode, type UiRect, type UiTree } from "../ui-tree";
+import { Button } from "./ui/button";
+import { Textarea } from "./ui/textarea";
 
 export type PointerMode = "control" | "inspect" | "color";
 
@@ -154,12 +156,12 @@ export function ScreenTools({
         </p>
       )}
       <div className="row wrap">
-        <button type="button" className="small" onClick={() => void refresh().catch((e) => setError(e))}>
+        <Button size="sm" onClick={() => void refresh().catch((e) => setError(e))}>
           {t.inspect.refresh}
-        </button>
-        <button
+        </Button>
+        <Button size="sm"
           type="button"
-          className="small"
+         
           onClick={() => {
             setError(null);
             setNotice("");
@@ -170,7 +172,7 @@ export function ScreenTools({
           }}
         >
           {t.inspect.saveShot}
-        </button>
+        </Button>
       </div>
       <div className="panel tight">
         <h2>{t.inspect.tree}</h2>
@@ -184,11 +186,11 @@ export function ScreenTools({
                   …
                 </p>
               ) : (
-                <button
+                <Button variant="bare" className="tree-item"
                   key={`${row.node.path || i}`}
                   type="button"
                   role="treeitem"
-                  className="tree-item"
+                 
                   aria-selected={selected === row.node}
                   style={{ paddingLeft: `${8 + row.depth * 12}px` }}
                   onClick={() => {
@@ -198,25 +200,25 @@ export function ScreenTools({
                   }}
                 >
                   {nodeLabel(row.node)}
-                </button>
+                </Button>
               ),
             )}
           </div>
         )}
         {selected && (
           <>
-            <textarea className="code-snip" aria-label={t.inspect.code} readOnly value={code} rows={3} />
+            <Textarea className="code-snip font-mono" aria-label={t.inspect.code} readOnly value={code} rows={3} />
             <p className="hint">{t.inspect.codeHint}</p>
             <div className="row wrap">
-              <button type="button" className="small" onClick={() => void copy(selectorCode(selected))}>
+              <Button size="sm" type="button" onClick={() => void copy(selectorCode(selected))}>
                 {t.inspect.copySelector}
-              </button>
-              <button type="button" className="small" onClick={() => void copy(xpath)}>
+              </Button>
+              <Button size="sm" type="button" onClick={() => void copy(xpath)}>
                 {t.inspect.copyXpath}
-              </button>
-              <button type="button" className="small" onClick={() => void copy(code)}>
+              </Button>
+              <Button size="sm" type="button" onClick={() => void copy(code)}>
                 {t.inspect.copyCode}
-              </button>
+              </Button>
             </div>
           </>
         )}
@@ -226,9 +228,9 @@ export function ScreenTools({
         <p className="hint">{t.tools.hint}</p>
         <div className="row wrap">
           {TOOL_PAGES.map((page) => (
-            <button key={page} type="button" className="small" onClick={() => void openTool(page)}>
+            <Button size="sm" key={page} type="button" onClick={() => void openTool(page)}>
               {t.tools[page]}
-            </button>
+            </Button>
           ))}
         </div>
       </div>

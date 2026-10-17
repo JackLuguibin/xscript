@@ -1,4 +1,5 @@
 /// <reference types="vitest/config" />
+import tailwindcss from "@tailwindcss/vite";
 import { defineConfig } from "vite";
 import react from "@vitejs/plugin-react";
 import { fileURLToPath } from "node:url";
@@ -7,7 +8,7 @@ import { fileURLToPath } from "node:url";
 const outDir = fileURLToPath(new URL("../app/xscript_desktop/resources/app", import.meta.url));
 
 export default defineConfig({
-  plugins: [react()],
+  plugins: [tailwindcss(), react()],
   // Monaco is imported file-by-file (src/editor/monaco-lean.ts) to leave out ~80 language packs; the package's
   // "exports" map only allows *.js, so the CSS it needs is reached through this alias. Everything is bundled (no CDN).
   resolve: { alias: { "monaco-esm": fileURLToPath(new URL("./node_modules/monaco-editor/esm/vs", import.meta.url)) } },
