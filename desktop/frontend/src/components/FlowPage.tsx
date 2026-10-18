@@ -602,7 +602,8 @@ export function FlowPage({ initialLayout }: { initialLayout?: FlowLayout } = {})
   const [traceLog, setTraceLog] = useState("");
   const [traceAt, setTraceAt] = useState<number | null>(null);
   const [traceNow, setTraceNow] = useState(() => Date.now());
-  const [trial, setTrial] = useState<{ code: string; line: string } | null>(null);
+  const [trial, setTrial] = useState<{ code: string; line: string; busy?: boolean } | null>(null);
+  const stepTicket = useRef(0);
   const [session, setSession] = useState<FlowDebug | null>(null);
   const [library, setLibrary] = useState<"auto" | "open" | "closed">("auto");
   const [bottomH, setBottomH] = useState(240);
@@ -1268,13 +1269,34 @@ export function FlowPage({ initialLayout }: { initialLayout?: FlowLayout } = {})
     const outcome = stepSnippet(graph, id, specs, cache);
     if (!outcome.ok) {
       const line = outcome.reason === "refused" ? t.flow.stepRefused : t.flow.stepMissing + " " + (outcome.pin ?? "");
+      stepTicket.current += 1;
       setTrial({ code: "", line });
       return;
     }
     if (outcome.where === "device") {
-      setTrial({ code: outcome.code, line: t.flow.stepDevice + " " + outcome.timeoutMs });
+      const ticket = ++stepTicket.current;
+      if (!services || !devId) {
+        setTrial({ code: outcome.code, line: t.flow.stepDevice + " · " + t.flow.noDevice });
+        return;
+      }
+      setTrial({ code: outcome.code, line: t.flow.stepRunning + " " + devId, busy: true });
+      const shown = (line: string) => {
+        if (stepTicket.current === ticket) setTrial({ code: outcome.code, line });
+      };
+      services.api.evalCode(devId, outcome.code, outcome.timeoutMs).then(
+        (answer) => {
+          if (!answer.ok) {
+            shown(t.flow.stepFailed + " " + (answer.error || "?"));
+            return;
+          }
+          shown(t.flow.stepResult + " " + answer.result);
+          if (stepTicket.current === ticket) setCache((cur) => (cacheEdited.current.has(id) ? cur : { ...cur, [id]: answer.result }));
+        },
+        (err: unknown) => shown(t.flow.stepFailed + " " + (err instanceof Error ? err.message : String((err as { message?: unknown })?.message ?? err))),
+      );
       return;
     }
+    stepTicket.current += 1;
     const preview = literalPreview(outcome.code);
     setTrial({ code: outcome.code, line: preview === null ? t.flow.stepReady : t.flow.stepResult + " " + preview });
   };
@@ -2062,7 +2084,7 @@ export function FlowPage({ initialLayout }: { initialLayout?: FlowLayout } = {})
               </p>
             ) : null}
             {trial ? (
-              <section aria-label={t.flow.step}>
+              <section aria-label={t.flow.step} aria-busy={trial.busy ? true : undefined}>
                 {trial.code ? <pre>{trial.code}</pre> : null}
                 <p role="status">{trial.line}</p>
               </section>

@@ -169,6 +169,11 @@ export function createDemoTransport(): MemoryTransport {
         return { entries, next: logs.length ? logs[logs.length - 1].seq : since };
       },
       "device.action": () => ({ ok: true }),
+      "device.eval": (p) => {
+        const code = String(p.code ?? "");
+        if (code.includes("raise")) return { ok: false, result: "", error: "demo: raised" };
+        return { ok: true, result: "None", error: "" };
+      },
       "debug.start": (p) => {
         if (dbg && dbg.state !== "ended") throw { code: "debug.already", message: "a debug session is already active on this device" };
         proj(p);

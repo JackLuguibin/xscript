@@ -223,6 +223,8 @@ export function createApi(rpc: RpcClient) {
       rpc.call<{ id: number }>("flow.recordRun", body),
     listRuns: () => rpc.call<{ runs: Array<{ id: number; flow: string; started_at: number; ended_at: number; status: string; error_node: string; error_line: number | null; nodes: Array<{ seq: number; node: string; enter_ms: number | null; exit_ms: number | null; summary: string }> }> }>("flow.listRuns"),
     action: (id: string, payload: Record<string, unknown>) => rpc.call<{ ok: boolean }>("device.action", { id, ...payload }),
+    evalCode: (id: string, code: string, timeoutMs: number) =>
+      rpc.call<{ ok: boolean; result: string; error: string }>("device.eval", { id, code, timeoutMs }, { timeoutMs: timeoutMs + 5_000 }),
     key: (id: string, name: string) => rpc.call<{ ok: boolean }>("device.action", { id, type: "key", name }),
     pickDirectory: (title: string) => rpc.call<{ path: string | null }>("app.pickDirectory", { title }, { timeoutMs: 600_000 }),
     syncPreview: (id: string, project: string, dir: string, full = false) =>

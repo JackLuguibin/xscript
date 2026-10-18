@@ -26,6 +26,8 @@ from .services.tool_pages import TITLES, tool_url
 
 ACTION_TYPES = ("click", "swipe", "input", "key")
 MAX_FILE_CHARS = 2 * 1024 * 1024  # stays under the bridge's 4 MiB request cap even after JSON escaping
+MAX_EVAL_CHARS = 64 * 1024  # a step-run snippet is one node; anything bigger is a mistake
+EVAL_TIMEOUT_MS = (200, 15000)  # openapi EvalRequest.timeout_ms bounds
 AUTO_RECONNECT_KEY = "autoReconnect"  # settings row: "0" turns auto-reconnect off globally; absent / "1" = on (design §14.5)
 SAVED_CONNECT_TIMEOUT = 20.0  # startup reconnect: per-device ceiling (they run in parallel, so one slow device blocks nobody)
 SCAN_PROGRESS_EVERY = 0.25  # s between device.scan.progress events (a /24 scan is ~2500 probes)
@@ -652,6 +654,21 @@ class AppContext:
             return await self._client(params).action(payload)
 
         # ---- local folder sync (port of the VS Code extension's sync.ts) ------------------------------------------------------
+
+        @d.method("device.eval")
+        @_map_errors
+        async def device_eval(params: dict[str, Any]) -> dict[str, Any]:
+            """One short snippet in the device's `:eval` process (flow step-run). The answer is whatever the snippet put in `_result`."""
+            code = param(params, "code", str)
+            if not code.strip():
+                raise RpcError("rpc.bad_params", "code must not be empty")
+            if len(code) > MAX_EVAL_CHARS:
+                raise RpcError("rpc.too_large", "code exceeds %d characters" % MAX_EVAL_CHARS)
+            timeout = param(params, "timeoutMs", int, default=8000)
+            if isinstance(timeout, bool) or not EVAL_TIMEOUT_MS[0] <= timeout <= EVAL_TIMEOUT_MS[1]:
+                raise RpcError("rpc.bad_params", "timeoutMs must be between %d and %d" % EVAL_TIMEOUT_MS)
+            r = await self._client(params).eval_python(code, timeout)
+            return {"ok": bool(r.get("ok")), "result": str(r.get("result") or ""), "error": str(r.get("error") or "")}
 
         @d.method("app.pickDirectory")
         async def pick_directory(params: dict[str, Any]) -> dict[str, Any]:
