@@ -37,10 +37,10 @@ async def rpc(ctx: AppContext, method: str, **params):
 
 
 def test_fresh_file_is_wal_with_schema_v1_and_no_backup(tmp_path):
-    """A new desktop.db is WAL, foreign keys on, user_version 1, and is not backed up (nothing to keep)."""
+    """A new desktop.db is WAL, foreign keys on, user_version 2 (devices + run history), and is not backed up (nothing to keep)."""
     store = AppStore(tmp_path / "desktop.db")
     try:
-        assert store.user_version == SCHEMA_VERSION == 1
+        assert store.user_version == SCHEMA_VERSION == 2
         assert store.pragma("journal_mode") == "wal"
         assert store.pragma("foreign_keys") == 1
         assert store.pragma("quick_check") == "ok"
@@ -75,7 +75,7 @@ async def test_async_queries_use_the_same_worker(tmp_path):
 def test_memory_store_for_tests_without_a_data_dir():
     store = AppStore(None)
     try:
-        assert store.path is None and store.pragma("journal_mode") == "memory" and store.user_version == 1
+        assert store.path is None and store.pragma("journal_mode") == "memory" and store.user_version == SCHEMA_VERSION
         saved = store.remember("lan:127.0.0.1:9860", "lan", "127.0.0.1:9860", "uid", "m", 1.5)
         assert saved.address == "127.0.0.1:9860" and store.list_devices()[0].id == saved.id
     finally:
@@ -97,7 +97,7 @@ def test_existing_empty_database_is_backed_up_before_upgrade(tmp_path):
         assert bak_conn.execute("PRAGMA user_version").fetchone()[0] == 0
         assert bak_conn.execute("SELECT name FROM sqlite_master WHERE name='legacy'").fetchone() is not None
         bak_conn.close()
-        assert store.user_version == 1 and store.pragma("quick_check") == "ok"
+        assert store.user_version == SCHEMA_VERSION and store.pragma("quick_check") == "ok"
     finally:
         store.close()
     conn = sqlite3.connect(path)
@@ -114,18 +114,18 @@ def test_newer_user_version_opens_read_only_and_does_not_downgrade(tmp_path):
     store.exec_sql("PRAGMA wal_checkpoint(TRUNCATE)")
     store.close()
     conn = sqlite3.connect(path)
-    conn.execute("PRAGMA user_version = 2")
+    conn.execute("PRAGMA user_version = 3")
     conn.commit()
     conn.close()
     again = AppStore(path)
     try:
-        assert again.read_only and again.notice == "db.newer" and again.user_version == 2
+        assert again.read_only and again.notice == "db.newer" and again.user_version == 3
         assert again.pragma("query_only") == 1
         assert again.list_devices()[0].model == "Pixel"
         with pytest.raises(StoreError) as err:
             again.update("adb:emulator-5554", {"name": "nope"})
         assert err.value.code == "db.newer"
-        assert sqlite3.connect(path).execute("PRAGMA user_version").fetchone()[0] == 2
+        assert sqlite3.connect(path).execute("PRAGMA user_version").fetchone()[0] == 3
     finally:
         again.close()
 
@@ -137,7 +137,7 @@ def test_corrupt_file_is_renamed_and_replaced(tmp_path):
     try:
         assert store.notice == "db.corrupt" and store.notice_detail.startswith("desktop.db.corrupt-")
         assert (tmp_path / store.notice_detail).is_file()
-        assert store.user_version == 1 and store.list_devices() == []
+        assert store.user_version == SCHEMA_VERSION and store.list_devices() == []
         store.remember("lan:10.0.0.2:9860", "lan", "10.0.0.2:9860", "", "", 1)
         assert store.pragma("quick_check") == "ok"
     finally:
@@ -302,7 +302,7 @@ async def test_read_only_database_is_reported_and_refuses_edits(tmp_path):
     store.exec_sql("PRAGMA wal_checkpoint(TRUNCATE)")
     store.close()
     conn = sqlite3.connect(path)
-    conn.execute("PRAGMA user_version = 2")
+    conn.execute("PRAGMA user_version = 3")
     conn.commit()
     conn.close()
     ctx = AppContext(poll_interval=60, data_dir=tmp_path)
@@ -336,3 +336,36 @@ def path_text(path) -> str:
         return path.read_bytes().decode("utf-8", "ignore")
     except OSError:
         return ""
+
+
+async def test_flow_record_run_is_listed_back(tmp_path):
+    """Run history (schema v2 `runs`/`run_nodes`): flow.recordRun keeps the node trace, flow.listRuns returns it; a bad status or node list is refused."""
+    ctx = AppContext(poll_interval=60, data_dir=tmp_path)
+    try:
+        saved = await rpc(ctx, "flow.recordRun", flow="daily_signin", startedAt=1, endedAt=2, status="success",
+                          nodes=[{"node": "warm", "enter_ms": 10, "summary": "True"}])
+        assert saved["result"]["id"]
+        listed = await rpc(ctx, "flow.listRuns")
+        assert listed["result"]["runs"][0]["flow"] == "daily_signin"
+        assert listed["result"]["runs"][0]["nodes"][0]["node"] == "warm"
+        assert listed["result"]["runs"][0]["nodes"][0]["summary"] == "True"
+        bad_status = await rpc(ctx, "flow.recordRun", flow="f", startedAt=1, endedAt=2, status="weird", nodes=[])
+        assert bad_status["error"]["code"] == "db.bad_params"
+        bad_nodes = await rpc(ctx, "flow.recordRun", flow="f", startedAt=1, endedAt=2, status="success", nodes=["x"])
+        assert bad_nodes["error"]["code"] == "rpc.bad_params"
+    finally:
+        await ctx.shutdown()
+    store = AppStore(tmp_path / "desktop.db")
+    try:
+        run_id = store.record_run(
+            "daily_signin",
+            [{"node": "warm", "enter_ms": 10, "exit_ms": None, "summary": "True"}, {"node": "tap", "summary": "missing"}],
+            started_at=1, ended_at=2, status="error", error_node="tap",
+        )
+        rows = store.list_runs()
+        assert run_id == rows[0]["id"]
+        assert rows[0]["flow"] == "daily_signin" and rows[0]["status"] == "error" and rows[0]["error_node"] == "tap"
+        assert [node["node"] for node in rows[0]["nodes"]] == ["warm", "tap"]
+        assert rows[0]["nodes"][0]["enter_ms"] == 10 and rows[0]["nodes"][0]["summary"] == "True"
+    finally:
+        store.close()

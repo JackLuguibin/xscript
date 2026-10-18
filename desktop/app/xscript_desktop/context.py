@@ -433,6 +433,39 @@ class AppContext:
                     out.append(rec.to_dict())
             return {"devices": out, "notice": self.store.notice, "noticeDetail": self.store.notice_detail}
 
+        @d.method("flow.recordRun")
+        @_map_errors
+        async def flow_record_run(params: dict[str, Any]) -> dict[str, Any]:
+            flow = param(params, "flow", str)
+            nodes = params.get("nodes")
+            if not isinstance(nodes, list) or not all(isinstance(n, dict) for n in nodes):
+                raise RpcError("rpc.bad_params", "nodes must be a list of objects")
+            started = float(params.get("startedAt") or params.get("started_at") or 0)
+            ended = float(params.get("endedAt") or params.get("ended_at") or started)
+            status = str(params.get("status") or "success")
+            error_line = params.get("errorLine", params.get("error_line"))
+            exit_code = params.get("exitCode", params.get("exit_code"))
+            run_id = await self.store.aexec(
+                self.store._record_run,
+                flow,
+                nodes,
+                started,
+                ended,
+                status,
+                str(params.get("project") or ""),
+                str(params.get("deviceId") or params.get("device_id") or ""),
+                str(params.get("errorNode") or params.get("error_node") or ""),
+                None if error_line is None else int(error_line),
+                None if exit_code is None else int(exit_code),
+            )
+            return {"id": run_id}
+
+        @d.method("flow.listRuns")
+        @_map_errors
+        async def flow_list_runs(params: dict[str, Any]) -> dict[str, Any]:
+            limit = int(params.get("limit") or 20)
+            return {"runs": await self.store.aexec(self.store._list_runs, limit)}
+
         @d.method("device.refresh")
         @_map_errors
         async def refresh(params: dict[str, Any]) -> dict[str, Any]:
