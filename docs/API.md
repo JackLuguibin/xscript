@@ -58,6 +58,8 @@ node.Selector().text("加载中").wait_gone(timeout=10)
 
 过滤条件：`text`、`text_contains`、`text_matches`、`id`、`desc`、`desc_contains`、`type`、`hint`、`package`、`class_path`、`path`、`depth`、`child_count`、`filter(fn)`。布尔过滤条件：`clickable`、`long_clickable`、`editable`、`enabled`、`visible`、`checkable`、`checked`、`focusable`、`focused`、`scrollable`、`selected`。节点关系：`parent`、`child`、`brother`、`descendant`、`within(node)`。
 
+带 `timeout` 的 `find`/`find_all`/`exists`/`wait_gone` 默认每 0.25 秒重查一次，可用 `interval=` 调整（如 `wait_gone(timeout=10, interval=1)`）；到点前最后一次等待会截短，不会超过 `timeout`。
+
 `Selector(mode=0)` 在精简树中搜索（与 `GET /ui-tree?mode=0` 相同）。`mode=1` 在完整树中搜索。
 
 `Selector(xpath=...)` 接受 XPath 1.0 表达式。之后链式调用的过滤条件会进一步缩小 XPath 的结果。
@@ -102,7 +104,7 @@ screen.cache(False)
 for r in screen.ocr(rect=[0, 0, 1080, 400]):
     print(r.text, r.confidence, r.rect, r.center_x, r.center_y)   # 也可用 r["text"]
 screen.ocr_find(r"^确定$")
-screen.ocr_wait("登录", timeout=10)
+screen.ocr_wait("登录", timeout=10)                # 默认每 0.3 秒识别一次，interval= 可调
 screen.ocr_click("同意")
 ```
 

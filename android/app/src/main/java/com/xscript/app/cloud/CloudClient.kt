@@ -205,7 +205,7 @@ object CloudClient {
 
     fun status(): JSONObject = JSONObject()
         .put("state", state.name.lowercase())
-        .put("url", Settings.cloudUrl)
+        .put("url", CloudUrl.redact(Settings.cloudUrl))
         .put("device_id", deviceId())
         .put("group", Settings.cloudGroup)
         .put("error", lastError)
@@ -350,7 +350,7 @@ object CloudClient {
             .put("app_is_run", running != null)
             .put("app_is_line", false)
             .put("app_id", running.orEmpty())
-            .put("username", Settings.cloudUrl)
+            .put("username", CloudUrl.redact(Settings.cloudUrl))
             .put("device_id", deviceId(context))
             .put("group", Settings.cloudGroup)
             .put("license", LicenseManager.status(context))

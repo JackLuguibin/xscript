@@ -1,0 +1,33 @@
+# Weekly dependency update PRs. Versions are pinned exactly everywhere, so these PRs are the way they move;
+# minor/patch bumps are grouped per ecosystem to keep the PR count down, majors come one by one.
+version: 2
+updates:
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+    groups:
+      actions:
+        patterns: ["*"]
+
+  - package-ecosystem: npm
+    directories:
+      - /backend/web            # web console
+      - /desktop/frontend       # desktop client UI
+      - /ide/vscode-extension   # VS Code extension
+    schedule:
+      interval: weekly
+    groups:
+      npm-minor-patch:
+        update-types: [minor, patch]
+
+  - package-ecosystem: pip
+    directories:
+      - /backend
+      - /desktop/app
+      - /ide/mcp-server
+    schedule:
+      interval: weekly
+    groups:
+      pip-minor-patch:
+        update-types: [minor, patch]
