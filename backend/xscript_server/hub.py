@@ -17,7 +17,7 @@ from starlette.concurrency import run_in_threadpool
 from starlette.websockets import WebSocket
 
 from .audit import audit
-from .db import Database
+from .db import Database, values_in
 from .models import Device, DeviceLog, Task
 
 log = logging.getLogger("xscript.hub")
@@ -101,7 +101,7 @@ class Hub:
         """Write status, script data and last_seen of these connections in one transaction."""
         with self.db.session() as s:
             # One SELECT fills the identity map; s.get() below then needs no round trip per row.
-            list(s.scalars(select(Device).where(Device.id.in_([c.id for c in conns]))))
+            list(s.scalars(select(Device).where(Device.id.in_(values_in(c.id for c in conns)))))
             for conn in conns:
                 if live_only and self.conns.get(conn.id) is not conn:
                     continue  # replaced or gone meanwhile: hello / detach wrote the row
@@ -306,7 +306,7 @@ class Hub:
         if not ids:
             return {}
         with self.db.session() as s:
-            rows = s.execute(select(Device.id, Device.group_override).where(Device.id.in_(ids))).all()
+            rows = s.execute(select(Device.id, Device.group_override).where(Device.id.in_(values_in(ids)))).all()
         return {r[0]: r[1] for r in rows if r[1]}
 
     async def select(self, target: str) -> list[Conn]:

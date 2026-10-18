@@ -16,6 +16,7 @@ from sqlalchemy import delete, func, or_, select
 from sqlalchemy.orm import Session
 from starlette.concurrency import run_in_threadpool
 
+from ..db import values_in
 from ..deps import Principal, admin, ctx, db_session, like_contains, operator, paginate, record, viewer
 from ..hub import Conn
 from ..models import Device, DeviceKey, DeviceLog
@@ -72,9 +73,9 @@ def list_devices(request: Request, p: Principal = Depends(viewer), s: Session = 
     if app:
         stmt = stmt.where(Device.app == app)
     if online is True:
-        stmt = stmt.where(Device.id.in_(list(live) or [""]))
+        stmt = stmt.where(Device.id.in_(values_in(live)))
     elif online is False:
-        stmt = stmt.where(Device.id.not_in(list(live) or [""]))
+        stmt = stmt.where(Device.id.not_in(values_in(live)))
     if group:
         stmt = stmt.where(or_(Device.group_override == group,
                               (Device.group_override == "") & (Device.reported_group == group)))

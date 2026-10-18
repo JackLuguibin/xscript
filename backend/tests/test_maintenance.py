@@ -230,5 +230,30 @@ class SettingsCacheTest(unittest.TestCase):
             self.assertEqual(self.get("site_name"), "B")
 
 
+
+class ValuesInTest(unittest.TestCase):
+    def test_long_id_lists_use_one_parameter(self):
+        from sqlalchemy import func, select
+
+        from xscript_server.db import values_in
+        from xscript_server.models import Device
+
+        db = Database(fresh_cfg().db_path)
+        db.create_all()
+        with db.session() as s:
+            s.add_all(Device(id="d%d" % i, device_id="d%d" % i) for i in range(5))
+            s.commit()
+            live = ["d1", "d3"] + ["ghost%d" % i for i in range(40000)]  # beyond SQLite's 32 766 variables
+
+            def count(where):
+                return s.scalar(select(func.count()).select_from(Device).where(where))
+
+            self.assertEqual(count(Device.id.in_(values_in(live))), 2)
+            self.assertEqual(count(Device.id.not_in(values_in(live))), 3)
+            self.assertEqual(count(Device.id.in_(values_in([]))), 0)
+            self.assertEqual(count(Device.id.not_in(values_in({}))), 5)
+        db.engine.dispose()
+
+
 if __name__ == "__main__":
     unittest.main()
