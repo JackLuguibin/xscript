@@ -13,10 +13,11 @@ import tempfile
 import time
 import unittest
 from pathlib import Path
+from unittest import mock
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-from xscript_server import maintenance, migrate  # noqa: E402
+from xscript_server import audit as auditmod, maintenance, migrate  # noqa: E402
 from xscript_server.alerts import RateLimiter, build_request  # noqa: E402
 from xscript_server.config import Config  # noqa: E402
 from xscript_server.db import Database  # noqa: E402
@@ -169,6 +170,64 @@ class AlertFormatTest(unittest.TestCase):
         rl = RateLimiter(2, 60)
         self.assertEqual([rl.allow("ip") for _ in range(3)], [True, True, False])
         self.assertTrue(rl.allow("other"))
+
+
+
+class SettingsCacheTest(unittest.TestCase):
+    """get_settings() is cached per database; writes through set_setting() show up at once."""
+
+    def setUp(self):
+        from sqlalchemy import event
+
+        self.db = Database(fresh_cfg().db_path)
+        self.db.create_all()
+        self.reads = 0
+
+        def count(conn, cursor, statement, *a):
+            if "FROM settings" in statement:
+                self.reads += 1
+
+        event.listen(self.db.engine, "before_cursor_execute", count)
+
+    def tearDown(self):
+        auditmod.invalidate_settings()
+        self.db.engine.dispose()
+
+    def get(self, key):
+        with self.db.session() as s:
+            return auditmod.get_settings(s)[key]
+
+    def test_cached_and_invalidated_on_commit(self):
+        self.assertEqual(self.get("site_name"), "XScript 管理后台")
+        self.get("site_name")
+        self.assertEqual(self.reads, 1)
+        with self.db.session() as s:
+            auditmod.set_setting(s, "site_name", "A")
+            self.assertEqual(auditmod.get_settings(s)["site_name"], "A")  # own pending write
+            with self.db.session() as other:  # not committed: others still see the old value
+                self.assertEqual(auditmod.get_settings(other)["site_name"], "XScript 管理后台")
+            s.commit()
+        self.assertEqual(self.get("site_name"), "A")
+
+    def test_rollback_and_copies_do_not_leak(self):
+        with self.db.session() as s:
+            auditmod.set_setting(s, "login_ip_allowlist", ["10.0.0.0/8"])
+            s.rollback()
+        self.assertEqual(self.get("login_ip_allowlist"), [])
+        with self.db.session() as s:
+            auditmod.get_settings(s)["login_ip_allowlist"].append("1.2.3.4")  # caller mutates its copy
+        self.assertEqual(self.get("login_ip_allowlist"), [])
+
+    def test_ttl_picks_up_writes_from_another_process(self):
+        self.get("site_name")
+        con = sqlite3.connect(self.db.path)  # e.g. the CLI on the same data dir
+        con.execute("INSERT INTO settings (key, value) VALUES ('site_name', '\"B\"')")
+        con.commit()
+        con.close()
+        self.assertEqual(self.get("site_name"), "XScript 管理后台")  # cached
+        later = time.monotonic() + auditmod.SETTINGS_TTL + 1
+        with mock.patch.object(auditmod.time, "monotonic", return_value=later):
+            self.assertEqual(self.get("site_name"), "B")
 
 
 if __name__ == "__main__":

@@ -2,8 +2,11 @@
 
 from __future__ import annotations
 
+import copy
+import time
 from typing import Any
 
+from sqlalchemy import event
 from sqlalchemy.orm import Session
 
 from .models import AuditLog, Setting
@@ -51,17 +54,53 @@ def audit(s: Session, actor: str, action: str, target: str = "", detail: dict[st
     s.add(AuditLog(actor=actor, action=action, target=str(target)[:255], detail=detail or {}, ip=ip or ""))
 
 
+# Settings are read on every authenticated request (IP allowlist, 2FA policy) and several times
+# by some pages. Cached per database; set_setting() drops the cache when its transaction commits,
+# and the short TTL picks up writes from another process (the CLI's reset-allowlist).
+SETTINGS_TTL = 5.0
+_settings_cache: dict[str, tuple[float, dict[str, Any]]] = {}  # database URL -> (expires, settings)
+
+
 def get_settings(s: Session) -> dict[str, Any]:
-    out = dict(DEFAULT_SETTINGS)
-    for row in s.query(Setting).all():
-        if row.key in out:
-            out[row.key] = row.value
-    return out
+    """All settings with defaults filled in. A copy: callers may modify it."""
+    key = str(s.get_bind().url)
+    hit = _settings_cache.get(key)
+    now = time.monotonic()
+    if hit is None or hit[0] <= now or s.info.get("settings_dirty"):
+        out = dict(DEFAULT_SETTINGS)
+        for row in s.query(Setting).all():
+            if row.key in out:
+                out[row.key] = row.value
+        if s.info.get("settings_dirty"):
+            return out  # uncommitted values of this session: never cached
+        hit = (now + SETTINGS_TTL, out)
+        _settings_cache[key] = hit
+    return copy.deepcopy(hit[1])
+
+
+def invalidate_settings(s: Session | None = None) -> None:
+    if s is None:
+        _settings_cache.clear()
+    else:
+        _settings_cache.pop(str(s.get_bind().url), None)
+
+
+@event.listens_for(Session, "after_commit")
+def _settings_committed(s: Session) -> None:
+    if s.info.pop("settings_dirty", False):
+        invalidate_settings(s)
+
+
+@event.listens_for(Session, "after_rollback")
+def _settings_rolled_back(s: Session) -> None:
+    s.info.pop("settings_dirty", None)
 
 
 def set_setting(s: Session, key: str, value: Any) -> None:
     if key not in DEFAULT_SETTINGS:
         raise KeyError(key)
+    s.info["settings_dirty"] = True
+    invalidate_settings(s)
     row = s.get(Setting, key)
     if row is None:
         s.add(Setting(key=key, value=value))

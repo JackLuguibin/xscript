@@ -711,6 +711,34 @@ class ServerTest(unittest.IsolatedAsyncioTestCase):
         self.assertEqual((await self.admin.get("/api/maintenance/backups/..%2Fxscript.db")).status_code, 404)
         self.assertEqual((await self.admin.post("/api/maintenance/cleanup")).status_code, 200)
 
+    async def test_authenticated_request_uses_one_session_and_cached_settings(self):
+        from sqlalchemy import event
+
+        db = self.srv.app.state.ctx.db
+        await self.admin.get("/api/devices")  # token last_used_at is fresh now: no commit below
+        opened: list[str] = []
+        statements: list[str] = []
+        real_session = db.session
+
+        def session():
+            # Who opened it: the request dependencies live in deps.py (background loops elsewhere).
+            opened.append(sys._getframe(1).f_code.co_filename)
+            return real_session()
+
+        def capture(conn, cursor, statement, *a):
+            statements.append(statement)
+
+        db.session = session
+        event.listen(db.engine, "before_cursor_execute", capture)
+        try:
+            self.assertEqual((await self.admin.get("/api/devices")).status_code, 200)
+        finally:
+            db.session = real_session
+            event.remove(db.engine, "before_cursor_execute", capture)
+        self.assertEqual(sum(1 for f in opened if f.endswith("deps.py")), 1)  # auth + route share one
+        self.assertFalse([q for q in statements if "FROM settings" in q])  # allowlist / 2FA policy cached
+        self.assertTrue([q for q in statements if "FROM auth_tokens" in q])  # the token is still checked
+
     async def test_public_rate_limit(self):
         ctx = self.srv.app.state.ctx
         old = ctx.pub_limiter

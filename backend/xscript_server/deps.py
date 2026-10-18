@@ -10,9 +10,9 @@ from fastapi import Depends, HTTPException, Request
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from .audit import audit
+from .audit import audit, get_settings
 from . import netcheck
-from .models import AuthToken, Setting, User
+from .models import AuthToken, User
 from .security import ROLES, LoginLimiter, token_hash
 
 if TYPE_CHECKING:
@@ -74,8 +74,7 @@ def client_ip(request: Request) -> str:
 
 def ip_allowed(s: Session, ip: str) -> bool:
     """登录 IP 白名单 (system setting); an empty list lets everyone in."""
-    row = s.get(Setting, "login_ip_allowlist")
-    return netcheck.allowed(ip, row.value if row is not None else [])
+    return netcheck.allowed(ip, get_settings(s)["login_ip_allowlist"] or [])
 
 
 def _credentials(request: Request) -> tuple[str, str]:
@@ -85,7 +84,9 @@ def _credentials(request: Request) -> tuple[str, str]:
     return request.cookies.get(SESSION_COOKIE, ""), "web"
 
 
-def current_user(request: Request) -> Principal:
+def current_user(request: Request, s: Session = Depends(db_session)) -> Principal:
+    # `s` is the request's own session: FastAPI caches dependencies per request, so a route that
+    # also takes db_session gets this same one instead of a second connection.
     cached = getattr(request.state, "principal", None)
     if cached is not None:
         return cached
@@ -96,27 +97,25 @@ def current_user(request: Request) -> Principal:
         raise HTTPException(403, "缺少 CSRF 请求头")
     c = ctx(request)
     now = int(time.time())
-    with c.db.session() as s:
-        if not ip_allowed(s, client_ip(request)):
-            raise HTTPException(403, "当前 IP 不在登录白名单内")
-        row = s.scalar(select(AuthToken).where(AuthToken.token_hash == token_hash(token)))
-        if row is None or row.kind != via or (row.expires_at and row.expires_at <= now):
-            raise HTTPException(401, "登录已失效")
-        user = s.get(User, row.user_id)
-        if user is None or user.disabled:
-            raise HTTPException(401, "账号已停用")
-        if not row.last_used_at or now - row.last_used_at > 60:
-            row.last_used_at = now
-            if via == "web":  # sliding session
-                row.expires_at = now + int(c.config.session_hours * 3600)
-            s.commit()
-        p = Principal(user.id, user.username, user.role, via, row.id)
-        # 系统设置「管理员必须开启两步验证」: until they do, only the account endpoints work.
-        if (via == "web" and user.role == "admin" and not user.totp_enabled
-                and not request.url.path.startswith(TOTP_EXEMPT)):
-            required = s.get(Setting, "require_totp_admin")
-            if required is not None and required.value:
-                raise HTTPException(403, "请先开启两步验证")
+    if not ip_allowed(s, client_ip(request)):
+        raise HTTPException(403, "当前 IP 不在登录白名单内")
+    row = s.scalar(select(AuthToken).where(AuthToken.token_hash == token_hash(token)))
+    if row is None or row.kind != via or (row.expires_at and row.expires_at <= now):
+        raise HTTPException(401, "登录已失效")
+    user = s.get(User, row.user_id)
+    if user is None or user.disabled:
+        raise HTTPException(401, "账号已停用")
+    if not row.last_used_at or now - row.last_used_at > 60:
+        # At most once a minute per token. Commits only this (the route has done nothing yet).
+        row.last_used_at = now
+        if via == "web":  # sliding session
+            row.expires_at = now + int(c.config.session_hours * 3600)
+        s.commit()
+    p = Principal(user.id, user.username, user.role, via, row.id)
+    # 系统设置「管理员必须开启两步验证」: until they do, only the account endpoints work.
+    if (via == "web" and user.role == "admin" and not user.totp_enabled
+            and not request.url.path.startswith(TOTP_EXEMPT) and get_settings(s)["require_totp_admin"]):
+        raise HTTPException(403, "请先开启两步验证")
     request.state.principal = p
     return p
 
