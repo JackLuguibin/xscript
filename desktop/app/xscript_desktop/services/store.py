@@ -25,7 +25,7 @@ from typing import Any, Callable
 
 from .sync import safe_relative
 
-SCHEMA_VERSION = 1
+SCHEMA_VERSION = 2
 _SECRET_KEY = re.compile(r"(secret|token|password|passwd|credential|api[_-]?key)", re.I)
 _SHA1 = re.compile(r"[0-9a-f]{40}")
 _TEXT_LIMITS = {"name": 80, "grp": 80, "note": 500}
@@ -56,6 +56,30 @@ _V1 = (
         sha1       TEXT NOT NULL,
         size       INTEGER NOT NULL,
         PRIMARY KEY (device_key, project, path)
+    ) WITHOUT ROWID""",
+)
+
+_V2 = (
+    """CREATE TABLE runs (
+        id         INTEGER PRIMARY KEY,
+        flow       TEXT NOT NULL,
+        project    TEXT NOT NULL DEFAULT '',
+        device_id  TEXT NOT NULL DEFAULT '',
+        started_at REAL NOT NULL,
+        ended_at   REAL NOT NULL,
+        status     TEXT NOT NULL,
+        error_node TEXT NOT NULL DEFAULT '',
+        error_line INTEGER,
+        exit_code  INTEGER
+    )""",
+    """CREATE TABLE run_nodes (
+        run_id   INTEGER NOT NULL REFERENCES runs(id) ON DELETE CASCADE,
+        seq      INTEGER NOT NULL,
+        node     TEXT NOT NULL,
+        enter_ms REAL,
+        exit_ms  REAL,
+        summary  TEXT NOT NULL DEFAULT '',
+        PRIMARY KEY (run_id, seq)
     ) WITHOUT ROWID""",
 )
 
@@ -255,6 +279,10 @@ class AppStore:
                 for sql in _V1:
                     conn.execute(sql)
                 conn.execute("PRAGMA user_version = 1")
+            if frm < 2:
+                for sql in _V2:
+                    conn.execute(sql)
+                conn.execute("PRAGMA user_version = 2")
             conn.execute("COMMIT")
         except Exception:
             conn.execute("ROLLBACK")
@@ -446,6 +474,52 @@ class AppStore:
 
     def delete_setting(self, key: str) -> None:
         self.submit(self._delete_setting, key)
+
+    def record_run(self, flow: str, nodes: list[dict[str, Any]], *, started_at: float, ended_at: float,
+                   status: str = "success", project: str = "", device_id: str = "",
+                   error_node: str = "", error_line: int | None = None, exit_code: int | None = None) -> int:
+        return self.submit(
+            self._record_run, flow, nodes, started_at, ended_at, status, project, device_id, error_node, error_line, exit_code,
+        )
+
+    def list_runs(self, limit: int = 20) -> list[dict[str, Any]]:
+        return self.submit(self._list_runs, limit)
+
+    def _record_run(self, flow: str, nodes: list[dict[str, Any]], started_at: float, ended_at: float, status: str,
+                    project: str, device_id: str, error_node: str, error_line: int | None, exit_code: int | None) -> int:
+        conn = self._guard()
+        self._writable()
+        if status not in ("success", "error"):
+            raise StoreError("db.bad_params", "运行状态不合法")
+        cur = conn.execute(
+            "INSERT INTO runs (flow, project, device_id, started_at, ended_at, status, error_node, error_line, exit_code) "
+            "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+            (flow, project, device_id, float(started_at), float(ended_at), status, error_node, error_line, exit_code),
+        )
+        run_id = int(cur.lastrowid)
+        for index, node in enumerate(nodes):
+            conn.execute(
+                "INSERT INTO run_nodes (run_id, seq, node, enter_ms, exit_ms, summary) VALUES (?, ?, ?, ?, ?, ?)",
+                (run_id, index + 1, str(node.get("node", "")), node.get("enter_ms"), node.get("exit_ms"), str(node.get("summary", ""))),
+            )
+        conn.commit()
+        return run_id
+
+    def _list_runs(self, limit: int) -> list[dict[str, Any]]:
+        conn = self._guard()
+        rows = conn.execute("SELECT * FROM runs ORDER BY id DESC LIMIT ?", (int(limit),)).fetchall()
+        out: list[dict[str, Any]] = []
+        for row in rows:
+            nodes = conn.execute(
+                "SELECT seq, node, enter_ms, exit_ms, summary FROM run_nodes WHERE run_id = ? ORDER BY seq", (row["id"],),
+            ).fetchall()
+            out.append({
+                "id": row["id"], "flow": row["flow"], "project": row["project"], "device_id": row["device_id"],
+                "started_at": row["started_at"], "ended_at": row["ended_at"], "status": row["status"],
+                "error_node": row["error_node"], "error_line": row["error_line"], "exit_code": row["exit_code"],
+                "nodes": [dict(item) for item in nodes],
+            })
+        return out
 
     def _get_setting(self, key: str) -> str | None:
         conn = self._guard()
