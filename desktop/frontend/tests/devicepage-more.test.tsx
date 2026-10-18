@@ -32,7 +32,11 @@ describe("DevicePage — states and error paths", () => {
 
   it("a generic adb error is shown as a warning with its code, and the empty text is not shown with it", async () => {
     setup({ "device.adb.list": () => { throw { code: "adb.timeout", message: "adb devices 超时（15s）" }; } });
-    expect(await screen.findByText(/adb devices 超时.*adb\.timeout/)).toBeTruthy();
+    const alert = await screen.findByText("adb 命令超时");
+    expect(screen.getByText(/adb kill-server/)).toBeTruthy();
+    fireEvent.click(screen.getByRole("button", { name: "详情" }));
+    expect(screen.getByText(/adb devices 超时（15s） \[adb\.timeout\]/)).toBeTruthy();
+    expect(alert).toBeTruthy();
     expect(screen.queryByText(/没有发现 ADB 设备/)).toBeNull();
   });
 
@@ -100,7 +104,9 @@ describe("DevicePage — states and error paths", () => {
     const user = userEvent.setup();
     setup({ "device.connect": () => { throw new Error("kaboom"); } });
     await user.click(await screen.findByRole("button", { name: "连接 emulator-5554" }));
-    expect((await screen.findByRole("alert")).textContent).toContain("kaboom");
+    const alert = await screen.findByRole("alert");
+    await user.click(within(alert).getByRole("button", { name: "详情" }));
+    expect(alert.textContent).toContain("kaboom");
   });
 
   it("device card: capture hint only without capture permission, warning/error banners, offline pill", async () => {

@@ -3,24 +3,21 @@ import { useServices } from "../app-context";
 import type { AdbDevice, Device, ScanHit } from "../api";
 import { RpcError } from "../bridge/types";
 import { t } from "../strings";
+import { useBusy } from "../useBusy";
 import { Badge } from "./Badge";
 import { DeviceCard } from "./DeviceCard";
 import { EmptyState } from "./EmptyState";
+import { ErrorBanner } from "./ErrorBanner";
 import { IconAlert, IconPhone, IconRefresh, IconSearch, IconUsb, IconWifi, Spinner } from "./icons";
-
-function errText(e: unknown): string {
-  if (e instanceof RpcError) return e.code === "adb.not_found" ? t.adbMissing : `${e.message} [${e.code}]`;
-  return e instanceof Error ? e.message : String(e);
-}
 
 export function DevicePage({ refreshToken = 0, focusToken = 0 }: { refreshToken?: number; focusToken?: number }) {
   const { api, rpc } = useServices();
   const [adb, setAdb] = useState<AdbDevice[] | null>(null);
-  const [adbError, setAdbError] = useState<{ code: string; text: string } | null>(null);
+  const [adbError, setAdbError] = useState<{ code: string; error: unknown } | null>(null);
   const [adbLoading, setAdbLoading] = useState(false);
   const [devices, setDevices] = useState<Device[]>([]);
-  const [busy, setBusy] = useState<string>("");
-  const [error, setError] = useState("");
+  const { has, track } = useBusy();
+  const [error, setError] = useState<unknown>(null);
   const [address, setAddress] = useState("");
   const [scan, setScan] = useState<ScanHit[] | null>(null);
   const [scanning, setScanning] = useState(false);
@@ -34,7 +31,7 @@ export function DevicePage({ refreshToken = 0, focusToken = 0 }: { refreshToken?
       setAdb((await api.adbList()).devices);
     } catch (e) {
       setAdb([]);
-      setAdbError({ code: e instanceof RpcError ? e.code : "", text: errText(e) });
+      setAdbError({ code: e instanceof RpcError ? e.code : "", error: e });
     } finally {
       setAdbLoading(false);
     }
@@ -85,21 +82,20 @@ export function DevicePage({ refreshToken = 0, focusToken = 0 }: { refreshToken?
   }, [rpc]);
 
   const run = async (key: string, fn: () => Promise<void>) => {
-    setBusy(key);
-    setError("");
     try {
-      await fn();
+      await track(key, async () => {
+        setError(null);
+        await fn();
+      });
     } catch (e) {
-      setError(errText(e));
-    } finally {
-      setBusy("");
+      setError(e);
     }
   };
 
   const upsert = (d: Device) => setDevices((cur) => (cur.some((x) => x.id === d.id) ? cur.map((x) => (x.id === d.id ? d : x)) : [...cur, d]));
 
   const connectAdb = (serial: string) => run("adb:" + serial, async () => upsert(await api.connectAdb(serial)));
-  const connectLan = (addr: string) => run("lan", async () => upsert(await api.connectLan(addr)));
+  const connectLan = (addr: string) => run("lan:" + addr, async () => upsert(await api.connectLan(addr)));
   const disconnect = (id: string) => run("rm:" + id, async () => {
     const res = await api.disconnect(id);
     if (res.device) upsert(res.device);
@@ -140,14 +136,7 @@ export function DevicePage({ refreshToken = 0, focusToken = 0 }: { refreshToken?
           <span className="grow">{t.saved.corrupt(dbDetail)}</span>
         </div>
       )}
-      {error && (
-        <div className="banner error" role="alert">
-          <IconAlert size={16} />
-          <span className="grow">
-            {t.errorPrefix}：{error}
-          </span>
-        </div>
-      )}
+      {error !== null && <ErrorBanner error={error} onDismiss={() => setError(null)} />}
 
       <section aria-labelledby="h-connected">
         <div className="section-head">
@@ -168,7 +157,7 @@ export function DevicePage({ refreshToken = 0, focusToken = 0 }: { refreshToken?
                 onForget={() => forget(d.id)}
                 onRetry={() => retry(d)}
                 onSave={(patch) => saveMeta(d, patch)}
-                busy={busy === "rm:" + d.id || busy === "fg:" + d.id || busy === "re:" + d.id || busy === "sv:" + d.id}
+                busy={has("rm:" + d.id) || has("fg:" + d.id) || has("re:" + d.id) || has("sv:" + d.id)}
               />
             ))}
           </div>
@@ -199,7 +188,7 @@ export function DevicePage({ refreshToken = 0, focusToken = 0 }: { refreshToken?
             </EmptyState>
           ) : (
             <EmptyState icon={<IconAlert size={26} />} title={t.adbErrorTitle} tone="error" role="alert" actions={<button onClick={() => void loadAdb()}>{t.retry}</button>}>
-              <span className="banner warn" style={{ display: "inline-flex" }}>{adbError.text}</span>
+              <ErrorBanner error={adbError.error} />
             </EmptyState>
           ))}
         {adb !== null && adb.length === 0 && !adbError && (
@@ -226,9 +215,9 @@ export function DevicePage({ refreshToken = 0, focusToken = 0 }: { refreshToken?
                   className={d.state === "device" && !liveIds.has("adb:" + d.serial) ? "primary" : ""}
                   aria-label={`${t.connect} ${d.serial}`}
                   onClick={() => void connectAdb(d.serial)}
-                  disabled={d.state !== "device" || busy !== "" || liveIds.has("adb:" + d.serial)}
+                  disabled={d.state !== "device" || has("adb:" + d.serial) || liveIds.has("adb:" + d.serial)}
                 >
-                  {busy === "adb:" + d.serial ? <Spinner /> : t.connect}
+                  {has("adb:" + d.serial) ? <Spinner /> : t.connect}
                 </button>
               </li>
             );
@@ -254,10 +243,10 @@ export function DevicePage({ refreshToken = 0, focusToken = 0 }: { refreshToken?
             }}
           >
             <input id="device-address" aria-label="device address" className="grow" value={address} onChange={(e) => setAddress(e.target.value)} placeholder={t.lanPlaceholder} autoComplete="off" spellCheck={false} />
-            <button type="submit" className="primary" aria-label={t.addressConnect} disabled={busy !== "" || !address.trim()}>
-              {busy === "lan" ? <Spinner /> : t.connect}
+            <button type="submit" className="primary" aria-label={t.addressConnect} disabled={has("lan:" + address.trim()) || !address.trim()}>
+              {has("lan:" + address.trim()) ? <Spinner /> : t.connect}
             </button>
-            <button type="button" onClick={() => void doScan()} disabled={busy !== ""}>
+            <button type="button" onClick={() => void doScan()} disabled={has("scan")}>
               {scanning ? <Spinner /> : <IconSearch size={16} />}
               {scanning ? t.scanning : t.scan}
             </button>
@@ -275,7 +264,7 @@ export function DevicePage({ refreshToken = 0, focusToken = 0 }: { refreshToken?
                     <strong>{h.address}</strong>
                     <span className="muted">{h.info.name || h.info.model}</span>
                   </span>
-                  <button aria-label={`${t.connect} ${h.address}`} onClick={() => void connectLan(h.address)} disabled={busy !== "" || liveIds.has("lan:" + h.address)}>
+                  <button aria-label={`${t.connect} ${h.address}`} onClick={() => void connectLan(h.address)} disabled={has("lan:" + h.address) || liveIds.has("lan:" + h.address)}>
                     {t.connect}
                   </button>
                 </li>

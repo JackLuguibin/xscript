@@ -120,16 +120,19 @@ def test_e2e_05_adb_returns_no_devices_shows_empty_state(ui, qtbot):
     ui.wait_text(qtbot, "没有发现 ADB 设备")
 
 
-@pytest.mark.parametrize("mode, code", [("bad_json", "device.protocol"), ("non_object", "device.protocol"), ("html", "device.protocol"),
-                                        ("429", "device.http"), ("500", "device.http"), ("503", "device.http"), ("reset", "device.unreachable")])
-def test_e2e_06_connect_errors_surface_as_alerts(ui, qtbot, mode, code):
-    """E-06 device misbehaves during connect (bad JSON / not an object / HTML / 429 / 500 / 503 / dropped connection): alert with the code, no card, no leaked forward."""
+@pytest.mark.parametrize("mode, code, title", [
+    ("bad_json", "device.protocol", "对方不像 XScript 设备"), ("non_object", "device.protocol", "对方不像 XScript 设备"),
+    ("html", "device.protocol", "对方不像 XScript 设备"), ("429", "device.http", "设备返回了错误"), ("500", "device.http", "设备内部出错"),
+    ("503", "device.http", "设备内部出错"), ("reset", "device.unreachable", "连不上设备")])
+def test_e2e_06_connect_errors_surface_as_alerts(ui, qtbot, mode, code, title):
+    """E-06 device misbehaves during connect (bad JSON / not an object / HTML / 429 / 500 / 503 / dropped connection): mapped alert, the code behind 详情, no card, no leaked forward."""
     ui.fake_device.mode = mode
     ui.wait_text(qtbot, "emulator-5554")
     ui.click(qtbot, "连接 emulator-5554")
-    ui.wait_text(qtbot, "[%s]" % code, timeout=15000) if mode in ("429", "500", "503") else ui.wait_text(qtbot, "出错", timeout=15000)
-    t = ui.text(qtbot)
-    assert "出错" in t
+    ui.wait_text(qtbot, title, timeout=15000)
+    assert "[%s]" % code not in ui.text(qtbot)
+    ui.click(qtbot, "详情")
+    ui.wait_text(qtbot, "[%s]" % code)
     assert ui.js(qtbot, "document.querySelectorAll('article').length") == 0
     assert ui.fake.forwards == {}  # the forward created for the probe was removed again
     assert ui.js(qtbot, "!!document.querySelector('[role=alert]')") is True
@@ -143,6 +146,9 @@ def test_e2e_07_device_goes_offline_and_comes_back_via_pushed_events(ui, qtbot):
     ui.fake_device.mode = "500"
     ui.run_async(ui.ctx.devices.refresh("adb:emulator-5554"))
     ui.wait_text(qtbot, "离线")
+    ui.wait_text(qtbot, "设备内部出错")  # the card's raw error goes through the same mapping (errorCode + status)
+    ui.click(qtbot, "详情")
+    ui.wait_text(qtbot, "[device.http]")
     assert "500" in ui.text(qtbot)
     ui.fake_device.mode = "ok"
     ui.run_async(ui.ctx.devices.refresh("adb:emulator-5554"))
@@ -163,8 +169,11 @@ def test_e2e_09_lan_connect_to_closed_port_is_unreachable(ui, qtbot):
     """E-09 nothing listens on the address → device.unreachable alert (retryable), UI stays usable."""
     ui.type_into(qtbot, "device address", "127.0.0.1:1")
     ui.click(qtbot, "连接地址")
-    ui.wait_text(qtbot, "出错", timeout=15000)
-    assert "cannot reach" in ui.text(qtbot) or "unreachable" in ui.text(qtbot)
+    ui.wait_text(qtbot, "连不上设备", timeout=15000)
+    assert "前台" in ui.text(qtbot)  # the actionable hint
+    ui.click(qtbot, "详情")
+    ui.wait_text(qtbot, "[device.unreachable]")
+    assert "cannot reach" in ui.text(qtbot)
     assert ui.is_disabled(qtbot, "连接地址") is False
 
 
@@ -173,7 +182,9 @@ def test_e2e_10_lan_connect_bad_address_and_empty_input(ui, qtbot):
     assert ui.is_disabled(qtbot, "连接地址") is True
     ui.type_into(qtbot, "device address", "host:99999")
     ui.click(qtbot, "连接地址")
-    ui.wait_text(qtbot, "invalid port", timeout=10000)
+    ui.wait_text(qtbot, "设备地址格式不对", timeout=10000)
+    ui.click(qtbot, "详情")
+    ui.wait_text(qtbot, "invalid port")
 
 
 def test_e2e_11_scan_finds_the_fake_device_only(ui, qtbot, monkeypatch):

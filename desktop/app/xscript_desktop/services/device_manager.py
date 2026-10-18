@@ -35,6 +35,7 @@ class DeviceRecord:
     state: str = "connecting"  # connecting | online | offline
     status: dict[str, Any] = field(default_factory=dict)
     error: str = ""
+    error_code: str = ""  # machine-readable twin of `error` (DeviceError.code), "" when there is no error
     last_seen: float = 0.0
     client: DeviceClient | None = None
     warning: str = ""  # e.g. unauthenticated LAN endpoint
@@ -49,7 +50,7 @@ class DeviceRecord:
     def to_dict(self) -> dict[str, Any]:
         return {
             "id": self.id, "transport": self.transport, "address": self.target.address, "serial": self.serial,
-            "forwardPort": self.forward_port, "state": self.state, "error": self.error, "warning": self.warning,
+            "forwardPort": self.forward_port, "state": self.state, "error": self.error, "errorCode": self.error_code, "warning": self.warning,
             "lastSeen": self.last_seen, "info": summarize_status(self.status) if self.status else {}, "status": self.status,
             "name": self.saved_name, "group": self.group, "note": self.note, "autoConnect": self.auto_connect,
             "sortOrder": self.sort_order, "saved": self.saved,
@@ -90,9 +91,9 @@ class DeviceManager:
         except ValueError:
             return host == "localhost"
 
-    def _set_state(self, rec: DeviceRecord, state: str, error: str = "") -> None:
-        changed = rec.state != state or rec.error != error
-        rec.state, rec.error = state, error
+    def _set_state(self, rec: DeviceRecord, state: str, error: str = "", code: str = "") -> None:
+        changed = rec.state != state or rec.error != error or rec.error_code != code
+        rec.state, rec.error, rec.error_code = state, error, code
         if changed:
             self._emit("device.state", rec.to_dict())
 
@@ -183,7 +184,7 @@ class DeviceManager:
             self._set_state(rec, "online")
             await self._note_online(rec)
         except DeviceError as e:
-            self._set_state(rec, "offline", str(e))
+            self._set_state(rec, "offline", str(e), e.code)
         return rec
 
     # ---- health polling -------------------------------------------------------------------------------------------------------------
@@ -207,7 +208,7 @@ class DeviceManager:
                     if before[1:] != (rec.status.get("running"), rec.status.get("project")):
                         self._emit("device.state", rec.to_dict())
                 except DeviceError as e:
-                    self._set_state(rec, "offline", str(e))
+                    self._set_state(rec, "offline", str(e), e.code)
 
     async def _note_online(self, rec: DeviceRecord) -> None:
         if self._on_online is None:

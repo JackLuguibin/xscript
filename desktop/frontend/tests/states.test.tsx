@@ -1,4 +1,4 @@
-import { render, screen, waitFor, within } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it } from "vitest";
 import { ServicesContext } from "../src/app-context";
@@ -55,7 +55,9 @@ describe("empty / loading / error states", () => {
   it("adb generic failure shows the code and a retry", async () => {
     setup({ "device.adb.list": () => { throw { code: "adb.timeout", message: "adb 超时" }; } });
     expect(await screen.findByText("查询 ADB 设备失败")).toBeTruthy();
-    expect(screen.getByText(/adb 超时.*adb\.timeout/)).toBeTruthy();
+    expect(screen.getByText("adb 命令超时")).toBeTruthy();
+    fireEvent.click(screen.getByRole("button", { name: "详情" }));
+    expect(screen.getByText(/adb 超时 \[adb\.timeout\]/)).toBeTruthy();
     expect(screen.getByRole("button", { name: "重试" })).toBeTruthy();
   });
 

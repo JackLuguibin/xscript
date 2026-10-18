@@ -84,6 +84,18 @@ input:focus-visible { outline-offset: 0; }
 .banner.warn { background: var(--warning-bg); color: var(--warning-fg); border-color: color-mix(in srgb, var(--warning-fg) 25%, transparent); }
 .banner.error { background: var(--danger-bg); color: var(--danger-fg); border-color: color-mix(in srgb, var(--danger-fg) 25%, transparent); }
 .banner .grow { padding-top: 0; }
+.error-banner .err-body { display: flex; flex-direction: column; gap: 0.15rem; min-width: 0; }
+.error-banner .err-hint { opacity: 0.92; }
+.error-banner .err-actions { display: flex; flex: none; gap: var(--sp-1); align-items: center; }
+.error-banner .err-actions button { color: inherit; }
+.error-banner .err-detail { display: flex; flex-direction: column; align-items: flex-start; gap: var(--sp-1); margin-top: var(--sp-1); }
+.error-banner .err-detail pre { white-space: pre-wrap; word-break: break-word; margin: 0; font-size: 0.8rem; max-height: 10rem; overflow: auto; user-select: text; }
+.icon-btn { padding-inline: 0.35rem; }
+.toasts { position: fixed; right: var(--sp-4); bottom: var(--sp-4); z-index: 50; display: flex; flex-direction: column; gap: var(--sp-2); pointer-events: none; }
+.toast { pointer-events: auto; display: flex; align-items: center; gap: var(--sp-2); min-width: 14rem; max-width: 26rem; padding: var(--sp-2) var(--sp-3); border-radius: var(--r-md); border: 1px solid var(--border); background: var(--surface); color: var(--text); box-shadow: var(--shadow-2); }
+.toast::before { content: ""; width: 0.5rem; height: 0.5rem; border-radius: 50%; background: var(--success-dot); flex: none; }
+@media (prefers-reduced-motion: no-preference) { .toast { animation: toast-in 160ms ease-out; } }
+@keyframes toast-in { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
 
 /* ---- empty / loading / error states ------------------------------------------------------------------------------------------------- */
 .empty { display: flex; flex-direction: column; align-items: center; gap: var(--sp-2); text-align: center; padding: var(--sp-6) var(--sp-4); border: 1px dashed var(--border-strong); border-radius: var(--r-lg); background: color-mix(in srgb, var(--surface) 70%, transparent); }
