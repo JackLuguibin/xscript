@@ -234,6 +234,19 @@ class ServerTest(unittest.IsolatedAsyncioTestCase):
         with self.assertRaises(Exception):
             async with websockets.connect(bad) as ws:
                 await ws.recv()
+        # What the App sends now: the key in an Authorization header, not in the logged URL.
+        base, key = url.split("?token=")
+        async with websockets.connect(base, additional_headers={"Authorization": "Bearer " + key}) as ws:
+            await ws.send(json.dumps({"type": "hello", "device_id": "bearer-dev", "device": {}}))
+            for _ in range(100):
+                if "bearer-dev" in self.srv.app.state.ctx.hub.conns:
+                    break
+                await asyncio.sleep(0.02)
+            self.assertIn("bearer-dev", self.srv.app.state.ctx.hub.conns)
+        for _ in range(100):
+            if "bearer-dev" not in self.srv.app.state.ctx.hub.conns:
+                break
+            await asyncio.sleep(0.02)
         async with FakeDevice(url, "dev1", group="g1") as d1, FakeDevice(url, "dev2", group="g2") as d2, \
                 FakeDevice(url, "dev1", app="com.packed", group="g1"):
             await self.wait_online(3)

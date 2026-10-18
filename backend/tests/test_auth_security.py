@@ -240,3 +240,23 @@ class LikeEscapeTest(unittest.TestCase):
 
         self.assertEqual(like_escape("a%b_c\\"), "a\\%b\\_c\\\\")
         self.assertEqual(like_contains("  x  "), "%x%")
+
+
+class LogRedactTest(unittest.TestCase):
+    """Device keys in ?token= never reach the server log (uvicorn logs the path with its query string)."""
+
+    def test_filter_masks_message_and_args(self):
+        import logging
+
+        from xscript_server.logredact import RedactSecrets, redact, uvicorn_log_config
+
+        self.assertEqual(redact("/ws?token=xsd_secret&x=1"), "/ws?token=***&x=1")
+        self.assertEqual(redact("/ws?group=g&Token=abc"), "/ws?group=g&Token=***")
+        self.assertEqual(redact("/ws?tokens=keep"), "/ws?tokens=keep")
+        # The websocket "accepted" line and the access log both pass the path as a %-arg.
+        rec = logging.LogRecord("uvicorn.error", logging.INFO, __file__, 1, '%s - "WebSocket %s" [accepted]',
+                                ("1.2.3.4:5", "/ws?token=xsd_secret"), None)
+        self.assertTrue(RedactSecrets().filter(rec))
+        self.assertNotIn("xsd_secret", rec.getMessage())
+        cfg = uvicorn_log_config()
+        self.assertTrue(all("redact_secrets" in h["filters"] for h in cfg["handlers"].values()))
