@@ -175,6 +175,21 @@ class ServerTest(unittest.IsolatedAsyncioTestCase):
             await asyncio.sleep(0.02)
         self.fail("devices did not connect")
 
+    async def wait_listed_online(self, *ids):
+        """Wait until /api/devices?online=true lists exactly these identities.
+
+        A bare count of hub connections is not enough: a socket that just closed can still be counted, and a
+        connection is in hub.conns before attach() has saved its device row (the listing joins the two).
+        """
+        want, seen = sorted(ids), None
+        for _ in range(250):
+            r = await self.admin.get("/api/devices", params={"online": True})
+            seen = sorted(x["id"] for x in r.json()["items"])
+            if seen == want:
+                return
+            await asyncio.sleep(0.02)
+        self.assertEqual(seen, want, "online devices never matched")
+
     # ------------------------------------------------------------ auth
 
     async def test_auth_and_csrf(self):
@@ -249,12 +264,11 @@ class ServerTest(unittest.IsolatedAsyncioTestCase):
             if "bearer-dev" not in self.srv.app.state.ctx.hub.conns:
                 break
             await asyncio.sleep(0.02)
+        self.assertNotIn("bearer-dev", self.srv.app.state.ctx.hub.conns)
         async with FakeDevice(url, "dev1", group="g1") as d1, FakeDevice(url, "dev2", group="g2") as d2, \
                 FakeDevice(url, "dev1", app="com.packed", group="g1"):
-            await self.wait_online(3)
-            r = await self.admin.get("/api/devices", params={"online": True})
-            ids = sorted(x["id"] for x in r.json()["items"])
-            self.assertEqual(ids, ["dev1", "dev1@com.packed", "dev2"])
+            # Same device id under two apps is two identities, both online and listed.
+            await self.wait_listed_online("dev1", "dev1@com.packed", "dev2")
 
             r = await self.admin.post("/api/command", json={
                 "target": "group:g1", "command": {"path": "app_run", "id": "demo", "param": {"k": 1}}})
