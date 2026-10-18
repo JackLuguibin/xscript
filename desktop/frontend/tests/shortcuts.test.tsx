@@ -139,8 +139,11 @@ describe("shortcut matching", () => {
 describe("command palette, settings, and chords", () => {
   it("opens the palette, filters, runs an action, and restores focus when it closes", async () => {
     mount();
-    const refresh = await screen.findByRole("button", { name: "刷新" });
+    const refresh = await screen.findByRole<HTMLButtonElement>("button", { name: "刷新" });
+    // disabled until the adb list has loaded, and a disabled button can't take focus (slow runners got here first)
+    await waitFor(() => expect(refresh.disabled).toBe(false));
     refresh.focus();
+    expect(document.activeElement).toBe(refresh);
     press("k", { mod: true });
     const box = await screen.findByRole("combobox", { name: "命令面板" });
     await waitFor(() => expect(document.activeElement).toBe(box));
