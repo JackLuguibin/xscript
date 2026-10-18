@@ -376,16 +376,21 @@ def next_run(daily: str | None, every: float | None, last: float, now: float) ->
 
 
 class Scheduler:
-    def __init__(self, hub: Hub, db: Database, interval: float = 15.0):
+    def __init__(self, hub: Hub, db: Database, interval: float = 15.0, parallel: int = 4):
         self.hub, self.db, self.interval = hub, db, interval
         # Set by the app: async (script_id, target, version_id, run, params) -> deploy result.
         self.deploy = None
+        # Due tasks run side by side, so one slow task (a deploy waiting on offline devices) does
+        # not hold up the rest; at most `parallel` at once.
+        self._slots = asyncio.Semaphore(parallel)
+        self._running: dict[int, asyncio.Task[None]] = {}
 
-    def _claim_due(self, now: float) -> list[tuple[int, str, dict[str, Any]]]:
+    def _claim_due(self, now: float, busy: frozenset[int] = frozenset()) -> list[tuple[int, str, dict[str, Any]]]:
         with self.db.session() as s:
             due = []
             for t in s.scalars(select(Task).where(Task.enabled.is_(True))):
-                if is_due(t.daily, t.every, t.last_run, now):
+                # A task still running (or waiting for a slot) is not claimed again: no overlap.
+                if t.id not in busy and is_due(t.daily, t.every, t.last_run, now):
                     t.last_run = now
                     due.append((t.id, t.target, dict(t.command)))
             s.commit()
@@ -423,13 +428,29 @@ class Scheduler:
             self.hub._alert("task_failed", name, "定时任务「%s」执行失败：%s" % (name, text))
         return summary
 
+    async def _run_claimed(self, task_id: int, target: str, command: dict[str, Any]) -> None:
+        try:
+            async with self._slots:
+                await self.run_task(task_id, target, command)
+        except asyncio.CancelledError:
+            raise
+        except Exception:  # run_task records command errors itself; this is e.g. the database
+            log.exception("scheduled task %d failed", task_id)
+        finally:
+            self._running.pop(task_id, None)
+
     async def loop(self) -> None:
-        while True:
-            await asyncio.sleep(self.interval)
-            try:
-                for task_id, target, command in await run_in_threadpool(self._claim_due, time.time()):
-                    await self.run_task(task_id, target, command)
-            except asyncio.CancelledError:
-                raise
-            except Exception:  # pragma: no cover
-                log.exception("scheduler tick failed")
+        try:
+            while True:
+                await asyncio.sleep(self.interval)
+                try:
+                    for task_id, target, command in await run_in_threadpool(self._claim_due, time.time(),
+                                                                            frozenset(self._running)):
+                        self._running[task_id] = asyncio.create_task(self._run_claimed(task_id, target, command))
+                except asyncio.CancelledError:
+                    raise
+                except Exception:  # pragma: no cover
+                    log.exception("scheduler tick failed")
+        finally:  # shutdown: stop what is in flight, as the serial loop did
+            for t in list(self._running.values()):
+                t.cancel()

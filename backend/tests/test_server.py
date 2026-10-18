@@ -27,6 +27,7 @@ sys.path.insert(0, str(HERE.parent))
 
 try:
     import httpx
+    import sqlalchemy
     import uvicorn
     import websockets
 
@@ -872,6 +873,107 @@ class ServerTest(unittest.IsolatedAsyncioTestCase):
 
 
 @unittest.skipIf(SKIP, SKIP)
+@unittest.skipIf(SKIP, SKIP)
+class SchedulerTest(unittest.IsolatedAsyncioTestCase):
+    """Due tasks run side by side with a cap; a slow or failing task does not hold up the rest."""
+
+    async def asyncSetUp(self):
+        from xscript_server.db import Database
+        from xscript_server.hub import Scheduler
+        from xscript_server.models import Task
+
+        cfg = Config.load(tempfile.mkdtemp())
+        cfg.ensure_dirs()
+        self.db = Database(cfg.db_path)
+        self.db.create_all()
+        self.release = asyncio.Event()
+        self.calls: list[str] = []
+        self.active = self.peak = 0
+        test = self
+
+        class Hub:
+            def _alert(self, *a):
+                pass
+
+            async def command(self, target, command):
+                test.calls.append(target)
+                test.active += 1
+                test.peak = max(test.peak, test.active)
+                try:
+                    if target.startswith("slow"):
+                        await test.release.wait()
+                    if target == "boom":
+                        raise RuntimeError("device gone")
+                    return {"d": {"code": 1, "msg": "ok"}}
+                finally:
+                    test.active -= 1
+
+        with self.db.session() as s:
+            # every = 0.001 min: due again on every tick unless the scheduler skips running tasks.
+            s.add_all(Task(name=n, target=n, every=0.001, command={"path": "x"})
+                      for n in ("slow1", "slow2", "slow3", "fast", "boom"))
+            s.commit()
+        self.Task = Task
+        self.sched = Scheduler(Hub(), self.db, interval=0.05, parallel=3)
+        self.loop_task = asyncio.create_task(self.sched.loop())
+
+    async def asyncTearDown(self):
+        self.loop_task.cancel()
+        with self.assertRaises(asyncio.CancelledError):
+            await self.loop_task
+        await asyncio.sleep(0)
+        self.assertTrue(all(t.done() for t in self.sched._running.values()))
+        self.db.engine.dispose()
+
+    def results(self):
+        with self.db.session() as s:
+            return {t.target: t.last_result for t in s.scalars(sqlalchemy.select(self.Task))}
+
+    async def wait_for(self, cond, timeout=5.0):
+        end = time.monotonic() + timeout
+        while not cond():
+            if time.monotonic() > end:
+                self.fail("timed out")
+            await asyncio.sleep(0.02)
+
+    async def test_slow_tasks_do_not_block_and_are_not_claimed_twice(self):
+        # Three slow tasks fill the three slots; the other two wait, they are not dropped.
+        await self.wait_for(lambda: self.peak == 3)
+        await asyncio.sleep(0.3)  # several ticks while all three are stuck
+        self.assertEqual(sorted(self.calls), ["slow1", "slow2", "slow3"])
+        self.release.set()
+        await self.wait_for(lambda: {"fast", "boom"} <= set(self.calls))
+        await self.wait_for(lambda: all(self.results().values()))
+        res = self.results()
+        self.assertEqual(res["fast"]["ok"], 1)
+        self.assertEqual(res["boom"]["error"], "device gone")
+        self.assertLessEqual(self.peak, 3)
+        self.assertFalse(self.loop_task.done())  # a failing task did not kill the loop
+
+    async def test_fast_task_is_not_delayed_by_a_slow_one(self):
+        self.sched._slots = asyncio.Semaphore(4)  # before the first tick: room for one slow task + the rest
+        await self.wait_for(lambda: (self.results()["fast"] or {}).get("ok") == 1)
+        self.assertFalse(self.release.is_set())
+        self.assertEqual(self.calls.count("slow1"), 1)  # still running: never re-claimed
+
+    async def test_unexpected_error_is_logged_and_the_slot_freed(self):
+        self.release.set()
+        real = self.sched._finish
+        with self.db.session() as s:
+            fast = s.scalar(sqlalchemy.select(self.Task.id).where(self.Task.target == "fast"))
+
+        def finish(task_id, *a):
+            if task_id == fast:
+                raise RuntimeError("db down")
+            return real(task_id, *a)
+
+        self.sched._finish = finish
+        with self.assertLogs("xscript.hub", "ERROR") as logs:
+            await self.wait_for(lambda: self.calls.count("fast") >= 2)  # claimed again after the failure
+        self.assertIn("scheduled task %d failed" % fast, logs.output[0])
+        self.assertFalse(self.loop_task.done())
+
+
 class LegacyImportTest(unittest.TestCase):
     def test_import(self):
         tmp = Path(tempfile.mkdtemp())
