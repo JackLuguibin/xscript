@@ -55,7 +55,7 @@ export function SearchInput({
       placeholder={placeholder}
       allowClear
       aria-label={placeholder}
-      style={{ width }}
+      style={{ width, maxWidth: "100%" }}
       value={text}
       onChange={(e) => setText(e.target.value)}
       onPressEnter={() => cb.current(text.trim())}
