@@ -47,7 +47,7 @@ def _live_view(d: Device, conn: Conn | None) -> dict[str, Any]:
         "channel": st.get("channel"), "version": st.get("version"),
         "sdk": st.get("sdk"), "release": st.get("release"),
         "width": st.get("width"), "height": st.get("height"),
-        "data": d.data or {}, "remote": conn.remote if conn else d.remote,
+        "data": conn.data if conn else (d.data or {}), "remote": conn.remote if conn else d.remote,
         "first_seen": d.first_seen, "last_seen": int(conn.seen) if conn else d.last_seen,
         "connected_at": int(conn.connected) if conn else None,
         "last_run": d.last_run,

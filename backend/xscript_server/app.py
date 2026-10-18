@@ -53,6 +53,7 @@ def create_app(config: Config, start_workers: bool = True) -> FastAPI:
     key = load_signing_key(config)
     alerts = Alerts(db)
     hub = Hub(db, alerts)
+    hub.flush_interval = config.status_flush_interval
     abuse_monitor = AbuseMonitor()
     with db.session() as s:
         abuse_monitor.load(s)  # the 24 h abuse windows survive a restart
@@ -71,10 +72,14 @@ def create_app(config: Config, start_workers: bool = True) -> FastAPI:
         if start_workers:
             ctx.packer.recover()
             workers = [asyncio.create_task(ctx.scheduler.loop()), asyncio.create_task(ctx.packer.run()),
-                       asyncio.create_task(ctx.maint.loop())]
+                       asyncio.create_task(ctx.maint.loop()), asyncio.create_task(hub.flush_loop())]
         yield
         for w in workers:
             w.cancel()
+        try:  # batched device status / data; disconnects below write their rows again
+            await hub.flush()
+        except Exception:  # pragma: no cover
+            log.exception("flushing device status on shutdown")
         for conn in list(hub.conns.values()):
             await conn.close()
         db.engine.dispose()

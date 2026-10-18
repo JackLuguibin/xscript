@@ -49,6 +49,11 @@ class Conn:
         self.pending: dict[str, asyncio.Future] = {}
         self._send_lock = asyncio.Lock()
         self.log_cursor_sent = False  # 运行日志 upload was started on this connection
+        # cloud.send() data of this connection (hello clears the stored copy). Replaced, never mutated
+        # in place, so a flush running in a worker thread always serializes a consistent dict.
+        self.data: dict[str, Any] = {}
+        # status / data changed since the row was last written; Hub.flush() writes it in a batch.
+        self.dirty = False
 
     async def send(self, frame: dict[str, Any]) -> None:
         async with self._send_lock:
@@ -80,6 +85,9 @@ class Hub:
         # 运行日志 history kept on the server; 0 = devices are not asked to upload.
         self.log_days: float = 7
         self.log_lines_saved = 0
+        # Status and data frames only update the Conn; changed rows are written together this often,
+        # and always on disconnect and shutdown. Live views read the Conn, so they are never stale.
+        self.flush_interval: float = 15.0
 
     def note(self, text: str) -> None:
         self.events.append({"time": int(time.time()), "text": text})
@@ -87,38 +95,63 @@ class Hub:
     # ------------------------------------------------------------ persistence
 
     def _save(self, conn: Conn, hello: bool = False) -> None:
-        st = conn.status
+        self._save_rows([conn], hello)
+
+    def _save_rows(self, conns: list[Conn], hello: bool = False, live_only: bool = False) -> None:
+        """Write status, script data and last_seen of these connections in one transaction."""
         with self.db.session() as s:
-            row = s.get(Device, conn.id)
-            if row is None:
-                row = Device(id=conn.id, device_id=conn.device_id, app=conn.app, first_seen=int(conn.connected))
-                s.add(row)
-            row.model = str(st.get("model") or row.model or "")[:128]
-            row.brand = str(st.get("brand") or row.brand or "")[:64]
-            row.reported_group = conn.reported_group
-            row.status = st
-            row.last_seen = int(conn.seen)
-            if hello:
-                row.remote = conn.remote
-                row.key_id = conn.key_id
-                # Script data belongs to the current connection.
-                row.data = {}
+            # One SELECT fills the identity map; s.get() below then needs no round trip per row.
+            list(s.scalars(select(Device).where(Device.id.in_([c.id for c in conns]))))
+            for conn in conns:
+                if live_only and self.conns.get(conn.id) is not conn:
+                    continue  # replaced or gone meanwhile: hello / detach wrote the row
+                st = conn.status
+                row = s.get(Device, conn.id)
+                if row is None:
+                    row = Device(id=conn.id, device_id=conn.device_id, app=conn.app, first_seen=int(conn.connected))
+                    s.add(row)
+                row.model = str(st.get("model") or row.model or "")[:128]
+                row.brand = str(st.get("brand") or row.brand or "")[:64]
+                row.reported_group = conn.reported_group
+                row.status = st
+                row.last_seen = int(conn.seen)
+                if hello:
+                    row.remote = conn.remote
+                    row.key_id = conn.key_id
+                # Script data belongs to the current connection: {} right after hello.
+                row.data = conn.data
             s.commit()
 
-    def _merge_data(self, conn: Conn, payload: Any) -> None:
+    @staticmethod
+    def _merge_data(conn: Conn, payload: Any) -> None:
         """cloud.send() data: dict keys overwrite, anything else is stored as "value"."""
-        with self.db.session() as s:
-            row = s.get(Device, conn.id)
-            if row is None:
-                return
-            merged = dict(row.data or {})
-            if isinstance(payload, dict):
-                merged.update(payload)
-            else:
-                merged["value"] = payload
-            row.data = merged
-            row.last_seen = int(conn.seen)
-            s.commit()
+        conn.data = {**conn.data, **payload} if isinstance(payload, dict) else {**conn.data, "value": payload}
+        conn.dirty = True
+
+    async def flush(self) -> int:
+        """Write the rows of connections whose status / data changed since the last flush."""
+        dirty = [c for c in self.conns.values() if c.dirty]
+        if not dirty:
+            return 0
+        for c in dirty:
+            c.dirty = False
+        try:
+            await run_in_threadpool(self._save_rows, dirty, False, True)
+        except Exception:
+            for c in dirty:  # retried on the next flush (or written on disconnect)
+                c.dirty = True
+            raise
+        return len(dirty)
+
+    async def flush_loop(self) -> None:
+        while True:
+            await asyncio.sleep(self.flush_interval)
+            try:
+                await self.flush()
+            except asyncio.CancelledError:
+                raise
+            except Exception:  # pragma: no cover
+                log.exception("flushing device status")
 
     # ------------------------------------------------------------ 运行日志 history
 
@@ -237,9 +270,9 @@ class Hub:
             if isinstance(dev, dict):
                 conn.status = dev
             conn.reported_group = str(data.get("group", conn.reported_group) or "")[:64]
-            await run_in_threadpool(self._save, conn)
+            conn.dirty = True
         elif t == "data":
-            await run_in_threadpool(self._merge_data, conn, data.get("data"))
+            self._merge_data(conn, data.get("data"))
         elif t == "logs":
             entries = data.get("entries")
             if self.log_days and isinstance(entries, list) and entries:
