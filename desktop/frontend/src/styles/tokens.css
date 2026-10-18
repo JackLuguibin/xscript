@@ -34,6 +34,27 @@
   --neutral-bg: #e6e9ef;
   --focus-ring: #1d4ed8;
   --bezel: #1c2230;          /* decorative phone frame around the screenshot preview */
+  --cat-action: #1d4ed8;
+  --cat-find: #0f766e;
+  --cat-flow: #7a3e00;
+  --cat-data: #8f1d1d;
+  --cat-math: #1e40af;
+  --cat-code: #3d4658;
+  --cat-event: #5b21b6;
+  --note-bg: #fff6d8;
+  --note-fg: #3a3208;
+  --note-line: #e2c56a;
+  --tone-bool: #a12b3a;
+  --tone-int: #1f9d8a;
+  --tone-float: #9dbb2f;
+  --tone-string: #d24b9a;
+  --tone-point: #d4a017;
+  --tone-rect: #e07a2f;
+  --tone-color: #2f4f9a;
+  --tone-image: #7a4ea3;
+  --tone-node: #3aa0d8;
+  --tone-dict: #c47a3a;
+  --tone-any: #8a8a8a;
 
   /* spacing (4 px base) */
   --sp-1: 0.25rem; --sp-2: 0.5rem; --sp-3: 0.75rem; --sp-4: 1rem; --sp-5: 1.5rem; --sp-6: 2rem;
@@ -79,6 +100,13 @@
   --neutral-bg: #2a303b;
   --focus-ring: #9bbcff;
   --bezel: #4a5468;
+  --cat-action: #7ea6ff;
+  --cat-find: #5eead4;
+  --cat-flow: #f6d584;
+  --cat-data: #fca5a5;
+  --cat-math: #a3c0ff;
+  --cat-code: #c3cad7;
+  --cat-event: #d8b4fe;
   --shadow-1: 0 1px 2px rgb(0 0 0 / 40%);
   --shadow-2: 0 6px 16px rgb(0 0 0 / 45%);
 }
@@ -111,6 +139,13 @@
     --focus-ring: #9bbcff;
     --bezel: #4a5468;
   --bezel: #4a5468;
+    --cat-action: #7ea6ff;
+    --cat-find: #5eead4;
+    --cat-flow: #f6d584;
+    --cat-data: #fca5a5;
+    --cat-math: #a3c0ff;
+    --cat-code: #c3cad7;
+    --cat-event: #d8b4fe;
     --shadow-1: 0 1px 2px rgb(0 0 0 / 40%);
     --shadow-2: 0 6px 16px rgb(0 0 0 / 45%);
   }

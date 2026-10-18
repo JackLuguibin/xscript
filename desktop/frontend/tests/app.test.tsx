@@ -1,4 +1,4 @@
-import { render, screen, within } from "@testing-library/react";
+import { fireEvent, render, screen, within } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
 import { App } from "../src/App";
 import { ServicesContext } from "../src/app-context";
@@ -33,15 +33,15 @@ describe("App shell", () => {
     expect(screen.getByRole("main")).toBeTruthy();
   });
 
-  it("sidebar: the current page is marked, planned pages are disabled and tagged (not fake links)", () => {
+  it("sidebar: the current page is marked, and flows opens the editor", () => {
     mount(true);
     const nav = within(screen.getByRole("navigation", { name: "main" }));
     expect(nav.getByRole("button", { name: (n) => n === "设备" }).getAttribute("aria-current")).toBe("page");
-    for (const name of [/流程/]) {
-      const b = nav.getByRole("button", { name }) as HTMLButtonElement;
-      expect(b.disabled).toBe(true);
-      expect(b.getAttribute("aria-current")).toBeNull();
-    }
+    const flows = nav.getByRole("button", { name: "流程" }) as HTMLButtonElement;
+    expect(flows.disabled).toBe(false);
+    fireEvent.click(flows);
+    expect(screen.getByRole("heading", { level: 1, name: "流程" })).toBeTruthy();
+    expect(screen.getByRole("textbox", { name: "流程文本" })).toBeTruthy();
   });
 
   it("offers a skip link that targets the (focusable) main region", () => {

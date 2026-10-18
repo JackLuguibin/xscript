@@ -100,6 +100,11 @@ export function DeviceProvider({ unsaved, children }: { unsaved: boolean; childr
   );
 }
 
+/** The app-wide current device when inside a DeviceProvider, else null (no own selection, no device polling). */
+export function useSharedDevice(): CurrentDevice | null {
+  return useContext(DeviceContext);
+}
+
 /** The current device. Outside a DeviceProvider (a page rendered on its own) it keeps its own selection. */
 export function useCurrentDevice(): CurrentDevice {
   const ctx = useContext(DeviceContext);

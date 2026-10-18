@@ -158,18 +158,19 @@ describe("command palette, settings, and chords", () => {
     expect(screen.queryByRole("dialog")).toBeNull();
   });
 
-  it("leaves a disabled command in the list and does not run it", async () => {
+  it("opens the flow editor from the command palette", async () => {
     mount();
     await screen.findByText("emulator-5554");
     press("k", { mod: true });
     const box = await screen.findByRole("combobox", { name: "命令面板" });
     fireEvent.change(box, { target: { value: "流程" } });
     const opt = screen.getByRole("option", { name: /流程/ });
-    expect(opt.getAttribute("aria-disabled")).toBe("true");
+    expect(opt.getAttribute("aria-disabled")).not.toBe("true");
     fireEvent.keyDown(box, { key: "Enter" });
-    expect(screen.getByRole("dialog")).toBeTruthy();
-    expect(screen.getByRole("heading", { level: 1 }).textContent).toBe("设备");
-    fireEvent.change(box, { target: { value: "没有这个操作" } });
+    expect(await screen.findByRole("heading", { level: 1, name: "流程" })).toBeTruthy();
+    press("k", { mod: true });
+    const again = await screen.findByRole("combobox", { name: "命令面板" });
+    fireEvent.change(again, { target: { value: "没有这个操作" } });
     expect(screen.getByText("没有匹配的操作")).toBeTruthy();
   });
 
@@ -202,7 +203,7 @@ describe("command palette, settings, and chords", () => {
     expect(screen.queryByRole("dialog")).toBeNull();
   });
 
-  it("switches pages with Ctrl/⌘+1…4, ignores 5 and 9, and focuses the address with Ctrl/⌘+L", async () => {
+  it("switches pages with Ctrl/⌘+1…5, ignores 9, and focuses the address with Ctrl/⌘+L", async () => {
     mount();
     await screen.findByText("emulator-5554");
     press("2", { mod: true });
@@ -210,9 +211,9 @@ describe("command palette, settings, and chords", () => {
     press("4", { mod: true });
     expect(await screen.findByRole("heading", { level: 1, name: "设备墙" })).toBeTruthy();
     press("5", { mod: true });
-    expect(screen.getByRole("heading", { level: 1 }).textContent).toBe("设备墙");
+    expect(await screen.findByRole("heading", { level: 1, name: "流程" })).toBeTruthy();
     press("9", { mod: true });
-    expect(screen.getByRole("heading", { level: 1 }).textContent).toBe("设备墙");
+    expect(screen.getByRole("heading", { level: 1 }).textContent).toBe("流程");
     press("1", { mod: true });
     expect(await screen.findByRole("heading", { level: 1, name: "设备" })).toBeTruthy();
     press("3", { mod: true });

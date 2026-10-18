@@ -109,7 +109,7 @@ export function DeviceCard({
               {t.state[device.state] ?? device.state}
             </Badge>
             {i.running && <Badge tone="ok">{`${t.info.running}${i.project ? `：${i.project}` : ""}`}</Badge>}
-            {current && <span className="tag">{t.flow.current}</span>}
+            {current && <span className="tag">{t.deviceFlow.current}</span>}
           </div>
           <p className="muted summary">{summary || "—"}</p>
           <p className="muted mono addr">{address}</p>
@@ -117,13 +117,13 @@ export function DeviceCard({
         <div className="card-actions">
           {online && onOpen && (
             <>
-              <Button variant="primary" onClick={() => onOpen("mirror")} aria-label={t.flow.openMirrorOf(title)}>
+              <Button variant="primary" onClick={() => onOpen("mirror")} aria-label={t.deviceFlow.openMirrorOf(title)}>
                 <IconMonitor size={16} />
-                {t.flow.openMirror}
+                {t.deviceFlow.openMirror}
               </Button>
-              <Button onClick={() => onOpen("projects")} aria-label={t.flow.openProjectsOf(title)}>
+              <Button onClick={() => onOpen("projects")} aria-label={t.deviceFlow.openProjectsOf(title)}>
                 <IconFolder size={16} />
-                {t.flow.openProjects}
+                {t.deviceFlow.openProjects}
               </Button>
             </>
           )}
@@ -143,10 +143,10 @@ export function DeviceCard({
             className="details-toggle"
             aria-expanded={open}
             aria-controls={detailsId}
-            aria-label={t.flow.detailsOf(device.id)}
+            aria-label={t.deviceFlow.detailsOf(device.id)}
             onClick={() => setOpen((o) => !o)}
           >
-            {open ? t.flow.hideDetails : t.flow.details}
+            {open ? t.deviceFlow.hideDetails : t.deviceFlow.details}
             <IconChevron size={14} />
           </Button>
         </div>

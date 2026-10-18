@@ -13,7 +13,7 @@ export default defineConfig({
   // "exports" map only allows *.js, so the CSS it needs is reached through this alias. Everything is bundled (no CDN).
   resolve: { alias: { "monaco-esm": fileURLToPath(new URL("./node_modules/monaco-editor/esm/vs", import.meta.url)) } },
   base: "./",
-  server: { port: 5173, strictPort: true },
+  server: { port: 5173, strictPort: true, fs: { allow: [fileURLToPath(new URL("..", import.meta.url))] } },
   build: {
     rollupOptions: {
       input: {
