@@ -52,3 +52,99 @@ export function classify(
   }
   return { type: "swipe", x1: down.x, y1: down.y, x2: up.x, y2: up.y, dur: Math.min(Math.max(dur, 50), 3000) };
 }
+
+// ---- window fit (H3) ------------------------------------------------------------------------------------------------------------
+
+/** "fit": the whole screen fits the window height; "actual": one device pixel per physical screen pixel (scrolls). */
+export type FitMode = "fit" | "actual";
+
+export function isLandscape(screen: Size | null): boolean {
+  return !!screen && screen.w > screen.h;
+}
+
+/**
+ * CSS width of the shown frame. `avail` is the room left in the window below the toolbar (w may be Infinity when the
+ * column grows to the content). Fit keeps the aspect ratio and never exceeds the height; null until the screen size is known.
+ */
+export function fitWidth(avail: Size, screen: Size | null, mode: FitMode, dpr = 1): number | null {
+  if (!screen || !(screen.w > 0) || !(screen.h > 0)) return null;
+  if (mode === "actual") return Math.round(screen.w / Math.max(1, dpr));
+  const byHeight = Math.max(1, avail.h) * (screen.w / screen.h);
+  return Math.max(1, Math.floor(Math.min(avail.w > 0 ? avail.w : Infinity, byHeight)));
+}
+
+// ---- wheel → swipe (M9) ---------------------------------------------------------------------------------------------------------
+
+export const WHEEL_SWIPE_MS = 250;
+
+/** Wheel delta in element pixels (deltaMode 0 = pixels, 1 = lines, 2 = pages). */
+export function wheelPixels(delta: number, deltaMode: number, pagePx: number): number {
+  return deltaMode === 1 ? delta * 16 : deltaMode === 2 ? delta * pagePx : delta;
+}
+
+/**
+ * Accumulated wheel movement at device point `at` → one swipe. Scrolling down moves the finger up (like a touch-pad).
+ * `pxToDevice` converts element pixels to device pixels. Distance is 8–50 % of the screen along the dominant axis;
+ * the start point shifts inward so a swipe near an edge still has its full length.
+ */
+export function wheelSwipe(at: { x: number; y: number }, delta: { dx: number; dy: number }, pxToDevice: number, screen: Size): Gesture | null {
+  const vertical = Math.abs(delta.dy) >= Math.abs(delta.dx);
+  const d = vertical ? delta.dy : delta.dx;
+  if (Math.abs(d) < 1 || !(screen.w > 0) || !(screen.h > 0)) return null;
+  const len = vertical ? screen.h : screen.w;
+  const dist = Math.round(clamp(Math.abs(d) * Math.max(0.01, pxToDevice), len * 0.08, len * 0.5));
+  let start = clamp(Math.round(vertical ? at.y : at.x), 0, len - 1);
+  let end: number;
+  if (d > 0) {
+    start = Math.max(start, dist);
+    end = start - dist;
+  } else {
+    start = Math.min(start, len - 1 - dist);
+    end = start + dist;
+  }
+  const other = clamp(Math.round(vertical ? at.x : at.y), 0, (vertical ? screen.w : screen.h) - 1);
+  return vertical
+    ? { type: "swipe", x1: other, y1: start, x2: other, y2: end, dur: WHEEL_SWIPE_MS }
+    : { type: "swipe", x1: start, y1: other, x2: end, y2: other, dur: WHEEL_SWIPE_MS };
+}
+
+// ---- remembered settings (M9) ---------------------------------------------------------------------------------------------------
+
+export const MIRROR_FPS = [5, 8, 12, 15];
+const PREFS_KEY = "xscript.mirror";
+
+export interface MirrorPrefs {
+  fps: number;
+  fit: FitMode;
+  /** Pause survives page visits in this session only: a restart always starts streaming. */
+  playing: boolean;
+}
+
+let sessionPlaying = true;
+
+export function loadMirrorPrefs(): MirrorPrefs {
+  let fps = 12;
+  let fit: FitMode = "fit";
+  try {
+    const raw = JSON.parse(window.localStorage.getItem(PREFS_KEY) || "{}") as Partial<MirrorPrefs>;
+    if (typeof raw.fps === "number" && MIRROR_FPS.includes(raw.fps)) fps = raw.fps;
+    if (raw.fit === "actual" || raw.fit === "fit") fit = raw.fit;
+  } catch {
+    /* unreadable storage: defaults */
+  }
+  return { fps, fit, playing: sessionPlaying };
+}
+
+export function saveMirrorPrefs(p: MirrorPrefs): void {
+  sessionPlaying = p.playing;
+  try {
+    window.localStorage.setItem(PREFS_KEY, JSON.stringify({ fps: p.fps, fit: p.fit }));
+  } catch {
+    /* storage full or disabled: the session value still applies */
+  }
+}
+
+/** Tests: forget the session-only pause state. */
+export function resetMirrorSession(): void {
+  sessionPlaying = true;
+}

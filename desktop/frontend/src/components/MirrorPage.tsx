@@ -1,7 +1,10 @@
-import { useEffect, useRef, useState, type CSSProperties, type PointerEvent as RPointerEvent } from "react";
+import { useEffect, useLayoutEffect, useRef, useState, type ClipboardEvent as RClipboardEvent, type CSSProperties, type KeyboardEvent as RKeyboardEvent } from "react";
 import { useServices } from "../app-context";
 import type { MirrorStatus } from "../api";
-import { classify, frameUrl, streamScale, toDevice } from "../mirror";
+import {
+  MIRROR_FPS, classify, fitWidth, frameUrl, isLandscape, loadMirrorPrefs, saveMirrorPrefs, streamScale, toDevice, wheelPixels, wheelSwipe,
+  type FitMode, type Size,
+} from "../mirror";
 import { t } from "../strings";
 import { useDevices, useSelectedDevice } from "../useDevices";
 import { EmptyState } from "./EmptyState";
@@ -10,7 +13,8 @@ import { IconAlert, IconMonitor, IconPhone } from "./icons";
 import { ScreenTools, rectPercent, type PointerMode } from "./ScreenTools";
 import { useToast } from "./Toast";
 
-const FPS = [5, 8, 12, 15];
+const WHEEL_IDLE_MS = 120; // one wheel "flick" = events closer together than this
+const MAX_COMPOSE = 2000;
 
 
 /**
@@ -22,8 +26,21 @@ export function MirrorPage() {
   const devices = useDevices();
   const [devId, setDevId] = useSelectedDevice(devices);
   const device = devices.find((d) => d.id === devId);
-  const [playing, setPlaying] = useState(true);
-  const [fps, setFps] = useState(12);
+  // frame rate, fit and pause are remembered across page visits (fps/fit also across restarts)
+  const [prefs] = useState(loadMirrorPrefs);
+  const [playing, setPlaying] = useState(prefs.playing);
+  const [fps, setFps] = useState(prefs.fps);
+  const [fit, setFit] = useState<FitMode>(prefs.fit);
+  const [shape, setShape] = useState<Size | null>(null); // frame orientation/size from the stream (follows rotation)
+  const [avail, setAvail] = useState(600); // px from the frame's top to the window bottom
+  const [, setWinTick] = useState(0);
+  const [compose, setComposeState] = useState(""); // typed on the focused frame, sent with Enter
+  // the ref is the source of truth: several keydowns can arrive before React re-renders (fast typing, key repeat)
+  const composeRef = useRef("");
+  const setCompose = (next: string | ((cur: string) => string)) => {
+    composeRef.current = typeof next === "function" ? next(composeRef.current) : next;
+    setComposeState(composeRef.current);
+  };
   const [scale, setScale] = useState(0.5);
   const [src, setSrc] = useState("");
   const [phase, setPhase] = useState<"waiting" | "ok" | "failed">("waiting");
@@ -48,6 +65,8 @@ export function MirrorPage() {
   const pickN = useRef(0);
   const ticket = useRef(0);
   const currentDev = useRef(devId);
+  const shotWRef = useRef<number | null>(null);
+  const fitRef = useRef<FitMode>("fit");
 
   if (devId !== trackDev) {
     setTrackDev(devId);
@@ -59,6 +78,8 @@ export function MirrorPage() {
     setHover(null);
     setPicked(null);
     setHitBox(null);
+    setShape(null);
+    setCompose("");
     screenSize.current = null;
     want.current = 0;
     shown.current = 0;
@@ -67,7 +88,10 @@ export function MirrorPage() {
 
   const noteFrame = (seq: number, w: number, h: number) => {
     if (!(seq > 0) || !devId) return;
-    if (w > 0 && h > 0) screenSize.current = { w, h };
+    if (w > 0 && h > 0) {
+      screenSize.current = { w, h };
+      setShape((cur) => (cur && cur.w === w && cur.h === h ? cur : { w, h }));
+    }
     want.current = seq;
     if (!inflight.current) {
       inflight.current = true;
@@ -84,6 +108,22 @@ export function MirrorPage() {
     setReason(s.reason || "");
     if (s.seq > 0) noteFrame(s.seq, s.w, s.h);
   };
+
+  useEffect(() => saveMirrorPrefs({ fps, fit, playing }), [fps, fit, playing]);
+
+  useEffect(() => {
+    const on = () => setWinTick((n) => n + 1);
+    window.addEventListener("resize", on);
+    return () => window.removeEventListener("resize", on);
+  }, []);
+  // H3: the frame gets the height left below the toolbar (banners included), so a tall phone never needs page scrolling
+  useLayoutEffect(() => {
+    const el = frameRef.current;
+    if (!el) return;
+    const top = el.getBoundingClientRect().top + window.scrollY;
+    const next = Math.max(200, Math.floor(window.innerHeight - top - 24));
+    setAvail((cur) => (Math.abs(cur - next) > 2 ? next : cur));
+  });
 
   useEffect(() => {
     currentDev.current = devId;
@@ -140,7 +180,8 @@ export function MirrorPage() {
       clearTimeout(timer);
       timer = setTimeout(() => {
         const sw = screenSize.current?.w || device?.info.width || 0;
-        const next = streamScale(el.getBoundingClientRect().width, sw);
+        const shownPx = Math.max(el.getBoundingClientRect().width, shotWRef.current || 0) * (fitRef.current === "actual" ? window.devicePixelRatio || 1 : 1);
+        const next = streamScale(shownPx, sw);
         setScale((cur) => (Math.abs(cur - next) < 0.049 ? cur : next));
       }, 400);
     });
@@ -161,14 +202,27 @@ export function MirrorPage() {
     }
   };
 
-  const point = (e: RPointerEvent<HTMLImageElement>) => {
-    const el = e.currentTarget;
+  const deviceSized = (): Size | null =>
+    screenSize.current && screenSize.current.w ? screenSize.current : device?.info.width && device.info.height ? { w: device.info.width, h: device.info.height } : null;
+
+  const pointAt = (el: HTMLImageElement, clientX: number, clientY: number, t: number) => {
     const r = el.getBoundingClientRect();
-    const ex = e.clientX - r.left;
-    const ey = e.clientY - r.top;
-    const sized = screenSize.current && screenSize.current.w ? screenSize.current : device?.info.width && device.info.height ? { w: device.info.width, h: device.info.height } : null;
-    const p = toDevice(ex, ey, { w: r.width, h: r.height }, { w: el.naturalWidth || r.width, h: el.naturalHeight || r.height }, sized);
-    return { ex, ey, t: e.timeStamp || Date.now(), x: p.x, y: p.y };
+    const ex = clientX - r.left;
+    const ey = clientY - r.top;
+    const p = toDevice(ex, ey, { w: r.width, h: r.height }, { w: el.naturalWidth || r.width, h: el.naturalHeight || r.height }, deviceSized());
+    return { ex, ey, t, x: p.x, y: p.y };
+  };
+  const point = (e: { currentTarget: HTMLImageElement; clientX: number; clientY: number; timeStamp: number }) =>
+    pointAt(e.currentTarget, e.clientX, e.clientY, e.timeStamp || Date.now());
+
+  /** Device-pixel extent of the frame in its current orientation (the space toDevice maps into). */
+  const deviceSpace = (el: HTMLImageElement): Size => {
+    const r = el.getBoundingClientRect();
+    const fw = el.naturalWidth || r.width || 1;
+    const fh = el.naturalHeight || r.height || 1;
+    const sized = deviceSized();
+    const k = sized ? Math.max(sized.w, sized.h) / Math.max(fw, fh) : 1;
+    return { w: Math.round(fw * k), h: Math.round(fh * k) };
   };
 
   const send = async (payload: Record<string, unknown>): Promise<boolean> => {
@@ -181,6 +235,108 @@ export function MirrorPage() {
       return false;
     }
   };
+
+  // ---- M9: wheel → swipe (one swipe per flick, starting where the wheel started) -----------------------------------------------
+  const wheel = useRef<{ dx: number; dy: number; x: number; y: number; k: number; screen: Size | null; timer?: ReturnType<typeof setTimeout> }>({ dx: 0, dy: 0, x: 0, y: 0, k: 1, screen: null });
+  const onWheelRef = useRef<(e: WheelEvent) => void>(() => undefined);
+  onWheelRef.current = (e: WheelEvent) => {
+    const el = img.current;
+    if (!el || e.target !== el || mode !== "control") return;
+    e.preventDefault(); // the page must not scroll under the cursor
+    const r = el.getBoundingClientRect();
+    let dx = wheelPixels(e.deltaX, e.deltaMode, r.width || 1);
+    let dy = wheelPixels(e.deltaY, e.deltaMode, r.height || 1);
+    if (e.shiftKey && dx === 0) [dx, dy] = [dy, 0];
+    const acc = wheel.current;
+    if (acc.timer === undefined) {
+      const p = pointAt(el, e.clientX, e.clientY, 0);
+      acc.x = p.x;
+      acc.y = p.y;
+    }
+    acc.dx += dx;
+    acc.dy += dy;
+    acc.screen = deviceSpace(el);
+    acc.k = acc.screen.h / Math.max(1, r.height);
+    clearTimeout(acc.timer);
+    acc.timer = setTimeout(() => {
+      const g = acc.screen ? wheelSwipe({ x: acc.x, y: acc.y }, { dx: acc.dx, dy: acc.dy }, acc.k, acc.screen) : null;
+      acc.dx = acc.dy = 0;
+      acc.timer = undefined;
+      if (g) void send(g);
+    }, WHEEL_IDLE_MS);
+  };
+  const hasFrame = !!device;
+  useEffect(() => {
+    const el = frameRef.current;
+    if (!el) return;
+    const h = (e: WheelEvent) => onWheelRef.current(e);
+    el.addEventListener("wheel", h, { passive: false });
+    const acc = wheel.current;
+    return () => {
+      el.removeEventListener("wheel", h);
+      clearTimeout(acc.timer);
+      acc.timer = undefined;
+      acc.dx = acc.dy = 0;
+    };
+  }, [hasFrame, devId]);
+
+  // ---- M9: keyboard on the focused frame. The device has no Enter/Backspace key action and `input` replaces the focused
+  // field's text (accessibility SET_TEXT), so keys build a line here and Enter sends it in one `input` action.
+  const sendCompose = () => {
+    const v = composeRef.current;
+    if (!v) return;
+    void send({ type: "input", text: v }).then((ok) => {
+      if (!ok) return;
+      setCompose((cur) => (cur === v ? "" : cur));
+      toast(t.mirror.sent(v));
+    });
+  };
+  const onFrameKey = (e: RKeyboardEvent<HTMLDivElement>) => {
+    if (e.target !== e.currentTarget) return; // a retry button inside the frame keeps its own Enter/Space
+    if (mode !== "control" || e.nativeEvent.isComposing || e.key === "Process") return;
+    if (e.ctrlKey || e.metaKey || e.altKey) return;
+    if (e.key === "Enter") {
+      e.preventDefault();
+      sendCompose();
+    } else if (e.key === "Backspace") {
+      e.preventDefault();
+      setCompose((c) => Array.from(c).slice(0, -1).join(""));
+    } else if (e.key === "Escape") {
+      if (composeRef.current) {
+        e.preventDefault();
+        setCompose("");
+      }
+    } else if (Array.from(e.key).length === 1) {
+      e.preventDefault();
+      setCompose((c) => (c + e.key).slice(0, MAX_COMPOSE));
+    }
+  };
+  const onFramePaste = (e: RClipboardEvent<HTMLDivElement>) => {
+    const text = e.clipboardData?.getData("text") ?? "";
+    if (e.target !== e.currentTarget || mode !== "control" || !text) return;
+    e.preventDefault();
+    setCompose((c) => (c + text).slice(0, MAX_COMPOSE));
+  };
+
+  const retryFrame = () => {
+    setPhase("waiting");
+    inflight.current = false;
+    if (want.current > 0 && devId) {
+      inflight.current = true;
+      shown.current = want.current;
+      nonce.current += 1;
+      setSrc(frameUrl(devId, want.current, nonce.current));
+    }
+    if (playing && devId) void api.mirrorRetry(devId).then(applySnap).catch((e) => setError(e));
+  };
+
+  // ---- H3 layout ------------------------------------------------------------------------------------------------------------------
+  const screen: Size | null = shape ?? (device?.info.width && device.info.height ? { w: device.info.width, h: device.info.height } : null);
+  const landscape = isLandscape(screen);
+  const dpr = typeof window !== "undefined" && window.devicePixelRatio ? window.devicePixelRatio : 1;
+  const shotW = fitWidth({ w: Infinity, h: avail }, screen, fit, dpr);
+  shotWRef.current = shotW;
+  fitRef.current = fit;
 
   if (!device) {
     return (
@@ -209,7 +365,7 @@ export function MirrorPage() {
           <select aria-label={t.projects.device} value={devId} onChange={(e) => setDevId(e.target.value)}>
             {devices.map((d) => (
               <option key={d.id} value={d.id} disabled={d.state !== "online"}>
-                {d.info.name || d.info.model || d.id}
+                {(d.name || d.info.name || d.info.model || d.id) + (d.state !== "online" ? `（${t.state[d.state] ?? d.state}）` : "")}
               </option>
             ))}
           </select>
@@ -220,13 +376,20 @@ export function MirrorPage() {
         <label className="row">
           {t.mirror.fps}
           <select aria-label={t.mirror.fps} value={fps} onChange={(e) => setFps(Number(e.target.value))}>
-            {FPS.map((f) => (
+            {MIRROR_FPS.map((f) => (
               <option key={f} value={f}>
                 {f}
               </option>
             ))}
           </select>
         </label>
+        <div className="seg" role="group" aria-label={t.mirror.view} title={t.mirror.viewHint}>
+          {(["fit", "actual"] as const).map((m) => (
+            <button key={m} type="button" className="small" aria-pressed={fit === m} onClick={() => setFit(m)}>
+              {m === "fit" ? t.mirror.fit : t.mirror.actual}
+            </button>
+          ))}
+        </div>
         <span className="grow" />
         {(["back", "home", "recents"] as const).map((k) => (
           <button key={k} className="small" onClick={() => void send({ type: "key", name: k })}>
@@ -234,10 +397,19 @@ export function MirrorPage() {
           </button>
         ))}
       </div>
-      <div className="mirror-grid">
-        <div className="mirror-frame" ref={frameRef}>
+      <div className={"mirror-grid" + (landscape ? " stacked" : "")}>
+        <div
+          className={"mirror-frame" + (fit === "actual" ? " actual" : "")}
+          ref={frameRef}
+          tabIndex={0}
+          aria-label={t.mirror.keyboard}
+          data-text-entry="true"
+          style={fit === "actual" ? { maxHeight: avail } : shotW ? { width: shotW } : undefined}
+          onKeyDown={onFrameKey}
+          onPaste={onFramePaste}
+        >
           {src && (
-            <div className="mirror-shot">
+            <div className="mirror-shot" style={shotW ? { width: shotW } : undefined}>
             <img
               ref={img}
               src={src}
@@ -253,8 +425,14 @@ export function MirrorPage() {
                 advance();
               }}
               onPointerDown={(e) => {
+                if (e.button !== 0) return; // right button = back (contextmenu), middle does nothing
+                frameRef.current?.focus({ preventScroll: true });
                 e.currentTarget.setPointerCapture?.(e.pointerId);
                 down.current = point(e);
+              }}
+              onContextMenu={(e) => {
+                e.preventDefault();
+                if (mode === "control") void send({ type: "key", name: "back" });
               }}
               onPointerMove={(e) => {
                 const p = point(e);
@@ -304,6 +482,19 @@ export function MirrorPage() {
             <div className="overlay fail" role="status">
               <IconAlert size={28} />
               <span>{t.mirror.failed}</span>
+              <button type="button" onClick={retryFrame}>
+                {t.mirror.retry}
+              </button>
+            </div>
+          )}
+          {compose && (
+            <div className="mirror-compose" role="status">
+              <span className="muted">{t.mirror.composing}</span>
+              <span className="mono grow compose-text">
+                {compose}
+                <span className="caret" aria-hidden="true">▌</span>
+              </span>
+              <span className="muted">{t.mirror.composeKeys}</span>
             </div>
           )}
           {!playing && <span className="mirror-badge">{t.mirror.paused}</span>}
