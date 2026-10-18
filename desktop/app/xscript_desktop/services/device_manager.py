@@ -21,8 +21,11 @@ EventEmitter = Callable[[str, Any], None]
 ClientFactory = Callable[[DeviceTarget], DeviceClient]
 
 SCAN_PORTS = tuple(range(9860, 9870))  # device API: 9860, taken ports are skipped up to 9869 (openapi.yaml)
+POLL_TIMEOUT = 3.0  # per-device /status budget of one health round: one dead LAN device must not stall the others
 LAN_WARNING = "此设备经局域网直连：设备 API 没有鉴权，同网段任何人都能运行代码。仅在可信网络使用，优先用 ADB。"
 OnOnline = Callable[["DeviceRecord"], Awaitable[None]]
+OnFound = Callable[[dict[str, Any]], None]
+OnProgress = Callable[[int, int], None]
 
 
 @dataclass
@@ -59,13 +62,14 @@ class DeviceRecord:
 
 class DeviceManager:
     def __init__(self, adb: AdbService, emit: EventEmitter | None = None, client_factory: ClientFactory | None = None,
-                 poll_interval: float = 5.0, on_online: OnOnline | None = None) -> None:
+                 poll_interval: float = 5.0, on_online: OnOnline | None = None, poll_timeout: float = POLL_TIMEOUT) -> None:
         self.adb = adb
         self._emit = emit or (lambda topic, data: None)
         self._factory = client_factory or (lambda t: DeviceClient(t))
         self._on_online = on_online
         self._devices: dict[str, DeviceRecord] = {}
         self._poll_interval = poll_interval
+        self._poll_timeout = poll_timeout
         self._poll_task: asyncio.Task | None = None
 
     # ---- helpers --------------------------------------------------------------------------------------------------------------
@@ -116,6 +120,13 @@ class DeviceManager:
         client = self._probe_client(target)
         try:
             status = await client.status()
+        except asyncio.CancelledError:  # e.g. the startup reconnect gave up on this device: leave no forward behind
+            await client.aclose()
+            try:
+                await self.adb.remove_forward(serial, fw.local_port)
+            except AdbError:
+                pass
+            raise
         except DeviceError as e:
             await client.aclose()
             await self.adb.remove_forward(serial, fw.local_port)
@@ -196,19 +207,34 @@ class DeviceManager:
     async def _poll_loop(self) -> None:
         while True:
             await asyncio.sleep(self._poll_interval)
-            for rec in list(self._devices.values()):
-                if rec.client is None:
-                    continue
-                before = (rec.state, rec.status.get("running"), rec.status.get("project"))
-                try:
-                    rec.status = await rec.client.status()
-                    rec.last_seen = time.time()
-                    self._set_state(rec, "online")
-                    await self._note_online(rec)
-                    if before[1:] != (rec.status.get("running"), rec.status.get("project")):
-                        self._emit("device.state", rec.to_dict())
-                except DeviceError as e:
-                    self._set_state(rec, "offline", str(e), e.code)
+            await self.poll_once()
+
+    async def poll_once(self) -> None:
+        """One health round: every connected device at once, each bounded by `poll_timeout` (was serial, 10 s each)."""
+        recs = [r for r in self._devices.values() if r.client is not None]
+        await asyncio.gather(*(self._poll_one(r) for r in recs), return_exceptions=True)
+
+    async def _poll_one(self, rec: DeviceRecord) -> None:
+        assert rec.client is not None
+        before = (rec.status.get("running"), rec.status.get("project"))
+        try:
+            status = await asyncio.wait_for(rec.client.status(), self._poll_timeout)
+        except asyncio.TimeoutError:
+            if self._devices.get(rec.id) is rec:
+                self._set_state(rec, "offline", "device GET /status timed out after %.0f s" % self._poll_timeout, "device.timeout")
+            return
+        except DeviceError as e:
+            if self._devices.get(rec.id) is rec:
+                self._set_state(rec, "offline", str(e), e.code)
+            return
+        if self._devices.get(rec.id) is not rec:
+            return  # disconnected (or reconnected as a new record) while this request was in flight
+        rec.status = status
+        rec.last_seen = time.time()
+        self._set_state(rec, "online")
+        await self._note_online(rec)
+        if before != (rec.status.get("running"), rec.status.get("project")):
+            self._emit("device.state", rec.to_dict())
 
     async def _note_online(self, rec: DeviceRecord) -> None:
         if self._on_online is None:
@@ -231,32 +257,61 @@ class DeviceManager:
 
     # ---- LAN scan -------------------------------------------------------------------------------------------------------------------------
 
-    async def scan(self, hosts: list[str], ports: tuple[int, ...] = SCAN_PORTS, concurrency: int = 64,
-                   timeout: float = 0.8) -> list[dict[str, Any]]:
-        """Probe `GET /status` on every host:port. Returns only endpoints that answer like an XScript device."""
+    async def scan(self, hosts: list[str], ports: tuple[int, ...] | None = None, concurrency: int = 64,
+                   timeout: float = 0.8, *, on_found: OnFound | None = None, on_progress: OnProgress | None = None,
+                   cancel: asyncio.Event | None = None) -> list[dict[str, Any]]:
+        """Probe `GET /status` on every host:port. Returns only endpoints that answer like an XScript device.
+
+        The default port goes first over all hosts (almost every device is on 9860), then the fallback ports.
+        `on_found` gets each hit as soon as it answers, `on_progress(done, total)` after every probe. Setting
+        `cancel` stops it: probes not started yet are skipped, the ones in flight finish (bounded by `timeout`).
+        """
+        ports = SCAN_PORTS if ports is None else ports
         sem = asyncio.Semaphore(concurrency)
         found: list[dict[str, Any]] = []
+        total = len(hosts) * len(ports)
+        done = 0
+
+        def tick() -> None:
+            nonlocal done
+            done += 1
+            if on_progress is not None:
+                on_progress(done, total)
 
         async def probe(host: str, port: int) -> None:
-            async with sem:
-                # a cheap TCP connect first so closed ports cost ~nothing; only then speak HTTP
-                try:
-                    _, w = await asyncio.wait_for(asyncio.open_connection(host, port), timeout)
-                    w.close()
-                except (OSError, asyncio.TimeoutError):
-                    return
-                c = self._factory(DeviceTarget(host, port))
-                c.timeout = max(timeout, 2.0)
-                try:
-                    st = await c.status()
-                except DeviceError:
-                    return
-                finally:
-                    await c.aclose()
-                if is_xscript_status(st):
-                    found.append({"address": DeviceTarget(host, port).address, "host": host, "port": port, "info": summarize_status(st)})
+            try:
+                async with sem:
+                    if cancel is not None and cancel.is_set():
+                        return
+                    # a cheap TCP connect first so closed ports cost ~nothing; only then speak HTTP
+                    try:
+                        _, w = await asyncio.wait_for(asyncio.open_connection(host, port), timeout)
+                        w.close()
+                    except (OSError, asyncio.TimeoutError):
+                        return
+                    c = self._factory(DeviceTarget(host, port))
+                    c.timeout = max(timeout, 2.0)
+                    try:
+                        st = await c.status()
+                    except DeviceError:
+                        return
+                    finally:
+                        await c.aclose()
+                    if is_xscript_status(st):
+                        hit = {"address": DeviceTarget(host, port).address, "host": host, "port": port, "info": summarize_status(st)}
+                        found.append(hit)
+                        if on_found is not None:
+                            on_found(hit)
+            finally:
+                tick()
 
-        await asyncio.gather(*(probe(h, p) for h in hosts for p in ports))
+        for phase in (ports[:1], ports[1:]):
+            if cancel is not None and cancel.is_set():
+                break
+            await asyncio.gather(*(probe(h, p) for p in phase for h in hosts))
+        if done < total:  # cancelled before the fallback ports started: report the bar as finished
+            done = total - 1
+            tick()
         found.sort(key=lambda d: (d["host"], d["port"]))
         return found
 

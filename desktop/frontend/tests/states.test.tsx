@@ -33,10 +33,12 @@ describe("empty / loading / error states", () => {
   });
 
   it("adb list loading: skeleton is exposed as busy and the refresh button is disabled until it resolves", async () => {
-    setup({ "device.adb.list": () => new Promise((r) => setTimeout(() => r({ adbPath: "/x", devices: [] }), 60)) });
-    const busy = document.querySelector('[aria-busy="true"]');
-    expect(busy).toBeTruthy();
-    expect((screen.getByRole("button", { name: "刷新" }) as HTMLButtonElement).disabled).toBe(true);
+    let release: (v: unknown) => void = () => undefined;
+    setup({ "device.adb.list": () => new Promise((r) => (release = r)) });
+    // the add-device panel opens as soon as the (empty) saved list is in, while adb is still loading
+    expect(((await screen.findByRole("button", { name: "刷新" })) as HTMLButtonElement).disabled).toBe(true);
+    expect(document.querySelector('[aria-busy="true"]')).toBeTruthy();
+    release({ adbPath: "/x", devices: [] });
     await screen.findByText("未发现 USB 设备");
     expect(document.querySelector('[aria-busy="true"]')).toBeNull();
   });
@@ -56,7 +58,7 @@ describe("empty / loading / error states", () => {
     setup({ "device.adb.list": () => { throw { code: "adb.timeout", message: "adb 超时" }; } });
     expect(await screen.findByText("查询 ADB 设备失败")).toBeTruthy();
     expect(screen.getByText("adb 命令超时")).toBeTruthy();
-    fireEvent.click(screen.getByRole("button", { name: "详情" }));
+    fireEvent.click(await screen.findByRole("button", { name: "详情" }));
     expect(screen.getByText(/adb 超时 \[adb\.timeout\]/)).toBeTruthy();
     expect(screen.getByRole("button", { name: "重试" })).toBeTruthy();
   });
@@ -74,6 +76,7 @@ describe("empty / loading / error states", () => {
     const user = userEvent.setup();
     setup({ "device.list": () => ({ devices: [dev()] }) });
     const card = await screen.findByRole("article");
+    await user.click(within(card).getByRole("button", { name: "adb:e 的详情" }));
     expect(within(card).getByText("点击下方按钮获取截图")).toBeTruthy();
     await user.click(within(card).getByRole("button", { name: "刷新截图" }));
     expect(within(card).getByRole("status", { name: "正在截图…" })).toBeTruthy();
@@ -88,7 +91,9 @@ describe("empty / loading / error states", () => {
 
   it("screenshot keeps the device aspect ratio so the frame does not jump", async () => {
     setup({ "device.list": () => ({ devices: [dev()] }) });
-    const frame = (await screen.findByRole("article")).querySelector(".shot-frame") as HTMLElement;
+    const card = await screen.findByRole("article");
+    fireEvent.click(within(card).getByRole("button", { name: "adb:e 的详情" }));
+    const frame = card.querySelector(".shot-frame") as HTMLElement;
     expect(frame.style.aspectRatio.replace(/\s/g, "")).toBe("1080/2337");
   });
 

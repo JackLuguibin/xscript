@@ -50,15 +50,17 @@ export function createDemoTransport(): MemoryTransport {
     return dbg;
   };
   let configuredAdb: string | null = null;
+  let autoReconnect = true;
   const secrets = new Map<string, string>();
   const transport = new MemoryTransport(
     {
       "app.ping": (p) => ({ pong: p.echo, version: "demo", python: "-", platform: "browser" }),
       "app.hello": () => ({ version: "demo", platform: "browser", adbPath: configuredAdb, methods: [] }),
+      "app.settings.get": () => ({ adbPath: configuredAdb, autoReconnect }),
       "app.settings.set": (p) => {
-        const raw = String(p.adbPath ?? "").trim();
-        configuredAdb = raw || null;
-        return { adbPath: configuredAdb };
+        if ("adbPath" in p) configuredAdb = String(p.adbPath ?? "").trim() || null;
+        if ("autoReconnect" in p) autoReconnect = Boolean(p.autoReconnect);
+        return { adbPath: configuredAdb, autoReconnect };
       },
       "device.adb.list": () => ({
         adbPath: configuredAdb || "/demo/adb",
@@ -69,13 +71,15 @@ export function createDemoTransport(): MemoryTransport {
         const d: Device = {
           id: `${p.transport}:${serial}`, transport: p.transport as "adb" | "lan", address: "127.0.0.1:41000", serial: p.transport === "adb" ? serial : "",
           forwardPort: 41000, state: "online", error: "", warning: p.transport === "lan" ? "demo warning" : "", lastSeen: Date.now() / 1000,
-          saved: true, name: "", group: "", note: "", autoConnect: false, sortOrder: 0,
+          // like Python: a device's first connect opts it into auto-reconnect while the global switch is on (§14.5)
+          saved: true, name: "", group: "", note: "", autoConnect: devices.get(`${p.transport}:${serial}`)?.autoConnect ?? autoReconnect, sortOrder: 0,
           info: { name: status.name, model: status.model, brand: status.brand, android: status.release, sdk: status.sdk, width: status.width, height: status.height,
             density: status.density, ip: status.ip, port: 9860, version: status.version, deviceId: status.device_id, appId: status.app_id, running: false,
             project: "", accessibility: false, root: false, capture: false, channel: "none", cloud: "未连接" },
           status,
         };
         devices.set(d.id, d);
+        emit("device.state", d);
         return d;
       },
       "device.list": () => ({ devices: [...devices.values()] }),
@@ -87,7 +91,11 @@ export function createDemoTransport(): MemoryTransport {
         devices.set(d.id, offline);
         return { removed: true, device: offline };
       },
-      "device.forget": (p) => ({ forgotten: devices.delete(String(p.id)) }),
+      "device.forget": (p) => {
+        const forgotten = devices.delete(String(p.id));
+        if (forgotten) emit("device.removed", { id: String(p.id) });
+        return { forgotten };
+      },
       "device.update": (p) => {
         const d = devices.get(String(p.id));
         if (!d) throw { code: "db.not_found", message: "没有这台已保存设备" };
@@ -101,9 +109,14 @@ export function createDemoTransport(): MemoryTransport {
           info: { ...d.info, name: p.name !== undefined && String(p.name) ? String(p.name) : d.info.name },
         };
         devices.set(d.id, next);
+        emit("device.state", next);
         return next;
       },
-      "device.scan": () => ({ found: [] }),
+      "device.scan": (p) => {
+        if (p.scanId) emit("device.scan.progress", { scanId: p.scanId, done: 1, total: 1 });
+        return { found: [], cancelled: false, total: 1 };
+      },
+      "device.scan.cancel": () => ({ cancelled: false }),
       "project.list": () => ({ projects: [...projects.keys()].map((name) => ({ name })) }),
       "project.create": (p) => {
         const name = String(p.project);

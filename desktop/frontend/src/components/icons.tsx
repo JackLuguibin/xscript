@@ -26,6 +26,8 @@ export const IconUnlink = (p: P) => (<Svg {...p}><path d="M11 6.5l1.2-1.2a4 4 0 
 export const IconFolder = (p: P) => (<Svg {...p}><path d="M3 7.5a2 2 0 0 1 2-2h4l2 2.5h8a2 2 0 0 1 2 2V18a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z" /></Svg>);
 export const IconFlow = (p: P) => (<Svg {...p}><rect x="3" y="3.5" width="6.5" height="6" rx="1.4" /><rect x="14.5" y="14.5" width="6.5" height="6" rx="1.4" /><path d="M9.5 6.5h3.5a2 2 0 0 1 2 2v6" /></Svg>);
 export const IconGrid = (p: P) => (<Svg {...p}><rect x="3.5" y="3.5" width="7" height="7" rx="1.4" /><rect x="13.5" y="3.5" width="7" height="7" rx="1.4" /><rect x="3.5" y="13.5" width="7" height="7" rx="1.4" /><rect x="13.5" y="13.5" width="7" height="7" rx="1.4" /></Svg>);
+export const IconPlus = (p: P) => (<Svg {...p}><path d="M12 5v14M5 12h14" /></Svg>);
+export const IconChevron = (p: P) => (<Svg {...p}><path d="M6 9l6 6 6-6" /></Svg>);
 export const IconMark = (p: P) => (<Svg {...p}><path d="M5 5l14 14M19 5L5 19" strokeWidth={2.4} /></Svg>);
 
 export function Spinner() {

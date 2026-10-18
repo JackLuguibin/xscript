@@ -236,33 +236,63 @@ async def test_connect_saves_the_serial_and_disconnect_keeps_an_offline_card(moc
 
 
 async def test_auto_connect_runs_only_for_flagged_rows_and_reallocates_the_forward(mock_device, tmp_path):
-    """Saved devices stay offline across a restart unless auto_connect=1, which forwards by serial again."""
+    """First connect opts a device in to auto-reconnect (design §14.5): the next start forwards by serial again.
+    Turning it off for that device keeps it an offline card across restarts."""
     fake = FakeAdb([("emulator-5554", "device", mock_device)])
     ctx = _ctx(fake, tmp_path)
     await rpc(ctx, "device.connect", transport="adb", serial="emulator-5554")
     await rpc(ctx, "device.update", id="adb:emulator-5554", name="实验室")
+    assert ctx.store.get("adb:emulator-5554").auto_connect == 1
     await ctx.shutdown()
     assert fake.forwards == {}
 
     ctx2 = _ctx(fake, tmp_path)
     try:
-        assert await ctx2.connect_saved() == []
-        assert ctx2.devices.list() == [] and fake.forwards == {}
-        offline = (await rpc(ctx2, "device.list"))["result"]["devices"][0]
-        assert offline["state"] == "offline" and offline["name"] == "实验室"
-        await rpc(ctx2, "device.update", id="adb:emulator-5554", autoConnect=True)
+        got = await ctx2.connect_saved()
+        assert got[0]["state"] == "online" and got[0]["name"] == "实验室" and got[0]["autoConnect"] is True
+        assert fake.forwards and ctx2.store.get("adb:emulator-5554").address == "emulator-5554"
+        assert "41000" not in ctx2.store.dump_devices()
+        await rpc(ctx2, "device.update", id="adb:emulator-5554", autoConnect=False)
     finally:
         await ctx2.shutdown()
+    assert fake.forwards == {}
 
     ctx3 = _ctx(fake, tmp_path)
     try:
-        got = await ctx3.connect_saved()
-        assert got[0]["state"] == "online" and got[0]["name"] == "实验室" and got[0]["autoConnect"] is True
-        assert fake.forwards and ctx3.store.get("adb:emulator-5554").address == "emulator-5554"
-        assert "41000" not in ctx3.store.dump_devices()
+        assert await ctx3.connect_saved() == []
+        assert ctx3.devices.list() == [] and fake.forwards == {}
+        offline = (await rpc(ctx3, "device.list"))["result"]["devices"][0]
+        assert offline["state"] == "offline" and offline["name"] == "实验室" and offline["autoConnect"] is False
+        # reconnecting by hand does not flip the user's choice back on (only a NEW row gets the default)
+        await rpc(ctx3, "device.connect", transport="adb", serial="emulator-5554")
+        assert ctx3.store.get("adb:emulator-5554").auto_connect == 0
     finally:
         await ctx3.shutdown()
     assert fake.forwards == {}
+
+
+async def test_global_auto_reconnect_switch_off_skips_startup_and_new_devices(mock_device, tmp_path):
+    fake = FakeAdb([("emulator-5554", "device", mock_device)])
+    ctx = _ctx(fake, tmp_path)
+    try:
+        assert (await rpc(ctx, "app.settings.get"))["result"]["autoReconnect"] is True
+        res = (await rpc(ctx, "app.settings.set", autoReconnect=False))["result"]
+        assert res["autoReconnect"] is False and ctx.store.get_setting("autoReconnect") == "0"
+        await rpc(ctx, "device.connect", transport="adb", serial="emulator-5554")
+        assert ctx.store.get("adb:emulator-5554").auto_connect == 0  # new row while the switch is off: not opted in
+        await rpc(ctx, "device.update", id="adb:emulator-5554", autoConnect=True)
+    finally:
+        await ctx.shutdown()
+
+    ctx2 = _ctx(fake, tmp_path)
+    try:
+        assert await ctx2.connect_saved() == []  # the per-device flag is set, but the global switch wins
+        assert ctx2.devices.list() == []
+        await rpc(ctx2, "app.settings.set", autoReconnect=True)
+        got = await ctx2.connect_saved()
+        assert [d["state"] for d in got] == ["online"]
+    finally:
+        await ctx2.shutdown()
 
 
 async def test_read_only_database_is_reported_and_refuses_edits(tmp_path):

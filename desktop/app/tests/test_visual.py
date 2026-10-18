@@ -61,6 +61,7 @@ def prepare(sh, qtbot, theme: str, size=(1100, 720), devices=DEVICES, adb_missin
 def connect_and_shoot(sh, qtbot):
     sh.click(qtbot, "连接 emulator-5554")
     sh.wait_text(qtbot, "在线")
+    sh.click(qtbot, "adb:emulator-5554 的详情")  # the compact card folds the screenshot under 详情
     sh.click(qtbot, "刷新截图")
     sh.wait_js(qtbot, "(() => { const i = document.querySelector('img[alt=\"截图\"]'); return i && i.complete && i.naturalWidth > 0; })()", timeout=10000)
 
@@ -115,6 +116,7 @@ def test_v_screenshot_failure_state(vis, qtbot):
     vis.fake_device.screen_mode = "503"
     vis.click(qtbot, "连接 emulator-5554")
     vis.wait_text(qtbot, "在线")
+    vis.click(qtbot, "adb:emulator-5554 的详情")
     vis.click(qtbot, "刷新截图")
     vis.wait_text(qtbot, "截图失败")
     verify("shot-failed-dark", vis, qtbot)

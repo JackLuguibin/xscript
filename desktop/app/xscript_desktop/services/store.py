@@ -305,8 +305,9 @@ class AppStore:
     def get(self, device_id: str) -> SavedDevice | None:
         return self.submit(self._get, device_id)
 
-    def remember(self, device_id: str, transport: str, address: str, device_uid: str, model: str, last_seen: float) -> SavedDevice:
-        return self.submit(self._remember, device_id, transport, address, device_uid, model, last_seen)
+    def remember(self, device_id: str, transport: str, address: str, device_uid: str, model: str, last_seen: float,
+                 auto_connect: bool = False) -> SavedDevice:
+        return self.submit(self._remember, device_id, transport, address, device_uid, model, last_seen, auto_connect)
 
     def update(self, device_id: str, fields: dict[str, Any]) -> SavedDevice:
         return self.submit(self._update, device_id, fields)
@@ -337,7 +338,10 @@ class AppStore:
         row = conn.execute("SELECT * FROM devices WHERE id = ?", (device_id,)).fetchone()
         return SavedDevice.from_row(row) if row is not None else None
 
-    def _remember(self, device_id: str, transport: str, address: str, device_uid: str, model: str, last_seen: float) -> SavedDevice:
+    def _remember(self, device_id: str, transport: str, address: str, device_uid: str, model: str, last_seen: float,
+                  auto_connect: bool = False) -> SavedDevice:
+        """Insert or refresh the row of a device that just connected. `auto_connect` only applies to a NEW row: an
+        existing row keeps whatever the user chose (design §14.5: first connect opts the device in to auto-reconnect)."""
         conn = self._guard()
         self._writable()
         _check_identity(device_id, transport, address)
@@ -346,8 +350,8 @@ class AppStore:
             row = conn.execute("SELECT id FROM devices WHERE id = ?", (device_id,)).fetchone()
             if row is None:
                 conn.execute(
-                    "INSERT INTO devices (id, transport, address, device_id, model, created_at, last_seen) VALUES (?,?,?,?,?,?,?)",
-                    (device_id, transport, address, device_uid or "", model or "", now, now),
+                    "INSERT INTO devices (id, transport, address, device_id, model, created_at, last_seen, auto_connect) VALUES (?,?,?,?,?,?,?,?)",
+                    (device_id, transport, address, device_uid or "", model or "", now, now, 1 if auto_connect else 0),
                 )
             else:
                 conn.execute(

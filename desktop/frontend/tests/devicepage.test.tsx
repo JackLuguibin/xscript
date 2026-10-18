@@ -38,6 +38,10 @@ describe("DevicePage", () => {
     await user.click(screen.getByRole("button", { name: "连接 emulator-5554" }));
     const card = await screen.findByRole("article", { name: "device adb:emulator-5554" });
     expect(within(card).getByText("emu64a16k", { exact: false })).toBeTruthy();
+    // compact card: model · Android · resolution on one line; the full properties under 详情
+    expect(within(card).getByText("google sdk_gphone16k_arm64 · Android 17 · 1080×2337")).toBeTruthy();
+    expect(within(card).queryByText("0.2.6")).toBeNull();
+    await user.click(within(card).getByRole("button", { name: "adb:emulator-5554 的详情" }));
     expect(within(card).getByText("1080×2337")).toBeTruthy();
     expect(within(card).getByText("0.2.6")).toBeTruthy();
     expect(within(card).getByText("在线")).toBeTruthy();
@@ -72,7 +76,7 @@ describe("DevicePage", () => {
   it("connects a LAN address, showing the no-auth warning from Python", async () => {
     const user = userEvent.setup();
     const { t } = setup({ "device.connect": (p) => dev({ id: "lan:" + p.address, transport: "lan", serial: "", address: String(p.address), warning: "设备 API 没有鉴权" }) });
-    await user.type(screen.getByLabelText("device address"), "192.168.1.20:9860");
+    await user.type(await screen.findByLabelText("device address"), "192.168.1.20:9860");
     await user.click(screen.getByRole("button", { name: "连接地址" }));
     expect(await screen.findByText(/没有鉴权/, { selector: ".banner span" })).toBeTruthy();
     expect(t.sent.find((m) => m.method === "device.connect")?.params).toEqual({ transport: "lan", address: "192.168.1.20:9860" });
@@ -103,6 +107,7 @@ describe("DevicePage", () => {
     const user = userEvent.setup();
     const { t } = setup({ "device.connect": () => dev() });
     await user.click(await screen.findByRole("button", { name: "连接 emulator-5554" }));
+    await user.click(await screen.findByRole("button", { name: "adb:emulator-5554 的详情" }));
     await user.click(await screen.findByRole("button", { name: "刷新截图" }));
     const img = (await screen.findByAltText("截图")) as HTMLImageElement;
     expect(img.getAttribute("src")).toMatch(/^\/_shot\/adb%3Aemulator-5554\.jpg\?max=360&t=\d+$/);

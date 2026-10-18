@@ -162,7 +162,7 @@ describe("command palette, settings, and chords", () => {
     mount();
     await screen.findByText("emulator-5554");
     press("k", { mod: true });
-    const box = await screen.findByRole("combobox");
+    const box = await screen.findByRole("combobox", { name: "命令面板" });
     fireEvent.change(box, { target: { value: "流程" } });
     const opt = screen.getByRole("option", { name: /流程/ });
     expect(opt.getAttribute("aria-disabled")).toBe("true");
@@ -263,8 +263,7 @@ describe("command palette, settings, and chords", () => {
 
   it("opens help with ? except while typing or when single-key shortcuts are off", async () => {
     const { unmount } = mount();
-    await screen.findByText("emulator-5554");
-    const address = screen.getByRole("textbox", { name: "device address" });
+    const address = await screen.findByRole("textbox", { name: "device address" }); // the add-device panel is open (no saved devices)
     address.focus();
     fireEvent.keyDown(address, { key: "?" });
     expect(screen.queryByRole("dialog")).toBeNull();
@@ -287,7 +286,7 @@ describe("command palette, settings, and chords", () => {
     press("?");
     expect(screen.queryByRole("dialog")).toBeNull();
     press("k", { mod: true });
-    const box = await screen.findByRole("combobox");
+    const box = await screen.findByRole("combobox", { name: "命令面板" });
     fireEvent.change(box, { target: { value: "快捷键" } });
     fireEvent.keyDown(box, { key: "Enter" });
     expect(await screen.findByRole("dialog", { name: "快捷键" })).toBeTruthy();
@@ -351,7 +350,8 @@ describe("command palette, settings, and chords", () => {
     await screen.findByText("emulator-5554");
     const run = async (query: string) => {
       press("k", { mod: true });
-      const box = await screen.findByRole("combobox");
+      // the top-bar device switcher is a combobox too; the palette is named (in either language once 切换语言 ran)
+      const box = await screen.findByRole("combobox", { name: /命令面板|Command palette/ });
       fireEvent.change(box, { target: { value: query } });
       fireEvent.keyDown(box, { key: "Enter" });
       await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
