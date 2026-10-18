@@ -441,11 +441,16 @@ def _scales(scale_range):
     return sorted(set(round(s, 4) for s in out))
 
 
+_MIN_CONFIDENCE = 0.01
+
+
 def _extract(res, w, h, threshold, maxcnt):
     out = []
-    while True:
+    # Each hit zeroes its neighbourhood. A threshold <= 0 would match those zeros forever, so stop at a
+    # non-positive score and never take more hits than there are cells.
+    for _ in range(res.size):
         _, mv, _, ml = cv2.minMaxLoc(res)
-        if mv < threshold:
+        if mv < threshold or mv <= 0:
             break
         out.append((float(mv), ml[0], ml[1], w, h))
         if maxcnt and len(out) >= maxcnt:
@@ -720,9 +725,18 @@ def match_template(source, part, rect=None, confidence=0.9, rgb=False, maxcnt=0,
     return _match_many(source, [part], rect, confidence, rgb, maxcnt, scale_range, offset, fast, first_index=index)
 
 
+def _clamp_confidence(confidence):
+    """Template scores are in (0, 1]: 0 or less means "anything" (clamped to the smallest positive score), above 1 is 1."""
+    c = float(confidence)
+    if c != c:  # NaN
+        raise ValueError("confidence must be a number in (0, 1]")
+    return min(1.0, max(_MIN_CONFIDENCE, c))
+
+
 def _match_many(source, parts, rect, confidence, rgb, maxcnt, scale_range, offset, fast, first_index=0):
     if cv2 is None:
         raise RuntimeError("OpenCV (cv2) is not available in this runtime")
+    confidence = _clamp_confidence(confidence)
     rect = _norm_rect(rect)
     ox, oy = int(offset[0]), int(offset[1])
     src = source
