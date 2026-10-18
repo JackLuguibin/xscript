@@ -873,7 +873,6 @@ class ServerTest(unittest.IsolatedAsyncioTestCase):
 
 
 @unittest.skipIf(SKIP, SKIP)
-@unittest.skipIf(SKIP, SKIP)
 class SchedulerTest(unittest.IsolatedAsyncioTestCase):
     """Due tasks run side by side with a cap; a slow or failing task does not hold up the rest."""
 
@@ -974,6 +973,7 @@ class SchedulerTest(unittest.IsolatedAsyncioTestCase):
         self.assertFalse(self.loop_task.done())
 
 
+@unittest.skipIf(SKIP, SKIP)
 class LegacyImportTest(unittest.TestCase):
     def test_import(self):
         tmp = Path(tempfile.mkdtemp())
