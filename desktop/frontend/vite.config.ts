@@ -15,6 +15,12 @@ export default defineConfig({
   base: "./",
   server: { port: 5173, strictPort: true },
   build: {
+    rollupOptions: {
+      input: {
+        main: fileURLToPath(new URL("./index.html", import.meta.url)),
+        spike: fileURLToPath(new URL("./spike.html", import.meta.url)),
+      },
+    },
     outDir,
     emptyOutDir: true,
     sourcemap: false,

@@ -1,0 +1,7 @@
+html, body, #root, .spike { margin: 0; height: 100%; background: #f4f1ea; color: #1c1915; }
+.spike { height: 100vh; }
+.react-flow { width: 100%; height: 100%; }
+.xnode { min-width: 140px; padding: 8px 12px; border: 1px solid #8a8175; border-radius: 8px; background: #fffdf8; font: 13px/1.3 sans-serif; }
+.xnode:focus { outline: 2px solid #0b57d0; outline-offset: 2px; }
+.handle.exec { background: #fff; border: 2px solid #1c1915; }
+.handle.data { background: #0b57d0; }

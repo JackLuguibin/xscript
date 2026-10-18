@@ -126,7 +126,7 @@ class XsAppHandler(QWebEngineUrlSchemeHandler):
             job.fail(QWebEngineUrlRequestJob.Error.UrlNotFound)
             return
         body = f.read_bytes()
-        if f.name == "index.html":
+        if f.suffix.lower() == ".html":
             body = with_csp(body)
         self._reply(job, body, mime_for(f))
 
