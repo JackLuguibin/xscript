@@ -7,7 +7,7 @@ import time
 from dataclasses import dataclass
 from typing import Any
 
-from sqlalchemy import and_, delete, func, or_, select, update
+from sqlalchemy import and_, case, delete, func, or_, select, update
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
@@ -309,7 +309,10 @@ def issue_offline(s: Session, key, device: str, days: float, app: str, note: str
 
 
 def stats(s: Session) -> dict[str, int]:
+    """Card count per status plus the total, in one pass over the table."""
     now = int(time.time())
-    out = {st: s.scalar(select(func.count()).select_from(Card).where(status_filter(st, now))) or 0 for st in STATUSES}
-    out["total"] = s.scalar(select(func.count()).select_from(Card)) or 0
+    cols = [func.coalesce(func.sum(case((status_filter(st, now), 1), else_=0)), 0) for st in STATUSES]
+    row = s.execute(select(func.count(), *cols).select_from(Card)).one()
+    out = {st: int(n) for st, n in zip(STATUSES, row[1:])}
+    out["total"] = int(row[0])
     return out

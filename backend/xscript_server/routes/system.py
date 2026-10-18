@@ -58,15 +58,20 @@ def overview(request: Request, p: Principal = Depends(viewer), s: Session = Depe
 
 
 def _recent_crashes(s: Session, since: int) -> list[dict[str, Any]]:
-    """Devices whose last run crashed within the window, newest first."""
+    """Devices whose last run crashed within the window, newest first.
+
+    Filtered and limited in SQL (json_extract), so only the few matching rows are loaded, and
+    only the columns needed here, not every device's status/data blobs.
+    """
+    at = Device.last_run["time"].as_integer()
+    rows = s.execute(select(Device.id, Device.brand, Device.model, Device.last_run)
+                     .where(Device.last_run["crashed"].as_boolean(), at >= since).order_by(at.desc()).limit(8))
     out = []
-    for d in s.scalars(select(Device).where(Device.last_run.is_not(None))):
-        r = d.last_run or {}
-        if r.get("crashed") and int(r.get("time") or 0) >= since:
-            last = next((t["line"] for t in reversed(r.get("tail") or []) if t.get("stream") == "stderr"), "")
-            out.append({"device": d.id, "model": " ".join(x for x in (d.brand, d.model) if x), "project": r.get("project"),
-                        "exit": r.get("exit"), "time": r.get("time"), "error": last[:200]})
-    return sorted(out, key=lambda x: -int(x["time"] or 0))[:8]
+    for dev_id, brand, model, r in rows:
+        last = next((t["line"] for t in reversed(r.get("tail") or []) if t.get("stream") == "stderr"), "")
+        out.append({"device": dev_id, "model": " ".join(x for x in (brand, model) if x), "project": r.get("project"),
+                    "exit": r.get("exit"), "time": r.get("time"), "error": last[:200]})
+    return out
 
 
 @router.get("/audit")

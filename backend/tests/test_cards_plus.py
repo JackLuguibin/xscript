@@ -6,12 +6,17 @@ import asyncio
 import os
 import sys
 import tempfile
+import time
 import unittest
+from collections import Counter
 from pathlib import Path
+from unittest import mock
 
 HERE = Path(__file__).resolve().parent
 sys.path.insert(0, str(HERE.parent))
 sys.path.insert(0, str(HERE))
+
+from sqlalchemy import func, select  # noqa: E402
 
 from xscript_server import abuse, licensing  # noqa: E402
 from xscript_server import cards as cardsvc  # noqa: E402
@@ -661,3 +666,27 @@ class CountCardTest(ServiceTest):
         with self.db.session() as s:
             st = cardsvc.stats(s)
         self.assertEqual((st["exhausted"], st["active"]), (1, 0))
+
+    def test_stats_single_query_matches_per_status_filters(self):
+        now = int(time.time())
+        rows = [dict(),  # unused
+                dict(activated_at=now - 10),  # unbound
+                dict(revoked=True, device="d"),
+                dict(device="d", activated_at=now, expires_at=0),  # permanent: active
+                dict(device="d", activated_at=now, expires_at=None),
+                dict(device="d", activated_at=now, expires_at=now + DAY),
+                dict(device="d", activated_at=now - DAY, expires_at=now - 1),  # expired
+                dict(device="d", kind="count", activated_at=now, expires_at=0, uses_left=0),  # exhausted
+                dict(device="d", kind="count", activated_at=now, expires_at=0, uses_left=3)]
+        with self.db.session() as s:
+            s.add_all(Card(card="C%02d" % i, **kw) for i, kw in enumerate(rows))
+            s.commit()
+            with mock.patch.object(cardsvc.time, "time", return_value=now):
+                st = cardsvc.stats(s)
+            want = {k: s.scalar(select(func.count()).select_from(Card).where(cardsvc.status_filter(k, now)))
+                    for k in cardsvc.STATUSES}
+            self.assertEqual(st, {**want, "total": len(rows)})
+            self.assertEqual(Counter(cardsvc.status_of(c, now) for c in s.scalars(select(Card))),
+                             Counter({k: v for k, v in want.items() if v}))
+        self.assertEqual((st["active"], st["expired"], st["exhausted"], st["unused"], st["unbound"], st["revoked"]),
+                         (4, 1, 1, 1, 1, 1))
