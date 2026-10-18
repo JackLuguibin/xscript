@@ -86,9 +86,10 @@ def list_devices(request: Request, p: Principal = Depends(viewer), s: Session = 
 def list_groups(request: Request, p: Principal = Depends(viewer), s: Session = Depends(db_session)):
     hub = ctx(request).hub
     counts: dict[str, dict[str, int]] = {}
-    for d in s.scalars(select(Device)):
-        conn = hub.conns.get(d.id)
-        g = d.group_override or (conn.reported_group if conn else d.reported_group)
+    # Three narrow columns, not whole rows: status / data / last_run JSON are the bulk of the table.
+    for dev_id, override, reported in s.execute(select(Device.id, Device.group_override, Device.reported_group)):
+        conn = hub.conns.get(dev_id)
+        g = override or (conn.reported_group if conn else reported)
         if not g:
             continue
         c = counts.setdefault(g, {"total": 0, "online": 0})

@@ -740,6 +740,53 @@ class ServerTest(unittest.IsolatedAsyncioTestCase):
         for k in ("crashes", "scripts", "alerts_24h", "last_backup"):
             self.assertIn(k, ov)
 
+    async def test_overview_and_groups_queries_stay_narrow(self):
+        """Overview crashes come from a filtered SQL query; neither endpoint loads the device JSON blobs."""
+        from sqlalchemy import event
+
+        from xscript_server.models import Device
+
+        ctx = self.srv.app.state.ctx
+        now = int(time.time())
+        blob = {"x": "y" * 1000}
+        tail = [{"stream": "stdout", "line": "ok"}, {"stream": "stderr", "line": "Boom"}]
+        rows = {"ov-new": {"crashed": True, "time": now - 60, "tail": tail},
+                "ov-old": {"crashed": True, "time": now - 2 * 86400, "tail": tail},
+                "ov-clean": {"crashed": False, "time": now - 30, "tail": []}}
+        with ctx.db.session() as s:
+            for i in range(9):  # more recent crashes than the overview shows
+                rows["ov-%d" % i] = {"crashed": True, "time": now - 3600 - i, "tail": []}
+            s.add_all(Device(id=k, device_id=k, reported_group="ov-grp", status=blob, data=blob, last_run=v)
+                      for k, v in rows.items())
+            s.add(Device(id="ov-moved", device_id="ov-moved", reported_group="ov-grp", group_override="ov-grp2"))
+            s.commit()
+        seen: list[str] = []
+
+        def capture(conn, cursor, statement, *a):
+            seen.append(statement)
+
+        event.listen(ctx.db.engine, "before_cursor_execute", capture)
+        try:
+            ov = (await self.admin.get("/api/overview")).json()
+            groups = {g["name"]: g for g in (await self.admin.get("/api/groups")).json()["items"]}
+        finally:
+            event.remove(ctx.db.engine, "before_cursor_execute", capture)
+        mine = [c for c in ov["crashes"] if c["device"].startswith("ov-")]
+        self.assertEqual(mine[0], {"device": "ov-new", "model": "", "project": None, "exit": None,
+                                   "time": now - 60, "error": "Boom"})
+        self.assertNotIn("ov-old", [c["device"] for c in ov["crashes"]])
+        self.assertNotIn("ov-clean", [c["device"] for c in ov["crashes"]])
+        self.assertEqual(len(ov["crashes"]), 8)
+        self.assertEqual([c["time"] for c in ov["crashes"]], sorted((c["time"] for c in ov["crashes"]), reverse=True))
+        self.assertEqual(groups["ov-grp"], {"name": "ov-grp", "total": 12, "online": 0})
+        self.assertEqual(groups["ov-grp2"], {"name": "ov-grp2", "total": 1, "online": 0})
+        device_selects = [q for q in seen if "FROM devices" in q]
+        self.assertTrue(device_selects)
+        for q in device_selects:
+            self.assertNotIn("devices.status", q)
+            self.assertNotIn("devices.data", q)
+        self.assertEqual(sum(1 for q in seen if "FROM cards" in q), 1)
+
     async def test_scheduled_script_deploy(self):
         sc = (await self.admin.post("/api/scripts", json={"name": "定时", "project_name": "timed"})).json()
         await self.upload_version(self.admin, sc["id"], "print('t')\n", publish="true")
