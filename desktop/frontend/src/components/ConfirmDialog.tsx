@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
 import { t } from "../strings";
 import { Overlay } from "./Overlay";
+import { Button } from "./ui/button";
 
 export interface ConfirmOptions {
   title?: string;
@@ -61,12 +62,12 @@ export function useConfirm(): { confirm: (opts: ConfirmOptions) => Promise<boole
     >
       <p id="confirm-dialog-message">{o.message}</p>
       <div className="row dialog-actions">
-        <button type="button" data-confirm-cancel onClick={() => answer(false)}>
+        <Button data-confirm-cancel onClick={() => answer(false)}>
           {o.cancelLabel ?? t.confirm.cancel}
-        </button>
-        <button type="button" className={o.danger ? "danger" : "primary"} onClick={() => answer(true)}>
+        </Button>
+        <Button variant={o.danger ? "danger" : "primary"} onClick={() => answer(true)}>
           {o.confirmLabel ?? t.confirm.ok}
-        </button>
+        </Button>
       </div>
     </Overlay>
   ) : null;

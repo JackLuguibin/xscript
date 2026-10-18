@@ -101,6 +101,8 @@ def test_built_bundle_contains_no_remote_origins():
         "https://github.com/markedjs/marked.", "https://github.com/microsoft/monaco-editor#faq",
         "https://github.com/microsoft/vscode/blob/main/LICENSE.txt", "https://github.com/microsoft/vscode/issues/103170",
         "https://github.com/microsoft/vscode/issues/new", "https://microsoft.com",
+        # Tailwind's MIT license banner kept at the top of the built CSS (a comment, never fetched).
+        "https://tailwindcss.com",
     }
     assert [u for u in urls if not u.startswith(allowed) and u not in monaco_text_links and not _never_remote(u)] == [], urls
 

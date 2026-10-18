@@ -12,6 +12,10 @@ import { ErrorBanner } from "./ErrorBanner";
 import { IconAlert, IconMonitor, IconPhone } from "./icons";
 import { ScreenTools, rectPercent, type PointerMode } from "./ScreenTools";
 import { useToast } from "./Toast";
+import { Alert } from "./ui/alert";
+import { Button } from "./ui/button";
+import { Input } from "./ui/input";
+import { Select } from "./ui/select";
 
 const WHEEL_IDLE_MS = 120; // one wheel "flick" = events closer together than this
 const MAX_COMPOSE = 2000;
@@ -352,37 +356,37 @@ export function MirrorPage() {
     <div className="page">
       {error !== null && <ErrorBanner error={error} onDismiss={() => setError(null)} />}
       {reason === "viewers_full" && (
-        <div className="banner warn" role="status">
+        <Alert tone="warn" role="status">
           <IconAlert size={16} />
           <span className="grow">{t.mirror.viewersFull}</span>
-        </div>
+        </Alert>
       )}
       <div className="row toolbar">
-        <button className={playing ? "" : "primary"} onClick={() => setPlaying((p) => !p)}>
+        <Button variant="bare" className={playing ? "" : "primary"} onClick={() => setPlaying((p) => !p)}>
           {playing ? t.mirror.pause : t.mirror.start}
-        </button>
+        </Button>
         <label className="row">
           {t.mirror.fps}
-          <select aria-label={t.mirror.fps} value={fps} onChange={(e) => setFps(Number(e.target.value))}>
+          <Select aria-label={t.mirror.fps} value={fps} onChange={(e) => setFps(Number(e.target.value))}>
             {MIRROR_FPS.map((f) => (
               <option key={f} value={f}>
                 {f}
               </option>
             ))}
-          </select>
+          </Select>
         </label>
         <div className="seg" role="group" aria-label={t.mirror.view} title={t.mirror.viewHint}>
           {(["fit", "actual"] as const).map((m) => (
-            <button key={m} type="button" className="small" aria-pressed={fit === m} onClick={() => setFit(m)}>
+            <Button key={m} size="sm" aria-pressed={fit === m} onClick={() => setFit(m)}>
               {m === "fit" ? t.mirror.fit : t.mirror.actual}
-            </button>
+            </Button>
           ))}
         </div>
         <span className="grow" />
         {(["back", "home", "recents"] as const).map((k) => (
-          <button key={k} className="small" onClick={() => void send({ type: "key", name: k })}>
+          <Button size="sm" key={k} onClick={() => void send({ type: "key", name: k })}>
             {t.projects[k]}
-          </button>
+          </Button>
         ))}
       </div>
       <div className={"mirror-grid" + (landscape ? " stacked" : "")}>
@@ -446,18 +450,18 @@ export function MirrorPage() {
             <div className="overlay fail" role="status">
               <IconAlert size={28} />
               <span>{t.mirror.noCapture}</span>
-              <button type="button" onClick={() => void api.mirrorRetry(devId).catch((e) => setError(e))}>
+              <Button onClick={() => void api.mirrorRetry(devId).catch((e) => setError(e))}>
                 {t.mirror.retry}
-              </button>
+              </Button>
             </div>
           )}
           {stalled && !blocked && (
             <div className="overlay fail" role="status">
               <IconAlert size={28} />
               <span>{t.mirror.stalled}</span>
-              <button type="button" onClick={() => void api.mirrorRetry(devId).catch((e) => setError(e))}>
+              <Button onClick={() => void api.mirrorRetry(devId).catch((e) => setError(e))}>
                 {t.mirror.retry}
-              </button>
+              </Button>
             </div>
           )}
           {phase === "waiting" && !blocked && !stalled && (
@@ -470,9 +474,9 @@ export function MirrorPage() {
             <div className="overlay fail" role="status">
               <IconAlert size={28} />
               <span>{t.mirror.failed}</span>
-              <button type="button" onClick={retryFrame}>
+              <Button onClick={retryFrame}>
                 {t.mirror.retry}
-              </button>
+              </Button>
             </div>
           )}
           {compose && (
@@ -502,10 +506,10 @@ export function MirrorPage() {
               });
             }}
           >
-            <input aria-label={t.mirror.text} className="grow" value={text} onChange={(e) => setText(e.target.value)} placeholder={t.mirror.textPlaceholder} />
-            <button type="submit" disabled={!text}>
+            <Input aria-label={t.mirror.text} className="grow w-auto" value={text} onChange={(e) => setText(e.target.value)} placeholder={t.mirror.textPlaceholder} />
+            <Button type="submit" disabled={!text}>
               {t.mirror.send}
-            </button>
+            </Button>
           </form>
           <p className="hint">{t.mirror.hint}</p>
           <ScreenTools

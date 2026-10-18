@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
 import { t } from "../strings";
 import { IconMark } from "./icons";
+import { Button } from "./ui/button";
 
 /** How long a toast stays up. Exported for tests. */
 export const TOAST_MS = 4000;
@@ -43,9 +44,9 @@ export function useToast(): { toast: (text: string) => void; toasts: ReactNode }
       {items.map((x) => (
         <div key={x.id} className="toast">
           <span className="grow">{x.text}</span>
-          <button type="button" className="small ghost icon-btn" aria-label={t.errors.dismiss} onClick={() => close(x.id)}>
+          <Button variant="ghost" size="sm" className="icon-btn" aria-label={t.errors.dismiss} onClick={() => close(x.id)}>
             <IconMark size={12} />
-          </button>
+          </Button>
         </div>
       ))}
     </div>

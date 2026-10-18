@@ -8,6 +8,7 @@ import { EmptyState } from "./EmptyState";
 import { ErrorBanner } from "./ErrorBanner";
 import { IconPhone } from "./icons";
 import { useToast } from "./Toast";
+import { Button } from "./ui/button";
 
 const KEYS = ["back", "home", "recents"] as const;
 /** Gap between a thumbnail arriving and the next request; longer after a failed one. */
@@ -101,18 +102,18 @@ export function WallPage() {
     <div className="page">
       {error !== null && <ErrorBanner error={error} onDismiss={() => setError(null)} />}
       <div className="row toolbar">
-        <button type="button" className="small" onClick={() => setSelected(new Set(devices.filter((d) => d.state === "online").map((d) => d.id)))}>
+        <Button size="sm" type="button" onClick={() => setSelected(new Set(devices.filter((d) => d.state === "online").map((d) => d.id)))}>
           {t.wall.selectAll}
-        </button>
-        <button type="button" className="small" onClick={() => setSelected(new Set())}>
+        </Button>
+        <Button size="sm" type="button" onClick={() => setSelected(new Set())}>
           {t.wall.clear}
-        </button>
+        </Button>
         <span className="hint">{t.wall.selected(targets().length)}</span>
         <span className="grow" />
         {KEYS.map((k) => (
-          <button key={k} type="button" className="small" disabled={!targets().length} onClick={() => void broadcast(targets(), { type: "key", name: k })}>
+          <Button size="sm" key={k} type="button" disabled={!targets().length} onClick={() => void broadcast(targets(), { type: "key", name: k })}>
             {t.projects[k]}
-          </button>
+          </Button>
         ))}
       </div>
       <p className="hint">{t.wall.hint}</p>

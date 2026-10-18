@@ -3,6 +3,8 @@ import { useServices } from "../app-context";
 import { describeError, type ErrorInfo } from "../errors";
 import { t } from "../strings";
 import { IconAlert, IconMark } from "./icons";
+import { Alert } from "./ui/alert";
+import { Button } from "./ui/button";
 
 /**
  * Error banner: mapped title + actionable hint, raw detail behind 「详情」 with a 「复制」 button,
@@ -29,7 +31,7 @@ export function ErrorBanner({ error, info, onDismiss, label, role = "alert" }: {
     );
   };
   return (
-    <div className="banner error error-banner" role={role} aria-label={label}>
+    <Alert tone="error" className="error-banner" role={role} aria-label={label}>
       <IconAlert size={16} />
       <div className="grow err-body">
         <strong className="err-title">{d.title}</strong>
@@ -37,24 +39,24 @@ export function ErrorBanner({ error, info, onDismiss, label, role = "alert" }: {
         {open && (
           <div className="err-detail" id={detailId}>
             <pre className="mono">{d.detail}</pre>
-            <button type="button" className="small" onClick={copy}>
+            <Button size="sm" onClick={copy}>
               {copied ? t.errors.copied : t.errors.copy}
-            </button>
+            </Button>
           </div>
         )}
       </div>
       <div className="err-actions">
         {d.detail && d.detail !== d.title && (
-          <button type="button" className="small ghost" aria-expanded={open} aria-controls={detailId} onClick={() => setOpen((o) => !o)}>
+          <Button variant="ghost" size="sm" aria-expanded={open} aria-controls={detailId} onClick={() => setOpen((o) => !o)}>
             {t.errors.details}
-          </button>
+          </Button>
         )}
         {onDismiss && (
-          <button type="button" className="small ghost icon-btn" aria-label={t.errors.dismiss} title={t.errors.dismiss} onClick={onDismiss}>
+          <Button variant="ghost" size="sm" className="icon-btn" aria-label={t.errors.dismiss} title={t.errors.dismiss} onClick={onDismiss}>
             <IconMark size={14} />
-          </button>
+          </Button>
         )}
       </div>
-    </div>
+    </Alert>
   );
 }

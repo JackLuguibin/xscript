@@ -13,6 +13,9 @@ import { SyncPanel } from "./SyncPanel";
 import { EmptyState } from "./EmptyState";
 import { IconAlert, IconFolder, IconMark, IconPhone, IconRefresh, Spinner } from "./icons";
 import { useToast } from "./Toast";
+import { Alert } from "./ui/alert";
+import { Button } from "./ui/button";
+import { Input } from "./ui/input";
 
 const MAX_LOG_LINES = 2000; // the device keeps about the same window (design §14)
 export const LOG_POLL_MS = 1000;
@@ -269,13 +272,13 @@ export function ProjectsPage({ pollMs = LOG_POLL_MS, onDirtyChange }: { pollMs?:
     <div className="page">
       {error !== null && <ErrorBanner error={error} onDismiss={() => setError(null)} />}
       {notice && (
-        <div className="banner warn" role="status">
+        <Alert tone="warn" role="status">
           <IconAlert size={16} />
           <span className="grow">{notice}</span>
-          <button type="button" className="small ghost icon-btn" aria-label={t.errors.dismiss} onClick={() => setNotice("")}>
+          <Button variant="ghost" size="sm" className="icon-btn" aria-label={t.errors.dismiss} onClick={() => setNotice("")}>
             <IconMark size={14} />
-          </button>
-        </div>
+          </Button>
+        </Alert>
       )}
 
       <div className="row toolbar">
@@ -283,9 +286,9 @@ export function ProjectsPage({ pollMs = LOG_POLL_MS, onDirtyChange }: { pollMs?:
         <span className="grow" />
         <span className="muted">{t.projects.keys}</span>
         {(["back", "home", "recents"] as const).map((k) => (
-          <button key={k} className="small" onClick={() => void key(k)} disabled={!devId || has("key:" + k)}>
+          <Button key={k} size="sm" onClick={() => void key(k)} disabled={!devId || has("key:" + k)}>
             {t.projects[k]}
-          </button>
+          </Button>
         ))}
       </div>
 
@@ -296,19 +299,19 @@ export function ProjectsPage({ pollMs = LOG_POLL_MS, onDirtyChange }: { pollMs?:
               <IconFolder size={16} /> {t.projects.list}
             </h2>
             <span className="grow" />
-            <button className="small" aria-label={t.refresh} onClick={() => void loadProjects()} disabled={!devId}>
+            <Button size="sm" aria-label={t.refresh} onClick={() => void loadProjects()} disabled={!devId}>
               <IconRefresh size={14} />
-            </button>
+            </Button>
           </div>
           {projects === null && <div className="skeleton" style={{ height: "3rem" }} aria-busy="true" />}
           {projects !== null && projects.length === 0 && <p className="muted" role="status">{t.projects.empty}</p>}
           <ul className="list" aria-label={t.projects.list}>
             {(projects ?? []).map((p) => (
               <li key={p.name}>
-                <button className={"list-btn" + (p.name === project ? " active" : "")} aria-current={p.name === project ? "true" : undefined} onClick={() => void openProject(p.name)}>
+                <Button variant="bare" className={"list-btn" + (p.name === project ? " active" : "")} aria-current={p.name === project ? "true" : undefined} onClick={() => void openProject(p.name)}>
                   {p.name}
                   {running && runningProject === p.name && <Badge tone="ok">{t.projects.running}</Badge>}
-                </button>
+                </Button>
               </li>
             ))}
           </ul>
@@ -320,18 +323,18 @@ export function ProjectsPage({ pollMs = LOG_POLL_MS, onDirtyChange }: { pollMs?:
               if (newName.trim()) void create();
             }}
           >
-            <input aria-label={t.projects.newName} className="grow" value={newName} onChange={(e) => setNewName(e.target.value)} placeholder={t.projects.newName} spellCheck={false} />
-            <button type="submit" disabled={!newName.trim() || has("create")}>
+            <Input aria-label={t.projects.newName} className="grow w-auto" value={newName} onChange={(e) => setNewName(e.target.value)} placeholder={t.projects.newName} spellCheck={false} />
+            <Button type="submit" disabled={!newName.trim() || has("create")}>
               {has("create") ? <Spinner /> : t.projects.create}
-            </button>
+            </Button>
           </form>
           {files && (
             <>
               <div className="section-head">
                 <h3 className="sub-head grow">{t.projects.files}</h3>
-                <button className="small" onClick={() => setFileForm({ mode: "new", from: "", value: "" })} disabled={has("fileform")}>
+                <Button size="sm" onClick={() => setFileForm({ mode: "new", from: "", value: "" })} disabled={has("fileform")}>
                   {t.files.newFile}
-                </button>
+                </Button>
               </div>
               {fileForm && (
                 <form
@@ -342,22 +345,22 @@ export function ProjectsPage({ pollMs = LOG_POLL_MS, onDirtyChange }: { pollMs?:
                     submitFileForm();
                   }}
                 >
-                  <input
+                  <Input
                     autoFocus
                     aria-label={fileForm.mode === "new" ? t.files.newFilePrompt : t.files.renamePrompt}
                     placeholder={fileForm.mode === "new" ? t.files.newFilePrompt : t.files.renamePrompt}
-                    className="grow mono"
+                    className="grow mono w-auto"
                     value={fileForm.value}
                     spellCheck={false}
                     onChange={(e) => setFileForm({ ...fileForm, value: e.target.value })}
                     onKeyDown={(e) => e.key === "Escape" && setFileForm(null)}
                   />
-                  <button type="submit" className="small primary" disabled={!fileForm.value.trim() || has("fileform")}>
+                  <Button type="submit" variant="primary" size="sm" disabled={!fileForm.value.trim() || has("fileform")}>
                     {has("fileform") ? <Spinner /> : "OK"}
-                  </button>
-                  <button type="button" className="small" onClick={() => setFileForm(null)}>
+                  </Button>
+                  <Button size="sm" onClick={() => setFileForm(null)}>
                     ✕
-                  </button>
+                  </Button>
                 </form>
               )}
               <ul className="list" aria-label={t.projects.files}>
@@ -365,28 +368,28 @@ export function ProjectsPage({ pollMs = LOG_POLL_MS, onDirtyChange }: { pollMs?:
                   const entry = f.path === "__init__.py";
                   return (
                     <li key={f.path} className="file-row">
-                      <button className={"list-btn mono" + (file?.path === f.path ? " active" : "")} onClick={() => void openFile(f.path)}>
+                      <Button variant="bare" className={"list-btn mono" + (file?.path === f.path ? " active" : "")} onClick={() => void openFile(f.path)}>
                         {f.path}
                         <span className="muted">{f.size} B</span>
-                      </button>
-                      <button
-                        className="small ghost"
+                      </Button>
+                      <Button variant="ghost" size="sm"
+                       
                         aria-label={`${t.files.rename} ${f.path}`}
                         title={entry ? t.files.entryProtected : t.files.rename}
                         disabled={entry || has("fileform") || has("del:" + f.path)}
                         onClick={() => setFileForm({ mode: "rename", from: f.path, value: f.path })}
                       >
                         ✎
-                      </button>
-                      <button
-                        className="small ghost danger"
+                      </Button>
+                      <Button variant="ghost" size="sm" className="text-danger-fg hover:bg-danger-bg"
+                       
                         aria-label={`${t.files.del} ${f.path}`}
                         title={entry ? t.files.entryProtected : t.files.del}
                         disabled={entry || has("del:" + f.path) || (fileForm?.mode === "rename" && has("fileform"))}
                         onClick={() => void deleteFile(f.path)}
                       >
                         {has("del:" + f.path) ? <Spinner /> : "🗑"}
-                      </button>
+                      </Button>
                     </li>
                   );
                 })}
@@ -409,16 +412,16 @@ export function ProjectsPage({ pollMs = LOG_POLL_MS, onDirtyChange }: { pollMs?:
             </h2>
             <span className="grow" />
             {file && <span className="muted">{dirty ? t.projects.unsaved : t.projects.saved}</span>}
-            <button onClick={() => void act("save", save)} disabled={!file || !dirty || has("save") || has("run")}>
+            <Button onClick={() => void act("save", save)} disabled={!file || !dirty || has("save") || has("run")}>
               {has("save") ? <Spinner /> : t.projects.save}
-            </button>
-            <button className="primary" onClick={() => void runProject()} disabled={!project || has("run") || has("save")}>
+            </Button>
+            <Button variant="primary" onClick={() => void runProject()} disabled={!project || has("run") || has("save")}>
               {has("run") ? <Spinner /> : t.projects.run}
-            </button>
+            </Button>
             {/* 停止 never waits on another action: usable while running, while a run is starting, and while saving */}
-            <button className="danger" onClick={() => void stopProject()} disabled={!(running || has("run")) || has("stop")}>
+            <Button variant="danger" onClick={() => void stopProject()} disabled={!(running || has("run")) || has("stop")}>
               {has("stop") ? <Spinner /> : t.projects.stop}
-            </button>
+            </Button>
           </div>
           {!project && <p className="muted">{t.projects.pickProject}</p>}
           {project && !file && <p className="muted">{t.projects.pickFile}</p>}
@@ -469,9 +472,9 @@ export function ProjectsPage({ pollMs = LOG_POLL_MS, onDirtyChange }: { pollMs?:
           <div className="section-head" style={{ marginTop: "var(--sp-3)" }}>
             <h2>{t.projects.logs}</h2>
             <span className="grow" />
-            <button className="small" onClick={() => setLogs([])}>
+            <Button size="sm" onClick={() => setLogs([])}>
               {t.projects.clear}
-            </button>
+            </Button>
           </div>
           <pre className="logs" ref={logRef} aria-label={t.projects.logs} aria-live="polite">
             {logs.length === 0 ? <span className="muted">{t.projects.noLogs}</span> : logs.map((l) => <span key={l.seq} className={l.stream === "stderr" ? "err" : ""}>{l.line.endsWith("\n") ? l.line : l.line + "\n"}</span>)}

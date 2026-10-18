@@ -4,6 +4,8 @@ import { DevicePage } from "./components/DevicePage";
 import { useGlobalShortcuts } from "./components/GlobalShortcuts";
 import { MirrorPage } from "./components/MirrorPage";
 import { ProjectsPage } from "./components/ProjectsPage";
+import { Alert } from "./components/ui/alert";
+import { Button } from "./components/ui/button";
 import { WallPage } from "./components/WallPage";
 import { DeviceProvider, useCurrentDevice } from "./device-context";
 import { IconFlow, IconFolder, IconGrid, IconMark, IconMonitor, IconMoon, IconPhone, IconSun } from "./components/icons";
@@ -18,24 +20,24 @@ function ThemeToggle() {
   const { mode, cycle } = useTheme();
   const Icon = THEME_ICON[mode];
   return (
-    <button className="ghost nav-item" onClick={cycle} aria-label={`${t.theme.label}：${t.theme[mode]}（${t.theme.switchTo}）`} title={`${t.theme.label}：${t.theme[mode]}`}>
+    <Button variant="nav" onClick={cycle} aria-label={`${t.theme.label}：${t.theme[mode]}（${t.theme.switchTo}）`} title={`${t.theme.label}：${t.theme[mode]}`}>
       <Icon />
       <span className="label">
         {t.theme.label}：{t.theme[mode]}
       </span>
-    </button>
+    </Button>
   );
 }
 
 function LangToggle({ lang, onChange }: { lang: "zh" | "en"; onChange: (l: "zh" | "en") => void }) {
   const next = lang === "zh" ? "en" : "zh";
   return (
-    <button className="ghost nav-item" onClick={() => onChange(next)} aria-label={`${t.lang.label}：${t.lang[lang]}（${t.lang.switchTo}）`} title={`${t.lang.label}：${t.lang[lang]}`}>
+    <Button variant="nav" onClick={() => onChange(next)} aria-label={`${t.lang.label}：${t.lang[lang]}（${t.lang.switchTo}）`} title={`${t.lang.label}：${t.lang[lang]}`}>
       <span aria-hidden="true" className="lang-mark">{lang === "zh" ? "中" : "EN"}</span>
       <span className="label">
         {t.lang.label}：{t.lang[lang]}
       </span>
-    </button>
+    </Button>
   );
 }
 
@@ -88,16 +90,16 @@ function Shell() {
             <span className="brand-text">{t.appTitle}</span>
           </div>
           <nav className="nav" aria-label="main">
-            <button className="nav-item" aria-current={page === "devices" ? "page" : undefined} onClick={() => setPage("devices")}>
+            <Button variant="nav" aria-current={page === "devices" ? "page" : undefined} onClick={() => setPage("devices")}>
               <IconPhone />
               <span className="label">{t.nav.devices}</span>
-            </button>
-            <button className="nav-item" aria-current={page === "mirror" ? "page" : undefined} onClick={() => setPage("mirror")}>
+            </Button>
+            <Button variant="nav" aria-current={page === "mirror" ? "page" : undefined} onClick={() => setPage("mirror")}>
               <IconMonitor />
               <span className="label">{t.nav.mirror}</span>
-            </button>
-            <button
-              className="nav-item"
+            </Button>
+            <Button
+              variant="nav"
               aria-current={page === "projects" ? "page" : undefined}
               onClick={() => setPage("projects")}
               title={unsaved ? t.unsavedNav : undefined}
@@ -107,16 +109,16 @@ function Shell() {
               {unsaved && (
                 <span className="unsaved-dot" role="img" aria-label={t.unsavedNav} />
               )}
-            </button>
-            <button className="nav-item" aria-current={page === "wall" ? "page" : undefined} onClick={() => setPage("wall")}>
+            </Button>
+            <Button variant="nav" aria-current={page === "wall" ? "page" : undefined} onClick={() => setPage("wall")}>
               <IconGrid />
               <span className="label">{t.nav.wall}</span>
-            </button>
-            <button className="nav-item" disabled title={`${t.nav.soon}（${t.nav.p2}）`}>
+            </Button>
+            <Button variant="nav" disabled title={`${t.nav.soon}（${t.nav.p2}）`}>
               <IconFlow />
               <span className="label">{t.nav.flows}</span>
               <span className="tag">{t.nav.p2}</span>
-            </button>
+            </Button>
           </nav>
           <div className="sidebar-foot">
             <ThemeToggle />
@@ -133,9 +135,9 @@ function Shell() {
             <DeviceSwitcher />
           </header>
           {!inShell && (
-            <div className="banner warn" style={{ margin: "0 var(--sp-5) var(--sp-4)" }}>
+            <Alert tone="warn" className="mx-sp-5 mb-sp-4">
               {t.demoBanner}
-            </div>
+            </Alert>
           )}
           <main id="main" tabIndex={-1}>
             {page === "devices" ? (

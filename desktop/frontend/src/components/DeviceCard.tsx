@@ -5,6 +5,9 @@ import { t } from "../strings";
 import { Badge } from "./Badge";
 import { ErrorBanner } from "./ErrorBanner";
 import { IconAlert, IconCamera, IconChevron, IconFolder, IconMonitor, IconPhone, IconUnlink, Spinner } from "./icons";
+import { Alert } from "./ui/alert";
+import { Button } from "./ui/button";
+import { Input } from "./ui/input";
 
 function Row({ k, v }: { k: string; v: string | number | null | undefined }) {
   return (
@@ -114,30 +117,30 @@ export function DeviceCard({
         <div className="card-actions">
           {online && onOpen && (
             <>
-              <button type="button" className="primary" onClick={() => onOpen("mirror")} aria-label={t.flow.openMirrorOf(title)}>
+              <Button variant="primary" onClick={() => onOpen("mirror")} aria-label={t.flow.openMirrorOf(title)}>
                 <IconMonitor size={16} />
                 {t.flow.openMirror}
-              </button>
-              <button type="button" onClick={() => onOpen("projects")} aria-label={t.flow.openProjectsOf(title)}>
+              </Button>
+              <Button onClick={() => onOpen("projects")} aria-label={t.flow.openProjectsOf(title)}>
                 <IconFolder size={16} />
                 {t.flow.openProjects}
-              </button>
+              </Button>
             </>
           )}
           {device.state === "offline" && onRetry && (
-            <button type="button" className="primary" onClick={onRetry} disabled={busy} aria-label={`${t.saved.retry} ${device.serial || device.address}`}>
+            <Button variant="primary" onClick={onRetry} disabled={busy} aria-label={`${t.saved.retry} ${device.serial || device.address}`}>
               {t.saved.retry}
-            </button>
+            </Button>
           )}
           {showDisconnect && (
-            <button type="button" className="danger" onClick={onDisconnect} disabled={busy}>
+            <Button variant="danger" onClick={onDisconnect} disabled={busy}>
               {busy ? <Spinner /> : <IconUnlink size={16} />}
               {t.disconnect}
-            </button>
+            </Button>
           )}
-          <button
-            type="button"
-            className="ghost details-toggle"
+          <Button
+            variant="ghost"
+            className="details-toggle"
             aria-expanded={open}
             aria-controls={detailsId}
             aria-label={t.flow.detailsOf(device.id)}
@@ -145,14 +148,14 @@ export function DeviceCard({
           >
             {open ? t.flow.hideDetails : t.flow.details}
             <IconChevron size={14} />
-          </button>
+          </Button>
         </div>
       </header>
       {device.warning && (
-        <div className="banner warn">
+        <Alert tone="warn">
           <IconAlert size={16} />
           <span className="grow">{device.warning}</span>
-        </div>
+        </Alert>
       )}
       {device.error && device.error !== hiddenError && (
         <ErrorBanner
@@ -182,10 +185,10 @@ export function DeviceCard({
               <Row k={t.info.cloud} v={i.cloud} />
             </dl>
             <div className="shot" aria-busy={shot === "loading"}>
-              <button className={shot === "idle" ? "primary" : ""} onClick={requestShot} disabled={shot === "loading"}>
+              <Button variant="bare" className={shot === "idle" ? "primary" : ""} onClick={requestShot} disabled={shot === "loading"}>
                 {shot === "loading" ? <Spinner /> : <IconCamera size={16} />}
                 {t.takeShot}
-              </button>
+              </Button>
               <div className="shot-frame" style={{ aspectRatio: ratio }}>
                 {shotUrl && shot !== "failed" && (
                   <img
@@ -224,29 +227,29 @@ export function DeviceCard({
           >
             <label>
               {t.saved.name}
-              <input aria-label={`${t.saved.name} ${device.id}`} value={name} onChange={(e) => setName(e.target.value)} maxLength={80} />
+              <Input aria-label={`${t.saved.name} ${device.id}`} value={name} onChange={(e) => setName(e.target.value)} maxLength={80} />
             </label>
             <label>
               {t.saved.group}
-              <input aria-label={`${t.saved.group} ${device.id}`} value={group} onChange={(e) => setGroup(e.target.value)} maxLength={80} />
+              <Input aria-label={`${t.saved.group} ${device.id}`} value={group} onChange={(e) => setGroup(e.target.value)} maxLength={80} />
             </label>
             <label>
               {t.saved.note}
-              <input aria-label={`${t.saved.note} ${device.id}`} value={note} onChange={(e) => setNote(e.target.value)} maxLength={500} />
+              <Input aria-label={`${t.saved.note} ${device.id}`} value={note} onChange={(e) => setNote(e.target.value)} maxLength={500} />
             </label>
             <label className="check">
               <input type="checkbox" aria-label={`${t.saved.auto} ${device.id}`} checked={autoConnect} onChange={(e) => setAutoConnect(e.target.checked)} />
               {t.saved.auto}
             </label>
             {onSave && (
-              <button type="submit" className="small" disabled={busy} aria-label={`${t.saved.save} ${device.id}`}>
+              <Button type="submit" size="sm" disabled={busy} aria-label={`${t.saved.save} ${device.id}`}>
                 {t.saved.save}
-              </button>
+              </Button>
             )}
             {onForget && (
-              <button type="button" className="small danger" onClick={onForget} disabled={busy} aria-label={`${t.saved.forget} ${device.id}`}>
+              <Button variant="danger" size="sm" onClick={onForget} disabled={busy} aria-label={`${t.saved.forget} ${device.id}`}>
                 {t.saved.forget}
-              </button>
+              </Button>
             )}
           </form>
         )}

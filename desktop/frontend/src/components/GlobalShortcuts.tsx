@@ -1,7 +1,11 @@
 import { useEffect, useMemo, useRef, useState, type FormEvent, type RefObject } from "react";
-import { Overlay, isModalOpen } from "./Overlay";
+import { isModalOpen } from "./Overlay";
 import { useServices } from "../app-context";
 import { CredentialsForm } from "./CredentialsForm";
+import { Alert } from "./ui/alert";
+import { Button } from "./ui/button";
+import { Dialog } from "./ui/dialog";
+import { Input } from "./ui/input";
 import type { Lang } from "../strings";
 import { t } from "../strings";
 import { useTheme, type ThemeMode } from "../theme";
@@ -39,8 +43,8 @@ function CommandPalette({ commands, onRun, onClose, restoreFocus }: { commands: 
   const index = shown.length ? Math.min(active, shown.length - 1) : 0;
   const current = shown[index];
   return (
-    <Overlay title={t.shortcuts.palette} onClose={onClose} restoreFocus={restoreFocus} initialFocus="#palette-input">
-      <input
+    <Dialog title={t.shortcuts.palette} onClose={onClose} closeLabel={t.shortcuts.close} restoreFocus={restoreFocus} initialFocus="#palette-input">
+      <Input
         id="palette-input"
         role="combobox"
         aria-autocomplete="list"
@@ -82,7 +86,7 @@ function CommandPalette({ commands, onRun, onClose, restoreFocus }: { commands: 
         <ul id="palette-list" role="listbox" aria-label={t.shortcuts.palette} className="palette-list">
           {shown.map((cmd, i) => (
             <li key={cmd.id} role="presentation">
-              <button
+              <Button
                 type="button"
                 role="option"
                 id={`palette-opt-${cmd.id}`}
@@ -94,12 +98,12 @@ function CommandPalette({ commands, onRun, onClose, restoreFocus }: { commands: 
               >
                 <span>{cmd.label}</span>
                 {cmd.shortcut && <kbd className="kbd">{cmd.shortcut}</kbd>}
-              </button>
+              </Button>
             </li>
           ))}
         </ul>
       )}
-    </Overlay>
+    </Dialog>
   );
 }
 
@@ -162,7 +166,7 @@ function SettingsDialog({
   };
   const themes: ThemeMode[] = ["system", "light", "dark"];
   return (
-    <Overlay title={t.shortcuts.settings} onClose={onClose} restoreFocus={restoreFocus}>
+    <Dialog title={t.shortcuts.settings} onClose={onClose} closeLabel={t.shortcuts.close} restoreFocus={restoreFocus}>
       <form onSubmit={(e) => void saveAdb(e)} className="settings-form">
         <fieldset>
           <legend>{t.theme.label}</legend>
@@ -195,7 +199,7 @@ function SettingsDialog({
         </label>
         <label className="stack">
           {t.shortcuts.adbPath}
-          <input
+          <Input
             aria-label={t.shortcuts.adbPath}
             value={adb}
             onChange={(e) => {
@@ -208,21 +212,21 @@ function SettingsDialog({
         </label>
         <p className="muted">{t.shortcuts.adbPathHint}</p>
         {adbErr && (
-          <p className="banner error" role="alert">
+          <Alert tone="error" role="alert">
             {adbErr}
-          </p>
+          </Alert>
         )}
         {adbMsg && (
           <p role="status" className="muted">
             {adbMsg}
           </p>
         )}
-        <button type="submit" className="primary" disabled={saving}>
+        <Button type="submit" variant="primary" disabled={saving}>
           {t.saved.save}
-        </button>
+        </Button>
       </form>
       <CredentialsForm />
-    </Overlay>
+    </Dialog>
   );
 }
 
@@ -240,7 +244,7 @@ function HelpDialog({ onClose, restoreFocus }: { onClose: () => void; restoreFoc
     [t.shortcuts.close, "Esc"],
   ];
   return (
-    <Overlay title={t.shortcuts.helpTitle} onClose={onClose} restoreFocus={restoreFocus}>
+    <Dialog title={t.shortcuts.helpTitle} onClose={onClose} closeLabel={t.shortcuts.close} restoreFocus={restoreFocus}>
       <p className="muted">{t.shortcuts.modNote}</p>
       <table className="shortcut-table">
         <tbody>
@@ -254,7 +258,7 @@ function HelpDialog({ onClose, restoreFocus }: { onClose: () => void; restoreFoc
           ))}
         </tbody>
       </table>
-    </Overlay>
+    </Dialog>
   );
 }
 
