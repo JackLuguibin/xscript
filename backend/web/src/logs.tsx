@@ -68,7 +68,12 @@ function LiveLogs({ id }: { id: string }) {
   useEffect(() => {
     if (!live) return;
     let stop = false;
+    // A slow device can take longer than the poll interval; overlapping polls would read the same
+    // `since` and append the same lines twice.
+    let busy = false;
     const tick = async () => {
+      if (busy) return;
+      busy = true;
       try {
         const r = await request<{ entries: LogEntry[]; next: number }>(
           "POST",
@@ -83,6 +88,8 @@ function LiveLogs({ id }: { id: string }) {
         }
       } catch (e) {
         if (!stop) setError((e as Error).message);
+      } finally {
+        busy = false;
       }
     };
     tick();
@@ -167,18 +174,27 @@ function HistoryLogs({ id, online }: { id: string; online: boolean }) {
   // New lines arrive every few seconds while the device is online (unless looking at a closed range).
   useEffect(() => {
     if (!online || f.until_ts) return;
+    let stop = false;
+    let busy = false; // see LiveLogs: never poll the same cursor twice
     const t = setInterval(async () => {
+      if (busy) return;
+      busy = true;
       try {
         const r = await api.get<{ items: LogEntry[] }>(path, { ...f, after: lastId.current, limit: 2000 });
-        if (r.items.length) {
+        if (!stop && r.items.length) {
           lastId.current = r.items.at(-1)!.id!;
           setLines((old) => [...old, ...r.items].slice(-MAX_LINES * 2));
         }
       } catch {
         /* next tick */
+      } finally {
+        busy = false;
       }
     }, 5000);
-    return () => clearInterval(t);
+    return () => {
+      stop = true;
+      clearInterval(t);
+    };
   }, [path, f, online]);
 
   const loadOlder = useCallback(async () => {

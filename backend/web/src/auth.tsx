@@ -1,5 +1,6 @@
 import { createContext, useCallback, useContext, useEffect, useState, type ReactNode } from "react";
 import { Spin } from "antd";
+import { useQueryClient } from "@tanstack/react-query";
 import { api, setUnauthorizedHandler, type Role, type TotpRequired, type User } from "./api";
 
 const RANK: Record<Role, number> = { viewer: 0, operator: 1, admin: 2 };
@@ -19,15 +20,22 @@ const Ctx = createContext<AuthState>(null as unknown as AuthState);
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
+  const queryClient = useQueryClient();
+  // Signing out (or losing the session) must not leave the previous account's data in the cache
+  // for whoever signs in next in this tab, possibly with a lower role.
+  const signedOut = useCallback(() => {
+    setUser(null);
+    queryClient.clear();
+  }, [queryClient]);
 
   useEffect(() => {
-    setUnauthorizedHandler(() => setUser(null));
+    setUnauthorizedHandler(signedOut);
     api
       .get<User>("/api/auth/me")
       .then(setUser)
       .catch(() => setUser(null))
       .finally(() => setLoading(false));
-  }, []);
+  }, [signedOut]);
 
   const login = useCallback(async (username: string, password: string, code?: string) => {
     const r = await api.post<User | TotpRequired>("/api/auth/login", { username, password, code: code || undefined });
@@ -40,9 +48,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     try {
       await api.post("/api/auth/logout");
     } finally {
-      setUser(null);
+      signedOut();
     }
-  }, []);
+  }, [signedOut]);
 
   const can = useCallback((role: Role) => !!user && RANK[user.role] >= RANK[role], [user]);
 

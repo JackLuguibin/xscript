@@ -117,6 +117,9 @@ def run_project(project_dir, launch_params="{}", debug=False):
         if debug:
             from xscript.runtime import debugger
             debugger.start()
+        # The import system caches directory listings keyed on mtime; a project pushed a moment ago
+        # (or one created within the same timestamp tick) would otherwise be reported as missing.
+        importlib.invalidate_caches()
         importlib.import_module(name)
         _wait_for_threads()
         print("xscript: finished %s" % name)

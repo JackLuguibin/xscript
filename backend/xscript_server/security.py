@@ -57,6 +57,8 @@ def token_hash(token: str) -> str:
 class LoginLimiter:
     """After `limit` failures for one ip+username, refuse attempts for `lock_s` seconds."""
 
+    MAX_KEYS = 10000
+
     def __init__(self, limit: int = 5, lock_s: int = 300):
         self.limit, self.lock_s = limit, lock_s
         self._fails: dict[str, tuple[int, float]] = {}
@@ -70,13 +72,20 @@ class LoginLimiter:
 
     def fail(self, key: str) -> None:
         with self._lock:
+            now = time.time()
             count, until = self._fails.get(key, (0, 0.0))
-            if until and until < time.time():
+            if until and until < now:
                 count = 0
             count += 1
-            self._fails[key] = (count, time.time() + self.lock_s)
-            if len(self._fails) > 10000:
-                self._fails.clear()
+            self._fails[key] = (count, now + self.lock_s)
+            if len(self._fails) > self.MAX_KEYS:
+                # Drop expired entries only: clearing everything would let a flood of junk usernames
+                # lift the lockout on the account actually being guessed.
+                self._fails = {k: v for k, v in self._fails.items() if v[1] > now}
+                if len(self._fails) > self.MAX_KEYS:
+                    # Still full: forget the oldest half, but evict keys that are not locked out first.
+                    ranked = sorted(self._fails.items(), key=lambda kv: (kv[1][0] >= self.limit, kv[1][1]))
+                    self._fails = dict(ranked[len(ranked) // 2:])
 
     def reset(self, key: str) -> None:
         with self._lock:

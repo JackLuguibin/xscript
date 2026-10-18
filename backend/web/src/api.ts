@@ -26,6 +26,17 @@ export function setUnauthorizedHandler(fn: () => void) {
   onUnauthorized = fn;
 }
 
+async function errorFrom(r: Response): Promise<ApiError> {
+  let msg = r.statusText || "HTTP " + r.status;
+  try {
+    const j = await r.json();
+    msg = typeof j.error === "string" ? j.error : JSON.stringify(j.error ?? j);
+  } catch {
+    /* not JSON */
+  }
+  return new ApiError(r.status, msg);
+}
+
 export async function request<T>(method: string, path: string, body?: unknown, query?: Query): Promise<T> {
   const headers: Record<string, string> = { "X-XScript-Csrf": "1" };
   let payload: BodyInit | undefined;
@@ -37,16 +48,7 @@ export async function request<T>(method: string, path: string, body?: unknown, q
   }
   const r = await fetch(path + qs(query), { method, headers, body: payload, credentials: "same-origin" });
   if (r.status === 401 && !path.startsWith("/api/auth/login")) onUnauthorized();
-  if (!r.ok) {
-    let msg = r.statusText || "HTTP " + r.status;
-    try {
-      const j = await r.json();
-      msg = typeof j.error === "string" ? j.error : JSON.stringify(j.error ?? j);
-    } catch {
-      /* not JSON */
-    }
-    throw new ApiError(r.status, msg);
-  }
+  if (!r.ok) throw await errorFrom(r);
   const type = r.headers.get("content-type") ?? "";
   return (type.includes("application/json") ? r.json() : r.blob()) as Promise<T>;
 }
@@ -62,18 +64,18 @@ export const api = {
 /** Triggers a browser download of an authenticated GET (CSV, APK). */
 export async function download(path: string, query?: Query, fallbackName = "download") {
   const r = await fetch(path + qs(query), { credentials: "same-origin" });
-  if (!r.ok) {
-    let msg = "HTTP " + r.status;
-    try {
-      msg = (await r.json()).error ?? msg;
-    } catch {
-      /* ignore */
-    }
-    throw new ApiError(r.status, msg);
-  }
+  if (r.status === 401) onUnauthorized();
+  if (!r.ok) throw await errorFrom(r);
   const cd = r.headers.get("content-disposition") ?? "";
   const m = /filename\*?=(?:UTF-8'')?"?([^";]+)"?/i.exec(cd);
-  const name = m ? decodeURIComponent(m[1]) : fallbackName;
+  let name = fallbackName;
+  if (m) {
+    try {
+      name = decodeURIComponent(m[1]);
+    } catch {
+      name = m[1]; // a plain filename that merely contains "%"
+    }
+  }
   const url = URL.createObjectURL(await r.blob());
   const a = document.createElement("a");
   a.href = url;

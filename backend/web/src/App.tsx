@@ -172,7 +172,9 @@ export default function App() {
     );
   }
 
-  const current = NAV.filter((n) => n.path !== "/" && location.pathname.startsWith(n.path))[0];
+  const current = NAV.find(
+    (n) => n.path !== "/" && (location.pathname === n.path || location.pathname.startsWith(n.path + "/")),
+  );
   const selected = current?.path ?? "/";
   const crumbLabel = location.pathname === "/account" ? "账号与令牌" : (current?.label ?? "概览");
   const crumbGroup = location.pathname === "/account" ? "个人" : current?.group;
@@ -262,7 +264,7 @@ export default function App() {
                 onClick: ({ key }) => (key === "logout" ? logout() : navigate("/account")),
               }}
             >
-              <div className="user-chip" role="button" tabIndex={0} aria-label="账号菜单">
+              <button type="button" className="user-chip" aria-label="账号菜单" aria-haspopup="menu">
                 <Avatar size={30} style={{ background: "linear-gradient(135deg,#6d7cff,#4338ca)", fontWeight: 600 }}>
                   {user.username.slice(0, 1).toUpperCase()}
                 </Avatar>
@@ -270,7 +272,7 @@ export default function App() {
                   <strong>{user.username}</strong>
                   <span>{ROLE_LABELS[user.role]}</span>
                 </div>
-              </div>
+              </button>
             </Dropdown>
           </div>
         </header>

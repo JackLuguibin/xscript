@@ -11,8 +11,21 @@ const FEATURES = [
 ];
 
 /** Second login step: 6-digit code, submits by itself once all digits are typed. */
-function TotpStep({ loading, onSubmit, onBack }: { loading: boolean; onSubmit: (code: string) => void; onBack: () => void }) {
+function TotpStep({
+  loading,
+  onSubmit,
+  onBack,
+}: {
+  loading: boolean;
+  /** Resolves to false when the code was rejected; the boxes are then cleared for a new try. */
+  onSubmit: (code: string) => Promise<boolean>;
+  onBack: () => void;
+}) {
   const [code, setCode] = useState("");
+  const submit = async (v: string) => {
+    if (loading || v.length < 6) return;
+    if (!(await onSubmit(v))) setCode("");
+  };
   return (
     <div>
       <Input.OTP
@@ -24,7 +37,7 @@ function TotpStep({ loading, onSubmit, onBack }: { loading: boolean; onSubmit: (
         formatter={(s) => s.replace(/\D/g, "")}
         onChange={(v) => {
           setCode(v);
-          if (v.length === 6) onSubmit(v);
+          if (v.length === 6) void submit(v);
         }}
         style={{ width: "100%" }}
       />
@@ -34,7 +47,7 @@ function TotpStep({ loading, onSubmit, onBack }: { loading: boolean; onSubmit: (
         size="large"
         loading={loading}
         disabled={code.length < 6}
-        onClick={() => onSubmit(code)}
+        onClick={() => void submit(code)}
         style={{ marginTop: 24, height: 44 }}
       >
         验证并登录
@@ -67,13 +80,15 @@ export default function LoginPage() {
   };
 
   const onCode = async (code: string) => {
-    if (!pending || code.length < 6) return;
+    if (!pending) return false;
     setLoading(true);
     setError("");
     try {
       await login(pending.username, pending.password, code);
+      return true;
     } catch (e) {
       setError((e as Error).message);
+      return false;
     } finally {
       setLoading(false);
     }
@@ -122,17 +137,30 @@ export default function LoginPage() {
           {pending ? (
             <TotpStep loading={loading} onSubmit={onCode} onBack={() => (setPending(null), setError(""))} />
           ) : (
-          <Form layout="vertical" onFinish={onFinish} requiredMark={false} autoComplete="on" size="large">
-            <Form.Item name="username" label="用户名" rules={[{ required: true, message: "请输入用户名" }]}>
-              <Input prefix={<UserOutlined className="muted" />} autoComplete="username" autoFocus placeholder="请输入用户名" />
-            </Form.Item>
-            <Form.Item name="password" label="密码" rules={[{ required: true, message: "请输入密码" }]}>
-              <Input.Password prefix={<LockOutlined className="muted" />} autoComplete="current-password" placeholder="请输入密码" />
-            </Form.Item>
-            <Button type="primary" htmlType="submit" block loading={loading} style={{ marginTop: 8, height: 44 }}>
-              登录
-            </Button>
-          </Form>
+            <Form layout="vertical" onFinish={onFinish} requiredMark={false} autoComplete="on" size="large">
+              <Form.Item
+                name="username"
+                label="用户名"
+                rules={[{ required: true, whitespace: true, message: "请输入用户名" }]}
+              >
+                <Input
+                  prefix={<UserOutlined className="muted" />}
+                  autoComplete="username"
+                  autoFocus
+                  placeholder="请输入用户名"
+                />
+              </Form.Item>
+              <Form.Item name="password" label="密码" rules={[{ required: true, message: "请输入密码" }]}>
+                <Input.Password
+                  prefix={<LockOutlined className="muted" />}
+                  autoComplete="current-password"
+                  placeholder="请输入密码"
+                />
+              </Form.Item>
+              <Button type="primary" htmlType="submit" block loading={loading} style={{ marginTop: 8, height: 44 }}>
+                登录
+              </Button>
+            </Form>
           )}
           <p className="muted" style={{ fontSize: 12.5, marginTop: 24 }}>
             {pending ? (

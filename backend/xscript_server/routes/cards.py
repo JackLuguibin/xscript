@@ -19,7 +19,7 @@ from .. import cards as cardsvc
 from .. import licensing
 from ..abuse import SIGNALS as ABUSE_SIGNALS
 from ..audit import get_settings
-from ..deps import Principal, admin, client_ip, ctx, db_session, operator, paginate, record, viewer
+from ..deps import Principal, admin, client_ip, ctx, db_session, like_contains, operator, paginate, record, viewer
 from ..models import AuditLog, Card, DeviceBan
 
 log = logging.getLogger("xscript.cards")
@@ -34,9 +34,9 @@ def _filtered(q: str, status: str, app: str, batch: str, kind: str = ""):
     if kind:
         stmt = stmt.where(Card.kind == kind)
     if q:
-        like = "%" + q.strip().upper() + "%"
-        stmt = stmt.where(or_(Card.card.like(like), Card.device.like("%" + q.strip() + "%"),
-                              Card.note.like("%" + q.strip() + "%")))
+        like = like_contains(q)
+        stmt = stmt.where(or_(Card.card.like(like_contains(q.upper()), escape="\\"),
+                              Card.device.like(like, escape="\\"), Card.note.like(like, escape="\\")))
     if status:
         try:
             stmt = stmt.where(cardsvc.status_filter(status, int(time.time())))

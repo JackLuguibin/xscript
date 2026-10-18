@@ -99,7 +99,8 @@ def create_app(config: Config, start_workers: bool = True) -> FastAPI:
 
     @app.exception_handler(RequestValidationError)
     async def validation_error(request: Request, exc: RequestValidationError):
-        first = exc.errors()[0] if exc.errors() else {}
+        errors = exc.errors()
+        first = errors[0] if errors else {}
         where = ".".join(str(x) for x in first.get("loc", [])[1:])
         msg = str(first.get("msg", "invalid request")).removeprefix("Value error, ")
         return JSONResponse({"error": ("%s: %s" % (where, msg)) if where else msg}, status_code=422)

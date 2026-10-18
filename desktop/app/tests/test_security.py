@@ -5,6 +5,7 @@ from __future__ import annotations
 import re
 import subprocess
 from pathlib import Path
+from urllib.parse import urlsplit
 
 import pytest
 
@@ -101,7 +102,18 @@ def test_built_bundle_contains_no_remote_origins():
         "https://github.com/microsoft/vscode/blob/main/LICENSE.txt", "https://github.com/microsoft/vscode/issues/103170",
         "https://github.com/microsoft/vscode/issues/new", "https://microsoft.com",
     }
-    assert [u for u in urls if not u.startswith(allowed) and u not in monaco_text_links] == [], urls
+    assert [u for u in urls if not u.startswith(allowed) and u not in monaco_text_links and not _never_remote(u)] == [], urls
+
+
+def _never_remote(url: str) -> bool:
+    """URLs that cannot name a real remote origin, matched on the parsed host (not a prefix, so
+    "http://127.0.0.1.evil.com" or "https://example.com.evil.net" still fail):
+    loopback (the demo data mirrors the real adb-forwarded device address, http://127.0.0.1:<port>) and the
+    RFC 2606 example domains (placeholder text such as 设置 help "例如 https://cloud.example.com")."""
+    host = (urlsplit(url).hostname or "").lower()
+    if host in ("127.0.0.1", "::1"):
+        return True
+    return any(host == d or host.endswith("." + d) for d in ("example.com", "example.org", "example.net"))
 
 
 def test_no_secret_material_is_tracked_under_desktop():

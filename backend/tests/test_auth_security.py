@@ -217,3 +217,26 @@ class RelayAllowlistTest(unittest.TestCase):
         for m, path in denied:
             self.assertFalse(_relay_allowed(op, m, path), (m, path))
             self.assertTrue(_relay_allowed(admin, m, path))
+
+
+class LoginLimiterTest(unittest.TestCase):
+    def test_flood_of_other_keys_keeps_an_active_lockout(self):
+        from xscript_server.security import LoginLimiter
+
+        lim = LoginLimiter(limit=3, lock_s=300)
+        lim.MAX_KEYS = 50
+        for _ in range(3):
+            lim.fail("1.2.3.4|admin")
+        self.assertGreater(lim.blocked("1.2.3.4|admin"), 0)
+        for i in range(500):  # junk usernames used to wipe the whole table
+            lim.fail("5.6.7.8|junk%d" % i)
+        self.assertGreater(lim.blocked("1.2.3.4|admin"), 0)
+        self.assertLessEqual(len(lim._fails), lim.MAX_KEYS + 1)
+
+
+class LikeEscapeTest(unittest.TestCase):
+    def test_wildcards_are_literal(self):
+        from xscript_server.deps import like_contains, like_escape
+
+        self.assertEqual(like_escape("a%b_c\\"), "a\\%b\\_c\\\\")
+        self.assertEqual(like_contains("  x  "), "%x%")

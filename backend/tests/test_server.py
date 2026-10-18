@@ -279,6 +279,17 @@ class ServerTest(unittest.IsolatedAsyncioTestCase):
                                                 json={"method": "POST", "path": "/projects/a/run"})).status_code, 200)
             finally:
                 await op.aclose()
+            r = await self.admin.post("/api/devices/dev2/http", json={"method": "POST", "path": "/eval",
+                                                                       "body_b64": "not base64!"})
+            self.assertEqual(r.status_code, 400)
+
+            # Search input is matched literally: LIKE wildcards and a trailing escape char are not special.
+            self.assertGreaterEqual((await self.admin.get("/api/devices", params={"q": "dev"})).json()["total"], 3)
+            for q in ("%", "d_v", "dev\\"):
+                r = await self.admin.get("/api/devices", params={"q": q})
+                self.assertEqual((r.status_code, r.json()["total"]), (200, 0), q)
+            r = await self.admin.get("/api/devices/dev1/logs", params={"q": "50%\\"})
+            self.assertEqual((r.status_code, r.json()["items"]), (200, []))
 
             # Revoking the key drops its devices.
             r = await self.admin.post("/api/device-keys/%d/revoke" % key_id)
@@ -295,6 +306,9 @@ class ServerTest(unittest.IsolatedAsyncioTestCase):
     async def test_tasks(self):
         r = await self.admin.post("/api/tasks", json={"target": "all", "daily": "25:00", "command": {"path": "app_stop"}})
         self.assertEqual(r.status_code, 422)
+        r = await self.admin.post("/api/tasks", json={"target": "all", "every": 5,
+                                                      "command": {"path": "script_deploy", "script_id": "abc"}})
+        self.assertEqual(r.status_code, 400)
         r = await self.admin.post("/api/tasks", json={"target": "all", "every": 0.005, "command": {"path": "app_stop"},
                                                       "name": "fast"})
         task = r.json()
