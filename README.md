@@ -203,16 +203,21 @@ python3.10 -m venv .venv
 python3.10 -m venv .venv-rt
 .venv-rt/bin/python -m pip install numpy==1.26.4 opencv-python-headless==4.10.0.84 pillow==10.4.0
 
-# Web 控制台与编辑器扩展
+# Web 控制台与编辑器扩展（Node 22+，见 .nvmrc）
 (cd backend/web && npm ci)
 (cd ide/vscode-extension && npm ci)
+
+# 桌面端（可选；没有时 verify.sh 跳过这一步）
+python3.10 -m venv .venv-desktop
+.venv-desktop/bin/python -m pip install -e './desktop/app[test]'
+(cd desktop/frontend && npm ci)
 
 # 仓库检查与 Android JVM 测试
 ./scripts/verify.sh
 ./android/build.sh :app:testDebugUnitTest
 ```
 
-`verify.sh` 覆盖 Python 运行时、后台、MCP、类型存根、网页 IDE、编辑器扩展及 mock 集成流程。完整设备行为需要另外连接手机或模拟器验证。
+`verify.sh` 覆盖 Python 运行时、后台、MCP、类型存根、网页 IDE、编辑器扩展、桌面端（装了 `.venv-desktop` 时）及 mock 集成流程。完整设备行为需要另外连接手机或模拟器验证。
 
 修改公共 Python API 后重新生成类型存根：
 

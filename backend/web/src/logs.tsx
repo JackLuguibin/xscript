@@ -3,7 +3,7 @@ import { Alert, App, Button, DatePicker, Segmented, Select, Space, Switch, Toolt
 import { ClearOutlined, DownloadOutlined, HistoryOutlined, ThunderboltOutlined, VerticalAlignBottomOutlined } from "@ant-design/icons";
 import type { Dayjs } from "dayjs";
 import { api, download, request } from "./api";
-import { SearchInput } from "./components";
+import { SearchInput, usePageVisible } from "./components";
 import { fmtAgo, fmtTime } from "./format";
 
 interface LogEntry {
@@ -64,9 +64,11 @@ function LiveLogs({ id }: { id: string }) {
   const [error, setError] = useState("");
   const since = useRef(0);
   const box = useFollow(lines, follow);
+  const visible = usePageVisible();
 
   useEffect(() => {
-    if (!live) return;
+    // Paused while the tab is hidden; `since` keeps the cursor, so nothing is lost on return.
+    if (!live || !visible) return;
     let stop = false;
     // A slow device can take longer than the poll interval; overlapping polls would read the same
     // `since` and append the same lines twice.
@@ -98,7 +100,7 @@ function LiveLogs({ id }: { id: string }) {
       stop = true;
       clearInterval(t);
     };
-  }, [id, live]);
+  }, [id, live, visible]);
 
   return (
     <>
@@ -139,6 +141,7 @@ interface HistFilter {
 
 /** 历史: lines the device uploaded to the server; readable while the device is offline. */
 function HistoryLogs({ id, online }: { id: string; online: boolean }) {
+  const visible = usePageVisible();
   const { message } = App.useApp();
   const [f, setF] = useState<HistFilter>({ q: "", stream: "", since_ts: 0, until_ts: 0 });
   const [lines, setLines] = useState<LogEntry[]>([]);
@@ -173,7 +176,7 @@ function HistoryLogs({ id, online }: { id: string; online: boolean }) {
 
   // New lines arrive every few seconds while the device is online (unless looking at a closed range).
   useEffect(() => {
-    if (!online || f.until_ts) return;
+    if (!online || f.until_ts || !visible) return; // lastId keeps the cursor while the tab is hidden
     let stop = false;
     let busy = false; // see LiveLogs: never poll the same cursor twice
     const t = setInterval(async () => {
@@ -195,7 +198,7 @@ function HistoryLogs({ id, online }: { id: string; online: boolean }) {
       stop = true;
       clearInterval(t);
     };
-  }, [path, f, online]);
+  }, [path, f, online, visible]);
 
   const loadOlder = useCallback(async () => {
     const first = lines[0]?.id;

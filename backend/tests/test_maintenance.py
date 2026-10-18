@@ -13,10 +13,11 @@ import tempfile
 import time
 import unittest
 from pathlib import Path
+from unittest import mock
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-from xscript_server import maintenance, migrate  # noqa: E402
+from xscript_server import audit as auditmod, maintenance, migrate  # noqa: E402
 from xscript_server.alerts import RateLimiter, build_request  # noqa: E402
 from xscript_server.config import Config  # noqa: E402
 from xscript_server.db import Database  # noqa: E402
@@ -42,7 +43,10 @@ class MigrateTest(unittest.TestCase):
             "INSERT INTO devices (id, device_id) VALUES ('d1', 'd1');"
             "CREATE TABLE script_versions (id INTEGER PRIMARY KEY, script_id INTEGER, version VARCHAR(32),"
             " version_code INTEGER, notes TEXT, sha256 VARCHAR(64), size INTEGER, files INTEGER,"
-            " created_by VARCHAR(64), created_at INTEGER);")
+            " created_by VARCHAR(64), created_at INTEGER);"
+            "CREATE TABLE device_logs (id INTEGER PRIMARY KEY, device VARCHAR(200), seq BIGINT, ts BIGINT,"
+            " stream VARCHAR(8), line TEXT);"
+            "CREATE INDEX ix_device_logs_device_ts ON device_logs (device, ts);")
         con.commit()
         con.close()
         db = Database(cfg.db_path)
@@ -53,6 +57,15 @@ class MigrateTest(unittest.TestCase):
         self.assertIn("last_run", cols)
         cols = {r[1] for r in sqlite3.connect(cfg.db_path).execute("PRAGMA table_info(script_versions)")}
         self.assertIn("downloads", cols)
+        # v6: paging by id and retention by ts use an index instead of sorting / scanning the whole table.
+        con = sqlite3.connect(cfg.db_path)
+        plans = {q: " ".join(r[3] for r in con.execute("EXPLAIN QUERY PLAN " + q)) for q in (
+            "SELECT seq FROM device_logs WHERE device = 'd' ORDER BY id DESC LIMIT 1",
+            "SELECT * FROM device_logs WHERE device = 'd' AND id < 9 ORDER BY id DESC LIMIT 501",
+            "DELETE FROM device_logs WHERE ts < 5")}
+        for q, plan in plans.items():
+            self.assertNotIn("TEMP B-TREE", plan, q)
+            self.assertNotRegex(plan, r"^SCAN device_logs$", q)
         # Idempotent, and the old row survived.
         db.create_all()
         self.assertEqual(sqlite3.connect(cfg.db_path).execute("SELECT id FROM devices").fetchall(), [("d1",)])
@@ -169,6 +182,89 @@ class AlertFormatTest(unittest.TestCase):
         rl = RateLimiter(2, 60)
         self.assertEqual([rl.allow("ip") for _ in range(3)], [True, True, False])
         self.assertTrue(rl.allow("other"))
+
+
+
+class SettingsCacheTest(unittest.TestCase):
+    """get_settings() is cached per database; writes through set_setting() show up at once."""
+
+    def setUp(self):
+        from sqlalchemy import event
+
+        self.db = Database(fresh_cfg().db_path)
+        self.db.create_all()
+        self.reads = 0
+
+        def count(conn, cursor, statement, *a):
+            if "FROM settings" in statement:
+                self.reads += 1
+
+        event.listen(self.db.engine, "before_cursor_execute", count)
+
+    def tearDown(self):
+        auditmod.invalidate_settings()
+        self.db.engine.dispose()
+
+    def get(self, key):
+        with self.db.session() as s:
+            return auditmod.get_settings(s)[key]
+
+    def test_cached_and_invalidated_on_commit(self):
+        self.assertEqual(self.get("site_name"), "XScript 管理后台")
+        self.get("site_name")
+        self.assertEqual(self.reads, 1)
+        with self.db.session() as s:
+            auditmod.set_setting(s, "site_name", "A")
+            self.assertEqual(auditmod.get_settings(s)["site_name"], "A")  # own pending write
+            with self.db.session() as other:  # not committed: others still see the old value
+                self.assertEqual(auditmod.get_settings(other)["site_name"], "XScript 管理后台")
+            s.commit()
+        self.assertEqual(self.get("site_name"), "A")
+
+    def test_rollback_and_copies_do_not_leak(self):
+        with self.db.session() as s:
+            auditmod.set_setting(s, "login_ip_allowlist", ["10.0.0.0/8"])
+            s.rollback()
+        self.assertEqual(self.get("login_ip_allowlist"), [])
+        with self.db.session() as s:
+            auditmod.get_settings(s)["login_ip_allowlist"].append("1.2.3.4")  # caller mutates its copy
+        self.assertEqual(self.get("login_ip_allowlist"), [])
+
+    def test_ttl_picks_up_writes_from_another_process(self):
+        self.get("site_name")
+        con = sqlite3.connect(self.db.path)  # e.g. the CLI on the same data dir
+        con.execute("INSERT INTO settings (key, value) VALUES ('site_name', '\"B\"')")
+        con.commit()
+        con.close()
+        self.assertEqual(self.get("site_name"), "XScript 管理后台")  # cached
+        later = time.monotonic() + auditmod.SETTINGS_TTL + 1
+        with mock.patch.object(auditmod.time, "monotonic", return_value=later):
+            self.assertEqual(self.get("site_name"), "B")
+
+
+
+class ValuesInTest(unittest.TestCase):
+    def test_long_id_lists_use_one_parameter(self):
+        from sqlalchemy import func, select
+
+        from xscript_server.db import values_in
+        from xscript_server.models import Device
+
+        db = Database(fresh_cfg().db_path)
+        db.create_all()
+        with db.session() as s:
+            s.add_all(Device(id="d%d" % i, device_id="d%d" % i) for i in range(5))
+            s.commit()
+            live = ["d1", "d3"] + ["ghost%d" % i for i in range(40000)]  # beyond SQLite's 32 766 variables
+
+            def count(where):
+                return s.scalar(select(func.count()).select_from(Device).where(where))
+
+            self.assertEqual(count(Device.id.in_(values_in(live))), 2)
+            self.assertEqual(count(Device.id.not_in(values_in(live))), 3)
+            self.assertEqual(count(Device.id.in_(values_in([]))), 0)
+            self.assertEqual(count(Device.id.not_in(values_in({}))), 5)
+        db.engine.dispose()
 
 
 if __name__ == "__main__":

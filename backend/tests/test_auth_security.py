@@ -84,6 +84,29 @@ class AuthSecurityTest(unittest.IsolatedAsyncioTestCase):
         await self.login("pw1", "password-pw1", expect=401)
         await self.login("pw1", "a-new-password")
 
+    async def test_password_and_totp_checks_are_rate_limited_per_account(self):
+        """A signed-in session is not an unlimited guessing oracle for the password or a TOTP code."""
+        a, uid = await self.user("lim1", "viewer")
+        second = await self.login("lim1", "password-lim1")
+        bystander, _ = await self.user("lim2", "viewer")
+        wrong = {"old_password": "guess", "new_password": "a-new-password"}
+        right = {"old_password": "password-lim1", "new_password": "a-new-password"}
+        try:
+            codes = [(await a.post("/api/auth/password", json=wrong)).status_code for _ in range(5)]
+            self.assertEqual(codes, [400] * 5)
+            r = await a.post("/api/auth/password", json=right)
+            self.assertEqual(r.status_code, 429, "locked even with the right password")
+            self.assertIn("秒后再试", r.json()["error"])
+            # Per account: another session of the same user is locked too (here for a TOTP code)...
+            self.assertEqual((await second.post("/api/auth/totp/setup")).status_code, 200)
+            self.assertEqual((await second.post("/api/auth/totp/enable", json={"code": "000000"})).status_code, 429)
+            # ...other users are not.
+            r = await bystander.post("/api/auth/password", json={"old_password": "guess", "new_password": "x" * 12})
+            self.assertEqual(r.status_code, 400)
+        finally:
+            self.srv.app.state.ctx.limiter.reset("account|%d" % uid)
+        self.assertEqual((await a.post("/api/auth/password", json=right)).status_code, 200)
+
     async def test_sessions_are_private_per_user(self):
         a, _ = await self.user("ses1", "operator")
         b, _ = await self.user("ses2", "operator")
@@ -240,3 +263,50 @@ class LikeEscapeTest(unittest.TestCase):
 
         self.assertEqual(like_escape("a%b_c\\"), "a\\%b\\_c\\\\")
         self.assertEqual(like_contains("  x  "), "%x%")
+
+
+class LogRedactTest(unittest.TestCase):
+    """Device keys in ?token= never reach the server log (uvicorn logs the path with its query string)."""
+
+    def test_filter_masks_message_and_args(self):
+        import logging
+
+        from xscript_server.logredact import RedactSecrets, redact, uvicorn_log_config
+
+        self.assertEqual(redact("/ws?token=xsd_secret&x=1"), "/ws?token=***&x=1")
+        self.assertEqual(redact("/ws?group=g&Token=abc"), "/ws?group=g&Token=***")
+        self.assertEqual(redact("/ws?tokens=keep"), "/ws?tokens=keep")
+        # The websocket "accepted" line and the access log both pass the path as a %-arg.
+        rec = logging.LogRecord("uvicorn.error", logging.INFO, __file__, 1, '%s - "WebSocket %s" [accepted]',
+                                ("1.2.3.4:5", "/ws?token=xsd_secret"), None)
+        self.assertTrue(RedactSecrets().filter(rec))
+        self.assertNotIn("xsd_secret", rec.getMessage())
+        cfg = uvicorn_log_config()
+        self.assertTrue(all("redact_secrets" in h["filters"] for h in cfg["handlers"].values()))
+
+
+class RateLimiterThreadTest(unittest.TestCase):
+    def test_concurrent_allow_never_exceeds_the_limit(self):
+        import threading
+
+        from xscript_server.alerts import RateLimiter
+
+        lim = RateLimiter(limit=1000, window_s=60)
+        granted = []
+        start = threading.Barrier(8)
+
+        def worker():
+            start.wait()
+            granted.append(sum(lim.allow("1.2.3.4") for _ in range(500)))
+
+        threads = [threading.Thread(target=worker) for _ in range(8)]
+        old = sys.getswitchinterval()
+        sys.setswitchinterval(1e-6)  # switch threads as often as possible to expose unlocked check-then-append
+        try:
+            for t in threads:
+                t.start()
+            for t in threads:
+                t.join()
+        finally:
+            sys.setswitchinterval(old)
+        self.assertEqual(sum(granted), 1000)  # 4000 attempts, exactly `limit` allowed

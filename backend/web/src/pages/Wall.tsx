@@ -1,14 +1,16 @@
 import { useEffect, useRef, useState } from "react";
 import { keepPreviousData, useQuery } from "@tanstack/react-query";
-import { Button, Card, Drawer, Empty, Segmented, Select, Space, Switch, Tooltip } from "antd";
+import { Alert, Button, Card, Drawer, Empty, Segmented, Select, Space, Switch, Tooltip } from "antd";
 import { ExpandOutlined, ReloadOutlined } from "@ant-design/icons";
 import { api, request, type Device, type Group, type Page } from "../api";
-import { PageHeader, Pill } from "../components";
+import { PageHeader, Pill, usePageVisible } from "../components";
 import { RemoteControl } from "../remote";
 
 const SIZES: Record<string, number> = { 小: 150, 中: 200, 大: 260 };
 // Frames are fetched a few at a time so a wall of 50 phones does not flood the relay.
 const PARALLEL = 4;
+// Devices per wall (the API's page size); more are reported instead of silently left out.
+const WALL_MAX = 200;
 
 /** 屏幕墙: thumbnails of every online device, refreshed in rotation; click to take control. */
 export default function WallPage() {
@@ -22,15 +24,34 @@ export default function WallPage() {
   const groups = useQuery({ queryKey: ["groups"], queryFn: () => api.get<{ items: Group[] }>("/api/groups") });
   const list = useQuery({
     queryKey: ["wall-devices", group],
-    queryFn: () => api.get<Page<Device>>("/api/devices", { online: true, group: group || undefined, page_size: 200 }),
+    queryFn: () => api.get<Page<Device>>("/api/devices", { online: true, group: group || undefined, page_size: WALL_MAX }),
     refetchInterval: 10000,
     placeholderData: keepPreviousData,
   });
   const devices = list.data?.items ?? [];
+  const total = list.data?.total ?? 0;
   const ids = devices.map((d) => d.id).join(",");
+  const visible = usePageVisible();
+
+  // Release the last frame of devices that left the wall (went offline, other group); the map only grew before.
+  useEffect(() => {
+    const keep = new Set(ids ? ids.split(",") : []);
+    const gone = Object.keys(urls.current).filter((id) => !keep.has(id));
+    if (!gone.length) return;
+    for (const id of gone) {
+      URL.revokeObjectURL(urls.current[id]);
+      delete urls.current[id];
+    }
+    setFrames((f) => {
+      const next = { ...f };
+      for (const id of gone) delete next[id];
+      return next;
+    });
+  }, [ids]);
 
   useEffect(() => {
-    if (!live || !ids) return;
+    // A hidden tab stops taking screenshots; every device is asked again once it is visible.
+    if (!live || !ids || !visible) return;
     let stop = false;
     const queue = ids.split(",");
     const one = async (id: string) => {
@@ -62,7 +83,7 @@ export default function WallPage() {
     return () => {
       stop = true;
     };
-  }, [ids, live]);
+  }, [ids, live, visible]);
 
   useEffect(
     () => () => {
@@ -99,6 +120,15 @@ export default function WallPage() {
           </Space>
         }
       />
+      {total > devices.length && (
+        <Alert
+          type="info"
+          showIcon
+          style={{ marginBottom: 16 }}
+          title={`显示 ${devices.length} / ${total} 台在线设备`}
+          description={`屏幕墙最多显示 ${WALL_MAX} 台。按分组筛选可以查看其余设备。`}
+        />
+      )}
       {devices.length === 0 ? (
         <Card>
           <Empty description={list.isLoading ? "加载中…" : "没有在线设备"} />

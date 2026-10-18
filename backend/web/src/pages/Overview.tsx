@@ -158,7 +158,8 @@ export default function OverviewPage() {
   const { data, isLoading } = useQuery({
     queryKey: ["overview"],
     queryFn: () => api.get<Overview>("/api/overview"),
-    refetchInterval: 5000,
+    // A dashboard, not a live view (the device pages poll at 5 s). Focusing the tab refetches.
+    refetchInterval: 15000,
   });
   const d = data?.devices;
   const c = data?.cards;

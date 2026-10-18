@@ -17,7 +17,7 @@ from starlette.concurrency import run_in_threadpool
 from starlette.websockets import WebSocket
 
 from .audit import audit
-from .db import Database
+from .db import Database, values_in
 from .models import Device, DeviceLog, Task
 
 log = logging.getLogger("xscript.hub")
@@ -49,6 +49,11 @@ class Conn:
         self.pending: dict[str, asyncio.Future] = {}
         self._send_lock = asyncio.Lock()
         self.log_cursor_sent = False  # 运行日志 upload was started on this connection
+        # cloud.send() data of this connection (hello clears the stored copy). Replaced, never mutated
+        # in place, so a flush running in a worker thread always serializes a consistent dict.
+        self.data: dict[str, Any] = {}
+        # status / data changed since the row was last written; Hub.flush() writes it in a batch.
+        self.dirty = False
 
     async def send(self, frame: dict[str, Any]) -> None:
         async with self._send_lock:
@@ -80,6 +85,9 @@ class Hub:
         # 运行日志 history kept on the server; 0 = devices are not asked to upload.
         self.log_days: float = 7
         self.log_lines_saved = 0
+        # Status and data frames only update the Conn; changed rows are written together this often,
+        # and always on disconnect and shutdown. Live views read the Conn, so they are never stale.
+        self.flush_interval: float = 15.0
 
     def note(self, text: str) -> None:
         self.events.append({"time": int(time.time()), "text": text})
@@ -87,38 +95,63 @@ class Hub:
     # ------------------------------------------------------------ persistence
 
     def _save(self, conn: Conn, hello: bool = False) -> None:
-        st = conn.status
+        self._save_rows([conn], hello)
+
+    def _save_rows(self, conns: list[Conn], hello: bool = False, live_only: bool = False) -> None:
+        """Write status, script data and last_seen of these connections in one transaction."""
         with self.db.session() as s:
-            row = s.get(Device, conn.id)
-            if row is None:
-                row = Device(id=conn.id, device_id=conn.device_id, app=conn.app, first_seen=int(conn.connected))
-                s.add(row)
-            row.model = str(st.get("model") or row.model or "")[:128]
-            row.brand = str(st.get("brand") or row.brand or "")[:64]
-            row.reported_group = conn.reported_group
-            row.status = st
-            row.last_seen = int(conn.seen)
-            if hello:
-                row.remote = conn.remote
-                row.key_id = conn.key_id
-                # Script data belongs to the current connection.
-                row.data = {}
+            # One SELECT fills the identity map; s.get() below then needs no round trip per row.
+            list(s.scalars(select(Device).where(Device.id.in_(values_in(c.id for c in conns)))))
+            for conn in conns:
+                if live_only and self.conns.get(conn.id) is not conn:
+                    continue  # replaced or gone meanwhile: hello / detach wrote the row
+                st = conn.status
+                row = s.get(Device, conn.id)
+                if row is None:
+                    row = Device(id=conn.id, device_id=conn.device_id, app=conn.app, first_seen=int(conn.connected))
+                    s.add(row)
+                row.model = str(st.get("model") or row.model or "")[:128]
+                row.brand = str(st.get("brand") or row.brand or "")[:64]
+                row.reported_group = conn.reported_group
+                row.status = st
+                row.last_seen = int(conn.seen)
+                if hello:
+                    row.remote = conn.remote
+                    row.key_id = conn.key_id
+                # Script data belongs to the current connection: {} right after hello.
+                row.data = conn.data
             s.commit()
 
-    def _merge_data(self, conn: Conn, payload: Any) -> None:
+    @staticmethod
+    def _merge_data(conn: Conn, payload: Any) -> None:
         """cloud.send() data: dict keys overwrite, anything else is stored as "value"."""
-        with self.db.session() as s:
-            row = s.get(Device, conn.id)
-            if row is None:
-                return
-            merged = dict(row.data or {})
-            if isinstance(payload, dict):
-                merged.update(payload)
-            else:
-                merged["value"] = payload
-            row.data = merged
-            row.last_seen = int(conn.seen)
-            s.commit()
+        conn.data = {**conn.data, **payload} if isinstance(payload, dict) else {**conn.data, "value": payload}
+        conn.dirty = True
+
+    async def flush(self) -> int:
+        """Write the rows of connections whose status / data changed since the last flush."""
+        dirty = [c for c in self.conns.values() if c.dirty]
+        if not dirty:
+            return 0
+        for c in dirty:
+            c.dirty = False
+        try:
+            await run_in_threadpool(self._save_rows, dirty, False, True)
+        except Exception:
+            for c in dirty:  # retried on the next flush (or written on disconnect)
+                c.dirty = True
+            raise
+        return len(dirty)
+
+    async def flush_loop(self) -> None:
+        while True:
+            await asyncio.sleep(self.flush_interval)
+            try:
+                await self.flush()
+            except asyncio.CancelledError:
+                raise
+            except Exception:  # pragma: no cover
+                log.exception("flushing device status")
 
     # ------------------------------------------------------------ 运行日志 history
 
@@ -237,9 +270,9 @@ class Hub:
             if isinstance(dev, dict):
                 conn.status = dev
             conn.reported_group = str(data.get("group", conn.reported_group) or "")[:64]
-            await run_in_threadpool(self._save, conn)
+            conn.dirty = True
         elif t == "data":
-            await run_in_threadpool(self._merge_data, conn, data.get("data"))
+            self._merge_data(conn, data.get("data"))
         elif t == "logs":
             entries = data.get("entries")
             if self.log_days and isinstance(entries, list) and entries:
@@ -273,7 +306,7 @@ class Hub:
         if not ids:
             return {}
         with self.db.session() as s:
-            rows = s.execute(select(Device.id, Device.group_override).where(Device.id.in_(ids))).all()
+            rows = s.execute(select(Device.id, Device.group_override).where(Device.id.in_(values_in(ids)))).all()
         return {r[0]: r[1] for r in rows if r[1]}
 
     async def select(self, target: str) -> list[Conn]:
@@ -376,16 +409,21 @@ def next_run(daily: str | None, every: float | None, last: float, now: float) ->
 
 
 class Scheduler:
-    def __init__(self, hub: Hub, db: Database, interval: float = 15.0):
+    def __init__(self, hub: Hub, db: Database, interval: float = 15.0, parallel: int = 4):
         self.hub, self.db, self.interval = hub, db, interval
         # Set by the app: async (script_id, target, version_id, run, params) -> deploy result.
         self.deploy = None
+        # Due tasks run side by side, so one slow task (a deploy waiting on offline devices) does
+        # not hold up the rest; at most `parallel` at once.
+        self._slots = asyncio.Semaphore(parallel)
+        self._running: dict[int, asyncio.Task[None]] = {}
 
-    def _claim_due(self, now: float) -> list[tuple[int, str, dict[str, Any]]]:
+    def _claim_due(self, now: float, busy: frozenset[int] = frozenset()) -> list[tuple[int, str, dict[str, Any]]]:
         with self.db.session() as s:
             due = []
             for t in s.scalars(select(Task).where(Task.enabled.is_(True))):
-                if is_due(t.daily, t.every, t.last_run, now):
+                # A task still running (or waiting for a slot) is not claimed again: no overlap.
+                if t.id not in busy and is_due(t.daily, t.every, t.last_run, now):
                     t.last_run = now
                     due.append((t.id, t.target, dict(t.command)))
             s.commit()
@@ -423,13 +461,29 @@ class Scheduler:
             self.hub._alert("task_failed", name, "定时任务「%s」执行失败：%s" % (name, text))
         return summary
 
+    async def _run_claimed(self, task_id: int, target: str, command: dict[str, Any]) -> None:
+        try:
+            async with self._slots:
+                await self.run_task(task_id, target, command)
+        except asyncio.CancelledError:
+            raise
+        except Exception:  # run_task records command errors itself; this is e.g. the database
+            log.exception("scheduled task %d failed", task_id)
+        finally:
+            self._running.pop(task_id, None)
+
     async def loop(self) -> None:
-        while True:
-            await asyncio.sleep(self.interval)
-            try:
-                for task_id, target, command in await run_in_threadpool(self._claim_due, time.time()):
-                    await self.run_task(task_id, target, command)
-            except asyncio.CancelledError:
-                raise
-            except Exception:  # pragma: no cover
-                log.exception("scheduler tick failed")
+        try:
+            while True:
+                await asyncio.sleep(self.interval)
+                try:
+                    for task_id, target, command in await run_in_threadpool(self._claim_due, time.time(),
+                                                                            frozenset(self._running)):
+                        self._running[task_id] = asyncio.create_task(self._run_claimed(task_id, target, command))
+                except asyncio.CancelledError:
+                    raise
+                except Exception:  # pragma: no cover
+                    log.exception("scheduler tick failed")
+        finally:  # shutdown: stop what is in flight, as the serial loop did
+            for t in list(self._running.values()):
+                t.cancel()

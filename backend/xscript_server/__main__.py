@@ -99,7 +99,7 @@ def cmd_reset_allowlist(cfg: Config, a) -> int:
         set_setting(s, "login_ip_allowlist", [])
         audit(s, "cli", "settings.update", "login_ip_allowlist", {"login_ip_allowlist": []})
         s.commit()
-    print("已清空登录 IP 白名单，所有 IP 都可以登录")
+    print("已清空登录 IP 白名单，所有 IP 都可以登录（运行中的服务几秒内生效）")
     return 0
 
 
@@ -199,6 +199,7 @@ def cmd_serve(cfg: Config, a) -> int:
     import uvicorn
 
     from .app import create_app
+    from .logredact import uvicorn_log_config
 
     db = _db(cfg)
     with db.session() as s:
@@ -210,7 +211,8 @@ def cmd_serve(cfg: Config, a) -> int:
               file=sys.stderr)
     uvicorn.run(create_app(cfg), host=a.host, port=a.port, proxy_headers=a.behind_proxy, ws="websockets-sansio",
                 forwarded_allow_ips=a.forwarded_allow_ips if a.behind_proxy else None,
-                ws_max_size=64 * 1024 * 1024, ws_ping_interval=30, ws_ping_timeout=30, log_level=a.log_level)
+                ws_max_size=64 * 1024 * 1024, ws_ping_interval=30, ws_ping_timeout=30, log_level=a.log_level,
+                log_config=uvicorn_log_config())  # masks ?token= device keys in access logs
     return 0
 
 

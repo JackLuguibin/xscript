@@ -54,7 +54,14 @@ def _v5(conn: Connection) -> None:
     _add_column(conn, "cards", "uses_left", "INTEGER NOT NULL DEFAULT 0")
 
 
-STEPS: list[Callable[[Connection], None]] = [_v1, _v2, _v3, _v4, _v5]
+def _v6(conn: Connection) -> None:
+    """0.8: device_logs indexes for paging by id per device and for retention by ts (create_all only
+    indexes new tables). Large log tables take a moment to index on first start."""
+    conn.execute(text("CREATE INDEX IF NOT EXISTS ix_device_logs_device_id ON device_logs (device, id)"))
+    conn.execute(text("CREATE INDEX IF NOT EXISTS ix_device_logs_ts ON device_logs (ts)"))
+
+
+STEPS: list[Callable[[Connection], None]] = [_v1, _v2, _v3, _v4, _v5, _v6]
 LATEST = len(STEPS)
 
 
