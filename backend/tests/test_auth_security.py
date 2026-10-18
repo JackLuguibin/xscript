@@ -84,6 +84,29 @@ class AuthSecurityTest(unittest.IsolatedAsyncioTestCase):
         await self.login("pw1", "password-pw1", expect=401)
         await self.login("pw1", "a-new-password")
 
+    async def test_password_and_totp_checks_are_rate_limited_per_account(self):
+        """A signed-in session is not an unlimited guessing oracle for the password or a TOTP code."""
+        a, uid = await self.user("lim1", "viewer")
+        second = await self.login("lim1", "password-lim1")
+        bystander, _ = await self.user("lim2", "viewer")
+        wrong = {"old_password": "guess", "new_password": "a-new-password"}
+        right = {"old_password": "password-lim1", "new_password": "a-new-password"}
+        try:
+            codes = [(await a.post("/api/auth/password", json=wrong)).status_code for _ in range(5)]
+            self.assertEqual(codes, [400] * 5)
+            r = await a.post("/api/auth/password", json=right)
+            self.assertEqual(r.status_code, 429, "locked even with the right password")
+            self.assertIn("秒后再试", r.json()["error"])
+            # Per account: another session of the same user is locked too (here for a TOTP code)...
+            self.assertEqual((await second.post("/api/auth/totp/setup")).status_code, 200)
+            self.assertEqual((await second.post("/api/auth/totp/enable", json={"code": "000000"})).status_code, 429)
+            # ...other users are not.
+            r = await bystander.post("/api/auth/password", json={"old_password": "guess", "new_password": "x" * 12})
+            self.assertEqual(r.status_code, 400)
+        finally:
+            self.srv.app.state.ctx.limiter.reset("account|%d" % uid)
+        self.assertEqual((await a.post("/api/auth/password", json=right)).status_code, 200)
+
     async def test_sessions_are_private_per_user(self):
         a, _ = await self.user("ses1", "operator")
         b, _ = await self.user("ses2", "operator")

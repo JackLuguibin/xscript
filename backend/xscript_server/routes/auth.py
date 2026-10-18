@@ -150,14 +150,31 @@ def totp_setup(request: Request, p: Principal = Depends(viewer), s: Session = De
     return {"secret": user.totp_secret, "uri": totp.provisioning_uri(user.totp_secret, user.username, issuer)}
 
 
+def _secret_guard(request: Request, p: Principal) -> str:
+    """Password / 2FA code checks for an already signed-in user share the login limiter, per account:
+    a stolen session must not become an unlimited password or TOTP guessing oracle."""
+    key = "account|%d" % p.id
+    wait = ctx(request).limiter.blocked(key)
+    if wait:
+        raise HTTPException(429, "尝试次数过多，请 %d 秒后再试" % wait)
+    return key
+
+
+def _secret_failed(request: Request, key: str, msg: str) -> HTTPException:
+    ctx(request).limiter.fail(key)
+    return HTTPException(400, msg)
+
+
 @router.post("/totp/enable")
 def totp_enable(body: TotpCode, request: Request, p: Principal = Depends(viewer), s: Session = Depends(db_session)):
     user = s.get(User, p.id)
     if user.totp_enabled or not user.totp_secret:
         raise HTTPException(400, "先获取二维码")
+    key = _secret_guard(request, p)
     step = totp.verify(user.totp_secret, body.code)
     if step is None:
-        raise HTTPException(400, "验证码不对，检查手机时间是否准确")
+        raise _secret_failed(request, key, "验证码不对，检查手机时间是否准确")
+    ctx(request).limiter.reset(key)
     user.totp_enabled, user.totp_last_step = True, step
     # Other sessions were created without the second factor.
     s.execute(delete(AuthToken).where(AuthToken.user_id == user.id, AuthToken.kind == "web",
@@ -175,11 +192,13 @@ def totp_disable(body: TotpDisable, request: Request, p: Principal = Depends(vie
         raise HTTPException(400, "没有开启两步验证")
     if user.role == "admin" and _require_totp(s):
         raise HTTPException(400, "系统要求管理员必须开启两步验证")
+    key = _secret_guard(request, p)
     if not verify_password(body.password, user.password_hash):
-        raise HTTPException(400, "密码不正确")
+        raise _secret_failed(request, key, "密码不正确")
     step = totp.verify(user.totp_secret or "", body.code, user.totp_last_step)
     if step is None:
-        raise HTTPException(400, "验证码错误或已使用")
+        raise _secret_failed(request, key, "验证码错误或已使用")
+    ctx(request).limiter.reset(key)
     user.totp_enabled, user.totp_secret, user.totp_last_step = False, None, None
     record(request, s, p, "auth.totp_disable")
     s.commit()
@@ -190,8 +209,10 @@ def totp_disable(body: TotpDisable, request: Request, p: Principal = Depends(vie
 def change_password(body: PasswordIn, request: Request, p: Principal = Depends(viewer),
                     s: Session = Depends(db_session)):
     user = s.get(User, p.id)
+    key = _secret_guard(request, p)
     if not verify_password(body.old_password, user.password_hash):
-        raise HTTPException(400, "原密码不正确")
+        raise _secret_failed(request, key, "原密码不正确")
+    ctx(request).limiter.reset(key)
     try:
         check_password_policy(body.new_password)
     except ValueError as e:

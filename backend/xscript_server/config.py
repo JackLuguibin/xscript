@@ -19,6 +19,8 @@ class Config:
     session_hours: float = 12.0
     scheduler_interval: float = 15.0
     maintenance_interval: float = 60.0
+    # How often changed device status / cloud.send() data is written (always on disconnect too).
+    status_flush_interval: float = 15.0
     pack_script: Path | None = DEFAULT_PACK_SCRIPT
     # Release signing for pack jobs. Passwords stay in the environment, never in the database.
     keystore: str = ""

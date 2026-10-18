@@ -21,6 +21,7 @@ import time
 import unittest
 import zipfile
 from pathlib import Path
+from unittest import mock
 
 HERE = Path(__file__).resolve().parent
 sys.path.insert(0, str(HERE.parent))
@@ -626,6 +627,18 @@ class ServerTest(unittest.IsolatedAsyncioTestCase):
         exp = await self.admin.get("/api/devices/logdev/logs/export", params={"stream": "stderr"})
         self.assertEqual(exp.status_code, 200)
         self.assertIn("[stderr] line 3", exp.text)
+        # Streamed (chunked, no Content-Length), newest EXPORT_MAX lines, oldest first, in small chunks.
+        from xscript_server.routes import devices as devroutes
+
+        with mock.patch.object(devroutes, "EXPORT_MAX", 4), mock.patch.object(devroutes, "EXPORT_CHUNK", 3):
+            exp = await self.admin.get("/api/devices/logdev/logs/export")
+        self.assertNotIn("content-length", exp.headers)
+        self.assertEqual([x.split("] ", 1)[1] for x in exp.text.splitlines()],
+                         ["line 3", "line 4", "line 5", "Traceback boom"])
+        empty = await self.admin.get("/api/devices/logdev/logs/export", params={"q": "nothing-matches"})
+        self.assertEqual(empty.text, "\n")
+        audit = (await self.admin.get("/api/audit", params={"action": "device.logs_export"})).json()["items"]
+        self.assertEqual([a["detail"]["lines"] for a in audit[:3]], [0, 4, 1])
 
         # device_log_days = 0: no cursor, so devices keep their lines to themselves.
         self.assertEqual((await self.admin.put("/api/settings", json={"device_log_days": 0})).status_code, 200)
@@ -724,6 +737,34 @@ class ServerTest(unittest.IsolatedAsyncioTestCase):
         self.assertIn("keys/private.pem", names)
         self.assertEqual((await self.admin.get("/api/maintenance/backups/..%2Fxscript.db")).status_code, 404)
         self.assertEqual((await self.admin.post("/api/maintenance/cleanup")).status_code, 200)
+
+    async def test_authenticated_request_uses_one_session_and_cached_settings(self):
+        from sqlalchemy import event
+
+        db = self.srv.app.state.ctx.db
+        await self.admin.get("/api/devices")  # token last_used_at is fresh now: no commit below
+        opened: list[str] = []
+        statements: list[str] = []
+        real_session = db.session
+
+        def session():
+            # Who opened it: the request dependencies live in deps.py (background loops elsewhere).
+            opened.append(sys._getframe(1).f_code.co_filename)
+            return real_session()
+
+        def capture(conn, cursor, statement, *a):
+            statements.append(statement)
+
+        db.session = session
+        event.listen(db.engine, "before_cursor_execute", capture)
+        try:
+            self.assertEqual((await self.admin.get("/api/devices")).status_code, 200)
+        finally:
+            db.session = real_session
+            event.remove(db.engine, "before_cursor_execute", capture)
+        self.assertEqual(sum(1 for f in opened if f.endswith("deps.py")), 1)  # auth + route share one
+        self.assertFalse([q for q in statements if "FROM settings" in q])  # allowlist / 2FA policy cached
+        self.assertTrue([q for q in statements if "FROM auth_tokens" in q])  # the token is still checked
 
     async def test_public_rate_limit(self):
         ctx = self.srv.app.state.ctx
@@ -1020,6 +1061,105 @@ class LegacyImportTest(unittest.TestCase):
         other = tmp / "other.pem"
         licensing.write_private(licensing.generate_private(), other)
         self.assertEqual(cli(["--data", str(data), "import-legacy", "--key", str(other)]), 1)
+
+
+@unittest.skipIf(SKIP, SKIP)
+class StatusBatchTest(unittest.IsolatedAsyncioTestCase):
+    """Status / data frames update the Conn; rows are written in one batch, on flush and on disconnect."""
+
+    async def asyncSetUp(self):
+        from sqlalchemy import event
+
+        from xscript_server.db import Database
+        from xscript_server.hub import Conn, Hub
+
+        cfg = Config.load(tempfile.mkdtemp())
+        cfg.ensure_dirs()
+        self.db = Database(cfg.db_path)
+        self.db.create_all()
+        self.hub = Hub(self.db)
+        self.Conn = Conn
+        self.commits = 0
+
+        def count(conn):
+            self.commits += 1
+
+        event.listen(self.db.engine, "commit", count)
+
+    async def asyncTearDown(self):
+        self.db.engine.dispose()
+
+    class WS:
+        async def send_text(self, text):
+            pass
+
+        async def close(self):
+            pass
+
+    async def connect(self, dev_id):
+        conn = self.Conn(self.WS(), {"type": "hello", "device_id": dev_id, "device": {"model": "M", "battery": 90}},
+                         "1.2.3.4", None)
+        await self.hub.attach(conn)
+        return conn
+
+    def row(self, dev_id):
+        from xscript_server.models import Device
+
+        with self.db.session() as s:
+            d = s.get(Device, dev_id)
+            return d.status, d.data
+
+    async def test_frames_are_batched_and_flushed(self):
+        a, b = await self.connect("a"), await self.connect("b")
+        before = self.commits
+        for i in range(50):
+            await self.hub.on_frame(a, {"type": "status", "device": {"model": "M", "battery": 90 - i}})
+            await self.hub.on_frame(a, {"type": "data", "data": {"n": i}})
+        await self.hub.on_frame(b, {"type": "data", "data": "done"})
+        await self.hub.on_frame(b, {"type": "data", "data": {"k": 1}})
+        self.assertEqual(self.commits, before)  # 102 frames, no transaction
+        self.assertEqual(self.row("a"), ({"model": "M", "battery": 90}, {}))
+        self.assertEqual((a.data, b.data), ({"n": 49}, {"value": "done", "k": 1}))  # what the views show
+
+        self.assertEqual(await self.hub.flush(), 2)
+        self.assertEqual(self.commits, before + 1)
+        self.assertEqual(self.row("a"), ({"model": "M", "battery": 41}, {"n": 49}))
+        self.assertEqual(self.row("b")[1], {"value": "done", "k": 1})
+        self.assertEqual(await self.hub.flush(), 0)  # nothing changed: no write
+        self.assertEqual(self.commits, before + 1)
+
+    async def test_disconnect_writes_unflushed_changes(self):
+        a = await self.connect("a")
+        await self.hub.on_frame(a, {"type": "status", "device": {"model": "M", "battery": 5}})
+        await self.hub.on_frame(a, {"type": "data", "data": {"gold": 7}})
+        await self.hub.detach(a)
+        self.assertEqual(self.row("a"), ({"model": "M", "battery": 5}, {"gold": 7}))
+        self.assertEqual(await self.hub.flush(), 0)
+
+    async def test_failed_flush_is_retried(self):
+        a = await self.connect("a")
+        await self.hub.on_frame(a, {"type": "data", "data": {"x": 1}})
+        real = self.hub._save_rows
+
+        def broken(*args):
+            raise RuntimeError("database is locked")
+
+        self.hub._save_rows = broken
+        with self.assertRaises(RuntimeError):
+            await self.hub.flush()
+        self.assertTrue(a.dirty)
+        self.hub._save_rows = real
+        self.assertEqual(await self.hub.flush(), 1)
+        self.assertEqual(self.row("a")[1], {"x": 1})
+
+    async def test_replaced_connection_does_not_overwrite_the_new_one(self):
+        old = await self.connect("a")
+        await self.hub.on_frame(old, {"type": "data", "data": {"stale": True}})
+        new = await self.connect("a")  # reconnect: hello clears the data
+        await self.hub.on_frame(new, {"type": "status", "device": {"model": "M2"}})
+        old.dirty = True
+        self.hub._save_rows([old, new], False, True)
+        self.assertEqual(self.row("a"), ({"model": "M2"}, {}))
 
 
 if __name__ == "__main__":

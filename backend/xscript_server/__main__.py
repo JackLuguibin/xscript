@@ -99,7 +99,7 @@ def cmd_reset_allowlist(cfg: Config, a) -> int:
         set_setting(s, "login_ip_allowlist", [])
         audit(s, "cli", "settings.update", "login_ip_allowlist", {"login_ip_allowlist": []})
         s.commit()
-    print("已清空登录 IP 白名单，所有 IP 都可以登录")
+    print("已清空登录 IP 白名单，所有 IP 都可以登录（运行中的服务几秒内生效）")
     return 0
 
 
