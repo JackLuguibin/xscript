@@ -1,7 +1,9 @@
-"""project.* / device.logs / device.action RPC methods against scripts/mock_device.py."""
+"""project.* / device.logs / device.action / device.eval RPC methods against scripts/mock_device.py."""
 from __future__ import annotations
 
 import pytest
+
+from xscript_desktop.services.device_client import DeviceClient
 
 from .conftest import FakeAdb
 from .test_context import make_ctx, rpc
@@ -78,6 +80,34 @@ async def test_action_validation_and_forwarding(ctx_dev):
     assert (await rpc(ctx, "device.action", id=dev, type="key", name="home"))["ok"]
     assert (await rpc(ctx, "device.action", id=dev, type="rm -rf"))["error"]["code"] == "rpc.bad_params"
     assert (await rpc(ctx, "device.action", id=dev, type="click", x="10"))["error"]["code"] == "rpc.bad_params"
+
+
+async def test_eval_validation_and_forwarding(ctx_dev):
+    """Flow step-run: the snippet goes to POST /eval as-is, the answer comes back as {ok, result, error}."""
+    ctx, dev = ctx_dev
+    r = await rpc(ctx, "device.eval", id=dev, code="_result = 1 + 1", timeoutMs=3000)
+    assert r["ok"], r
+    assert r["result"] == {"ok": True, "result": "mock:_result = 1 + 1", "error": ""}
+    assert (await rpc(ctx, "device.eval", id=dev, code="_result = 2"))["result"]["ok"] is True  # default timeout
+    for bad in ({"code": ""}, {"code": "   "}, {"code": 1}, {"code": "x", "timeoutMs": 199}, {"code": "x", "timeoutMs": 15001},
+                {"code": "x", "timeoutMs": "8000"}, {"code": "x", "timeoutMs": True}):
+        assert (await rpc(ctx, "device.eval", id=dev, **bad))["error"]["code"] == "rpc.bad_params", bad
+    assert (await rpc(ctx, "device.eval", id=dev, code="x" * (64 * 1024 + 1)))["error"]["code"] == "rpc.too_large"
+    assert (await rpc(ctx, "device.eval", id="adb:nope", code="_result = 1"))["error"]["code"] == "device.not_found"
+
+
+async def test_eval_timeout_and_device_failure_are_answers(ctx_dev, monkeypatch):
+    ctx, dev = ctx_dev
+    seen: list = []
+
+    async def slow(self, code, timeout_ms=8000):
+        seen.append((code, timeout_ms))
+        return {"ok": False, "error": "timeout"}
+
+    monkeypatch.setattr(DeviceClient, "eval_python", slow)
+    r = await rpc(ctx, "device.eval", id=dev, code="while 1: pass", timeoutMs=200)
+    assert r["result"] == {"ok": False, "result": "", "error": "timeout"}
+    assert seen == [("while 1: pass", 200)]
 
 
 async def test_unknown_device(ctx_dev):
