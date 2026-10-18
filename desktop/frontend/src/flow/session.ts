@@ -45,8 +45,12 @@ interface RetryFrame {
 
 interface CallFrame {
   kind: "call";
+  id: string;
+  callee: string;
   next: string | null;
   signal: "break" | "continue" | "fail" | null;
+  /** Parameter pins of the callee before this call bound them, restored on return so recursion and repeat calls stay separate. */
+  saved: Array<{ key: string; had: boolean; value: Lit }>;
 }
 
 interface ArmFrame {
@@ -178,15 +182,16 @@ function readOut(session: FlowDebug, graph: FlowGraph, specs: Map<string, NodeSp
   if (Object.prototype.hasOwnProperty.call(session.pins, key)) return session.pins[key];
   const node = nodeOf(graph, id);
   if (!node) return null;
-  if (node.type === "data.get" && pin === "value") {
-    const name = String(node.inputs?.name ?? "");
+  if (node.type === "data.get") {
+    // The parser wires `get(...)` through `result`, the spec names the pin `value`: both read the variable.
+    const name = String(readIn(session, graph, specs, id, "name") ?? "");
     return session.vars[name] ?? null;
   }
-  if (node.type === "flow.for_range" && pin === "index") {
+  if (node.type === "flow.for_range" && (pin === "index" || pin === "result")) {
     const frame = [...session.stack].reverse().find((item): item is ForFrame => item.kind === "for" && item.id === id);
     return frame?.index ?? asNumber(node.inputs?.start ?? 0, 0);
   }
-  if (node.type === "flow.for_each" && pin === "item") {
+  if (node.type === "flow.for_each" && (pin === "item" || pin === "result")) {
     const frame = [...session.stack].reverse().find((item): item is EachFrame => item.kind === "each" && item.id === id);
     return frame ? (frame.items[frame.index] ?? null) : null;
   }
@@ -258,7 +263,7 @@ function jump(session: FlowDebug, graph: FlowGraph, id: string, pin: string): "o
 
 function signal(session: FlowDebug, kind: "break" | "continue" | "fail"): "ok" | "error" {
   if (kind === "fail") {
-    while (session.stack.length && session.stack[session.stack.length - 1].kind !== "retry") session.stack.pop();
+    while (session.stack.length && session.stack[session.stack.length - 1].kind !== "retry") popFrame(session);
     const frame = session.stack[session.stack.length - 1];
     if (!frame || frame.kind !== "retry") return fail(session, "fail");
     frame.left -= 1;
@@ -266,7 +271,7 @@ function signal(session: FlowDebug, kind: "break" | "continue" | "fail"): "ok" |
     if (frame.left <= 0) session.stack.pop();
     return "ok";
   }
-  while (session.stack.length && !isLoop(session.stack[session.stack.length - 1])) session.stack.pop();
+  while (session.stack.length && !isLoop(session.stack[session.stack.length - 1])) popFrame(session);
   const loop = session.stack[session.stack.length - 1];
   if (!loop || !isLoop(loop)) return fail(session, kind);
   if (kind === "break") {
@@ -276,6 +281,53 @@ function signal(session: FlowDebug, kind: "break" | "continue" | "fail"): "ok" |
   }
   session.pc = null;
   return "ok";
+}
+
+function paramsOf(graph: FlowGraph, callee: string): string[] {
+  return String(nodeOf(graph, callee)?.config?.params ?? "")
+    .split(",")
+    .map((part) => part.trim())
+    .filter(Boolean);
+}
+
+/** Bind the call's arguments to the callee's parameter pins, keeping what they held before. */
+function enterCall(session: FlowDebug, graph: FlowGraph, specs: Map<string, NodeSpec>, node: FlowNode): void {
+  const callee = String(node.config?.callee ?? "");
+  const args = paramsOf(graph, callee).map((name) => ({ name, value: readIn(session, graph, specs, node.id, name) }));
+  const saved = args.map(({ name }) => {
+    const key = callee + "." + name;
+    const had = Object.prototype.hasOwnProperty.call(session.pins, key);
+    return { key, had, value: had ? session.pins[key] : null };
+  });
+  for (const { name, value } of args) session.pins[callee + "." + name] = value;
+  mark(session, "span", node.id, callee);
+  const next = outPin(graph, node.id, "then");
+  const signalPin = next && (next.pin === "break" || next.pin === "continue" || next.pin === "fail") ? next.pin : null;
+  session.stack.push({ kind: "call", id: node.id, callee, next: signalPin ? null : (next?.node ?? null), signal: signalPin, saved });
+  session.pc = outPin(graph, callee, "body")?.node ?? null;
+}
+
+function restore(session: FlowDebug, frame: CallFrame): void {
+  for (const item of frame.saved) {
+    if (item.had) session.pins[item.key] = item.value;
+    else delete session.pins[item.key];
+  }
+}
+
+/** Store the callee's return value on the call node, then restore the parameter pins. */
+function leaveCall(session: FlowDebug, graph: FlowGraph, specs: Map<string, NodeSpec>, frame: CallFrame): void {
+  const def = nodeOf(graph, frame.callee);
+  const ret = String(def?.config?.returns ?? "");
+  let value: Lit = null;
+  if (def?.config && Object.prototype.hasOwnProperty.call(def.config, "returnLit")) value = (def.config.returnLit ?? null) as Lit;
+  else if (ret) value = readIn(session, graph, specs, frame.callee, ret);
+  restore(session, frame);
+  if (ret) remember(session, frame.id, "result", value);
+}
+
+function popFrame(session: FlowDebug): void {
+  const frame = session.stack.pop();
+  if (frame?.kind === "call") restore(session, frame);
 }
 
 function fail(session: FlowDebug, detail: string): "error" {
@@ -402,13 +454,7 @@ function execute(session: FlowDebug, graph: FlowGraph, specs: Map<string, NodeSp
     return "ok";
   }
   if (node.type === "flow.call" || node.type === "flow.macro") {
-    const callee = String(node.config?.callee ?? "");
-    const body = outPin(graph, callee, "body")?.node ?? null;
-    mark(session, "span", id, callee);
-    const next = outPin(graph, id, "then");
-    const signalPin = next && (next.pin === "break" || next.pin === "continue" || next.pin === "fail") ? next.pin : null;
-    session.stack.push({ kind: "call", next: signalPin ? null : (next?.node ?? null), signal: signalPin });
-    session.pc = body;
+    enterCall(session, graph, specs, node);
     return "ok";
   }
   if (node.type === "flow.end") {
@@ -464,6 +510,7 @@ function unwind(session: FlowDebug, graph: FlowGraph, specs: Map<string, NodeSpe
     }
     if (top.kind === "call") {
       session.stack.pop();
+      leaveCall(session, graph, specs, top);
       if (top.signal) {
         signal(session, top.signal);
         return true;
