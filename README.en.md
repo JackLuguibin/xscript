@@ -12,7 +12,7 @@ The project provides a native `xscript.android.*` API and an `ascript.android.*`
 
 > **Note:** Most detailed docs (user manual, API, architecture, debugging, packaging, deployment, …) are currently in Chinese. Links below point to the Chinese documents where no English version exists. Command lines, file paths and API names are the same in both languages.
 
-[Usage guide](#usage-guide) · [Quick start](#quick-start) · [Script example](#script-example) · [Development and testing](#development-and-testing) · [Documentation](#documentation) · [Contributing](#contributing)
+[Usage guide](#usage-guide) · [Reliability, security and performance](#reliability-security-and-performance) · [Quick start](#quick-start) · [Script example](#script-example) · [Development and testing](#development-and-testing) · [Documentation](#documentation) · [Contributing](#contributing)
 
 ## Features
 
@@ -25,6 +25,42 @@ The project provides a native `xscript.android.*` API and an `ascript.android.*`
 - **App distribution**: script release and rollback, standalone APK packaging, signed updates and activation-code (license) management.
 
 The visual AI client supports explicitly configured inference services of your own; the project does not include a vision large-model service. YOLO models are supplied by the user. See the [third-party notices](THIRD_PARTY_NOTICES.md) for the licenses and terms of specific models and third-party dependencies.
+
+## Reliability, security and performance
+
+**Scripts that don't get stuck**
+
+- Template matching no longer hangs when `confidence` is 0 or negative; the value is clamped to 0.01–1.
+- Wait-style APIs take a configurable polling interval: `screen.ocr_wait`, `Selector.find / find_all / exists / wait_gone` and `event.loop` accept `interval=`, and the defaults are unchanged. The last wait is cut short at the deadline, so a call never runs past its `timeout`. Waits use a monotonic clock, so changing the system time doesn't affect them.
+
+**Keys stay private**
+
+- The app sends its device key to the cloud server in an `Authorization: Bearer` header instead of the URL, so it never appears in server or reverse-proxy access logs. The legacy `?token=` form still works and is logged as `token=***`.
+- The cloud URL shown in the device's cloud status, in the device info reported to the server and in `GET /settings` displays the key as `token=***`.
+- Signed-in users changing their password or turning two-factor authentication on or off are rate-limited too: 5 failures lock that account for 5 minutes, across all of its sessions.
+- Rate limits on the public endpoints hold under concurrent requests, and license tokens with forged signatures are throttled per IP.
+
+**A backend that scales with your fleet**
+
+- Device status frames and `cloud.send()` data are written in one batch every 15 seconds instead of one transaction each. The console still shows live status and data.
+- The overview page is cheaper: card stats come from a single query, crashes are filtered in the database, and the page refreshes every 15 seconds. The groups list reads only the columns it needs, device logs are indexed per device, and log exports stream so memory stays flat however many lines you export.
+- Scheduled tasks run up to 4 at a time, so one slow task no longer delays the others due in the same round.
+- Authentication reuses the request's database session, and system settings are cached for 5 seconds.
+- Filtering by online state and targeting groups keep working beyond SQLite's bound-parameter limit (over 30,000 online devices).
+
+**A lighter UI**
+
+- In a background browser tab, the web console pauses the screen wall, log following and the build log, and resumes where it left off when you come back.
+- The desktop client's screen wall asks a device for its next picture only after the previous one has arrived, backs off on errors and pauses while the window is hidden.
+- In a very narrow desktop window, the LAN connect row wraps instead of scrolling sideways.
+
+**Development and CI**
+
+- The web console has vitest + Testing Library unit tests, run in CI and by `scripts/verify.sh`. Its largest pages are split into smaller components.
+- `verify.sh` also checks the desktop client. The desktop layout test uses a bundled test font, so the result doesn't depend on the fonts installed on the machine. Development requires Node 22+.
+- CI caches npm and pip dependencies, and Dependabot opens weekly update PRs for GitHub Actions, npm and pip.
+
+See the [changelog](CHANGELOG.md) (Chinese) for the full list of changes.
 
 ## Usage guide
 
@@ -288,7 +324,7 @@ docs: improve setup instructions
 
 The device development HTTP service has no authentication: any client that can reach the port can upload and run code. Use a trusted network or USB/ADB forwarding, and do not expose the development port directly to the internet. Packaged apps have the development service off by default.
 
-A self-hosted backend exposed to the internet should use HTTPS/WSS and protect device keys, administrator credentials and signing private keys. See the [backend notes](backend/README.md) (Chinese) for deployment and backup requirements. Do not attach these credentials or personal device data when reporting problems.
+A self-hosted backend exposed to the internet should use HTTPS/WSS and protect device keys, administrator credentials and signing private keys. The app sends its device key in an `Authorization` header, and status and settings endpoints show it only as `token=***`. Custom clients should use the header too rather than putting the key in the URL (see the [cloud protocol](docs/CLOUD.md), Chinese). See the [backend notes](backend/README.md) (Chinese) for deployment and backup requirements. Do not attach these credentials or personal device data when reporting problems.
 
 ## License and third-party components
 
