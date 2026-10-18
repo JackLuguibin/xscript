@@ -7,6 +7,9 @@
 # .venv-rt  -> python-runtime tests (numpy, opencv, pillow); falls back to python3
 # .venv310  -> backend + MCP tests on the minimum supported Python (3.10), created with uv on first use;
 #              skipped with a message when uv/network is unavailable or XS_SKIP_PY310=1
+# .venv-desktop -> desktop client (PySide6 + pytest-qt): frontend type-check/tests/build + Python tests offscreen;
+#              skipped when the venv, PySide6 or desktop/frontend/node_modules is missing, or XS_SKIP_DESKTOP=1
+# Node 22+ (see .nvmrc): the extension test glob and the Web IDE tests need it.
 set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 cd "$ROOT"
@@ -86,6 +89,21 @@ if command -v npm >/dev/null 2>&1 && [ -d "$EXT/node_modules" ]; then
   (cd "$EXT" && npm run --silent compile && npm test --silent)
 else
   echo "skipped (run 'npm ci' in $EXT first)"
+fi
+echo "== desktop: client (frontend + Python tests, offscreen Qt) =="
+DESK_PY="${XS_DESKTOP_PY:-$ROOT/.venv-desktop/bin/python}"
+if [ "${XS_SKIP_DESKTOP:-}" = "1" ]; then
+  echo "skipped (XS_SKIP_DESKTOP=1)"
+elif [ ! -x "$DESK_PY" ] || ! "$DESK_PY" -c "import PySide6.QtWebEngineWidgets, pytestqt" >/dev/null 2>&1; then
+  echo "skipped (python3.10 -m venv .venv-desktop && .venv-desktop/bin/pip install -e 'desktop/app[test]'; QtWebEngine needs libegl1/libnss3 on Linux)"
+elif [ ! -d desktop/frontend/node_modules ]; then
+  echo "skipped (run 'npm ci' in desktop/frontend first)"
+else
+  # The Python e2e tests load the built bundle, so build it from the current sources first.
+  (cd desktop/frontend && npm run --silent typecheck && npm test --silent && npm run --silent build >/dev/null)
+  (cd desktop/app && QT_QPA_PLATFORM="${QT_QPA_PLATFORM:-offscreen}" \
+    QTWEBENGINE_CHROMIUM_FLAGS="${QTWEBENGINE_CHROMIUM_FLAGS:---no-sandbox --disable-gpu}" \
+    "$DESK_PY" -m pytest -q -p no:cacheprovider)
 fi
 echo "== vertical slice (mock) =="
 PYTHONPATH=$MCP "$PY" "$ROOT/scripts/vertical_slice.py" --mock

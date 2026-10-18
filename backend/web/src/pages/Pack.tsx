@@ -31,7 +31,7 @@ import {
 } from "@ant-design/icons";
 import { api, download, type Page, type PackJob, type ShareLink } from "../api";
 import { useAuth } from "../auth";
-import { CopyText, JobStatusTag, PageHeader } from "../components";
+import { CopyText, JobStatusTag, PageHeader, usePageVisible } from "../components";
 import { fmtAgo, fmtDuration, fmtSize, fmtTime } from "../format";
 import { PackForm, type PackInfo } from "./pack/PackForm";
 
@@ -348,10 +348,16 @@ function LogDrawer({ job, onClose }: { job: PackJob | null; onClose: () => void 
   });
   const status = live.data?.status ?? job?.status;
 
+  const visible = usePageVisible();
+
   useEffect(() => {
     setText("");
     offset.current = 0;
-    if (!job) return;
+  }, [job]);
+
+  useEffect(() => {
+    // Paused while the tab is hidden; `offset` keeps the position, so polling resumes where it left off.
+    if (!job || !visible) return;
     let stop = false;
     let busy = false; // an overlapping poll would fetch the same offset and duplicate the text
     const tick = async () => {
@@ -377,7 +383,7 @@ function LogDrawer({ job, onClose }: { job: PackJob | null; onClose: () => void 
       stop = true;
       clearInterval(timer);
     };
-  }, [job]);
+  }, [job, visible]);
 
   return (
     <Drawer

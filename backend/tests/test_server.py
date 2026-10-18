@@ -21,12 +21,14 @@ import time
 import unittest
 import zipfile
 from pathlib import Path
+from unittest import mock
 
 HERE = Path(__file__).resolve().parent
 sys.path.insert(0, str(HERE.parent))
 
 try:
     import httpx
+    import sqlalchemy
     import uvicorn
     import websockets
 
@@ -234,6 +236,19 @@ class ServerTest(unittest.IsolatedAsyncioTestCase):
         with self.assertRaises(Exception):
             async with websockets.connect(bad) as ws:
                 await ws.recv()
+        # What the App sends now: the key in an Authorization header, not in the logged URL.
+        base, key = url.split("?token=")
+        async with websockets.connect(base, additional_headers={"Authorization": "Bearer " + key}) as ws:
+            await ws.send(json.dumps({"type": "hello", "device_id": "bearer-dev", "device": {}}))
+            for _ in range(100):
+                if "bearer-dev" in self.srv.app.state.ctx.hub.conns:
+                    break
+                await asyncio.sleep(0.02)
+            self.assertIn("bearer-dev", self.srv.app.state.ctx.hub.conns)
+        for _ in range(100):
+            if "bearer-dev" not in self.srv.app.state.ctx.hub.conns:
+                break
+            await asyncio.sleep(0.02)
         async with FakeDevice(url, "dev1", group="g1") as d1, FakeDevice(url, "dev2", group="g2") as d2, \
                 FakeDevice(url, "dev1", app="com.packed", group="g1"):
             await self.wait_online(3)
@@ -612,6 +627,18 @@ class ServerTest(unittest.IsolatedAsyncioTestCase):
         exp = await self.admin.get("/api/devices/logdev/logs/export", params={"stream": "stderr"})
         self.assertEqual(exp.status_code, 200)
         self.assertIn("[stderr] line 3", exp.text)
+        # Streamed (chunked, no Content-Length), newest EXPORT_MAX lines, oldest first, in small chunks.
+        from xscript_server.routes import devices as devroutes
+
+        with mock.patch.object(devroutes, "EXPORT_MAX", 4), mock.patch.object(devroutes, "EXPORT_CHUNK", 3):
+            exp = await self.admin.get("/api/devices/logdev/logs/export")
+        self.assertNotIn("content-length", exp.headers)
+        self.assertEqual([x.split("] ", 1)[1] for x in exp.text.splitlines()],
+                         ["line 3", "line 4", "line 5", "Traceback boom"])
+        empty = await self.admin.get("/api/devices/logdev/logs/export", params={"q": "nothing-matches"})
+        self.assertEqual(empty.text, "\n")
+        audit = (await self.admin.get("/api/audit", params={"action": "device.logs_export"})).json()["items"]
+        self.assertEqual([a["detail"]["lines"] for a in audit[:3]], [0, 4, 1])
 
         # device_log_days = 0: no cursor, so devices keep their lines to themselves.
         self.assertEqual((await self.admin.put("/api/settings", json={"device_log_days": 0})).status_code, 200)
@@ -711,6 +738,34 @@ class ServerTest(unittest.IsolatedAsyncioTestCase):
         self.assertEqual((await self.admin.get("/api/maintenance/backups/..%2Fxscript.db")).status_code, 404)
         self.assertEqual((await self.admin.post("/api/maintenance/cleanup")).status_code, 200)
 
+    async def test_authenticated_request_uses_one_session_and_cached_settings(self):
+        from sqlalchemy import event
+
+        db = self.srv.app.state.ctx.db
+        await self.admin.get("/api/devices")  # token last_used_at is fresh now: no commit below
+        opened: list[str] = []
+        statements: list[str] = []
+        real_session = db.session
+
+        def session():
+            # Who opened it: the request dependencies live in deps.py (background loops elsewhere).
+            opened.append(sys._getframe(1).f_code.co_filename)
+            return real_session()
+
+        def capture(conn, cursor, statement, *a):
+            statements.append(statement)
+
+        db.session = session
+        event.listen(db.engine, "before_cursor_execute", capture)
+        try:
+            self.assertEqual((await self.admin.get("/api/devices")).status_code, 200)
+        finally:
+            db.session = real_session
+            event.remove(db.engine, "before_cursor_execute", capture)
+        self.assertEqual(sum(1 for f in opened if f.endswith("deps.py")), 1)  # auth + route share one
+        self.assertFalse([q for q in statements if "FROM settings" in q])  # allowlist / 2FA policy cached
+        self.assertTrue([q for q in statements if "FROM auth_tokens" in q])  # the token is still checked
+
     async def test_public_rate_limit(self):
         ctx = self.srv.app.state.ctx
         old = ctx.pub_limiter
@@ -739,6 +794,53 @@ class ServerTest(unittest.IsolatedAsyncioTestCase):
         ov = (await self.admin.get("/api/overview")).json()
         for k in ("crashes", "scripts", "alerts_24h", "last_backup"):
             self.assertIn(k, ov)
+
+    async def test_overview_and_groups_queries_stay_narrow(self):
+        """Overview crashes come from a filtered SQL query; neither endpoint loads the device JSON blobs."""
+        from sqlalchemy import event
+
+        from xscript_server.models import Device
+
+        ctx = self.srv.app.state.ctx
+        now = int(time.time())
+        blob = {"x": "y" * 1000}
+        tail = [{"stream": "stdout", "line": "ok"}, {"stream": "stderr", "line": "Boom"}]
+        rows = {"ov-new": {"crashed": True, "time": now - 60, "tail": tail},
+                "ov-old": {"crashed": True, "time": now - 2 * 86400, "tail": tail},
+                "ov-clean": {"crashed": False, "time": now - 30, "tail": []}}
+        with ctx.db.session() as s:
+            for i in range(9):  # more recent crashes than the overview shows
+                rows["ov-%d" % i] = {"crashed": True, "time": now - 3600 - i, "tail": []}
+            s.add_all(Device(id=k, device_id=k, reported_group="ov-grp", status=blob, data=blob, last_run=v)
+                      for k, v in rows.items())
+            s.add(Device(id="ov-moved", device_id="ov-moved", reported_group="ov-grp", group_override="ov-grp2"))
+            s.commit()
+        seen: list[str] = []
+
+        def capture(conn, cursor, statement, *a):
+            seen.append(statement)
+
+        event.listen(ctx.db.engine, "before_cursor_execute", capture)
+        try:
+            ov = (await self.admin.get("/api/overview")).json()
+            groups = {g["name"]: g for g in (await self.admin.get("/api/groups")).json()["items"]}
+        finally:
+            event.remove(ctx.db.engine, "before_cursor_execute", capture)
+        mine = [c for c in ov["crashes"] if c["device"].startswith("ov-")]
+        self.assertEqual(mine[0], {"device": "ov-new", "model": "", "project": None, "exit": None,
+                                   "time": now - 60, "error": "Boom"})
+        self.assertNotIn("ov-old", [c["device"] for c in ov["crashes"]])
+        self.assertNotIn("ov-clean", [c["device"] for c in ov["crashes"]])
+        self.assertEqual(len(ov["crashes"]), 8)
+        self.assertEqual([c["time"] for c in ov["crashes"]], sorted((c["time"] for c in ov["crashes"]), reverse=True))
+        self.assertEqual(groups["ov-grp"], {"name": "ov-grp", "total": 12, "online": 0})
+        self.assertEqual(groups["ov-grp2"], {"name": "ov-grp2", "total": 1, "online": 0})
+        device_selects = [q for q in seen if "FROM devices" in q]
+        self.assertTrue(device_selects)
+        for q in device_selects:
+            self.assertNotIn("devices.status", q)
+            self.assertNotIn("devices.data", q)
+        self.assertEqual(sum(1 for q in seen if "FROM cards" in q), 1)
 
     async def test_scheduled_script_deploy(self):
         sc = (await self.admin.post("/api/scripts", json={"name": "定时", "project_name": "timed"})).json()
@@ -825,6 +927,107 @@ class ServerTest(unittest.IsolatedAsyncioTestCase):
 
 
 @unittest.skipIf(SKIP, SKIP)
+class SchedulerTest(unittest.IsolatedAsyncioTestCase):
+    """Due tasks run side by side with a cap; a slow or failing task does not hold up the rest."""
+
+    async def asyncSetUp(self):
+        from xscript_server.db import Database
+        from xscript_server.hub import Scheduler
+        from xscript_server.models import Task
+
+        cfg = Config.load(tempfile.mkdtemp())
+        cfg.ensure_dirs()
+        self.db = Database(cfg.db_path)
+        self.db.create_all()
+        self.release = asyncio.Event()
+        self.calls: list[str] = []
+        self.active = self.peak = 0
+        test = self
+
+        class Hub:
+            def _alert(self, *a):
+                pass
+
+            async def command(self, target, command):
+                test.calls.append(target)
+                test.active += 1
+                test.peak = max(test.peak, test.active)
+                try:
+                    if target.startswith("slow"):
+                        await test.release.wait()
+                    if target == "boom":
+                        raise RuntimeError("device gone")
+                    return {"d": {"code": 1, "msg": "ok"}}
+                finally:
+                    test.active -= 1
+
+        with self.db.session() as s:
+            # every = 0.001 min: due again on every tick unless the scheduler skips running tasks.
+            s.add_all(Task(name=n, target=n, every=0.001, command={"path": "x"})
+                      for n in ("slow1", "slow2", "slow3", "fast", "boom"))
+            s.commit()
+        self.Task = Task
+        self.sched = Scheduler(Hub(), self.db, interval=0.05, parallel=3)
+        self.loop_task = asyncio.create_task(self.sched.loop())
+
+    async def asyncTearDown(self):
+        self.loop_task.cancel()
+        with self.assertRaises(asyncio.CancelledError):
+            await self.loop_task
+        await asyncio.sleep(0)
+        self.assertTrue(all(t.done() for t in self.sched._running.values()))
+        self.db.engine.dispose()
+
+    def results(self):
+        with self.db.session() as s:
+            return {t.target: t.last_result for t in s.scalars(sqlalchemy.select(self.Task))}
+
+    async def wait_for(self, cond, timeout=5.0):
+        end = time.monotonic() + timeout
+        while not cond():
+            if time.monotonic() > end:
+                self.fail("timed out")
+            await asyncio.sleep(0.02)
+
+    async def test_slow_tasks_do_not_block_and_are_not_claimed_twice(self):
+        # Three slow tasks fill the three slots; the other two wait, they are not dropped.
+        await self.wait_for(lambda: self.peak == 3)
+        await asyncio.sleep(0.3)  # several ticks while all three are stuck
+        self.assertEqual(sorted(self.calls), ["slow1", "slow2", "slow3"])
+        self.release.set()
+        await self.wait_for(lambda: {"fast", "boom"} <= set(self.calls))
+        await self.wait_for(lambda: all(self.results().values()))
+        res = self.results()
+        self.assertEqual(res["fast"]["ok"], 1)
+        self.assertEqual(res["boom"]["error"], "device gone")
+        self.assertLessEqual(self.peak, 3)
+        self.assertFalse(self.loop_task.done())  # a failing task did not kill the loop
+
+    async def test_fast_task_is_not_delayed_by_a_slow_one(self):
+        self.sched._slots = asyncio.Semaphore(4)  # before the first tick: room for one slow task + the rest
+        await self.wait_for(lambda: (self.results()["fast"] or {}).get("ok") == 1)
+        self.assertFalse(self.release.is_set())
+        self.assertEqual(self.calls.count("slow1"), 1)  # still running: never re-claimed
+
+    async def test_unexpected_error_is_logged_and_the_slot_freed(self):
+        self.release.set()
+        real = self.sched._finish
+        with self.db.session() as s:
+            fast = s.scalar(sqlalchemy.select(self.Task.id).where(self.Task.target == "fast"))
+
+        def finish(task_id, *a):
+            if task_id == fast:
+                raise RuntimeError("db down")
+            return real(task_id, *a)
+
+        self.sched._finish = finish
+        with self.assertLogs("xscript.hub", "ERROR") as logs:
+            await self.wait_for(lambda: self.calls.count("fast") >= 2)  # claimed again after the failure
+        self.assertIn("scheduled task %d failed" % fast, logs.output[0])
+        self.assertFalse(self.loop_task.done())
+
+
+@unittest.skipIf(SKIP, SKIP)
 class LegacyImportTest(unittest.TestCase):
     def test_import(self):
         tmp = Path(tempfile.mkdtemp())
@@ -858,6 +1061,105 @@ class LegacyImportTest(unittest.TestCase):
         other = tmp / "other.pem"
         licensing.write_private(licensing.generate_private(), other)
         self.assertEqual(cli(["--data", str(data), "import-legacy", "--key", str(other)]), 1)
+
+
+@unittest.skipIf(SKIP, SKIP)
+class StatusBatchTest(unittest.IsolatedAsyncioTestCase):
+    """Status / data frames update the Conn; rows are written in one batch, on flush and on disconnect."""
+
+    async def asyncSetUp(self):
+        from sqlalchemy import event
+
+        from xscript_server.db import Database
+        from xscript_server.hub import Conn, Hub
+
+        cfg = Config.load(tempfile.mkdtemp())
+        cfg.ensure_dirs()
+        self.db = Database(cfg.db_path)
+        self.db.create_all()
+        self.hub = Hub(self.db)
+        self.Conn = Conn
+        self.commits = 0
+
+        def count(conn):
+            self.commits += 1
+
+        event.listen(self.db.engine, "commit", count)
+
+    async def asyncTearDown(self):
+        self.db.engine.dispose()
+
+    class WS:
+        async def send_text(self, text):
+            pass
+
+        async def close(self):
+            pass
+
+    async def connect(self, dev_id):
+        conn = self.Conn(self.WS(), {"type": "hello", "device_id": dev_id, "device": {"model": "M", "battery": 90}},
+                         "1.2.3.4", None)
+        await self.hub.attach(conn)
+        return conn
+
+    def row(self, dev_id):
+        from xscript_server.models import Device
+
+        with self.db.session() as s:
+            d = s.get(Device, dev_id)
+            return d.status, d.data
+
+    async def test_frames_are_batched_and_flushed(self):
+        a, b = await self.connect("a"), await self.connect("b")
+        before = self.commits
+        for i in range(50):
+            await self.hub.on_frame(a, {"type": "status", "device": {"model": "M", "battery": 90 - i}})
+            await self.hub.on_frame(a, {"type": "data", "data": {"n": i}})
+        await self.hub.on_frame(b, {"type": "data", "data": "done"})
+        await self.hub.on_frame(b, {"type": "data", "data": {"k": 1}})
+        self.assertEqual(self.commits, before)  # 102 frames, no transaction
+        self.assertEqual(self.row("a"), ({"model": "M", "battery": 90}, {}))
+        self.assertEqual((a.data, b.data), ({"n": 49}, {"value": "done", "k": 1}))  # what the views show
+
+        self.assertEqual(await self.hub.flush(), 2)
+        self.assertEqual(self.commits, before + 1)
+        self.assertEqual(self.row("a"), ({"model": "M", "battery": 41}, {"n": 49}))
+        self.assertEqual(self.row("b")[1], {"value": "done", "k": 1})
+        self.assertEqual(await self.hub.flush(), 0)  # nothing changed: no write
+        self.assertEqual(self.commits, before + 1)
+
+    async def test_disconnect_writes_unflushed_changes(self):
+        a = await self.connect("a")
+        await self.hub.on_frame(a, {"type": "status", "device": {"model": "M", "battery": 5}})
+        await self.hub.on_frame(a, {"type": "data", "data": {"gold": 7}})
+        await self.hub.detach(a)
+        self.assertEqual(self.row("a"), ({"model": "M", "battery": 5}, {"gold": 7}))
+        self.assertEqual(await self.hub.flush(), 0)
+
+    async def test_failed_flush_is_retried(self):
+        a = await self.connect("a")
+        await self.hub.on_frame(a, {"type": "data", "data": {"x": 1}})
+        real = self.hub._save_rows
+
+        def broken(*args):
+            raise RuntimeError("database is locked")
+
+        self.hub._save_rows = broken
+        with self.assertRaises(RuntimeError):
+            await self.hub.flush()
+        self.assertTrue(a.dirty)
+        self.hub._save_rows = real
+        self.assertEqual(await self.hub.flush(), 1)
+        self.assertEqual(self.row("a")[1], {"x": 1})
+
+    async def test_replaced_connection_does_not_overwrite_the_new_one(self):
+        old = await self.connect("a")
+        await self.hub.on_frame(old, {"type": "data", "data": {"stale": True}})
+        new = await self.connect("a")  # reconnect: hello clears the data
+        await self.hub.on_frame(new, {"type": "status", "device": {"model": "M2"}})
+        old.dirty = True
+        self.hub._save_rows([old, new], False, True)
+        self.assertEqual(self.row("a"), ({"model": "M2"}, {}))
 
 
 if __name__ == "__main__":

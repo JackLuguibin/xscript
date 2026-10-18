@@ -300,10 +300,21 @@ def _watch(request: Request, s: Session, act: cardsvc.Activation, card: str, dev
         log.exception("abuse check failed")
 
 
+def _token_guard(request: Request) -> str:
+    """Per-IP throttle for /license/verify and /license/use, like /license/activate: only replies to tokens with a
+    bad signature count, so a farm of real devices behind one NAT is never slowed down. Returns the limiter key."""
+    key = "license-token|" + client_ip(request)
+    if ctx(request).limiter.blocked(key):
+        raise HTTPException(429, "尝试次数过多，请稍后再试")
+    return key
+
+
 @public.post("/verify")
 def license_verify(body: VerifyIn, request: Request, s: Session = Depends(db_session)):
+    key = _token_guard(request)
     payload = licensing.verify(ctx(request).pubkey, body.token)
     if payload is None:
+        ctx(request).limiter.fail(key)
         return {"status": "revoked", "revoked": True}
     state = cardsvc.check_token(s, payload)
     return {"status": state, "revoked": state in ("revoked", "unknown")}
@@ -317,8 +328,10 @@ class UseIn(BaseModel):
 @public.post("/use")
 def license_use(body: UseIn, request: Request, s: Session = Depends(db_session)):
     """Called by a packed app on every launch: deducts one use of a 按次卡 (no-op for other cards)."""
+    key = _token_guard(request)
     payload = licensing.verify(ctx(request).pubkey, body.token)
     if payload is None:
+        ctx(request).limiter.fail(key)
         return {"status": "revoked", "revoked": True, "uses_left": 0}
     state, left = cardsvc.consume_use(s, payload)
     return {"status": state, "revoked": state in ("revoked", "unknown"), "uses_left": left}

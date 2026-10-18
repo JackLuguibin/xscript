@@ -48,7 +48,8 @@ import java.util.concurrent.TimeUnit
  *   reply {"path", "seq"?, "id"?, "code": 1 | -1, "msg": "success" | error, "device_id", "result"?}
  *   "seq" is an optional correlation id for servers that send several commands at once.
  *
- * Auth is the server's job (for example a token in the URL); the device only dials out.
+ * Auth is the server's job; the device only dials out. A `?token=` in the URL is sent as
+ * `Authorization: Bearer` instead (see CloudAuth), so the key stays out of access logs.
  */
 object CloudClient {
     enum class State { OFF, CONNECTING, CONNECTED, ERROR }
@@ -136,9 +137,11 @@ object CloudClient {
 
     private fun open(context: Context, url: String) {
         state = State.CONNECTING
-        val req = Request.Builder().url(url)
+        val target = CloudAuth.split(url)
+        val req = Request.Builder().url(target.url)
             .header("X-XScript-Device", Build.MODEL ?: "android")
             .header("X-XScript-Device-Id", deviceId(context))
+            .apply { target.token?.let { header("Authorization", "Bearer $it") } }
             .build()
         socket = http.newWebSocket(req, Listener(context, url))
     }

@@ -7,21 +7,24 @@ import base64
 import binascii
 import json
 import time
-from typing import Any, Literal
+from typing import Any, Iterator, Literal
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request, WebSocket, WebSocketDisconnect
-from fastapi.responses import Response
+from fastapi.responses import Response, StreamingResponse
 from pydantic import BaseModel, Field
 from sqlalchemy import delete, func, or_, select
 from sqlalchemy.orm import Session
 from starlette.concurrency import run_in_threadpool
 
+from ..db import values_in
 from ..deps import Principal, admin, ctx, db_session, like_contains, operator, paginate, record, viewer
 from ..hub import Conn
 from ..models import Device, DeviceKey, DeviceLog
 from ..security import new_secret, token_hash
 
 router = APIRouter(prefix="/api", tags=["devices"])
+EXPORT_MAX = 100_000  # lines per 运行日志 export
+EXPORT_CHUNK = 2000   # lines per streamed chunk
 ws_router = APIRouter()
 
 # Relayed device paths an operator may call. Everything else on the device API (upload
@@ -47,7 +50,7 @@ def _live_view(d: Device, conn: Conn | None) -> dict[str, Any]:
         "channel": st.get("channel"), "version": st.get("version"),
         "sdk": st.get("sdk"), "release": st.get("release"),
         "width": st.get("width"), "height": st.get("height"),
-        "data": d.data or {}, "remote": conn.remote if conn else d.remote,
+        "data": conn.data if conn else (d.data or {}), "remote": conn.remote if conn else d.remote,
         "first_seen": d.first_seen, "last_seen": int(conn.seen) if conn else d.last_seen,
         "connected_at": int(conn.connected) if conn else None,
         "last_run": d.last_run,
@@ -70,9 +73,9 @@ def list_devices(request: Request, p: Principal = Depends(viewer), s: Session = 
     if app:
         stmt = stmt.where(Device.app == app)
     if online is True:
-        stmt = stmt.where(Device.id.in_(list(live) or [""]))
+        stmt = stmt.where(Device.id.in_(values_in(live)))
     elif online is False:
-        stmt = stmt.where(Device.id.not_in(list(live) or [""]))
+        stmt = stmt.where(Device.id.not_in(values_in(live)))
     if group:
         stmt = stmt.where(or_(Device.group_override == group,
                               (Device.group_override == "") & (Device.reported_group == group)))
@@ -86,9 +89,10 @@ def list_devices(request: Request, p: Principal = Depends(viewer), s: Session = 
 def list_groups(request: Request, p: Principal = Depends(viewer), s: Session = Depends(db_session)):
     hub = ctx(request).hub
     counts: dict[str, dict[str, int]] = {}
-    for d in s.scalars(select(Device)):
-        conn = hub.conns.get(d.id)
-        g = d.group_override or (conn.reported_group if conn else d.reported_group)
+    # Three narrow columns, not whole rows: status / data / last_run JSON are the bulk of the table.
+    for dev_id, override, reported in s.execute(select(Device.id, Device.group_override, Device.reported_group)):
+        conn = hub.conns.get(dev_id)
+        g = override or (conn.reported_group if conn else reported)
         if not g:
             continue
         c = counts.setdefault(g, {"total": 0, "online": 0})
@@ -156,16 +160,31 @@ def device_logs(dev_id: str, p: Principal = Depends(viewer), s: Session = Depend
 def export_device_logs(dev_id: str, request: Request, p: Principal = Depends(viewer),
                        s: Session = Depends(db_session), since_ts: int = 0, until_ts: int = 0,
                        q: str = Query("", max_length=200), stream: Literal["", "stdout", "stderr", "system"] = ""):
-    """Plain-text download, at most the newest 100 000 matching lines."""
-    stmt = _log_query(dev_id, since_ts, until_ts, q, stream).order_by(DeviceLog.id.desc()).limit(100_000)
-    rows = list(s.scalars(stmt))[::-1]
-    lines = ["%s [%s] %s" % (time.strftime("%Y-%m-%d %H:%M:%S", time.localtime(r.ts / 1000)), r.stream,
-                             r.line.rstrip("\n")) for r in rows]
+    """Plain-text download, at most the newest 100 000 matching lines, oldest first.
+
+    Streamed in chunks from its own session (the request's one is closed by then), so memory stays
+    flat however many lines match.
+    """
+    newest = _log_query(dev_id, since_ts, until_ts, q, stream).order_by(DeviceLog.id.desc()).limit(EXPORT_MAX)
+    count = s.scalar(select(func.count()).select_from(newest.subquery())) or 0
     name = "logs-%s-%s.txt" % (dev_id.replace("@", "_"), time.strftime("%Y%m%d-%H%M%S"))
-    record(request, s, p, "device.logs_export", dev_id, {"lines": len(rows)})
+    record(request, s, p, "device.logs_export", dev_id, {"lines": count})
     s.commit()
-    return Response("\n".join(lines) + "\n", media_type="text/plain; charset=utf-8",
-                    headers={"Content-Disposition": "attachment; filename=\"%s\"" % name})
+    ids = newest.with_only_columns(DeviceLog.id).subquery()
+    rows = (select(DeviceLog.ts, DeviceLog.stream, DeviceLog.line).where(DeviceLog.id.in_(select(ids.c.id)))
+            .order_by(DeviceLog.id).execution_options(yield_per=EXPORT_CHUNK))
+    db = ctx(request).db
+
+    def body() -> Iterator[bytes]:
+        with db.session() as rs:
+            for part in rs.execute(rows).partitions():
+                yield "".join("%s [%s] %s\n" % (time.strftime("%Y-%m-%d %H:%M:%S", time.localtime(ts / 1000)),
+                                                st, line.rstrip("\n")) for ts, st, line in part).encode()
+        if not count:
+            yield b"\n"  # same as before for an empty export
+
+    return StreamingResponse(body(), media_type="text/plain; charset=utf-8",
+                             headers={"Content-Disposition": "attachment; filename=\"%s\"" % name})
 
 
 class DevicePatch(BaseModel):

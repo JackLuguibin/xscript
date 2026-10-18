@@ -2,9 +2,11 @@
 
 from __future__ import annotations
 
+import json
 from pathlib import Path
+from typing import Iterable
 
-from sqlalchemy import create_engine, event
+from sqlalchemy import Select, create_engine, event, func, select
 from sqlalchemy.orm import DeclarativeBase, Session, sessionmaker
 
 
@@ -40,3 +42,10 @@ class Database:
 
     def session(self) -> Session:
         return self.Session()
+
+
+def values_in(values: Iterable[str]) -> Select:
+    """``SELECT value FROM json_each(?)``: use as ``column.in_(values_in(ids))`` for long, in-memory id
+    lists (e.g. every connected device). One bound parameter however many ids; a plain ``in_(list)``
+    needs one each and SQLite refuses more than 32 766."""
+    return select(func.json_each(json.dumps(list(values))).table_valued("value").c.value)
