@@ -64,6 +64,8 @@ const zh = {
   lang: { label: "语言", zh: "中文", en: "English", switchTo: "切换语言" },
   addressConnect: "连接地址",
   confirmDiscard: "未保存，确定放弃修改？",
+  confirm: { title: "请确认", ok: "确定", cancel: "取消", discard: "放弃修改", del: "删除" },
+  unsavedNav: "有未保存的修改",
   files: {
     newFile: "新建文件",
     newFilePrompt: "新文件路径（例如 utils/net.py）",
@@ -314,6 +316,8 @@ const en: Strings = {
   lang: { label: "Language", zh: "中文", en: "English", switchTo: "switch language" },
   addressConnect: "Connect address",
   confirmDiscard: "Unsaved changes. Discard them?",
+  confirm: { title: "Please confirm", ok: "OK", cancel: "Cancel", discard: "Discard changes", del: "Delete" },
+  unsavedNav: "Unsaved changes",
   files: {
     newFile: "New file",
     newFilePrompt: "New file path (e.g. utils/net.py)",

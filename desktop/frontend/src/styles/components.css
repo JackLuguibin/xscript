@@ -212,3 +212,8 @@ pre.logs.debug-console { min-height: 4rem; max-height: 10rem; }
 .shortcut-table { width: 100%; border-collapse: collapse; }
 .shortcut-table th { text-align: left; font-weight: 600; padding: var(--sp-1) var(--sp-3) var(--sp-1) 0; }
 .shortcut-table td { text-align: right; padding: var(--sp-1) 0; white-space: nowrap; }
+.nav-item { position: relative; }
+.nav-item .unsaved-dot { width: 0.5rem; height: 0.5rem; border-radius: 50%; background: var(--warning-fg); flex: none; margin-inline-start: auto; }
+.app.sidebar-collapsed .nav-item .unsaved-dot { position: absolute; top: 0.35rem; right: 0.35rem; margin: 0; }
+@media (max-width: 760px) { .nav-item .unsaved-dot { position: absolute; top: 0.35rem; right: 0.35rem; margin: 0; } }
+.dialog-actions { justify-content: flex-end; gap: var(--sp-2); }
