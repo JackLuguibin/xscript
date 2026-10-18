@@ -139,7 +139,9 @@ def main(argv: list[str] | None = None) -> int:
         elif args.screenshot and args.click_screenshot and not elapsed["clicked"] and ctx.devices.list() and \
                 elapsed["t"] - elapsed["ready_at"] >= 1.0:
             elapsed["clicked"] = True
-            win.page.runJavaScript("document.querySelector('.shot button')?.click()")
+            # the compact card keeps the screenshot under 详情: open it, then press the button once React has rendered it
+            win.page.runJavaScript("document.querySelector('.details-toggle[aria-expanded=\"false\"]')?.click(); "
+                                   "setTimeout(() => document.querySelector('.shot button')?.click(), 150)")
         elif args.screenshot and elapsed["t"] - elapsed["ready_at"] >= args.screenshot_delay + (1.5 if args.click_screenshot else 0):
             ok = win.grab().save(args.screenshot)
             print(("saved " if ok else "FAILED to save ") + args.screenshot)

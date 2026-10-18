@@ -3,7 +3,7 @@ import { useServices } from "../app-context";
 import type { Breakpoints, DebugStep, FileContent, LogEntry, ProjectFiles, ProjectSummary } from "../api";
 import { t } from "../strings";
 import { useBusy } from "../useBusy";
-import { useDevices, useSelectedDevice } from "../useDevices";
+import { useCurrentDevice } from "../device-context";
 import { Badge } from "./Badge";
 import { CodeEditor } from "./CodeEditor";
 import { useConfirm } from "./ConfirmDialog";
@@ -25,8 +25,8 @@ export function ProjectsPage({ pollMs = LOG_POLL_MS, onDirtyChange }: { pollMs?:
   const { api } = useServices();
   const { confirm, dialog } = useConfirm();
   const { toast, toasts } = useToast();
-  const devices = useDevices();
-  const [devId, setDevId] = useSelectedDevice(devices);
+  // the device comes from the shell (top-bar switcher); switching while dirty asks there (design §14.5)
+  const { devices, devId } = useCurrentDevice();
   const [projects, setProjects] = useState<ProjectSummary[] | null>(null);
   const [project, setProject] = useState("");
   const [files, setFiles] = useState<ProjectFiles | null>(null);
@@ -74,6 +74,8 @@ export function ProjectsPage({ pollMs = LOG_POLL_MS, onDirtyChange }: { pollMs?:
     setProject("");
     setFiles(null);
     setFile(null);
+    setText("");
+    setDirty(false); // the switcher already asked before taking the device away
     setLogs([]);
     setBreakpoints({});
     cursor.current = null;
@@ -277,23 +279,6 @@ export function ProjectsPage({ pollMs = LOG_POLL_MS, onDirtyChange }: { pollMs?:
       )}
 
       <div className="row toolbar">
-        <label className="row">
-          {t.projects.device}
-          <select
-            aria-label={t.projects.device}
-            value={devId}
-            onChange={(e) => {
-              const next = e.target.value;
-              void confirmDiscard().then((ok) => ok && setDevId(next));
-            }}
-          >
-            {devices.map((d) => (
-              <option key={d.id} value={d.id} disabled={d.state !== "online"}>
-                {(d.info.name || d.info.model || d.id) + (d.state !== "online" ? `（${t.state[d.state] ?? d.state}）` : "")}
-              </option>
-            ))}
-          </select>
-        </label>
         {running && <Badge tone="ok">{`${t.projects.running}${runningProject ? `：${runningProject}` : ""}`}</Badge>}
         <span className="grow" />
         <span className="muted">{t.projects.keys}</span>

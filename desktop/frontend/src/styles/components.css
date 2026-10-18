@@ -145,6 +145,29 @@ input:focus-visible { outline-offset: 0; }
 .saved-meta input[type="checkbox"] { width: 1rem; min-height: 1rem; accent-color: var(--primary); }
 
 @media (max-width: 520px) { .card-body { flex-direction: column; } .shot { width: min(100%, 12rem); } }
+/* compact card (§14.5): one summary row + quick actions; details, screenshot and the saved-meta form fold away */
+.device-card { gap: var(--sp-2); padding: var(--sp-3) var(--sp-4); align-self: start; } /* an opened 详情 does not stretch its row neighbour */
+.device-card.current { border-color: color-mix(in srgb, var(--primary) 55%, var(--border)); box-shadow: 0 0 0 1px color-mix(in srgb, var(--primary) 35%, transparent), var(--shadow-1); }
+.device-card .titles .summary, .device-card .titles .addr { font-size: var(--fs-sm); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.device-card .tag { font-size: var(--fs-xs); color: var(--primary); border: 1px solid color-mix(in srgb, var(--primary) 45%, transparent); border-radius: var(--r-pill); padding: 0 var(--sp-2); }
+.device-card .titles { flex: 1 1 14rem; }
+.device-card .card-actions { align-items: center; margin-left: auto; } /* wraps under the titles when the card is narrow */
+.details-toggle svg { transition: transform var(--dur) var(--ease); }
+.details-toggle[aria-expanded="true"] svg { transform: rotate(180deg); }
+.card-details { display: flex; flex-direction: column; gap: var(--sp-3); padding-top: var(--sp-3); border-top: 1px solid var(--border); }
+.card-details[hidden] { display: none; }
+/* add-device panel: ADB list + LAN/scan side by side, above the cards */
+.add-device { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 24rem), 1fr)); gap: var(--sp-5); margin-bottom: var(--sp-4); background: var(--surface); border: 1px solid var(--border); border-radius: var(--r-lg); box-shadow: var(--shadow-1); padding: var(--sp-4); }
+.add-col { min-width: 0; }
+.add-col .section-head h3 { display: flex; align-items: center; gap: var(--sp-2); font-size: var(--fs-md); font-weight: 650; }
+.section-head label.check { display: flex; align-items: center; gap: var(--sp-2); font-size: var(--fs-sm); color: var(--text-muted); }
+.section-head label.check input { width: 1rem; min-height: 1rem; accent-color: var(--primary); }
+.scan-row { margin-top: var(--sp-3); align-items: center; gap: var(--sp-3); }
+.progress { margin-top: var(--sp-2); height: 0.375rem; border-radius: var(--r-pill); background: var(--surface-2); overflow: hidden; }
+.progress > span { display: block; height: 100%; background: var(--primary); transition: width var(--dur) var(--ease); }
+/* top-bar device switcher */
+.device-switcher { gap: var(--sp-2); font-size: var(--fs-sm); }
+.device-switcher select { max-width: 18rem; }
 
 /* ---- projects page (P1 slice) ---- */
 .toolbar { gap: var(--sp-3); align-items: center; margin-bottom: var(--sp-4); flex-wrap: wrap; }

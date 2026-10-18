@@ -72,6 +72,7 @@ def test_e2e_02_connect_shows_info_screenshot_and_disconnect_cleans_forward(ui, 
     ui.wait_text(qtbot, "emulator-5554")
     ui.click(qtbot, "连接 emulator-5554")
     ui.wait_text(qtbot, "在线")
+    ui.click(qtbot, "adb:emulator-5554 的详情")  # compact card: properties, screenshot and 忘记 fold under 详情
     t = ui.text(qtbot)
     for needle in ("emu64a16k", "google sdk_gphone16k_arm64", "1080×2337", "0.2.6", "10.0.2.16", "ae10e6ed9b09580c", "41000"):
         assert needle in t, needle
@@ -94,6 +95,7 @@ def test_e2e_03_screenshot_failure_when_capture_not_authorised(ui, qtbot):
     ui.fake_device.screen_mode = "503"
     ui.wait_text(qtbot, "emulator-5554")
     ui.click(qtbot, "连接 emulator-5554")
+    ui.click(qtbot, "adb:emulator-5554 的详情")
     ui.wait_text(qtbot, "录屏授权")
     assert "尚未授予录屏" in ui.text(qtbot)
     ui.click(qtbot, "刷新截图")
@@ -312,6 +314,7 @@ def test_e2e_19_screenshot_button_shows_loading_then_loaded(ui, qtbot):
     ui.fake_device.delay = 0.8
     ui.click(qtbot, "连接 emulator-5554")
     ui.wait_text(qtbot, "在线")
+    ui.click(qtbot, "adb:emulator-5554 的详情")
     ui.click(qtbot, "刷新截图")
     ui.wait_js(qtbot, "document.querySelector('.shot[aria-busy=\"true\"]')")
     assert ui.is_disabled(qtbot, "刷新截图") is True

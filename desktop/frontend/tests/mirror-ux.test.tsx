@@ -113,17 +113,6 @@ describe("MirrorPage layout (H3)", () => {
     expect(fr.style.maxHeight).toBe("744px");
     expect((fr.querySelector(".mirror-shot") as HTMLElement).style.width).toBe("2340px");
   });
-
-  it("the device dropdown marks offline devices", async () => {
-    const { transport, d } = await setup();
-    await screen.findByAltText("设备屏幕");
-    await act(async () => {
-      transport.push({ event: true, topic: "device.state", data: { ...d, id: "lan:10.0.0.9:9860", transport: "lan", state: "offline", info: { ...d.info, name: "备用机" } } });
-    });
-    const opt = screen.getByRole("option", { name: /备用机/ }) as HTMLOptionElement;
-    expect(opt.textContent).toBe("备用机（离线）");
-    expect(opt.disabled).toBe(true);
-  });
 });
 
 describe("MirrorPage control (M9)", () => {

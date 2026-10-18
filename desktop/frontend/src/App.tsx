@@ -5,6 +5,7 @@ import { useGlobalShortcuts } from "./components/GlobalShortcuts";
 import { MirrorPage } from "./components/MirrorPage";
 import { ProjectsPage } from "./components/ProjectsPage";
 import { WallPage } from "./components/WallPage";
+import { DeviceProvider, useCurrentDevice } from "./device-context";
 import { IconFlow, IconFolder, IconGrid, IconMark, IconMonitor, IconMoon, IconPhone, IconSun } from "./components/icons";
 import { useLanguage } from "./i18n";
 import type { ShellPage } from "./shortcuts";
@@ -38,6 +39,24 @@ function LangToggle({ lang, onChange }: { lang: "zh" | "en"; onChange: (l: "zh" 
   );
 }
 
+/** Top-bar device switcher: the app-wide current device (mirror and projects follow it; remembered across restarts). */
+function DeviceSwitcher() {
+  const { devices, devId, select } = useCurrentDevice();
+  return (
+    <label className="row device-switcher">
+      <span className="muted">{t.flow.current}</span>
+      <select aria-label={t.flow.current} value={devId} disabled={devices.length === 0} onChange={(e) => void select(e.target.value)}>
+        {devId === "" && <option value="">{t.flow.noDevice}</option>}
+        {devices.map((d) => (
+          <option key={d.id} value={d.id} disabled={d.state !== "online" && d.id !== devId}>
+            {(d.name || d.info.name || d.info.model || d.id) + (d.state !== "online" ? `（${t.state[d.state] ?? d.state}）` : "")}
+          </option>
+        ))}
+      </select>
+    </label>
+  );
+}
+
 function Shell() {
   const { api, inShell } = useServices();
   const [lang, setLang] = useLanguage();
@@ -55,82 +74,87 @@ function Shell() {
     void api.setUnsaved(unsaved, lang).catch(() => undefined);
   }, [api, unsaved, lang]);
   return (
-    <div className={shortcuts.collapsed ? "app sidebar-collapsed" : "app"}>
-      <a className="skip-link" href="#main">
-        {t.skip}
-      </a>
-      <aside className="sidebar" aria-label="sidebar">
-        <div className="brand">
-          <span className="brand-mark">
-            <IconMark size={16} />
-          </span>
-          <span className="brand-text">{t.appTitle}</span>
-        </div>
-        <nav className="nav" aria-label="main">
-          <button className="nav-item" aria-current={page === "devices" ? "page" : undefined} onClick={() => setPage("devices")}>
-            <IconPhone />
-            <span className="label">{t.nav.devices}</span>
-          </button>
-          <button className="nav-item" aria-current={page === "mirror" ? "page" : undefined} onClick={() => setPage("mirror")}>
-            <IconMonitor />
-            <span className="label">{t.nav.mirror}</span>
-          </button>
-          <button
-            className="nav-item"
-            aria-current={page === "projects" ? "page" : undefined}
-            onClick={() => setPage("projects")}
-            title={unsaved ? t.unsavedNav : undefined}
-          >
-            <IconFolder />
-            <span className="label">{t.nav.projects}</span>
-            {unsaved && (
-              <span className="unsaved-dot" role="img" aria-label={t.unsavedNav} />
-            )}
-          </button>
-          <button className="nav-item" aria-current={page === "wall" ? "page" : undefined} onClick={() => setPage("wall")}>
-            <IconGrid />
-            <span className="label">{t.nav.wall}</span>
-          </button>
-          <button className="nav-item" disabled title={`${t.nav.soon}（${t.nav.p2}）`}>
-            <IconFlow />
-            <span className="label">{t.nav.flows}</span>
-            <span className="tag">{t.nav.p2}</span>
-          </button>
-        </nav>
-        <div className="sidebar-foot">
-          <ThemeToggle />
-          <LangToggle lang={lang} onChange={setLang} />
-        </div>
-      </aside>
-      <div className="content">
-        <header className="topbar">
-          <div>
-            <h1>{t.nav[page]}</h1>
-            <p className="sub">{page === "devices" ? t.subtitle : page === "mirror" ? t.mirror.subtitle : page === "wall" ? t.wall.subtitle : t.projects.subtitle}</p>
+    // the provider owns the current device and asks before a switch would drop unsaved edits (the projects page may be hidden)
+    <DeviceProvider unsaved={unsaved}>
+      <div className={shortcuts.collapsed ? "app sidebar-collapsed" : "app"}>
+        <a className="skip-link" href="#main">
+          {t.skip}
+        </a>
+        <aside className="sidebar" aria-label="sidebar">
+          <div className="brand">
+            <span className="brand-mark">
+              <IconMark size={16} />
+            </span>
+            <span className="brand-text">{t.appTitle}</span>
           </div>
-        </header>
-        {!inShell && (
-          <div className="banner warn" style={{ margin: "0 var(--sp-5) var(--sp-4)" }}>
-            {t.demoBanner}
+          <nav className="nav" aria-label="main">
+            <button className="nav-item" aria-current={page === "devices" ? "page" : undefined} onClick={() => setPage("devices")}>
+              <IconPhone />
+              <span className="label">{t.nav.devices}</span>
+            </button>
+            <button className="nav-item" aria-current={page === "mirror" ? "page" : undefined} onClick={() => setPage("mirror")}>
+              <IconMonitor />
+              <span className="label">{t.nav.mirror}</span>
+            </button>
+            <button
+              className="nav-item"
+              aria-current={page === "projects" ? "page" : undefined}
+              onClick={() => setPage("projects")}
+              title={unsaved ? t.unsavedNav : undefined}
+            >
+              <IconFolder />
+              <span className="label">{t.nav.projects}</span>
+              {unsaved && (
+                <span className="unsaved-dot" role="img" aria-label={t.unsavedNav} />
+              )}
+            </button>
+            <button className="nav-item" aria-current={page === "wall" ? "page" : undefined} onClick={() => setPage("wall")}>
+              <IconGrid />
+              <span className="label">{t.nav.wall}</span>
+            </button>
+            <button className="nav-item" disabled title={`${t.nav.soon}（${t.nav.p2}）`}>
+              <IconFlow />
+              <span className="label">{t.nav.flows}</span>
+              <span className="tag">{t.nav.p2}</span>
+            </button>
+          </nav>
+          <div className="sidebar-foot">
+            <ThemeToggle />
+            <LangToggle lang={lang} onChange={setLang} />
           </div>
-        )}
-        <main id="main" tabIndex={-1}>
-          {page === "devices" ? (
-            <DevicePage refreshToken={shortcuts.refreshToken} focusToken={shortcuts.focusToken} />
-          ) : page === "mirror" ? (
-            <MirrorPage />
-          ) : page === "wall" ? (
-            <WallPage />
-          ) : null}
-          {(projectsOpened || page === "projects") && (
-            <div className="keep-alive" hidden={page !== "projects"}>
-              <ProjectsPage onDirtyChange={setUnsaved} />
+        </aside>
+        <div className="content">
+          <header className="topbar">
+            <div>
+              <h1>{t.nav[page]}</h1>
+              <p className="sub">{page === "devices" ? t.subtitle : page === "mirror" ? t.mirror.subtitle : page === "wall" ? t.wall.subtitle : t.projects.subtitle}</p>
+            </div>
+            <span className="grow" />
+            <DeviceSwitcher />
+          </header>
+          {!inShell && (
+            <div className="banner warn" style={{ margin: "0 var(--sp-5) var(--sp-4)" }}>
+              {t.demoBanner}
             </div>
           )}
-        </main>
+          <main id="main" tabIndex={-1}>
+            {page === "devices" ? (
+              <DevicePage refreshToken={shortcuts.refreshToken} focusToken={shortcuts.focusToken} onNavigate={setPage} />
+            ) : page === "mirror" ? (
+              <MirrorPage />
+            ) : page === "wall" ? (
+              <WallPage />
+            ) : null}
+            {(projectsOpened || page === "projects") && (
+              <div className="keep-alive" hidden={page !== "projects"}>
+                <ProjectsPage onDirtyChange={setUnsaved} />
+              </div>
+            )}
+          </main>
+        </div>
+        {shortcuts.dialog}
       </div>
-      {shortcuts.dialog}
-    </div>
+    </DeviceProvider>
   );
 }
 

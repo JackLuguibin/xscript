@@ -6,7 +6,7 @@ import {
   type FitMode, type Size,
 } from "../mirror";
 import { t } from "../strings";
-import { useDevices, useSelectedDevice } from "../useDevices";
+import { useCurrentDevice } from "../device-context";
 import { EmptyState } from "./EmptyState";
 import { ErrorBanner } from "./ErrorBanner";
 import { IconAlert, IconMonitor, IconPhone } from "./icons";
@@ -23,9 +23,7 @@ const MAX_COMPOSE = 2000;
  */
 export function MirrorPage() {
   const { api, rpc } = useServices();
-  const devices = useDevices();
-  const [devId, setDevId] = useSelectedDevice(devices);
-  const device = devices.find((d) => d.id === devId);
+  const { devId, device } = useCurrentDevice(); // picked in the top bar
   // frame rate, fit and pause are remembered across page visits (fps/fit also across restarts)
   const [prefs] = useState(loadMirrorPrefs);
   const [playing, setPlaying] = useState(prefs.playing);
@@ -360,16 +358,6 @@ export function MirrorPage() {
         </div>
       )}
       <div className="row toolbar">
-        <label className="row">
-          {t.projects.device}
-          <select aria-label={t.projects.device} value={devId} onChange={(e) => setDevId(e.target.value)}>
-            {devices.map((d) => (
-              <option key={d.id} value={d.id} disabled={d.state !== "online"}>
-                {(d.name || d.info.name || d.info.model || d.id) + (d.state !== "online" ? `（${t.state[d.state] ?? d.state}）` : "")}
-              </option>
-            ))}
-          </select>
-        </label>
         <button className={playing ? "" : "primary"} onClick={() => setPlaying((p) => !p)}>
           {playing ? t.mirror.pause : t.mirror.start}
         </button>

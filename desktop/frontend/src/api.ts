@@ -82,6 +82,28 @@ export interface ScanHit {
   info: Partial<DeviceInfo>;
 }
 
+export interface ScanResult {
+  found: ScanHit[];
+  cancelled?: boolean;
+  total?: number;
+}
+
+/** device.scan.progress / device.scan.found event payloads */
+export interface ScanProgress {
+  scanId: string;
+  done: number;
+  total: number;
+}
+export interface ScanFound {
+  scanId: string;
+  device: ScanHit;
+}
+
+export interface AppSettings {
+  adbPath: string | null;
+  autoReconnect: boolean;
+}
+
 export interface ProjectSummary {
   name: string;
   [k: string]: unknown;
@@ -173,7 +195,11 @@ export function createApi(rpc: RpcClient) {
     /** Whether the page holds unsaved edits; the shell asks before closing the window when it does. */
     setUnsaved: (unsaved: boolean, lang: "zh" | "en") => rpc.call<{ unsaved: boolean }>("app.setUnsaved", { unsaved, lang }),
     setAdbPath: (adbPath: string) => rpc.call<{ adbPath: string | null }>("app.settings.set", { adbPath }),
-    adbList: () => rpc.call<{ adbPath: string | null; devices: AdbDevice[] }>("device.adb.list", {}, { timeoutMs: 20_000 }),
+    getSettings: () => rpc.call<AppSettings>("app.settings.get"),
+    /** Global switch: reconnect devices that were online last time (at startup and when re-plugged). */
+    setAutoReconnect: (autoReconnect: boolean) => rpc.call<AppSettings>("app.settings.set", { autoReconnect }),
+    /** Also the hotplug tick: saved auto-reconnect devices that just appeared start connecting (`autoConnecting`). */
+    adbList: () => rpc.call<{ adbPath: string | null; devices: AdbDevice[]; autoConnecting?: string[] }>("device.adb.list", {}, { timeoutMs: 20_000 }),
     connectAdb: (serial: string) => rpc.call<Device>("device.connect", { transport: "adb", serial }, { timeoutMs: 30_000 }),
     connectLan: (address: string) => rpc.call<Device>("device.connect", { transport: "lan", address }, { timeoutMs: 30_000 }),
     listDevices: () => rpc.call<{ devices: Device[]; notice?: string; noticeDetail?: string }>("device.list"),
@@ -217,7 +243,10 @@ export function createApi(rpc: RpcClient) {
       rpc.call<MirrorStatus>("mirror.subscribe", { id, viewer: "mirror", ...opts }),
     mirrorUnsubscribe: (id: string) => rpc.call<{ ok: boolean; viewers: number }>("mirror.unsubscribe", { id, viewer: "mirror" }),
     mirrorRetry: (id: string) => rpc.call<MirrorStatus>("mirror.retry", { id }),
-    scan: (cidr?: string) => rpc.call<{ found: ScanHit[] }>("device.scan", cidr ? { cidr } : {}, { timeoutMs: 60_000 }),
+    /** With a scanId Python pushes device.scan.found / device.scan.progress for it, and scanCancel can stop it. */
+    scan: (opts: { cidr?: string; scanId?: string } = {}) =>
+      rpc.call<ScanResult>("device.scan", { ...(opts.cidr ? { cidr: opts.cidr } : {}), ...(opts.scanId ? { scanId: opts.scanId } : {}) }, { timeoutMs: 180_000 }),
+    scanCancel: (scanId: string) => rpc.call<{ cancelled: boolean }>("device.scan.cancel", { scanId }),
     secretList: () => rpc.call<{ slots: SecretSlot[] }>("secret.list"),
     secretSet: (kind: string, name: string, value: string) => rpc.call<{ ok: boolean; kind: string; name: string }>("secret.set", { kind, name, value }),
     secretDelete: (kind: string, name: string) => rpc.call<{ deleted: boolean }>("secret.delete", { kind, name }),

@@ -45,6 +45,12 @@ describe("saved devices", () => {
     expect(within(card).getByText("离线")).toBeTruthy();
     expect(within(card).getByText("adb emulator-5554")).toBeTruthy();
     expect(within(card).getByRole("button", { name: "重试 emulator-5554" })).toBeTruthy();
+    // compact card: the saved-meta form and 忘记 fold under 详情
+    expect(within(card).queryByRole("button", { name: "忘记 adb:emulator-5554" })).toBeNull();
+    const toggle = within(card).getByRole("button", { name: "adb:emulator-5554 的详情" });
+    expect(toggle.getAttribute("aria-expanded")).toBe("false");
+    await userEvent.click(toggle);
+    expect(toggle.getAttribute("aria-expanded")).toBe("true");
     expect(within(card).getByRole("button", { name: "忘记 adb:emulator-5554" })).toBeTruthy();
     expect(within(card).queryByText(/录屏（图色）权限/)).toBeNull();
   });
@@ -56,9 +62,10 @@ describe("saved devices", () => {
       "device.update": (p) => saved({ name: String(p.name), group: String(p.group), note: String(p.note), autoConnect: Boolean(p.autoConnect), state: "offline" }),
     });
     const card = await screen.findByRole("article");
+    await user.click(within(card).getByRole("button", { name: "adb:emulator-5554 的详情" }));
     await user.clear(within(card).getByLabelText("名称 adb:emulator-5554"));
     await user.type(within(card).getByLabelText("名称 adb:emulator-5554"), "新名字");
-    await user.click(within(card).getByLabelText("启动时自动连接 adb:emulator-5554"));
+    await user.click(within(card).getByLabelText("自动重连 adb:emulator-5554"));
     await user.click(within(card).getByRole("button", { name: "保存 adb:emulator-5554" }));
     await waitFor(() => expect(t.sent.some((m) => m.method === "device.update")).toBe(true));
     const params = t.sent.find((m) => m.method === "device.update")?.params;
@@ -78,6 +85,7 @@ describe("saved devices", () => {
     await user.click(within(card).getByRole("button", { name: "断开" }));
     expect(await within(card).findByText("离线")).toBeTruthy();
     expect(t.sent.some((m) => m.method === "device.disconnect")).toBe(true);
+    await user.click(within(card).getByRole("button", { name: "adb:emulator-5554 的详情" }));
     await user.click(within(card).getByRole("button", { name: "忘记 adb:emulator-5554" }));
     await waitFor(() => expect(screen.queryByRole("article")).toBeNull());
     expect(t.sent.some((m) => m.method === "device.forget")).toBe(true);

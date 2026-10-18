@@ -30,6 +30,7 @@ describe("WallPage", () => {
     const api = createApi(rpc);
     await api.connectAdb("emulator-5554");
     await api.connectLan("10.0.0.8:9860");
+    await new Promise((r) => setTimeout(r, 0)); // let the demo's device.state pushes for those connects go by first
     render(
       <ServicesContext.Provider value={{ rpc, api, inShell: true }}>
         <WallPage />
@@ -75,6 +76,7 @@ describe("WallPage thumbnails", () => {
     const api = createApi(rpc);
     await api.connectAdb("emulator-5554");
     await api.connectLan("10.0.0.8:9860");
+    await new Promise((r) => setTimeout(r, 0)); // let the demo's device.state pushes for those connects go by first
     render(
       <ServicesContext.Provider value={{ rpc, api, inShell: true }}>
         <WallPage />
