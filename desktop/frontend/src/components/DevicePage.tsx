@@ -192,7 +192,7 @@ export function DevicePage({
     });
   const forget = async (id: string) => {
     // forgetting the device the editor is on would switch the projects page away and drop unsaved edits
-    if (id === devId && !(await confirmLeave(t.flow.forgetUnsaved))) return;
+    if (id === devId && !(await confirmLeave(t.deviceFlow.forgetUnsaved))) return;
     await run("fg:" + id, async () => {
       await api.forgetDevice(id);
       setDevices((cur) => cur.filter((d) => d.id !== id));
@@ -279,9 +279,9 @@ export function DevicePage({
           {devices.length > 0 && <span className="count">{devices.length}</span>}
           <span className="grow" />
           {autoReconnect !== null && (
-            <label className="check small" title={t.flow.autoReconnectHint}>
+            <label className="check small" title={t.deviceFlow.autoReconnectHint}>
               <input type="checkbox" checked={autoReconnect} disabled={has("auto")} onChange={(e) => void toggleAuto(e.target.checked)} />
-              {t.flow.autoReconnect}
+              {t.deviceFlow.autoReconnect}
             </label>
           )}
           <Button
@@ -292,12 +292,12 @@ export function DevicePage({
             onClick={() => setAddOpen((o) => !o)}
           >
             <IconPlus size={14} />
-            {t.flow.addDevice}
+            {t.deviceFlow.addDevice}
           </Button>
         </div>
 
         {addOpen && (
-          <div id="add-device" className="add-device" aria-label={t.flow.addDevice} role="region">
+          <div id="add-device" className="add-device" aria-label={t.deviceFlow.addDevice} role="region">
             <div className="add-col">
               <div className="section-head">
                 <h3 id="h-adb">
@@ -404,7 +404,7 @@ export function DevicePage({
                 {scan?.running ? (
                   <Button onClick={cancelScan}>
                     <Spinner />
-                    {t.flow.scanCancel}
+                    {t.deviceFlow.scanCancel}
                   </Button>
                 ) : (
                   <Button onClick={() => void doScan()} disabled={has("scan")}>
@@ -415,10 +415,10 @@ export function DevicePage({
                 {scan && (
                   <span className="muted grow" role="status" aria-live="polite">
                     {scan.running
-                      ? `${t.scanning} ${t.flow.scanProgress(scan.done, scan.total)} · ${t.flow.scanFound(scan.hits.length)}`
+                      ? `${t.scanning} ${t.deviceFlow.scanProgress(scan.done, scan.total)} · ${t.deviceFlow.scanFound(scan.hits.length)}`
                       : scan.cancelled
-                        ? t.flow.scanCancelled(scan.hits.length)
-                        : t.flow.scanDone(scan.hits.length)}
+                        ? t.deviceFlow.scanCancelled(scan.hits.length)
+                        : t.deviceFlow.scanDone(scan.hits.length)}
                   </span>
                 )}
               </div>

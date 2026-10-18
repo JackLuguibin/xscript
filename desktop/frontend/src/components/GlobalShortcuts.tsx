@@ -293,7 +293,7 @@ export function useGlobalShortcuts(page: ShellPage, setPage: (page: ShellPage) =
       { id: "mirror", label: t.nav.mirror, keywords: "mirror screen 屏幕", shortcut: formatChord(navChord(2)), run: go("mirror") },
       { id: "projects", label: t.nav.projects, keywords: "projects 工程", shortcut: formatChord(navChord(3)), run: go("projects") },
       { id: "wall", label: t.nav.wall, keywords: "wall 墙 thumbnails 设备墙", shortcut: formatChord(navChord(4)), run: go("wall") },
-      { id: "flows", label: `${t.nav.flows}（${t.nav.p2}）`, keywords: "flows 流程", shortcut: formatChord(navChord(5)), enabled: false, run: () => undefined },
+      { id: "flows", label: t.nav.flows, keywords: "flows 流程", shortcut: formatChord(navChord(5)), run: go("flows") },
       {
         id: "refresh",
         label: t.shortcuts.refreshAdb,

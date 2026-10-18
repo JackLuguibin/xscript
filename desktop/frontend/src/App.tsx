@@ -1,6 +1,7 @@
 import { useEffect, useState, type ReactElement } from "react";
 import { useServices } from "./app-context";
 import { DevicePage } from "./components/DevicePage";
+import { FlowPage } from "./components/FlowPage";
 import { useGlobalShortcuts } from "./components/GlobalShortcuts";
 import { MirrorPage } from "./components/MirrorPage";
 import { ProjectsPage } from "./components/ProjectsPage";
@@ -46,9 +47,9 @@ function DeviceSwitcher() {
   const { devices, devId, select } = useCurrentDevice();
   return (
     <label className="row device-switcher">
-      <span className="muted">{t.flow.current}</span>
-      <select aria-label={t.flow.current} value={devId} disabled={devices.length === 0} onChange={(e) => void select(e.target.value)}>
-        {devId === "" && <option value="">{t.flow.noDevice}</option>}
+      <span className="muted">{t.deviceFlow.current}</span>
+      <select aria-label={t.deviceFlow.current} value={devId} disabled={devices.length === 0} onChange={(e) => void select(e.target.value)}>
+        {devId === "" && <option value="">{t.deviceFlow.noDevice}</option>}
         {devices.map((d) => (
           <option key={d.id} value={d.id} disabled={d.state !== "online" && d.id !== devId}>
             {(d.name || d.info.name || d.info.model || d.id) + (d.state !== "online" ? `（${t.state[d.state] ?? d.state}）` : "")}
@@ -78,7 +79,7 @@ function Shell() {
   return (
     // the provider owns the current device and asks before a switch would drop unsaved edits (the projects page may be hidden)
     <DeviceProvider unsaved={unsaved}>
-      <div className={shortcuts.collapsed ? "app sidebar-collapsed" : "app"}>
+      <div className={(shortcuts.collapsed ? "app sidebar-collapsed" : "app") + (page === "flows" ? " is-workspace" : "")}>
         <a className="skip-link" href="#main">
           {t.skip}
         </a>
@@ -114,10 +115,9 @@ function Shell() {
               <IconGrid />
               <span className="label">{t.nav.wall}</span>
             </Button>
-            <Button variant="nav" disabled title={`${t.nav.soon}（${t.nav.p2}）`}>
+            <Button variant="nav" aria-current={page === "flows" ? "page" : undefined} onClick={() => setPage("flows")}>
               <IconFlow />
               <span className="label">{t.nav.flows}</span>
-              <span className="tag">{t.nav.p2}</span>
             </Button>
           </nav>
           <div className="sidebar-foot">
@@ -129,7 +129,7 @@ function Shell() {
           <header className="topbar">
             <div>
               <h1>{t.nav[page]}</h1>
-              <p className="sub">{page === "devices" ? t.subtitle : page === "mirror" ? t.mirror.subtitle : page === "wall" ? t.wall.subtitle : t.projects.subtitle}</p>
+              <p className="sub">{page === "devices" ? t.subtitle : page === "mirror" ? t.mirror.subtitle : page === "wall" ? t.wall.subtitle : page === "flows" ? t.flow.subtitle : t.projects.subtitle}</p>
             </div>
             <span className="grow" />
             <DeviceSwitcher />
@@ -146,6 +146,8 @@ function Shell() {
               <MirrorPage />
             ) : page === "wall" ? (
               <WallPage />
+            ) : page === "flows" ? (
+              <FlowPage />
             ) : null}
             {(projectsOpened || page === "projects") && (
               <div className="keep-alive" hidden={page !== "projects"}>

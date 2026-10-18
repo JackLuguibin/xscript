@@ -82,9 +82,9 @@ def test_e2e_shortcuts_palette_nav_sidebar_help_and_settings(ui, qtbot):
 
     ui.js(qtbot, "window.__press('4', true)")
     ui.wait_js(qtbot, "document.querySelector('h1').textContent === '设备墙'")
-    ui.js(qtbot, "window.__press('5', true)")  # flows is still the disabled item after the wall
-    ui.wait_js(qtbot, "document.querySelector('h1').textContent === '设备墙'")
-    assert ui.js(qtbot, "[...document.querySelectorAll('nav button')].some(b => b.disabled && b.textContent.includes('流程'))") is True
+    ui.js(qtbot, "window.__press('5', true)")
+    ui.wait_js(qtbot, "document.querySelector('h1').textContent === '流程'")
+    assert ui.js(qtbot, "[...document.querySelectorAll('nav button')].some(b => !b.disabled && b.textContent.includes('流程'))") is True
 
     ui.js(qtbot, "window.__press('3', true)")
     ui.wait_text(qtbot, "还没有在线设备")

@@ -38,7 +38,7 @@
 
 调试的限制：每台设备一个会话；条件断点、日志点、监视表达式和多线程切换还没做。测试用的是 `app/tests/fake_debug_device.py` 里脚本化的 debugpy（`scripts/mock_device.py` 不支持 `/debug/*`）；真机调试是按协议文档实现的，还没在真机上验证。
 
-**没做**：trace 节流（设计 §14.7；要等流程编译器生成 `__xf_trace`，并在真机上核对预算）、流程编辑器 / DSL / 编译器（P2；控件树里的「放到画布」也等这一阶段。React Flow 能否在 Qt 里跑已经在 Mac 上验证，见 [`docs/桌面端-ReactFlow验证.md`](../docs/桌面端-ReactFlow验证.md)；语义 JSON 的 schema 在 `desktop/schema/`）、云控与后台（P4）、打包与安装器（P5）、`pyside6-deploy` 与 PyInstaller 对比。镜像流的方案 A（scheme 直接吐 multipart）没做，方案 B 已实现；本轮没有对真机开流。Windows 凭据管理器只按 `keyring` 的接口接上，没有在 Windows 上读写过。
+**没做**：trace 节流（设计 §14.7；要等流程编译器生成 `__xf_trace`，并在真机上核对预算）、流程编辑器本体 / DSL 编译器（P2；控件树里的「放到画布」也等这一阶段。React Flow 能否在 Qt 里跑已经在 Mac 上验证，见 [`docs/桌面端-ReactFlow验证.md`](../docs/桌面端-ReactFlow验证.md)；语义 JSON 的 schema 在 `desktop/schema/`）、云控与后台（P4）、打包与安装器（P5）、`pyside6-deploy` 与 PyInstaller 对比。镜像流的方案 A（scheme 直接吐 multipart）没做，方案 B 已实现；本轮没有对真机开流。Windows 凭据管理器只按 `keyring` 的接口接上，没有在 Windows 上读写过。设计和 Mac 上能做的验证不等 Windows。
 
 **设备页美化前 → 后**（macOS 真实外壳，经 adb forward 连接 5554 模拟器；设计细节见设计文档 §14.15）：
 
