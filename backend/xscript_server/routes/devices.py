@@ -7,10 +7,10 @@ import base64
 import binascii
 import json
 import time
-from typing import Any, Literal
+from typing import Any, Iterator, Literal
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request, WebSocket, WebSocketDisconnect
-from fastapi.responses import Response
+from fastapi.responses import Response, StreamingResponse
 from pydantic import BaseModel, Field
 from sqlalchemy import delete, func, or_, select
 from sqlalchemy.orm import Session
@@ -22,6 +22,8 @@ from ..models import Device, DeviceKey, DeviceLog
 from ..security import new_secret, token_hash
 
 router = APIRouter(prefix="/api", tags=["devices"])
+EXPORT_MAX = 100_000  # lines per 运行日志 export
+EXPORT_CHUNK = 2000   # lines per streamed chunk
 ws_router = APIRouter()
 
 # Relayed device paths an operator may call. Everything else on the device API (upload
@@ -156,16 +158,31 @@ def device_logs(dev_id: str, p: Principal = Depends(viewer), s: Session = Depend
 def export_device_logs(dev_id: str, request: Request, p: Principal = Depends(viewer),
                        s: Session = Depends(db_session), since_ts: int = 0, until_ts: int = 0,
                        q: str = Query("", max_length=200), stream: Literal["", "stdout", "stderr", "system"] = ""):
-    """Plain-text download, at most the newest 100 000 matching lines."""
-    stmt = _log_query(dev_id, since_ts, until_ts, q, stream).order_by(DeviceLog.id.desc()).limit(100_000)
-    rows = list(s.scalars(stmt))[::-1]
-    lines = ["%s [%s] %s" % (time.strftime("%Y-%m-%d %H:%M:%S", time.localtime(r.ts / 1000)), r.stream,
-                             r.line.rstrip("\n")) for r in rows]
+    """Plain-text download, at most the newest 100 000 matching lines, oldest first.
+
+    Streamed in chunks from its own session (the request's one is closed by then), so memory stays
+    flat however many lines match.
+    """
+    newest = _log_query(dev_id, since_ts, until_ts, q, stream).order_by(DeviceLog.id.desc()).limit(EXPORT_MAX)
+    count = s.scalar(select(func.count()).select_from(newest.subquery())) or 0
     name = "logs-%s-%s.txt" % (dev_id.replace("@", "_"), time.strftime("%Y%m%d-%H%M%S"))
-    record(request, s, p, "device.logs_export", dev_id, {"lines": len(rows)})
+    record(request, s, p, "device.logs_export", dev_id, {"lines": count})
     s.commit()
-    return Response("\n".join(lines) + "\n", media_type="text/plain; charset=utf-8",
-                    headers={"Content-Disposition": "attachment; filename=\"%s\"" % name})
+    ids = newest.with_only_columns(DeviceLog.id).subquery()
+    rows = (select(DeviceLog.ts, DeviceLog.stream, DeviceLog.line).where(DeviceLog.id.in_(select(ids.c.id)))
+            .order_by(DeviceLog.id).execution_options(yield_per=EXPORT_CHUNK))
+    db = ctx(request).db
+
+    def body() -> Iterator[bytes]:
+        with db.session() as rs:
+            for part in rs.execute(rows).partitions():
+                yield "".join("%s [%s] %s\n" % (time.strftime("%Y-%m-%d %H:%M:%S", time.localtime(ts / 1000)),
+                                                st, line.rstrip("\n")) for ts, st, line in part).encode()
+        if not count:
+            yield b"\n"  # same as before for an empty export
+
+    return StreamingResponse(body(), media_type="text/plain; charset=utf-8",
+                             headers={"Content-Disposition": "attachment; filename=\"%s\"" % name})
 
 
 class DevicePatch(BaseModel):

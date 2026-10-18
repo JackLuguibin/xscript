@@ -21,6 +21,7 @@ import time
 import unittest
 import zipfile
 from pathlib import Path
+from unittest import mock
 
 HERE = Path(__file__).resolve().parent
 sys.path.insert(0, str(HERE.parent))
@@ -612,6 +613,18 @@ class ServerTest(unittest.IsolatedAsyncioTestCase):
         exp = await self.admin.get("/api/devices/logdev/logs/export", params={"stream": "stderr"})
         self.assertEqual(exp.status_code, 200)
         self.assertIn("[stderr] line 3", exp.text)
+        # Streamed (chunked, no Content-Length), newest EXPORT_MAX lines, oldest first, in small chunks.
+        from xscript_server.routes import devices as devroutes
+
+        with mock.patch.object(devroutes, "EXPORT_MAX", 4), mock.patch.object(devroutes, "EXPORT_CHUNK", 3):
+            exp = await self.admin.get("/api/devices/logdev/logs/export")
+        self.assertNotIn("content-length", exp.headers)
+        self.assertEqual([x.split("] ", 1)[1] for x in exp.text.splitlines()],
+                         ["line 3", "line 4", "line 5", "Traceback boom"])
+        empty = await self.admin.get("/api/devices/logdev/logs/export", params={"q": "nothing-matches"})
+        self.assertEqual(empty.text, "\n")
+        audit = (await self.admin.get("/api/audit", params={"action": "device.logs_export"})).json()["items"]
+        self.assertEqual([a["detail"]["lines"] for a in audit[:3]], [0, 4, 1])
 
         # device_log_days = 0: no cursor, so devices keep their lines to themselves.
         self.assertEqual((await self.admin.put("/api/settings", json={"device_log_days": 0})).status_code, 200)
