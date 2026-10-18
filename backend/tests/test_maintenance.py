@@ -42,7 +42,10 @@ class MigrateTest(unittest.TestCase):
             "INSERT INTO devices (id, device_id) VALUES ('d1', 'd1');"
             "CREATE TABLE script_versions (id INTEGER PRIMARY KEY, script_id INTEGER, version VARCHAR(32),"
             " version_code INTEGER, notes TEXT, sha256 VARCHAR(64), size INTEGER, files INTEGER,"
-            " created_by VARCHAR(64), created_at INTEGER);")
+            " created_by VARCHAR(64), created_at INTEGER);"
+            "CREATE TABLE device_logs (id INTEGER PRIMARY KEY, device VARCHAR(200), seq BIGINT, ts BIGINT,"
+            " stream VARCHAR(8), line TEXT);"
+            "CREATE INDEX ix_device_logs_device_ts ON device_logs (device, ts);")
         con.commit()
         con.close()
         db = Database(cfg.db_path)
@@ -53,6 +56,15 @@ class MigrateTest(unittest.TestCase):
         self.assertIn("last_run", cols)
         cols = {r[1] for r in sqlite3.connect(cfg.db_path).execute("PRAGMA table_info(script_versions)")}
         self.assertIn("downloads", cols)
+        # v6: paging by id and retention by ts use an index instead of sorting / scanning the whole table.
+        con = sqlite3.connect(cfg.db_path)
+        plans = {q: " ".join(r[3] for r in con.execute("EXPLAIN QUERY PLAN " + q)) for q in (
+            "SELECT seq FROM device_logs WHERE device = 'd' ORDER BY id DESC LIMIT 1",
+            "SELECT * FROM device_logs WHERE device = 'd' AND id < 9 ORDER BY id DESC LIMIT 501",
+            "DELETE FROM device_logs WHERE ts < 5")}
+        for q, plan in plans.items():
+            self.assertNotIn("TEMP B-TREE", plan, q)
+            self.assertNotRegex(plan, r"^SCAN device_logs$", q)
         # Idempotent, and the old row survived.
         db.create_all()
         self.assertEqual(sqlite3.connect(cfg.db_path).execute("SELECT id FROM devices").fetchall(), [("d1",)])
