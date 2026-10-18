@@ -12,6 +12,7 @@ __pycache__/
 .venv/
 .venv-rt/
 .venv310/
+.venv-desktop/
 venv/
 dist/
 .pytest_cache/

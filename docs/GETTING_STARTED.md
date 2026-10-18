@@ -167,7 +167,8 @@ c.run_project("my_proj")
 - **MCP 测试**（`ide/mcp-server/tests`）。
 - **Stub 是否最新的检查。**
 - **网页 IDE：** `node --test scripts/tests/*.test.cjs`，覆盖编辑器状态、目录树与键盘导航、Python 高亮，以及针对模拟设备的工程/文件接口契约。
-- **VS Code 扩展：** 编译并运行 `node --test`，前提是已在 `ide/vscode-extension` 中运行过 `npm ci`。
+- **VS Code 扩展：** 编译并运行 `node --test`，前提是已在 `ide/vscode-extension` 中运行过 `npm ci`。需要 Node 22+（`.nvmrc`）；Node 20 的 `node --test` 不认识通配符，会报 “Could not find …”。
+- **桌面端：** 存在 `.venv-desktop`（装了 `desktop/app[test]`，含 PySide6）且 `desktop/frontend` 运行过 `npm ci` 时，先做前端类型检查、单测和构建，再在 offscreen Qt 下跑 `desktop/app` 的 Python 测试；否则跳过（`XS_SKIP_DESKTOP=1` 也可跳过）。Linux 上 QtWebEngine 需要 `libegl1`、`libnss3` 等系统库。
 - **模拟设备上的端到端流程（vertical slice）。**
 
 如果还要用真实模型运行 YOLO11n / PP-OCRv5 测试，把 `yolo11n.onnx`、`ch_PP-OCRv5_det_mobile.onnx`、`ch_PP-OCRv5_rec_mobile.onnx` 和 `bus.jpg` 放到一个文件夹中，并设置 `XSCRIPT_TEST_MODELS=<folder>`。
