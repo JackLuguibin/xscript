@@ -37,6 +37,10 @@ jobs:
       - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
         with:
           python-version: ${{ matrix.python }}
+          cache: pip
+          cache-dependency-path: |
+            backend/pyproject.toml
+            ide/mcp-server/pyproject.toml
       - name: Install backend and MCP server
         run: python -m pip install -e "backend[test]" -e "ide/mcp-server[test]"
       - name: Backend tests
@@ -63,6 +67,8 @@ jobs:
       - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
         with:
           python-version: "3.10"
+          cache: pip
+          cache-dependency-path: .github/workflows/ci.yml  # the pinned versions live in the install step below
       - name: Install the libraries the tests exercise (same versions as the local .venv-rt)
         run: python -m pip install numpy==1.26.4 opencv-python-headless==4.10.0.84 pillow==10.4.0 packaging==24.2 onnxruntime==1.22.1
       - name: Runtime tests
@@ -96,6 +102,8 @@ jobs:
       - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version: "22"
+          cache: npm
+          cache-dependency-path: ide/vscode-extension/package-lock.json
       - name: Install, compile, test
         working-directory: ide/vscode-extension
         run: |
@@ -119,6 +127,8 @@ jobs:
       - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version: "22"
+          cache: npm
+          cache-dependency-path: backend/web/package-lock.json
       - working-directory: backend/web
         run: |
           npm ci
@@ -168,9 +178,13 @@ jobs:
       - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version: "22"
+          cache: npm
+          cache-dependency-path: desktop/frontend/package-lock.json
       - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
         with:
           python-version: "3.10"
+          cache: pip
+          cache-dependency-path: desktop/app/pyproject.toml
       - name: Frontend (type-check, unit tests, production build into the Python package)
         working-directory: desktop/frontend
         run: |
