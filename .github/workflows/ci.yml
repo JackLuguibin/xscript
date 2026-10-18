@@ -120,9 +120,13 @@ jobs:
         with:
           node-version: "22"
       - working-directory: backend/web
-        run: |
-          npm ci
-          npm run build
+        run: npm ci
+      - name: Unit tests (vitest + Testing Library)
+        working-directory: backend/web
+        run: npm test
+      - name: Type-check (app + tests) and build
+        working-directory: backend/web
+        run: npm run build
 
   android:
     name: Android (Kotlin JVM tests + debug APK + 16 KB check)

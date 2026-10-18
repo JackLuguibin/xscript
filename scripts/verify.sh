@@ -35,7 +35,7 @@ echo "== backend ($PY) =="
 PYTHONPATH=backend "$PY" -m unittest discover -s backend/tests
 echo "== backend: web console =="
 if command -v npm >/dev/null 2>&1 && [ -d backend/web/node_modules ]; then
-  (cd backend/web && npm run --silent build >/dev/null && echo "console built: backend/web/dist")
+  (cd backend/web && npm test --silent && npm run --silent build >/dev/null && echo "console built: backend/web/dist")
 else
   echo "skipped (run 'npm ci' in backend/web first)"
 fi
