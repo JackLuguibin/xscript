@@ -47,10 +47,10 @@ main { width: 100%; max-width: var(--content-max); padding: 0 var(--sp-5) var(--
 .section-head .count { color: var(--text-muted); font-size: var(--fs-sm); }
 .panel { background: var(--surface); border: 1px solid var(--border); border-radius: var(--r-lg); box-shadow: var(--shadow-1); padding: var(--sp-4); }
 .list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: var(--sp-2); }
-.list-item { display: flex; align-items: center; gap: var(--sp-3); padding: var(--sp-3) var(--sp-4); background: var(--surface); border: 1px solid var(--border); border-radius: var(--r-md); transition: border-color var(--dur-fast) var(--ease), box-shadow var(--dur-fast) var(--ease); }
-.list-item:hover { border-color: var(--border-strong); box-shadow: var(--shadow-1); }
-.list-item .meta { display: flex; flex-direction: column; min-width: 0; }
-.list-item .hint { font-size: var(--fs-sm); color: var(--text-muted); }
+.list-row { display: flex; align-items: center; gap: var(--sp-3); padding: var(--sp-3) var(--sp-4); background: var(--surface); border: 1px solid var(--border); border-radius: var(--r-md); transition: border-color var(--dur-fast) var(--ease), box-shadow var(--dur-fast) var(--ease); }
+.list-row:hover { border-color: var(--border-strong); box-shadow: var(--shadow-1); }
+.list-row .meta { display: flex; flex-direction: column; min-width: 0; }
+.list-row .hint { font-size: var(--fs-sm); color: var(--text-muted); }
 .cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 26rem), 1fr)); gap: var(--sp-4); }
 
 /* ---- buttons / inputs. Inside @layer components so Tailwind utilities (a later layer) can restyle Button and Input.
@@ -164,7 +164,7 @@ input[type="checkbox"], input[type="radio"] { width: 1rem; height: 1rem; min-hei
 .progress > span { display: block; height: 100%; background: var(--primary); transition: width var(--dur) var(--ease); }
 /* top-bar device switcher */
 .device-switcher { gap: var(--sp-2); font-size: var(--fs-sm); }
-.device-switcher select { max-width: 18rem; }
+.device-switcher .ui-select { min-height: 2rem; font-size: var(--fs-sm); }
 
 /* ---- projects page (P1 slice) ---- */
 .toolbar { gap: var(--sp-3); align-items: center; margin-bottom: var(--sp-4); flex-wrap: wrap; }
@@ -204,7 +204,7 @@ pre.logs .err { color: var(--danger-fg); }
 .seg button { border-radius: 0; }
 .seg button:first-child { border-radius: var(--r-md) 0 0 var(--r-md); }
 .seg button:last-child { border-radius: 0 var(--r-md) var(--r-md) 0; margin-left: -1px; }
-.seg button[aria-pressed="true"] { background: var(--surface-2); border-color: var(--border-strong); font-weight: 600; }
+.seg button[aria-pressed="true"] { position: relative; z-index: 1; background: var(--primary-soft); color: var(--primary); border-color: var(--primary); font-weight: 600; }
 .mirror-frame img.loading { opacity: .35; }
 .mirror-frame .overlay { position: absolute; inset: 0; display: flex; flex-direction: column; gap: var(--sp-2); align-items: center; justify-content: center; text-align: center; padding: var(--sp-4); color: var(--text-muted); }
 .mirror-badge { position: absolute; top: var(--sp-2); right: var(--sp-2); background: var(--surface); border: 1px solid var(--border); border-radius: var(--r-md); padding: 0 var(--sp-2); font-size: var(--fs-sm); }
@@ -235,8 +235,16 @@ pre.logs.debug-console { min-height: 4rem; max-height: 10rem; }
 .secret-list li { display: flex; align-items: center; justify-content: space-between; gap: var(--sp-2); }
 .screen-tools { display: flex; flex-direction: column; gap: var(--sp-3); margin-top: var(--sp-3); }
 .screen-tools h2 { font-size: var(--fs-md); margin: 0 0 var(--sp-2); }
-.mode-row { border: 0; margin: 0; padding: 0; display: flex; flex-wrap: wrap; gap: var(--sp-2) var(--sp-3); }
-.mode-row legend { width: 100%; padding: 0; font-weight: 650; }
+/* pointer mode: native radios (keyboard + screen reader behaviour stay) drawn as one segmented control */
+.mode-row { border: 0; margin: 0; padding: 0; display: flex; flex-wrap: wrap; gap: 0; }
+.mode-row legend { width: 100%; padding: 0; margin-bottom: var(--sp-2); font-weight: 650; }
+.mode-row label { position: relative; display: inline-flex; align-items: center; min-height: 2rem; padding: 0 var(--sp-3); margin-left: -1px; border: 1px solid var(--border-strong); background: var(--surface); color: var(--text); font-size: var(--fs-sm); cursor: pointer; transition: background-color var(--dur-fast) var(--ease), color var(--dur-fast) var(--ease); }
+.mode-row label:first-of-type { margin-left: 0; border-radius: var(--r-md) 0 0 var(--r-md); }
+.mode-row label:last-of-type { border-radius: 0 var(--r-md) var(--r-md) 0; }
+.mode-row label:hover { background: var(--surface-2); }
+.mode-row label:has(input:checked) { z-index: 1; background: var(--primary-soft); color: var(--primary); border-color: var(--primary); font-weight: 600; }
+.mode-row label:has(input:focus-visible) { z-index: 2; outline: 2px solid var(--focus-ring); outline-offset: 2px; }
+.mode-row input { position: absolute; inset: 0; width: 100%; height: 100%; margin: 0; opacity: 0; cursor: pointer; }
 .panel.tight { padding: var(--sp-3); }
 .tree-scroll { max-height: 16rem; overflow: auto; display: flex; flex-direction: column; gap: 2px; }
 .tree-item { justify-content: flex-start; width: 100%; font-weight: 450; }
@@ -517,3 +525,8 @@ pre.logs.debug-console { min-height: 4rem; max-height: 10rem; }
 .flow-vars > button, .flow-block > button { align-self: stretch; }
 .flow-vars fieldset { border: 1px solid var(--border); border-radius: var(--r-md); margin: 0; padding: var(--sp-2); }
 .flow-vars fieldset legend { font-size: var(--fs-xs); font-weight: 650; }
+
+/* helper text inside panels: muted, a little air between the control above and the buttons below */
+.panel > .hint { margin: var(--sp-2) 0 0; font-size: var(--fs-sm); line-height: 1.55; color: var(--text-muted); }
+.panel > .hint + .row { margin-top: var(--sp-3); }
+.panel.tight > h2 { margin: 0 0 var(--sp-1); font-size: var(--fs-md); font-weight: 650; }
