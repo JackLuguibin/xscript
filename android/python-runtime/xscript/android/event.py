@@ -223,13 +223,13 @@ def wait(event_type, timeout=None, **filters):
     return box[0] if box else None
 
 
-def loop():
-    """Keep the script alive while handlers are registered (returns when all are removed)."""
+def loop(interval=0.5):
+    """Keep the script alive while handlers are registered (returns when all are removed, checked every `interval` seconds)."""
     while True:
         with _reg.lock:
             if not _reg.handlers:
                 return
-        time.sleep(0.5)
+        time.sleep(interval)
 
 
 def status():

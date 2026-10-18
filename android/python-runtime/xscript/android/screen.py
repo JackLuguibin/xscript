@@ -124,13 +124,15 @@ def ocr_find_all(pattern, rect=None, image=None, engine=None):
     return _img.ocr_filter(ocr(rect, image, engine), pattern)
 
 
-def ocr_wait(pattern, timeout=10, rect=None, engine=None):
-    deadline = time.time() + float(timeout)
+def ocr_wait(pattern, timeout=10, rect=None, engine=None, interval=0.3):
+    """OCR every `interval` seconds until `pattern` shows up or `timeout` seconds pass (one last look at the deadline)."""
+    deadline = time.monotonic() + float(timeout)
     while True:
         hit = ocr_find(pattern, rect, engine=engine)
-        if hit or time.time() >= deadline:
+        left = deadline - time.monotonic()
+        if hit or left <= 0:
             return hit
-        time.sleep(0.3)
+        time.sleep(min(float(interval), left))
 
 
 def ocr_click(pattern, timeout=0, rect=None, engine=None):

@@ -83,8 +83,8 @@ def wait(event_type, timeout=None, **filters):
     """Block until the next matching event and return it, or None after `timeout` seconds."""
     ...
 
-def loop():
-    """Keep the script alive while handlers are registered (returns when all are removed)."""
+def loop(interval=0.5):
+    """Keep the script alive while handlers are registered (returns when all are removed, checked every `interval` seconds)."""
     ...
 
 def status():

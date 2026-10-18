@@ -127,13 +127,13 @@ class Node(object):
     def scroll(self, forward=True):
         return bool(self.path and bridge.node_action(self.path, "scroll_forward" if forward else "scroll_backward"))
 
-    def find(self, selector, timeout=0):
+    def find(self, selector, timeout=0, interval=0.25):
         """First match of `selector` inside this node's subtree."""
-        hits = selector.within(self).find_all(timeout=timeout)
+        hits = selector.within(self).find_all(timeout=timeout, interval=interval)
         return hits[0] if hits else None
 
-    def find_all(self, selector, timeout=0):
-        return selector.within(self).find_all(timeout=timeout)
+    def find_all(self, selector, timeout=0, interval=0.25):
+        return selector.within(self).find_all(timeout=timeout, interval=interval)
 
     def to_dict(self):
         d = dict(self._data)
@@ -319,30 +319,35 @@ class Selector(object):
                 elif name == "scroll":
                     n.scroll(arg)
 
-    def find_all(self, timeout=0, limit=0):
-        deadline = time.time() + max(0.0, float(timeout))
+    def find_all(self, timeout=0, limit=0, interval=0.25):
+        """Matching nodes; with `timeout`, re-query every `interval` seconds until something matches (one last look at the deadline)."""
+        deadline = time.monotonic() + max(0.0, float(timeout))
         while True:
             hits = self._query()
-            if hits or time.time() >= deadline:
+            left = deadline - time.monotonic()
+            if hits or left <= 0:
                 break
-            time.sleep(0.25)
+            time.sleep(min(float(interval), left))
         if limit:
             hits = hits[:limit]
         if self._actions:
             self._run_actions(hits[:1] if limit == 1 else hits)
         return hits
 
-    def find(self, timeout=5):
-        hits = self.find_all(timeout=timeout, limit=1)
+    def find(self, timeout=5, interval=0.25):
+        hits = self.find_all(timeout=timeout, limit=1, interval=interval)
         return hits[0] if hits else None
 
-    def exists(self, timeout=0):
-        return self.find(timeout=timeout) is not None
+    def exists(self, timeout=0, interval=0.25):
+        return self.find(timeout=timeout, interval=interval) is not None
 
-    def wait_gone(self, timeout=10):
-        deadline = time.time() + float(timeout)
-        while time.time() < deadline:
+    def wait_gone(self, timeout=10, interval=0.25):
+        """True once nothing matches (checked every `interval` seconds), False if still there after `timeout` seconds."""
+        deadline = time.monotonic() + float(timeout)
+        while True:
             if not self._query():
                 return True
-            time.sleep(0.25)
-        return False
+            left = deadline - time.monotonic()
+            if left <= 0:
+                return False
+            time.sleep(min(float(interval), left))

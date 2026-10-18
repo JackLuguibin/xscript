@@ -181,10 +181,10 @@
             "brother(*which)",
             "descendant()",
             "within(node)",
-            "find(timeout=5) -> Node | None",
-            "find_all(timeout=0, limit=0) -> list[Node]",
-            "exists(timeout=0) -> bool",
-            "wait_gone(timeout=10) -> bool",
+            "find(timeout=5, interval=0.25) -> Node | None",
+            "find_all(timeout=0, limit=0, interval=0.25) -> list[Node]",
+            "exists(timeout=0, interval=0.25) -> bool",
+            "wait_gone(timeout=10, interval=0.25) -> bool",
             "click()",
             "long_click()",
             "input(text)",
@@ -303,7 +303,7 @@
         },
         {
           "name": "ocr_wait",
-          "signature": "ocr_wait(pattern, timeout=10, rect=None, engine=None) -> OcrResult | None",
+          "signature": "ocr_wait(pattern, timeout=10, rect=None, engine=None, interval=0.3) -> OcrResult | None",
           "doc": "Poll until text appears."
         },
         {
@@ -540,7 +540,7 @@
         },
         {
           "name": "loop",
-          "signature": "loop()",
+          "signature": "loop(interval=0.5)",
           "doc": "Sleep while handlers are registered."
         },
         {

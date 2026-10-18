@@ -78,11 +78,11 @@ class Node(object):
     def scroll(self, forward=True):
         ...
 
-    def find(self, selector, timeout=0):
+    def find(self, selector, timeout=0, interval=0.25):
         """First match of `selector` inside this node's subtree."""
         ...
 
-    def find_all(self, selector, timeout=0):
+    def find_all(self, selector, timeout=0, interval=0.25):
         ...
 
     def to_dict(self):
@@ -209,14 +209,16 @@ class Selector(object):
     def scroll(self, forward=True):
         ...
 
-    def find_all(self, timeout=0, limit=0):
+    def find_all(self, timeout=0, limit=0, interval=0.25):
+        """Matching nodes; with `timeout`, re-query every `interval` seconds until something matches (one last look at the deadline)."""
         ...
 
-    def find(self, timeout=5):
+    def find(self, timeout=5, interval=0.25):
         ...
 
-    def exists(self, timeout=0):
+    def exists(self, timeout=0, interval=0.25):
         ...
 
-    def wait_gone(self, timeout=10):
+    def wait_gone(self, timeout=10, interval=0.25):
+        """True once nothing matches (checked every `interval` seconds), False if still there after `timeout` seconds."""
         ...

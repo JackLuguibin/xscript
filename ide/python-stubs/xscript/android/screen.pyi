@@ -81,7 +81,8 @@ def ocr_find(pattern, rect=None, image=None, engine=None):
 def ocr_find_all(pattern, rect=None, image=None, engine=None):
     ...
 
-def ocr_wait(pattern, timeout=10, rect=None, engine=None):
+def ocr_wait(pattern, timeout=10, rect=None, engine=None, interval=0.3):
+    """OCR every `interval` seconds until `pattern` shows up or `timeout` seconds pass (one last look at the deadline)."""
     ...
 
 def ocr_click(pattern, timeout=0, rect=None, engine=None):
