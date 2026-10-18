@@ -806,7 +806,10 @@ function LogDrawer({ job, onClose }: { job: PackJob | null; onClose: () => void 
     offset.current = 0;
     if (!job) return;
     let stop = false;
+    let busy = false; // an overlapping poll would fetch the same offset and duplicate the text
     const tick = async () => {
+      if (busy) return;
+      busy = true;
       try {
         const r = await api.get<{ text: string; next: number }>(`/api/pack/jobs/${job.id}/log`, { offset: offset.current });
         if (stop) return;
@@ -817,6 +820,8 @@ function LogDrawer({ job, onClose }: { job: PackJob | null; onClose: () => void 
         }
       } catch {
         /* retry next tick */
+      } finally {
+        busy = false;
       }
     };
     tick();
