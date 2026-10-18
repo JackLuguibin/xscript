@@ -86,6 +86,21 @@ class TemplateTest(unittest.TestCase):
         hits = image.find_templates([self.path, other], confidence=0.9, image=self.src)
         self.assertEqual(sorted(h["index"] for h in hits), [0, 1])
 
+    def test_non_positive_or_too_high_confidence_terminates(self):
+        # confidence <= 0 used to loop forever in _extract (every zeroed cell still scored >= threshold).
+        for conf in (0, -0.5, 1.5):
+            hits = image.find_templates(self.path, confidence=conf, image=self.src)
+            self.assertIsInstance(hits, list)
+        self.assertTrue(image.find_templates(self.path, confidence=0, image=self.src))
+        with self.assertRaises(ValueError):
+            image.find_templates(self.path, confidence=float("nan"), image=self.src)
+
+    def test_extract_stops_at_zero_scores(self):
+        res = np.random.default_rng(2).random((40, 40)).astype(np.float32)
+        hits = image._extract(res, 4, 4, 0.0, 0)
+        self.assertTrue(0 < len(hits) <= res.size)
+        self.assertTrue(all(h[0] > 0 for h in hits))
+
     def _scene(self):
         """Large smooth-noise scene so coarse-to-fine paths are eligible."""
         rng = np.random.default_rng(1)

@@ -35,7 +35,11 @@ class DeviceLog(Base):
     """Script log lines pushed by devices (运行日志 history). ts is epoch milliseconds."""
 
     __tablename__ = "device_logs"
-    __table_args__ = (Index("ix_device_logs_device_ts", "device", "ts"),)
+    # (device, id): newest-first paging and the reconnect cursor sort by id within one device.
+    # ts: retention deletes by age across all devices.
+    __table_args__ = (Index("ix_device_logs_device_ts", "device", "ts"),
+                      Index("ix_device_logs_device_id", "device", "id"),
+                      Index("ix_device_logs_ts", "ts"))
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
     device: Mapped[str] = mapped_column(String(200))

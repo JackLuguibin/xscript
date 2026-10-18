@@ -137,6 +137,9 @@ input:focus-visible { outline-offset: 0; }
 /* ---- projects page (P1 slice) ---- */
 .toolbar { gap: var(--sp-3); align-items: center; margin-bottom: var(--sp-4); flex-wrap: wrap; }
 .toolbar select { min-width: 12rem; }
+/* address + connect + scan: the buttons drop below the field in a narrow window instead of overflowing (CJK labels are wide) */
+.lan-form { flex-wrap: wrap; }
+.lan-form input.grow { min-width: 10rem; }
 .projects-grid { display: grid; grid-template-columns: minmax(14rem, 18rem) 1fr; gap: var(--sp-4); align-items: start; }
 @media (max-width: 760px) { .projects-grid { grid-template-columns: 1fr; } }
 .sub-head { font-size: var(--fs-sm); color: var(--text-muted); margin: var(--sp-4) 0 var(--sp-2); }

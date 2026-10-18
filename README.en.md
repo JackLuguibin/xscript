@@ -211,12 +211,17 @@ python3.10 -m venv .venv-rt
 (cd backend/web && npm ci)
 (cd ide/vscode-extension && npm ci)
 
+# Desktop client (optional; verify.sh skips it when missing)
+python3.10 -m venv .venv-desktop
+.venv-desktop/bin/python -m pip install -e './desktop/app[test]'
+(cd desktop/frontend && npm ci)
+
 # Repository checks and Android JVM tests
 ./scripts/verify.sh
 ./android/build.sh :app:testDebugUnitTest
 ```
 
-`verify.sh` covers the Python runtime, backend, MCP, type stubs, web IDE, editor extension and mock integration flows. Full device behavior must be verified separately on a connected phone or emulator.
+`verify.sh` covers the Python runtime, backend, MCP, type stubs, web IDE, editor extension, the desktop client (when `.venv-desktop` exists) and mock integration flows. Node 22+ is required (see `.nvmrc`). Full device behavior must be verified separately on a connected phone or emulator.
 
 After changing the public Python API, regenerate the type stubs:
 

@@ -432,6 +432,20 @@ class HttpTest(unittest.IsolatedAsyncioTestCase):
     def activate(self, app, card, device, a="com.a"):
         return app.post("/license/activate", json={"card": card, "device_id": device, "app": a, "model": "M"})
 
+    async def test_forged_tokens_are_throttled_per_ip(self):
+        # /license/verify and /license/use share a per-IP lock-out for tokens with a bad signature.
+        limiter = self.srv.app.state.ctx.limiter
+        try:
+            async with httpx.AsyncClient(base_url=self.srv.base) as app:
+                for i in range(limiter.limit):
+                    path = "/license/verify" if i % 2 else "/license/use"
+                    r = await app.post(path, json={"token": "forged.%d" % i, "device_id": "x"})
+                    self.assertEqual((r.status_code, r.json()["status"]), (200, "revoked"))
+                for path in ("/license/verify", "/license/use"):
+                    self.assertEqual((await app.post(path, json={"token": "forged", "device_id": "x"})).status_code, 429)
+        finally:
+            limiter.reset("license-token|127.0.0.1")
+
     async def test_stacking_over_http(self):
         r = await self.batch(count=2)
         c1, c2 = r.json()["cards"]

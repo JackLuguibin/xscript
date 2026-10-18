@@ -16,7 +16,8 @@
   "license": "MIT",
   "private": true,
   "engines": {
-    "vscode": "^1.90.0"
+    "vscode": "^1.90.0",
+    "node": ">=22"
   },
   "categories": [
     "Other"

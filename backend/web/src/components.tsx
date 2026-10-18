@@ -6,6 +6,18 @@ import { api, type CardStatus, type Group, type JobStatus } from "./api";
 import { copy } from "./format";
 import { useThemeMode, type ThemeMode } from "./theme";
 
+/** False while the browser tab is hidden. Hand-written polling loops depend on it so a background tab stops
+ * hitting devices (React Query's refetchInterval already pauses on its own). */
+export function usePageVisible(): boolean {
+  const [visible, setVisible] = useState(() => !document.hidden);
+  useEffect(() => {
+    const on = () => setVisible(!document.hidden);
+    document.addEventListener("visibilitychange", on);
+    return () => document.removeEventListener("visibilitychange", on);
+  }, []);
+  return visible;
+}
+
 export function PageHeader({ title, desc, extra }: { title: ReactNode; desc?: ReactNode; extra?: ReactNode }) {
   return (
     <div className="page-header">
