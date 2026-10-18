@@ -19,6 +19,19 @@ if (!window.matchMedia) {
     }) as MediaQueryList;
 }
 
+// antd's tables, tabs and overflow lists observe their size.
+if (typeof window.ResizeObserver === "undefined") {
+  window.ResizeObserver = class {
+    observe() {}
+    unobserve() {}
+    disconnect() {}
+  } as unknown as typeof ResizeObserver;
+}
+
+// jsdom logs "Not implemented" for getComputedStyle(el, "::before") (antd measures scrollbars that way).
+const computed = window.getComputedStyle.bind(window);
+window.getComputedStyle = (el: Element) => computed(el);
+
 afterEach(() => {
   cleanup();
   vi.restoreAllMocks();
