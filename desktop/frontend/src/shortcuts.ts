@@ -65,7 +65,7 @@ export function isBareF5(e: KeyEventLike): boolean {
   return e.key === "F5" && !e.repeat && !e.isComposing && !e.metaKey && !e.ctrlKey && !e.altKey && !e.shiftKey;
 }
 
-/** Text fields, Monaco, and contenteditable. Checkboxes and radios are not text entry. */
+/** Text fields, Monaco, contenteditable and `data-text-entry` surfaces. Checkboxes and radios are not text entry. */
 export function isTextEntry(target: EventTarget | null): boolean {
   if (!(target instanceof Element)) return false;
   if (target instanceof HTMLElement && target.isContentEditable) return true;
@@ -74,7 +74,8 @@ export function isTextEntry(target: EventTarget | null): boolean {
     const type = (target.type || "text").toLowerCase();
     return !["button", "checkbox", "radio", "submit", "reset", "file", "image", "color", "range"].includes(type);
   }
-  return Boolean(target.closest(".monaco-editor"));
+  // a surface that forwards typing elsewhere (the mirror frame types into the device)
+  return Boolean(target.closest(".monaco-editor, [data-text-entry='true']"));
 }
 
 export function formatChord(chord: Chord, apple = isApplePlatform()): string {
