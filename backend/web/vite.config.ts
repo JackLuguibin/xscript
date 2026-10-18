@@ -1,3 +1,4 @@
+/// <reference types="vitest/config" />
 import { defineConfig } from "vite";
 import react from "@vitejs/plugin-react";
 
@@ -13,6 +14,11 @@ export default defineConfig({
       "/license": { target, changeOrigin: false },
       "/pub": { target, changeOrigin: false },
     },
+  },
+  test: {
+    environment: "jsdom",
+    include: ["tests/**/*.test.{ts,tsx}"],
+    setupFiles: ["tests/setup.ts"],
   },
   build: {
     outDir: "dist",

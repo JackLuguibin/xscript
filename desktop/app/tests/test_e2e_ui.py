@@ -2,6 +2,9 @@
 talking to a FakeAdb and a deterministic FakeDevice. Skipped when the frontend has not been built (`npm run build`)."""
 from __future__ import annotations
 
+import base64
+from pathlib import Path
+
 import pytest
 
 pytest.importorskip("PySide6.QtWebEngineWidgets")
@@ -245,13 +248,37 @@ def test_e2e_16_theme_button_switches_and_survives_reload(ui, qtbot):
     ui.js(qtbot, "(() => { localStorage.removeItem('xscript.theme'); return 1; })()")
 
 
+METRICS_FONT = base64.b64encode((Path(__file__).parent / "fixtures" / "xs-metrics.ttf").read_bytes()).decode()
+
+# elements sticking out past the viewport, deepest first: "tag.class 'text' right=…px" (empty when nothing overflows)
+OVERFLOWING = """(() => { const w = document.documentElement.clientWidth;
+  return [...document.querySelectorAll('body *')].filter(e => e.getBoundingClientRect().right > w + 1 && ![...e.children].some(c => c.getBoundingClientRect().right > w + 1))
+    .slice(0, 8).map(e => `${e.tagName.toLowerCase()}${e.className && typeof e.className === 'string' ? '.' + e.className.trim().split(/\\s+/).join('.') : ''} '${(e.textContent || '').trim().slice(0, 40)}' right=${Math.round(e.getBoundingClientRect().right)}px > ${w}px`); })()"""
+
+
+def pin_metrics_font(sh, qtbot) -> None:
+    """Lay text out with tests/fixtures/xs-metrics.ttf instead of whatever fonts the machine has, so width checks give the same answer in CI and on a desktop with CJK fonts installed (see make_metrics_font.py)."""
+    sh.js(qtbot, """(() => { const f = new FontFace('XS Metrics', 'url(data:font/ttf;base64,%s)'); document.fonts.add(f); window.__xsFont = 'loading';
+      f.load().then(() => { const s = document.createElement('style'); s.textContent = '*, *::before, *::after { font-family: "XS Metrics" !important; }';
+        document.head.appendChild(s); window.__xsFont = 'ok'; }, e => { window.__xsFont = String(e); }); return 1; })()""" % METRICS_FONT)
+    sh.wait_js(qtbot, "window.__xsFont !== 'loading'")
+    assert sh.js(qtbot, "window.__xsFont") == "ok"
+    # every glyph comes from the test font: 10px CJK = 10px, 10px latin = 6px, no system-font fallback
+    assert sh.js(qtbot, """(() => { const s = document.createElement('span'); s.style.cssText = 'font-size:10px;position:absolute;white-space:pre';
+      s.textContent = '中文ab'; document.body.appendChild(s); const w = s.getBoundingClientRect().width; s.remove(); return Math.round(w); })()""") == 32
+
+
 @pytest.mark.parametrize("width", [400, 560, 760, 900, 1400, 2200])
 def test_e2e_17_no_horizontal_scroll_at_any_width(ui, qtbot, width):
-    """E-17 window-resize support: from a phone-sized column to a wide monitor the page never needs a horizontal scrollbar (also with a connected card)."""
+    """E-17 window-resize support: from a phone-sized column to a wide monitor the page never needs a horizontal scrollbar (also with a connected card).
+    Text uses the pinned test font so the result doesn't depend on the fonts installed on the machine; a failure names the elements that stick out."""
+    pin_metrics_font(ui, qtbot)
     ui.click(qtbot, "连接 emulator-5554")
     ui.wait_text(qtbot, "在线")
     ui.win.resize(width, 800)
     qtbot.wait(300)
+    sticking_out = ui.js(qtbot, OVERFLOWING)  # also catches content a scroll container clips, which scrollWidth alone can miss
+    assert sticking_out == []
     assert ui.js(qtbot, "document.documentElement.scrollWidth <= document.documentElement.clientWidth + 1") is True
     # the sidebar collapses to an icon rail at ≤760 px but its labels stay available to assistive tech
     assert ui.js(qtbot, "!!document.querySelector('.nav-item .label')") is True
