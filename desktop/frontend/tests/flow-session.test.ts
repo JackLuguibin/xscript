@@ -161,4 +161,65 @@ describe("flow session", () => {
     expect(kinds(done)).toContain("skip:open:");
     expect(drive(null, graph, specs, [], "stop").status).toBe("stopped");
   });
+
+  it("binds call arguments to the callee's parameters and stores its return on the call", () => {
+    for (const kind of ["def", "macro"]) {
+      const graph = parse([
+        "flow f  # xflow 1",
+        `${kind} greet(name, who) -> text:`,
+        "  msg: log(message=name)",
+        "  log(message=who)",
+        "  return text=name",
+        "on start:",
+        "  s: add(a=1, b=2)",
+        '  c: call greet(name="Ada", who=s)',
+        "  log(message=c)",
+        '  d: call greet(name="Bob", who="x")',
+        "  log(message=d)",
+        "",
+      ].join("\n"));
+      const done = runAll(graph);
+      expect(done.status).toBe("done");
+      expect(done.log).toEqual(["Ada", "3", "Ada", "Bob", "x", "Bob"]);
+      expect(done.values["greet.name"]).toBeUndefined();
+    }
+  });
+
+  it("returns a literal from a function and nests calls without mixing up parameters", () => {
+    const literal = parse(["flow f  # xflow 1", "def ok() -> flag:", '  log(message="in")', "  return flag=true", "on start:", "  c: call ok()", "  log(message=c)", ""].join("\n"));
+    expect(runAll(literal).log).toEqual(["in", "True"]);
+    const nested = parse([
+      "flow f  # xflow 1",
+      "def inner(name) -> text:",
+      "  log(message=name)",
+      "  return text=name",
+      "def outer(name) -> text:",
+      '  i: call inner(name="deep")',
+      "  log(message=name)",
+      "  return text=name",
+      "on start:",
+      '  o: call outer(name="top")',
+      "  log(message=o)",
+      "",
+    ].join("\n"));
+    expect(runAll(nested).log).toEqual(["deep", "top", "top"]);
+    const breaking = parse([
+      "flow f  # xflow 1",
+      "def tick(n):",
+      "  log(message=n)",
+      "on start:",
+      "  for i in range(0, 3):",
+      "    c: call tick(n=i)",
+      "",
+    ].join("\n"));
+    expect(runAll(breaking).log).toEqual(["0", "1", "2"]);
+    expect(runAll(parse(["flow f  # xflow 1", "on start:", "  for i in range(2, 4):", "    log(message=i)", ""].join("\n"))).log).toEqual(["2", "3"]);
+  });
+
+  it("reads a variable's default through get, inline or as a step, and sees later sets", () => {
+    const inline = parse(["flow demo  # xflow 1", "var score: int = 1", "on start:", '  log(message=get(name="score"))', '  set(name="score", value=2)', '  log(message=get(name="score"))', ""].join("\n"));
+    expect(runAll(inline).log).toEqual(["1", "2"]);
+    const step = parse(["flow demo  # xflow 1", "var score: int = 1", "param retries: int = 3", "on start:", '  v: get(name="score")', "  log(message=v)", '  log(message=get(name="retries"))', '  log(message=get(name="missing"))', ""].join("\n"));
+    expect(runAll(step).log).toEqual(["1", "3", "None"]);
+  });
 });

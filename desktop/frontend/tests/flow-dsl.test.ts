@@ -845,3 +845,18 @@ function randomFlow(rnd: () => number, n: number): string {
   block(1, 1);
   return lines.join("\n") + "\n";
 }
+
+describe("compile stability", () => {
+  it("compiles the same graph the same way no matter what was compiled or printed before", () => {
+    const plain = parse(["flow f  # xflow 1", "on start:", "  for i in range(0, 3):", "    log(message=i)", ""].join("\n"));
+    const withDef = parse(["flow f  # xflow 1", "def tick(n):", "  log(message=n)", "on start:", "  for i in range(0, 3):", "    log(message=i)", ""].join("\n"));
+    expect(compile(plain, specs).python).toContain("print(i)");
+    const alone = compile(withDef, specs).python;
+    expect(alone).toContain("for i in range(0, 3):");
+    printFlow(plain);
+    expect(compile(withDef, specs).python).toBe(alone);
+    expect(compile(withDef, specs).python).toBe(alone);
+    expect(printFlow(withDef)).toBe(printFlow(withDef));
+    compileAll([alone]);
+  });
+});

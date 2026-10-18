@@ -859,13 +859,18 @@ export function printFlow(g: FlowGraph, opts?: { mode?: "export" | "edit" }): st
   }
 }
 
+/** Each attempt numbers auto labels from n1, so the answer never depends on an earlier print or compile. */
 function structuredText(g: FlowGraph): string | null {
+  const prev = printLabels;
+  printLabels = { mode: prev.mode, n: 1 };
   try {
     const text = printStructured(g);
     return semanticKey(parse(text)) === semanticKey(g) ? text : null;
   } catch (err) {
     if (err instanceof Unstructured) return null;
     throw err;
+  } finally {
+    printLabels = prev;
   }
 }
 
