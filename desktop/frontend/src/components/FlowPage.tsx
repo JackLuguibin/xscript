@@ -19,6 +19,8 @@ import { isTextEntry } from "../shortcuts";
 import { emptyLogCursor, flowEdges, followLogs, LOG_POLL_MS, pictureOf, readTrace, RUN_KEEP_MS, runKept, seqGap, type LogCursor, type NodeRun } from "../flow/trace";
 import { buildRun, readRuns, rememberRun, writeRuns, type FlowRun } from "../flow/runs";
 import { literalPreview, rememberRuns, stepSnippet } from "../flow/step";
+import { deployPlan, pushPlan } from "../flow/deploy";
+import { errorLine } from "../errors";
 import { drive, traceText, type FlowDebug } from "../flow/session";
 import { statementRefs, xflowContext } from "../flow/xflow-language";
 import { inspectPins, literalFromField, type InspectPin } from "../flow/inspect";
@@ -604,6 +606,9 @@ export function FlowPage({ initialLayout }: { initialLayout?: FlowLayout } = {})
   const [traceNow, setTraceNow] = useState(() => Date.now());
   const [trial, setTrial] = useState<{ code: string; line: string; busy?: boolean } | null>(null);
   const stepTicket = useRef(0);
+  const [onDevice, setOnDevice] = useState<{ project: string; devId: string } | null>(null);
+  const [deploying, setDeploying] = useState(false);
+  const sawRunning = useRef(false);
   const [session, setSession] = useState<FlowDebug | null>(null);
   const [library, setLibrary] = useState<"auto" | "open" | "closed">("auto");
   const [bottomH, setBottomH] = useState(240);
@@ -726,6 +731,71 @@ export function FlowPage({ initialLayout }: { initialLayout?: FlowLayout } = {})
     }
     setNote("");
   };
+  const runOnDevice = async () => {
+    if (!services || !devId) {
+      setNote(t.flow.noDevice);
+      return;
+    }
+    const plan = deployPlan(graphRef.current, specs);
+    if (!plan.ok) {
+      setNote(plan.reason === "name" ? t.flow.deployBadName(plan.detail) : t.flow.deployCompile(plan.detail));
+      return;
+    }
+    setDeploying(true);
+    setNote(t.flow.deploying(plan.project));
+    try {
+      const pushed = await pushPlan(services.api, devId, plan);
+      if (!pushed.ok) {
+        setNote(t.flow.deployForeign(plan.project));
+        return;
+      }
+      // Follow from the current end of the device log, so the trace shows this run only.
+      const page = await services.api.logs(devId, 0);
+      logCursor.current = { ...emptyLogCursor(), next: page.next };
+      setTraceLog("");
+      setUserLog([]);
+      sawRunning.current = false;
+      const ran = await services.api.run(devId, plan.project);
+      if (ran.error) {
+        setNote(t.flow.deployFailed(ran.error));
+        return;
+      }
+      setOnDevice({ project: plan.project, devId });
+      setFollow(true);
+      setNote(t.flow.deployed(plan.project));
+    } catch (err) {
+      setNote(t.flow.deployFailed(errorLine(err)));
+    } finally {
+      setDeploying(false);
+    }
+  };
+  const stopOnDevice = async () => {
+    if (!services || !onDevice) return;
+    const { project, devId: target } = onDevice;
+    try {
+      await services.api.stop(target, project);
+      setNote(t.flow.deployStopped(project));
+    } catch (err) {
+      setNote(t.flow.deployFailed(errorLine(err)));
+    }
+    setOnDevice(null);
+  };
+  useEffect(() => {
+    if (!services || !onDevice) return;
+    // The device pushes its status; once the project ran and stopped on its own, the stop button goes away.
+    return services.rpc.on("device.state", (data) => {
+      const state = data as { id?: string; status?: Record<string, unknown> };
+      if (state.id !== onDevice.devId) return;
+      if (state.status?.running) {
+        sawRunning.current = true;
+        return;
+      }
+      if (sawRunning.current && state.status && state.status.running === false) {
+        setOnDevice(null);
+        setNote(t.flow.deployEnded(onDevice.project));
+      }
+    });
+  }, [services, onDevice]);
   const armFollow = () => {
     if (!services || !devId) {
       setNote(t.flow.noDevice);
@@ -1876,6 +1946,15 @@ export function FlowPage({ initialLayout }: { initialLayout?: FlowLayout } = {})
           <Button type="button" onClick={() => applyDebug("stop")} disabled={session?.status !== "paused"}>
             {t.flow.stopFlow}
           </Button>
+          {onDevice ? (
+            <Button variant="danger" type="button" onClick={() => void stopOnDevice()}>
+              {t.flow.stopOnDevice}
+            </Button>
+          ) : (
+            <Button type="button" onClick={() => void runOnDevice()} disabled={deploying} aria-busy={deploying ? true : undefined}>
+              {t.flow.runOnDevice}
+            </Button>
+          )}
           {session ? (
             <p className={"flow-debug" + (session.status === "paused" ? " is-paused" : session.status === "error" ? " is-error" : "")} role="status" aria-label={t.flow.debugState}>
               {session.status === "done"
