@@ -59,12 +59,19 @@ describe("file new / rename / delete", () => {
     expect(screen.getByText(/demo\/b\.py/)).toBeTruthy();
     expect(fileNames().some((n) => n.startsWith("utils/a.py"))).toBe(false);
 
-    const confirm = vi.spyOn(window, "confirm").mockReturnValueOnce(false).mockReturnValueOnce(true);
+    // the in-app confirm dialog (never window.confirm): cancel first, then confirm
+    const native = vi.spyOn(window, "confirm");
     fireEvent.click(screen.getByRole("button", { name: "删除 b.py" }));
+    let dlg = await screen.findByRole("alertdialog");
+    expect(dlg.textContent).toMatch(/确定从设备上删除 b\.py/);
+    fireEvent.click(within(dlg).getByRole("button", { name: "取消" }));
+    await waitFor(() => expect(screen.queryByRole("alertdialog")).toBeNull());
     expect(transport.sent.some((m) => m.method === "project.deleteFile")).toBe(false);
     fireEvent.click(screen.getByRole("button", { name: "删除 b.py" }));
+    dlg = await screen.findByRole("alertdialog");
+    fireEvent.click(within(dlg).getByRole("button", { name: "删除" }));
     await waitFor(() => expect(screen.queryByRole("button", { name: /^b\.py/ })).toBeNull());
-    expect(confirm).toHaveBeenCalledTimes(2);
+    expect(native).not.toHaveBeenCalled();
     expect(screen.getByText("选择一个文件查看或编辑")).toBeTruthy(); // the open file was deleted
   });
 

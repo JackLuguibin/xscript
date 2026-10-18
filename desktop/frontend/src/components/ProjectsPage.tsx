@@ -6,6 +6,7 @@ import { t } from "../strings";
 import { useDevices, useSelectedDevice } from "../useDevices";
 import { Badge } from "./Badge";
 import { CodeEditor } from "./CodeEditor";
+import { useConfirm } from "./ConfirmDialog";
 import { DebugPanel, useDebugSession } from "./DebugPanel";
 import { SyncPanel } from "./SyncPanel";
 import { EmptyState } from "./EmptyState";
@@ -19,9 +20,13 @@ function errText(e: unknown): string {
   return e instanceof Error ? e.message : String(e);
 }
 
-/** Device projects: list → files → edit/save → run/stop → follow /logs (the P1 "edit, sync, run, logs" loop, design §12.1). */
-export function ProjectsPage({ pollMs = LOG_POLL_MS }: { pollMs?: number }) {
+/**
+ * Device projects: list → files → edit/save → run/stop → follow /logs (the P1 "edit, sync, run, logs" loop, design §12.1).
+ * `onDirtyChange` reports whether the open file has unsaved edits (the shell marks the nav item and guards window close).
+ */
+export function ProjectsPage({ pollMs = LOG_POLL_MS, onDirtyChange }: { pollMs?: number; onDirtyChange?: (dirty: boolean) => void }) {
   const { api } = useServices();
+  const { confirm, dialog } = useConfirm();
   const devices = useDevices();
   const [devId, setDevId] = useSelectedDevice(devices);
   const [projects, setProjects] = useState<ProjectSummary[] | null>(null);
@@ -106,10 +111,16 @@ export function ProjectsPage({ pollMs = LOG_POLL_MS }: { pollMs?: number }) {
     if (el) el.scrollTop = el.scrollHeight;
   }, [logs]);
 
-  const confirmDiscard = () => !dirty || window.confirm(t.confirmDiscard);
+  useEffect(() => {
+    onDirtyChange?.(dirty);
+  }, [dirty, onDirtyChange]);
+  useEffect(() => () => onDirtyChange?.(false), [onDirtyChange]);
 
-  const openProject = (name: string) => {
-    if (!confirmDiscard()) return;
+  const confirmDiscard = async () =>
+    !dirty || (await confirm({ message: t.confirmDiscard, confirmLabel: t.confirm.discard, danger: true }));
+
+  const openProject = async (name: string) => {
+    if (!(await confirmDiscard())) return;
     void act("open:" + name, async () => {
       setProject(name);
       setBreakpoints({});
@@ -119,8 +130,8 @@ export function ProjectsPage({ pollMs = LOG_POLL_MS }: { pollMs?: number }) {
     });
   };
 
-  const openFile = (path: string, ask = true) => {
-    if (ask && !confirmDiscard()) return;
+  const openFile = async (path: string, ask = true) => {
+    if (ask && !(await confirmDiscard())) return;
     void act("file:" + path, async () => {
       const f = await api.readFile(devId, project, path);
       setFile(f);
@@ -148,8 +159,8 @@ export function ProjectsPage({ pollMs = LOG_POLL_MS }: { pollMs?: number }) {
     });
   };
 
-  const deleteFile = (path: string) => {
-    if (!window.confirm(t.files.confirmDelete(path))) return;
+  const deleteFile = async (path: string) => {
+    if (!(await confirm({ message: t.files.confirmDelete(path), confirmLabel: t.confirm.del, danger: true }))) return;
     void act("del:" + path, async () => {
       await api.deleteFile(devId, project, path);
       if (file?.path === path) {
@@ -216,13 +227,13 @@ export function ProjectsPage({ pollMs = LOG_POLL_MS }: { pollMs?: number }) {
   const stopDebug = (terminate: boolean) => void api.debugStop(devId, terminate).catch((e) => setError(errText(e)));
 
   const openLocation = (path: string) => {
-    if (file?.path !== path) openFile(path);
+    if (file?.path !== path) void openFile(path);
   };
 
   // follow the paused location into the editor (only when that does not throw away edits)
   useEffect(() => {
     const p = dbgState.state === "stopped" ? dbgState.path : null;
-    if (p && project && file?.path !== p && !dirty) openFile(p, false);
+    if (p && project && file?.path !== p && !dirty) void openFile(p, false);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [dbgState]);
 
@@ -272,7 +283,14 @@ export function ProjectsPage({ pollMs = LOG_POLL_MS }: { pollMs?: number }) {
       <div className="row toolbar">
         <label className="row">
           {t.projects.device}
-          <select aria-label={t.projects.device} value={devId} onChange={(e) => confirmDiscard() && setDevId(e.target.value)}>
+          <select
+            aria-label={t.projects.device}
+            value={devId}
+            onChange={(e) => {
+              const next = e.target.value;
+              void confirmDiscard().then((ok) => ok && setDevId(next));
+            }}
+          >
             {devices.map((d) => (
               <option key={d.id} value={d.id} disabled={d.state !== "online"}>
                 {(d.info.name || d.info.model || d.id) + (d.state !== "online" ? `（${t.state[d.state] ?? d.state}）` : "")}
@@ -306,7 +324,7 @@ export function ProjectsPage({ pollMs = LOG_POLL_MS }: { pollMs?: number }) {
           <ul className="list" aria-label={t.projects.list}>
             {(projects ?? []).map((p) => (
               <li key={p.name}>
-                <button className={"list-btn" + (p.name === project ? " active" : "")} aria-current={p.name === project ? "true" : undefined} onClick={() => openProject(p.name)}>
+                <button className={"list-btn" + (p.name === project ? " active" : "")} aria-current={p.name === project ? "true" : undefined} onClick={() => void openProject(p.name)}>
                   {p.name}
                   {running && runningProject === p.name && <Badge tone="ok">{t.projects.running}</Badge>}
                 </button>
@@ -366,7 +384,7 @@ export function ProjectsPage({ pollMs = LOG_POLL_MS }: { pollMs?: number }) {
                   const entry = f.path === "__init__.py";
                   return (
                     <li key={f.path} className="file-row">
-                      <button className={"list-btn mono" + (file?.path === f.path ? " active" : "")} onClick={() => openFile(f.path)}>
+                      <button className={"list-btn mono" + (file?.path === f.path ? " active" : "")} onClick={() => void openFile(f.path)}>
                         {f.path}
                         <span className="muted">{f.size} B</span>
                       </button>
@@ -384,7 +402,7 @@ export function ProjectsPage({ pollMs = LOG_POLL_MS }: { pollMs?: number }) {
                         aria-label={`${t.files.del} ${f.path}`}
                         title={entry ? t.files.entryProtected : t.files.del}
                         disabled={entry || busy !== ""}
-                        onClick={() => deleteFile(f.path)}
+                        onClick={() => void deleteFile(f.path)}
                       >
                         {busy === "del:" + f.path ? <Spinner /> : "🗑"}
                       </button>
@@ -478,6 +496,7 @@ export function ProjectsPage({ pollMs = LOG_POLL_MS }: { pollMs?: number }) {
           </pre>
         </section>
       </div>
+      {dialog}
     </div>
   );
 }

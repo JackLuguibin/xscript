@@ -168,6 +168,8 @@ export function createApi(rpc: RpcClient) {
   return {
     ping: (echo: string) => rpc.call<{ pong: string; version: string; python: string; platform: string }>("app.ping", { echo }),
     hello: (pingOk: boolean) => rpc.call<Hello>("app.hello", { pingOk }),
+    /** Whether the page holds unsaved edits; the shell asks before closing the window when it does. */
+    setUnsaved: (unsaved: boolean, lang: "zh" | "en") => rpc.call<{ unsaved: boolean }>("app.setUnsaved", { unsaved, lang }),
     setAdbPath: (adbPath: string) => rpc.call<{ adbPath: string | null }>("app.settings.set", { adbPath }),
     adbList: () => rpc.call<{ adbPath: string | null; devices: AdbDevice[] }>("device.adb.list", {}, { timeoutMs: 20_000 }),
     connectAdb: (serial: string) => rpc.call<Device>("device.connect", { transport: "adb", serial }, { timeoutMs: 30_000 }),

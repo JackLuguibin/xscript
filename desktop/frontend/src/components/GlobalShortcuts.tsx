@@ -1,4 +1,5 @@
-import { useEffect, useMemo, useRef, useState, type FormEvent, type ReactNode, type RefObject } from "react";
+import { useEffect, useMemo, useRef, useState, type FormEvent, type RefObject } from "react";
+import { Overlay, isModalOpen } from "./Overlay";
 import { useServices } from "../app-context";
 import { CredentialsForm } from "./CredentialsForm";
 import type { Lang } from "../strings";
@@ -29,81 +30,6 @@ export interface Command {
   shortcut?: string;
   enabled?: boolean;
   run: () => void;
-}
-
-function focusables(root: HTMLElement | null): HTMLElement[] {
-  if (!root) return [];
-  return [...root.querySelectorAll<HTMLElement>("button, [href], input, select, textarea, [tabindex]:not([tabindex='-1'])")].filter(
-    (el) => !el.hasAttribute("disabled") && el.tabIndex !== -1,
-  );
-}
-
-/** Dialog shell: focus trap, backdrop click, and focus returned to whoever opened it (unless a command took focus). */
-function Overlay({
-  title,
-  onClose,
-  restoreFocus,
-  initialFocus,
-  children,
-}: {
-  title: string;
-  onClose: () => void;
-  restoreFocus: RefObject<boolean>;
-  initialFocus?: string;
-  children: ReactNode;
-}) {
-  const panel = useRef<HTMLDivElement>(null);
-  useEffect(() => {
-    const prev = document.activeElement instanceof HTMLElement ? document.activeElement : null;
-    const root = panel.current;
-    // After every effect cleanup in this commit (the previous dialog may restore focus synchronously).
-    queueMicrotask(() => {
-      if (!root?.isConnected) return;
-      const target = (initialFocus && root.querySelector<HTMLElement>(initialFocus)) || focusables(root)[0];
-      target?.focus();
-    });
-    const onTab = (e: KeyboardEvent) => {
-      if (e.key !== "Tab" || !root) return;
-      const items = focusables(root);
-      if (!items.length) return;
-      const first = items[0];
-      const last = items[items.length - 1];
-      const active = document.activeElement;
-      if (e.shiftKey && (active === first || !root.contains(active))) {
-        e.preventDefault();
-        last.focus();
-      } else if (!e.shiftKey && (active === last || !root.contains(active))) {
-        e.preventDefault();
-        first.focus();
-      }
-    };
-    root?.addEventListener("keydown", onTab);
-    return () => {
-      root?.removeEventListener("keydown", onTab);
-      if (restoreFocus.current && prev && document.contains(prev)) prev.focus();
-      restoreFocus.current = true;
-    };
-  }, [initialFocus, restoreFocus]);
-  return (
-    <div className="overlay-backdrop" onMouseDown={onClose}>
-      <div
-        className="overlay-panel"
-        role="dialog"
-        aria-modal="true"
-        aria-labelledby="shortcut-dialog-title"
-        ref={panel}
-        onMouseDown={(e) => e.stopPropagation()}
-      >
-        <div className="overlay-head">
-          <h2 id="shortcut-dialog-title">{title}</h2>
-          <button type="button" className="small" onClick={onClose}>
-            {t.shortcuts.close}
-          </button>
-        </div>
-        {children}
-      </div>
-    </div>
-  );
 }
 
 function CommandPalette({ commands, onRun, onClose, restoreFocus }: { commands: Command[]; onRun: (c: Command) => void; onClose: () => void; restoreFocus: RefObject<boolean> }) {
@@ -416,6 +342,7 @@ export function useGlobalShortcuts(page: ShellPage, setPage: (page: ShellPage) =
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
+      if (isModalOpen()) return; // a confirm dialog is asking: no page switches or palettes behind it
       const action = shortcutAction(e, { overlay, page: pageRef.current, singleKey, typing: isTextEntry(e.target) });
       if (!action) return;
       e.preventDefault();

@@ -3,13 +3,14 @@ from __future__ import annotations
 
 import logging
 from pathlib import Path
+from typing import Callable
 
 from PySide6.QtCore import QCoreApplication, QEvent, QUrl
 from PySide6.QtGui import QDesktopServices
 from PySide6.QtWebChannel import QWebChannel
 from PySide6.QtWebEngineCore import QWebEnginePage, QWebEngineProfile, QWebEngineScript, QWebEngineSettings
 from PySide6.QtWebEngineWidgets import QWebEngineView
-from PySide6.QtWidgets import QMainWindow
+from PySide6.QtWidgets import QMainWindow, QMessageBox
 
 from .bridge import Bridge
 from .scheme import APP_ORIGIN, SCHEME, XsAppHandler, read_qwebchannel_js
@@ -50,9 +51,19 @@ class GuardedPage(QWebEnginePage):
         log.info("[js %s] %s (%s:%d)", level.name if hasattr(level, "name") else level, message, source, line)
 
 
+# Wording of the close prompt, in the page's language (the page reports it with app.setUnsaved).
+CLOSE_PROMPT = {
+    "zh": ("未保存的修改", "编辑器里有未保存的修改，关闭窗口会丢失这些修改。", "放弃修改并关闭", "取消"),
+    "en": ("Unsaved changes", "The editor has unsaved changes. Closing the window discards them.", "Discard and close", "Cancel"),
+}
+
+
 class MainWindow(QMainWindow):
-    def __init__(self, bridge: Bridge, handler: XsAppHandler, dev_url: str | None = None, storage: Path | None = None) -> None:
+    def __init__(self, bridge: Bridge, handler: XsAppHandler, dev_url: str | None = None, storage: Path | None = None,
+                 unsaved: Callable[[], tuple[bool, str]] | None = None) -> None:
+        """`unsaved()` -> (page has unsaved edits, page language); closing the window asks first while it is True."""
         super().__init__()
+        self._unsaved = unsaved
         self.setWindowTitle("XScript")
         self.resize(1180, 760)
         # a named profile persists localStorage/IndexedDB under `storage`; None => off-the-record (selftest)
@@ -86,6 +97,24 @@ class MainWindow(QMainWindow):
         self.view.setPage(self.page)
         self.setCentralWidget(self.view)
         self._dev_url = dev_url
+
+    def closeEvent(self, event) -> None:
+        dirty, lang = self._unsaved() if self._unsaved is not None else (False, "zh")
+        if dirty and not self.confirm_discard(lang):
+            event.ignore()
+            return
+        super().closeEvent(event)
+
+    def confirm_discard(self, lang: str) -> bool:
+        """Ask whether to close anyway. Cancel is the default (Enter / Esc keep the window open)."""
+        title, text, discard, cancel = CLOSE_PROMPT.get(lang, CLOSE_PROMPT["zh"])
+        box = QMessageBox(QMessageBox.Icon.Warning, title, text, QMessageBox.StandardButton.NoButton, self)
+        discard_btn = box.addButton(discard, QMessageBox.ButtonRole.DestructiveRole)
+        cancel_btn = box.addButton(cancel, QMessageBox.ButtonRole.RejectRole)
+        box.setDefaultButton(cancel_btn)
+        box.setEscapeButton(cancel_btn)
+        box.exec()
+        return box.clickedButton() is discard_btn
 
     def load(self) -> None:
         self.view.load(QUrl(self._dev_url or APP_ORIGIN + "/"))

@@ -218,6 +218,7 @@ export function createDemoTransport(): MemoryTransport {
       "secret.delete": (p) => ({ deleted: secrets.delete(`${String(p.kind)}\t${String(p.name)}`) }),
       "secret.has": (p) => ({ present: secrets.has(`${String(p.kind)}\t${String(p.name)}`) }),
       "app.copyText": () => ({ ok: true }),
+      "app.setUnsaved": (p) => ({ unsaved: p.unsaved === true }),
       "tools.open": (p) => {
         const page = String(p.page || "home");
         const path = { home: "/tools/", color: "/tools/ui/color.html", label: "/tools/ui/label.html", mirror: "/tools/ui/mirror.html" }[page];

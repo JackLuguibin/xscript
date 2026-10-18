@@ -1,4 +1,4 @@
-import { useState, type ReactElement } from "react";
+import { useEffect, useState, type ReactElement } from "react";
 import { useServices } from "./app-context";
 import { DevicePage } from "./components/DevicePage";
 import { useGlobalShortcuts } from "./components/GlobalShortcuts";
@@ -39,10 +39,21 @@ function LangToggle({ lang, onChange }: { lang: "zh" | "en"; onChange: (l: "zh" 
 }
 
 function Shell() {
-  const { inShell } = useServices();
+  const { api, inShell } = useServices();
   const [lang, setLang] = useLanguage();
   const [page, setPage] = useState<ShellPage>("devices");
+  // The projects page holds the editor buffer, open file and logs: once opened it stays mounted (hidden) so that
+  // switching pages never throws unsaved edits away. Mirror/wall still unmount (they hold device viewer slots / polls).
+  const [projectsOpened, setProjectsOpened] = useState(false);
+  const [unsaved, setUnsaved] = useState(false);
   const shortcuts = useGlobalShortcuts(page, setPage, lang, setLang);
+  useEffect(() => {
+    if (page === "projects") setProjectsOpened(true);
+  }, [page]);
+  // Tell the shell (MainWindow.closeEvent asks before closing; the language picks the prompt's wording).
+  useEffect(() => {
+    void api.setUnsaved(unsaved, lang).catch(() => undefined);
+  }, [api, unsaved, lang]);
   return (
     <div className={shortcuts.collapsed ? "app sidebar-collapsed" : "app"}>
       <a className="skip-link" href="#main">
@@ -64,9 +75,17 @@ function Shell() {
             <IconMonitor />
             <span className="label">{t.nav.mirror}</span>
           </button>
-          <button className="nav-item" aria-current={page === "projects" ? "page" : undefined} onClick={() => setPage("projects")}>
+          <button
+            className="nav-item"
+            aria-current={page === "projects" ? "page" : undefined}
+            onClick={() => setPage("projects")}
+            title={unsaved ? t.unsavedNav : undefined}
+          >
             <IconFolder />
             <span className="label">{t.nav.projects}</span>
+            {unsaved && (
+              <span className="unsaved-dot" role="img" aria-label={t.unsavedNav} />
+            )}
           </button>
           <button className="nav-item" aria-current={page === "wall" ? "page" : undefined} onClick={() => setPage("wall")}>
             <IconGrid />
@@ -102,8 +121,11 @@ function Shell() {
             <MirrorPage />
           ) : page === "wall" ? (
             <WallPage />
-          ) : (
-            <ProjectsPage />
+          ) : null}
+          {(projectsOpened || page === "projects") && (
+            <div className="keep-alive" hidden={page !== "projects"}>
+              <ProjectsPage onDirtyChange={setUnsaved} />
+            </div>
           )}
         </main>
       </div>

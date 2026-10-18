@@ -87,6 +87,9 @@ class AppContext:
         # Memory backend until main() swaps in the OS keyring. --selftest never touches the login keychain.
         self.secrets = SecretStore(MemoryBackend(), NameIndex(data_dir / "slot-index.json" if data_dir else None))
         self.ui_ready = threading.Event()
+        # Set by the page (app.setUnsaved), read by MainWindow.closeEvent on the GUI thread: plain attribute writes.
+        self.unsaved = False
+        self.ui_lang = "zh"
         self._register()
 
     def _mirror_client(self, device_id: str):
@@ -271,7 +274,16 @@ class AppContext:
             """The page calls this once it has mounted (used by --selftest and to tell the UI the shell's capabilities)."""
             if params.get("pingOk") is True:  # the page proved a full request/response round trip
                 self.ui_ready.set()
+            self.unsaved = False  # a (re)loaded page starts without edits
             return {"version": __version__, "platform": sys.platform, "adbPath": self.adb.path(), "methods": d.methods}
+
+        @d.method("app.setUnsaved")
+        def set_unsaved(params: dict[str, Any]) -> dict[str, Any]:
+            """The page reports whether it holds unsaved edits; closing the window asks first while it does."""
+            self.unsaved = param(params, "unsaved", bool)
+            lang = param(params, "lang", str, default=self.ui_lang)
+            self.ui_lang = lang if lang in ("zh", "en") else "zh"
+            return {"unsaved": self.unsaved}
 
         @d.method("app.settings.set")
         @_map_errors

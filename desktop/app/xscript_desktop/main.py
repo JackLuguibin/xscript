@@ -79,7 +79,8 @@ def main(argv: list[str] | None = None) -> int:
     bridge = Bridge(ctx, runtime)
     handler = XsAppHandler(ctx, runtime)
     headless = bool(args.selftest)
-    win = MainWindow(bridge, handler, dev_url=args.dev_url, storage=None if (headless or args.screenshot) else data_dir / "web")
+    win = MainWindow(bridge, handler, dev_url=args.dev_url, storage=None if (headless or args.screenshot) else data_dir / "web",
+                     unsaved=lambda: (ctx.unsaved, ctx.ui_lang))
     if args.size:
         try:
             w, h = (int(x) for x in args.size.lower().split("x", 1))
