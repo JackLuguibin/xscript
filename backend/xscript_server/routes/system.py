@@ -18,7 +18,7 @@ from starlette.concurrency import run_in_threadpool
 from .. import __version__, maintenance, netcheck
 from .. import cards as cardsvc
 from ..audit import ALERT_EVENTS, get_settings, set_setting
-from ..deps import Principal, admin, client_ip, ctx, db_session, paginate, record, viewer
+from ..deps import Principal, admin, client_ip, ctx, db_session, like_contains, like_escape, paginate, record, viewer
 from ..models import AuditLog, Device, PackJob, Script, Task, User
 
 router = APIRouter(prefix="/api", tags=["system"])
@@ -76,9 +76,9 @@ def audit_log(p: Principal = Depends(admin), s: Session = Depends(db_session), a
     if actor:
         stmt = stmt.where(AuditLog.actor == actor)
     if action:
-        stmt = stmt.where(AuditLog.action.like(action.rstrip("*") + "%"))
+        stmt = stmt.where(AuditLog.action.like(like_escape(action.rstrip("*")) + "%", escape="\\"))
     if q:
-        stmt = stmt.where(AuditLog.target.like("%" + q + "%"))
+        stmt = stmt.where(AuditLog.target.like(like_contains(q), escape="\\"))
     if since:
         stmt = stmt.where(AuditLog.time >= since)
     if until:

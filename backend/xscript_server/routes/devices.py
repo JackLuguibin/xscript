@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import asyncio
 import base64
+import binascii
 import json
 import time
 from typing import Any, Literal
@@ -15,7 +16,7 @@ from sqlalchemy import delete, func, or_, select
 from sqlalchemy.orm import Session
 from starlette.concurrency import run_in_threadpool
 
-from ..deps import Principal, admin, ctx, db_session, operator, paginate, record, viewer
+from ..deps import Principal, admin, ctx, db_session, like_contains, operator, paginate, record, viewer
 from ..hub import Conn
 from ..models import Device, DeviceKey, DeviceLog
 from ..security import new_secret, token_hash
@@ -57,15 +58,15 @@ def _live_view(d: Device, conn: Conn | None) -> dict[str, Any]:
 
 @router.get("/devices")
 def list_devices(request: Request, p: Principal = Depends(viewer), s: Session = Depends(db_session),
-                 q: str = "", group: str = "", app: str = "", online: bool | None = None,
+                 q: str = Query("", max_length=200), group: str = "", app: str = "", online: bool | None = None,
                  page: int = 1, page_size: int = 50):
     hub = ctx(request).hub
     live = dict(hub.conns)
     stmt = select(Device)
     if q:
-        like = "%" + q.strip() + "%"
-        stmt = stmt.where(or_(Device.id.like(like), Device.model.like(like), Device.brand.like(like),
-                              Device.note.like(like)))
+        like = like_contains(q)
+        stmt = stmt.where(or_(Device.id.like(like, escape="\\"), Device.model.like(like, escape="\\"),
+                              Device.brand.like(like, escape="\\"), Device.note.like(like, escape="\\")))
     if app:
         stmt = stmt.where(Device.app == app)
     if online is True:
@@ -123,8 +124,7 @@ def _log_query(dev_id: str, since_ts: int, until_ts: int, q: str, stream: str):
     if stream:
         stmt = stmt.where(DeviceLog.stream == stream)
     if q:
-        stmt = stmt.where(DeviceLog.line.like("%" + q.strip().replace("%", r"\%").replace("_", r"\_") + "%",
-                                              escape="\\"))
+        stmt = stmt.where(DeviceLog.line.like(like_contains(q), escape="\\"))
     return stmt
 
 
@@ -280,11 +280,16 @@ async def relay_http(dev_id: str, body: RelayIn, request: Request, p: Principal 
     conn = c.hub.conns.get(dev_id)
     if conn is None:
         raise HTTPException(404, "设备离线")
-    raw = base64.b64decode(body.body_b64) if body.body_b64 else (body.body or "").encode("utf-8")
+    try:
+        raw = base64.b64decode(body.body_b64, validate=True) if body.body_b64 else (body.body or "").encode("utf-8")
+    except (binascii.Error, ValueError):
+        raise HTTPException(400, "body_b64 不是有效的 base64") from None
     try:
         reply = await c.hub.relay(conn, body.method, body.path, body.query, raw, body.timeout)
     except asyncio.TimeoutError:
         raise HTTPException(504, "设备响应超时") from None
+    except (RuntimeError, OSError, WebSocketDisconnect):  # socket closed while sending
+        raise HTTPException(502, "设备断开") from None
     if body.method != "GET":
         def _audit():
             with c.db.session() as s:
@@ -294,9 +299,15 @@ async def relay_http(dev_id: str, body: RelayIn, request: Request, p: Principal 
         await run_in_threadpool(_audit)
     if reply.get("code") == -1 and "status" not in reply:
         raise HTTPException(502, str(reply.get("msg") or "设备断开"))
-    data = base64.b64decode(reply.get("body") or "")
+    try:
+        data = base64.b64decode(reply.get("body") or "")
+        status = int(reply.get("status", 200))
+    except (binascii.Error, TypeError, ValueError):
+        raise HTTPException(502, "设备返回的数据无法解析") from None
+    if not 100 <= status <= 599:
+        raise HTTPException(502, "设备返回的数据无法解析")
     mime = str(reply.get("mime") or "application/octet-stream").split(";")[0]
-    return Response(content=data, status_code=int(reply.get("status", 200)), media_type=mime,
+    return Response(content=data, status_code=status, media_type=mime,
                     headers={"Cache-Control": "no-store", "X-Content-Type-Options": "nosniff"})
 
 

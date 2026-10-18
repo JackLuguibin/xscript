@@ -113,10 +113,10 @@ def current_user(request: Request) -> Principal:
         p = Principal(user.id, user.username, user.role, via, row.id)
         # 系统设置「管理员必须开启两步验证」: until they do, only the account endpoints work.
         if (via == "web" and user.role == "admin" and not user.totp_enabled
-                and not request.url.path.startswith(TOTP_EXEMPT)
-                and s.get(Setting, "require_totp_admin") is not None
-                and s.get(Setting, "require_totp_admin").value):
-            raise HTTPException(403, "请先开启两步验证")
+                and not request.url.path.startswith(TOTP_EXEMPT)):
+            required = s.get(Setting, "require_totp_admin")
+            if required is not None and required.value:
+                raise HTTPException(403, "请先开启两步验证")
     request.state.principal = p
     return p
 
@@ -153,6 +153,16 @@ def apk_limit(request: Request) -> None:
     c = ctx(request)
     if c.apk_limiter is not None and not c.apk_limiter.allow(client_ip(request)):
         raise HTTPException(429, "下载太频繁，请稍后再试")
+
+
+def like_escape(text: str) -> str:
+    """Escape LIKE wildcards so user input matches literally; use with ``.like(..., escape="\\")``."""
+    return text.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
+
+
+def like_contains(text: str) -> str:
+    """``%text%`` for a substring search on user input (wildcards in it are matched literally)."""
+    return "%" + like_escape(text.strip()) + "%"
 
 
 def paginate(page: int, page_size: int) -> tuple[int, int]:

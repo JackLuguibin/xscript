@@ -66,7 +66,11 @@ def create_task(body: TaskIn, request: Request, p: Principal = Depends(operator)
     if body.command.get("path") == "script_deploy":
         # Scheduled deploys ship code to devices, like the deploy button.
         _require_deploy_rights(p, body.command)
-        if not s.get(Script, int(body.command.get("script_id") or 0)):
+        try:
+            script_id = int(body.command.get("script_id") or 0)
+        except (TypeError, ValueError):
+            raise HTTPException(400, "script_id 必须是整数") from None
+        if not s.get(Script, script_id):
             raise HTTPException(400, "小程序不存在")
     # An "every" task waits one interval before its first run; a daily task runs at the next HH:MM.
     t = Task(name=body.name, target=body.target, command=body.command, daily=body.daily, every=body.every,
