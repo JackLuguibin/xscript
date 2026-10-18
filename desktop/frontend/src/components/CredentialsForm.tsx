@@ -1,15 +1,10 @@
 import { useEffect, useState } from "react";
 import { useServices } from "../app-context";
 import type { SecretSlot } from "../api";
-import { RpcError } from "../bridge/types";
+import { errorLine } from "../errors";
 import { t } from "../strings";
 
 const KINDS = ["env", "backend", "device"] as const;
-
-function errText(e: unknown): string {
-  if (e instanceof RpcError) return `${e.message} [${e.code}]`;
-  return e instanceof Error ? e.message : String(e);
-}
 
 /** Settings section. The value is sent once and then cleared; the list only has names. */
 export function CredentialsForm() {
@@ -25,7 +20,7 @@ export function CredentialsForm() {
   const reload = () => {
     void api.secretList().then(
       (r) => setSlots(r.slots),
-      (e) => setErr(errText(e)),
+      (e) => setErr(errorLine(e)),
     );
   };
   useEffect(reload, [api]);
@@ -47,7 +42,7 @@ export function CredentialsForm() {
             setMsg(t.secrets.saved);
             reload();
           })
-          .catch((err2) => setErr(errText(err2)))
+          .catch((err2) => setErr(errorLine(err2)))
           .finally(() => setBusy(false));
       }}
     >
@@ -115,7 +110,7 @@ export function CredentialsForm() {
                       setMsg(t.secrets.removed);
                       reload();
                     })
-                    .catch((err2) => setErr(errText(err2)));
+                    .catch((err2) => setErr(errorLine(err2)));
                 }}
               >
                 {t.secrets.remove}

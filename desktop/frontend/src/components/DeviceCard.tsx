@@ -1,7 +1,9 @@
 import { useEffect, useState } from "react";
 import type { Device } from "../api";
+import { describeCode } from "../errors";
 import { t } from "../strings";
 import { Badge } from "./Badge";
+import { ErrorBanner } from "./ErrorBanner";
 import { IconAlert, IconCamera, IconPhone, IconUnlink, Spinner } from "./icons";
 
 function Row({ k, v }: { k: string; v: string | number | null | undefined }) {
@@ -49,6 +51,8 @@ export function DeviceCard({ device, onDisconnect, onForget, onRetry, onSave, bu
     setNote(device.note ?? "");
     setAutoConnect(Boolean(device.autoConnect));
   }, [device.name, device.group, device.note, device.autoConnect]);
+  // the raw error comes from health polling; hiding it lasts until the error text changes
+  const [hiddenError, setHiddenError] = useState("");
   const requestShot = () => {
     setShot("loading");
     setShotTick((n) => Math.max(Date.now(), n + 1));
@@ -142,11 +146,13 @@ export function DeviceCard({ device, onDisconnect, onForget, onRetry, onSave, bu
           <span className="grow">{device.warning}</span>
         </div>
       )}
-      {device.error && (
-        <div className="banner error">
-          <IconAlert size={16} />
-          <span className="grow">{device.error}</span>
-        </div>
+      {device.error && device.error !== hiddenError && (
+        <ErrorBanner
+          info={describeCode(device.errorCode ?? "", device.error)}
+          onDismiss={() => setHiddenError(device.error)}
+          label={`${t.errorPrefix} ${device.id}`}
+          role="status"
+        />
       )}
       {!(device.saved && device.state === "offline" && Object.keys(device.status).length === 0) && <div className="card-body">
         <dl className="kv">

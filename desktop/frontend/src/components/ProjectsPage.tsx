@@ -1,24 +1,21 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useServices } from "../app-context";
 import type { Breakpoints, DebugStep, FileContent, LogEntry, ProjectFiles, ProjectSummary } from "../api";
-import { RpcError } from "../bridge/types";
 import { t } from "../strings";
+import { useBusy } from "../useBusy";
 import { useDevices, useSelectedDevice } from "../useDevices";
 import { Badge } from "./Badge";
 import { CodeEditor } from "./CodeEditor";
 import { useConfirm } from "./ConfirmDialog";
 import { DebugPanel, useDebugSession } from "./DebugPanel";
+import { ErrorBanner } from "./ErrorBanner";
 import { SyncPanel } from "./SyncPanel";
 import { EmptyState } from "./EmptyState";
-import { IconAlert, IconFolder, IconPhone, IconRefresh, Spinner } from "./icons";
+import { IconAlert, IconFolder, IconMark, IconPhone, IconRefresh, Spinner } from "./icons";
+import { useToast } from "./Toast";
 
 const MAX_LOG_LINES = 2000; // the device keeps about the same window (design §14)
 export const LOG_POLL_MS = 1000;
-
-function errText(e: unknown): string {
-  if (e instanceof RpcError) return `${e.message} [${e.code}]`;
-  return e instanceof Error ? e.message : String(e);
-}
 
 /**
  * Device projects: list → files → edit/save → run/stop → follow /logs (the P1 "edit, sync, run, logs" loop, design §12.1).
@@ -27,6 +24,7 @@ function errText(e: unknown): string {
 export function ProjectsPage({ pollMs = LOG_POLL_MS, onDirtyChange }: { pollMs?: number; onDirtyChange?: (dirty: boolean) => void }) {
   const { api } = useServices();
   const { confirm, dialog } = useConfirm();
+  const { toast, toasts } = useToast();
   const devices = useDevices();
   const [devId, setDevId] = useSelectedDevice(devices);
   const [projects, setProjects] = useState<ProjectSummary[] | null>(null);
@@ -35,8 +33,9 @@ export function ProjectsPage({ pollMs = LOG_POLL_MS, onDirtyChange }: { pollMs?:
   const [file, setFile] = useState<FileContent | null>(null);
   const [text, setText] = useState("");
   const [dirty, setDirty] = useState(false);
-  const [busy, setBusy] = useState("");
-  const [error, setError] = useState("");
+  // per-item busy keys: open:<p>, file:<path>, fileform, del:<path>, save, create, run, stop, key:<k>, debug
+  const { has, track } = useBusy();
+  const [error, setError] = useState<unknown>(null);
   const [notice, setNotice] = useState("");
   const [newName, setNewName] = useState("");
   const [logs, setLogs] = useState<LogEntry[]>([]);
@@ -49,15 +48,14 @@ export function ProjectsPage({ pollMs = LOG_POLL_MS, onDirtyChange }: { pollMs?:
   const device = devices.find((d) => d.id === devId);
 
   const act = async (key: string, fn: () => Promise<void>) => {
-    setBusy(key);
-    setError("");
-    setNotice("");
     try {
-      await fn();
+      await track(key, async () => {
+        setError(null);
+        setNotice("");
+        await fn();
+      });
     } catch (e) {
-      setError(errText(e));
-    } finally {
-      setBusy("");
+      setError(e);
     }
   };
 
@@ -67,7 +65,7 @@ export function ProjectsPage({ pollMs = LOG_POLL_MS, onDirtyChange }: { pollMs?:
       setProjects((await api.projects(devId)).projects);
     } catch (e) {
       setProjects([]);
-      setError(errText(e));
+      setError(e);
     }
   }, [api, devId]);
 
@@ -198,6 +196,7 @@ export function ProjectsPage({ pollMs = LOG_POLL_MS, onDirtyChange }: { pollMs?:
       await save();
       const r = await api.run(devId, project);
       if (r.error) setNotice(`${t.projects.alreadyRunning}${r.project ? `：${r.project}` : ""}`);
+      else toast(t.projects.started(project));
     });
   const stopProject = () => act("stop", async () => void (await api.stop(devId, runningProject || project)));
   const key = (name: string) => act("key:" + name, async () => void (await api.key(devId, name)));
@@ -213,7 +212,7 @@ export function ProjectsPage({ pollMs = LOG_POLL_MS, onDirtyChange }: { pollMs?:
     if (lines.length) next[path] = lines;
     else delete next[path];
     setBreakpoints(next);
-    if (debuggingHere) void api.debugSetBreakpoints(devId, path, lines).catch((e) => setError(errText(e)));
+    if (debuggingHere) void api.debugSetBreakpoints(devId, path, lines).catch((e) => setError(e));
   };
 
   const startDebug = () =>
@@ -222,9 +221,9 @@ export function ProjectsPage({ pollMs = LOG_POLL_MS, onDirtyChange }: { pollMs?:
       debug.clearOutput();
       debug.setState(await api.debugStart(devId, project, breakpoints));
     });
-  const onDebugError = useCallback((e: unknown) => setError(errText(e)), []);
-  const debugStep = (cmd: DebugStep) => void api.debugStep(devId, cmd).catch((e) => setError(errText(e)));
-  const stopDebug = (terminate: boolean) => void api.debugStop(devId, terminate).catch((e) => setError(errText(e)));
+  const onDebugError = useCallback((e: unknown) => setError(e), []);
+  const debugStep = (cmd: DebugStep) => void api.debugStep(devId, cmd).catch((e) => setError(e));
+  const stopDebug = (terminate: boolean) => void api.debugStop(devId, terminate).catch((e) => setError(e));
 
   const openLocation = (path: string) => {
     if (file?.path !== path) void openFile(path);
@@ -266,17 +265,14 @@ export function ProjectsPage({ pollMs = LOG_POLL_MS, onDirtyChange }: { pollMs?:
 
   return (
     <div className="page">
-      {error && (
-        <div className="banner error" role="alert">
-          <IconAlert size={16} />
-          <span className="grow">
-            {t.errorPrefix}：{error}
-          </span>
-        </div>
-      )}
+      {error !== null && <ErrorBanner error={error} onDismiss={() => setError(null)} />}
       {notice && (
         <div className="banner warn" role="status">
+          <IconAlert size={16} />
           <span className="grow">{notice}</span>
+          <button type="button" className="small ghost icon-btn" aria-label={t.errors.dismiss} onClick={() => setNotice("")}>
+            <IconMark size={14} />
+          </button>
         </div>
       )}
 
@@ -302,7 +298,7 @@ export function ProjectsPage({ pollMs = LOG_POLL_MS, onDirtyChange }: { pollMs?:
         <span className="grow" />
         <span className="muted">{t.projects.keys}</span>
         {(["back", "home", "recents"] as const).map((k) => (
-          <button key={k} className="small" onClick={() => void key(k)} disabled={!devId || busy !== ""}>
+          <button key={k} className="small" onClick={() => void key(k)} disabled={!devId || has("key:" + k)}>
             {t.projects[k]}
           </button>
         ))}
@@ -340,15 +336,15 @@ export function ProjectsPage({ pollMs = LOG_POLL_MS, onDirtyChange }: { pollMs?:
             }}
           >
             <input aria-label={t.projects.newName} className="grow" value={newName} onChange={(e) => setNewName(e.target.value)} placeholder={t.projects.newName} spellCheck={false} />
-            <button type="submit" disabled={!newName.trim() || busy !== ""}>
-              {busy === "create" ? <Spinner /> : t.projects.create}
+            <button type="submit" disabled={!newName.trim() || has("create")}>
+              {has("create") ? <Spinner /> : t.projects.create}
             </button>
           </form>
           {files && (
             <>
               <div className="section-head">
                 <h3 className="sub-head grow">{t.projects.files}</h3>
-                <button className="small" onClick={() => setFileForm({ mode: "new", from: "", value: "" })} disabled={busy !== ""}>
+                <button className="small" onClick={() => setFileForm({ mode: "new", from: "", value: "" })} disabled={has("fileform")}>
                   {t.files.newFile}
                 </button>
               </div>
@@ -371,8 +367,8 @@ export function ProjectsPage({ pollMs = LOG_POLL_MS, onDirtyChange }: { pollMs?:
                     onChange={(e) => setFileForm({ ...fileForm, value: e.target.value })}
                     onKeyDown={(e) => e.key === "Escape" && setFileForm(null)}
                   />
-                  <button type="submit" className="small primary" disabled={!fileForm.value.trim() || busy !== ""}>
-                    {busy === "fileform" ? <Spinner /> : "OK"}
+                  <button type="submit" className="small primary" disabled={!fileForm.value.trim() || has("fileform")}>
+                    {has("fileform") ? <Spinner /> : "OK"}
                   </button>
                   <button type="button" className="small" onClick={() => setFileForm(null)}>
                     ✕
@@ -392,7 +388,7 @@ export function ProjectsPage({ pollMs = LOG_POLL_MS, onDirtyChange }: { pollMs?:
                         className="small ghost"
                         aria-label={`${t.files.rename} ${f.path}`}
                         title={entry ? t.files.entryProtected : t.files.rename}
-                        disabled={entry || busy !== ""}
+                        disabled={entry || has("fileform") || has("del:" + f.path)}
                         onClick={() => setFileForm({ mode: "rename", from: f.path, value: f.path })}
                       >
                         ✎
@@ -401,10 +397,10 @@ export function ProjectsPage({ pollMs = LOG_POLL_MS, onDirtyChange }: { pollMs?:
                         className="small ghost danger"
                         aria-label={`${t.files.del} ${f.path}`}
                         title={entry ? t.files.entryProtected : t.files.del}
-                        disabled={entry || busy !== ""}
+                        disabled={entry || has("del:" + f.path) || (fileForm?.mode === "rename" && has("fileform"))}
                         onClick={() => void deleteFile(f.path)}
                       >
-                        {busy === "del:" + f.path ? <Spinner /> : "🗑"}
+                        {has("del:" + f.path) ? <Spinner /> : "🗑"}
                       </button>
                     </li>
                   );
@@ -413,7 +409,7 @@ export function ProjectsPage({ pollMs = LOG_POLL_MS, onDirtyChange }: { pollMs?:
               <SyncPanel
                 devId={devId}
                 project={project}
-                onError={(e) => setError(errText(e))}
+                onError={(e) => setError(e)}
                 onSynced={() => void api.files(devId, project).then(setFiles).catch(() => undefined)}
               />
             </>
@@ -428,14 +424,15 @@ export function ProjectsPage({ pollMs = LOG_POLL_MS, onDirtyChange }: { pollMs?:
             </h2>
             <span className="grow" />
             {file && <span className="muted">{dirty ? t.projects.unsaved : t.projects.saved}</span>}
-            <button onClick={() => void act("save", save)} disabled={!file || !dirty || busy !== ""}>
-              {busy === "save" ? <Spinner /> : t.projects.save}
+            <button onClick={() => void act("save", save)} disabled={!file || !dirty || has("save") || has("run")}>
+              {has("save") ? <Spinner /> : t.projects.save}
             </button>
-            <button className="primary" onClick={() => void runProject()} disabled={!project || busy !== ""}>
-              {busy === "run" ? <Spinner /> : t.projects.run}
+            <button className="primary" onClick={() => void runProject()} disabled={!project || has("run") || has("save")}>
+              {has("run") ? <Spinner /> : t.projects.run}
             </button>
-            <button className="danger" onClick={() => void stopProject()} disabled={!running || busy !== ""}>
-              {busy === "stop" ? <Spinner /> : t.projects.stop}
+            {/* 停止 never waits on another action: usable while running, while a run is starting, and while saving */}
+            <button className="danger" onClick={() => void stopProject()} disabled={!(running || has("run")) || has("stop")}>
+              {has("stop") ? <Spinner /> : t.projects.stop}
             </button>
           </div>
           {!project && <p className="muted">{t.projects.pickProject}</p>}
@@ -475,7 +472,7 @@ export function ProjectsPage({ pollMs = LOG_POLL_MS, onDirtyChange }: { pollMs?:
               project={project}
               session={debug}
               breakpoints={breakpoints}
-              busy={busy === "debug"}
+              busy={has("debug")}
               onStart={() => void startDebug()}
               onStep={debugStep}
               onStop={stopDebug}
@@ -497,6 +494,7 @@ export function ProjectsPage({ pollMs = LOG_POLL_MS, onDirtyChange }: { pollMs?:
         </section>
       </div>
       {dialog}
+      {toasts}
     </div>
   );
 }

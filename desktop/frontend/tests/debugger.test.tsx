@@ -111,7 +111,10 @@ describe("debugger UI", () => {
       throw { code: "debug.busy", message: "already running" };
     });
     fireEvent.click(screen.getByRole("button", { name: "调试" }));
-    expect(await screen.findByText(/already running \[debug\.busy\]/)).toBeTruthy();
+    // an unmapped code: the message is the title, the raw `message [code]` sits behind 详情
+    const alert = (await screen.findByText("already running")).closest("[role=alert]") as HTMLElement;
+    fireEvent.click(within(alert).getByRole("button", { name: "详情" }));
+    expect(within(alert).getByText(/already running \[debug\.busy\]/)).toBeTruthy();
   });
 
   it("zh/en debugger strings line up", async () => {

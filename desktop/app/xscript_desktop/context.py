@@ -35,6 +35,16 @@ def _rel_path(params: dict[str, Any], key: str = "path") -> str:
     return rel
 
 
+def error_code(e: BaseException) -> str:
+    """The RPC error code of a service-layer failure (also put on offline device cards as `errorCode`)."""
+    if isinstance(e, DeviceError):
+        return e.code
+    if isinstance(e, StoreError):
+        return {"db.not_found": "device.not_found"}.get(e.code, e.code)
+    code = getattr(e, "code", "")
+    return code if isinstance(code, str) and code else "rpc.internal"
+
+
 def _map_errors(fn: Callable[..., Awaitable[Any]]) -> Callable[..., Awaitable[Any]]:
     @functools.wraps(fn)
     async def wrapper(params: dict[str, Any]) -> Any:
@@ -47,11 +57,9 @@ def _map_errors(fn: Callable[..., Awaitable[Any]]) -> Callable[..., Awaitable[An
         except AdbError as e:
             raise RpcError(e.code, e.message, details=e.details) from e
         except DeviceError as e:
-            code = {"connect": "device.unreachable", "timeout": "device.timeout", "protocol": "device.protocol"}.get(e.kind, "device.http")
-            raise RpcError(code, str(e), retryable=e.retryable, details={"status": e.status, "detail": e.detail}) from e
+            raise RpcError(e.code, str(e), retryable=e.retryable, details={"status": e.status, "detail": e.detail}) from e
         except StoreError as e:
-            code = {"db.not_found": "device.not_found"}.get(e.code, e.code)
-            raise RpcError(code, e.message) from e
+            raise RpcError(error_code(e), e.message) from e
         except SecretError as e:
             raise RpcError(e.code, e.message) from e
         except KeyError as e:
@@ -183,7 +191,7 @@ class AppContext:
         except StoreError:
             saved = None
         if saved is not None:
-            self.dispatcher.emit("device.state", self._offline_view(saved, str(err)))
+            self.dispatcher.emit("device.state", self._offline_view(saved, str(err), error_code(err)))
         elif was_live:
             self.dispatcher.emit("device.removed", {"id": dev_id})
 
@@ -198,7 +206,7 @@ class AppContext:
             return
 
     @staticmethod
-    def _offline_view(saved: SavedDevice, error: str = "") -> dict[str, Any]:
+    def _offline_view(saved: SavedDevice, error: str = "", code: str = "") -> dict[str, Any]:
         info = summarize_status({"name": saved.name, "model": saved.model, "device_id": saved.device_id})
         info.pop("capture", None)  # unknown until /status; a missing flag must not say capture was denied
         warning = ""
@@ -209,7 +217,7 @@ class AppContext:
         return {
             "id": saved.id, "transport": saved.transport, "address": saved.address,
             "serial": saved.address if saved.transport == "adb" else "", "forwardPort": 0,
-            "state": "offline", "error": error, "warning": warning, "lastSeen": saved.last_seen or 0,
+            "state": "offline", "error": error, "errorCode": code if error else "", "warning": warning, "lastSeen": saved.last_seen or 0,
             "info": info, "status": {}, "name": saved.name, "group": saved.grp, "note": saved.note,
             "autoConnect": bool(saved.auto_connect), "sortOrder": saved.sort_order, "saved": True,
         }
@@ -226,7 +234,7 @@ class AppContext:
                 elif row.transport == "lan":
                     rec = await self.devices.connect_address(row.address)
                 else:
-                    view = self._offline_view(row, "暂不支持自动连接 %s" % row.transport)
+                    view = self._offline_view(row, "暂不支持自动连接 %s" % row.transport, "device.unsupported")
                     self.dispatcher.emit("device.state", view)
                     out.append(view)
                     continue
@@ -234,7 +242,7 @@ class AppContext:
                 any_live = True
                 out.append(rec.to_dict())
             except (AdbError, DeviceError, StoreError) as e:
-                view = self._offline_view(row, str(e))
+                view = self._offline_view(row, str(e), error_code(e))
                 self.dispatcher.emit("device.state", view)
                 out.append(view)
         if any_live:

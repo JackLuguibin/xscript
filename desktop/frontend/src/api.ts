@@ -41,6 +41,8 @@ export interface Device {
   forwardPort: number;
   state: "connecting" | "online" | "offline";
   error: string;
+  /** Machine-readable twin of `error` (an RPC error code such as device.unreachable); absent on older backends. */
+  errorCode?: string;
   warning: string;
   lastSeen: number;
   info: Partial<DeviceInfo>;

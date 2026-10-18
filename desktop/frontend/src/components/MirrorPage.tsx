@@ -1,20 +1,17 @@
 import { useEffect, useRef, useState, type CSSProperties, type PointerEvent as RPointerEvent } from "react";
 import { useServices } from "../app-context";
 import type { MirrorStatus } from "../api";
-import { RpcError } from "../bridge/types";
 import { classify, frameUrl, streamScale, toDevice } from "../mirror";
 import { t } from "../strings";
 import { useDevices, useSelectedDevice } from "../useDevices";
 import { EmptyState } from "./EmptyState";
+import { ErrorBanner } from "./ErrorBanner";
 import { IconAlert, IconMonitor, IconPhone } from "./icons";
 import { ScreenTools, rectPercent, type PointerMode } from "./ScreenTools";
+import { useToast } from "./Toast";
 
 const FPS = [5, 8, 12, 15];
 
-function errText(e: unknown): string {
-  if (e instanceof RpcError) return `${e.message} [${e.code}]`;
-  return e instanceof Error ? e.message : String(e);
-}
 
 /**
  * Screen mirror. One MJPEG upstream per device lives in Python (design §14.4); the page only hears `mirror.frame` and reads
@@ -32,8 +29,8 @@ export function MirrorPage() {
   const [phase, setPhase] = useState<"waiting" | "ok" | "failed">("waiting");
   const [mirrorState, setMirrorState] = useState("");
   const [reason, setReason] = useState("");
-  const [error, setError] = useState("");
-  const [notice, setNotice] = useState("");
+  const [error, setError] = useState<unknown>(null);
+  const { toast, toasts } = useToast();
   const [text, setText] = useState("");
   const [mode, setMode] = useState<PointerMode>("control");
   const [hover, setHover] = useState<{ x: number; y: number } | null>(null);
@@ -58,7 +55,7 @@ export function MirrorPage() {
     setPhase("waiting");
     setMirrorState("");
     setReason("");
-    setError("");
+    setError(null);
     setHover(null);
     setPicked(null);
     setHitBox(null);
@@ -105,7 +102,7 @@ export function MirrorPage() {
         applySnap(s);
       })
       .catch((e) => {
-        if (!dead && mine === ticket.current) setError(errText(e));
+        if (!dead && mine === ticket.current) setError(e);
       });
     return () => {
       dead = true;
@@ -174,12 +171,14 @@ export function MirrorPage() {
     return { ex, ey, t: e.timeStamp || Date.now(), x: p.x, y: p.y };
   };
 
-  const send = async (payload: Record<string, unknown>) => {
-    setError("");
+  const send = async (payload: Record<string, unknown>): Promise<boolean> => {
+    setError(null);
     try {
       await api.action(devId, payload);
+      return true;
     } catch (e) {
-      setError(errText(e));
+      setError(e);
+      return false;
     }
   };
 
@@ -197,14 +196,7 @@ export function MirrorPage() {
   const stalled = mirrorState === "stalled";
   return (
     <div className="page">
-      {error && (
-        <div className="banner error" role="alert">
-          <IconAlert size={16} />
-          <span className="grow">
-            {t.errorPrefix}：{error}
-          </span>
-        </div>
-      )}
+      {error !== null && <ErrorBanner error={error} onDismiss={() => setError(null)} />}
       {reason === "viewers_full" && (
         <div className="banner warn" role="status">
           <IconAlert size={16} />
@@ -288,7 +280,7 @@ export function MirrorPage() {
             <div className="overlay fail" role="status">
               <IconAlert size={28} />
               <span>{t.mirror.noCapture}</span>
-              <button type="button" onClick={() => void api.mirrorRetry(devId).catch((e) => setError(errText(e)))}>
+              <button type="button" onClick={() => void api.mirrorRetry(devId).catch((e) => setError(e))}>
                 {t.mirror.retry}
               </button>
             </div>
@@ -297,7 +289,7 @@ export function MirrorPage() {
             <div className="overlay fail" role="status">
               <IconAlert size={28} />
               <span>{t.mirror.stalled}</span>
-              <button type="button" onClick={() => void api.mirrorRetry(devId).catch((e) => setError(errText(e)))}>
+              <button type="button" onClick={() => void api.mirrorRetry(devId).catch((e) => setError(e))}>
                 {t.mirror.retry}
               </button>
             </div>
@@ -324,9 +316,10 @@ export function MirrorPage() {
               e.preventDefault();
               const v = text;
               if (!v) return;
-              void send({ type: "input", text: v }).then(() => {
+              void send({ type: "input", text: v }).then((ok) => {
+                if (!ok) return; // the error banner says why; keep the text so it can be resent
                 setText("");
-                setNotice(t.mirror.sent(v));
+                toast(t.mirror.sent(v));
               });
             }}
           >
@@ -335,11 +328,6 @@ export function MirrorPage() {
               {t.mirror.send}
             </button>
           </form>
-          {notice && (
-            <p className="hint" role="status">
-              {notice}
-            </p>
-          )}
           <p className="hint">{t.mirror.hint}</p>
           <ScreenTools
             device={device}
@@ -348,9 +336,11 @@ export function MirrorPage() {
             hover={hover}
             picked={picked}
             onHit={(rect, screen) => setHitBox(rect && screen ? rectPercent(rect, screen) : null)}
+            toast={toast}
           />
         </div>
       </div>
+      {toasts}
     </div>
   );
 }

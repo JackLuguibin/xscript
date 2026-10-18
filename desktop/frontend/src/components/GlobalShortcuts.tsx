@@ -5,7 +5,7 @@ import { CredentialsForm } from "./CredentialsForm";
 import type { Lang } from "../strings";
 import { t } from "../strings";
 import { useTheme, type ThemeMode } from "../theme";
-import { RpcError } from "../bridge/types";
+import { errorLine } from "../errors";
 import {
   CHORDS,
   NAV_PAGES,
@@ -155,7 +155,7 @@ function SettingsDialog({
         setAdbMsg(t.shortcuts.adbSaved);
       }
     } catch (err) {
-      setAdbErr(err instanceof RpcError ? `${err.message} [${err.code}]` : err instanceof Error ? err.message : String(err));
+      setAdbErr(errorLine(err));
     } finally {
       setSaving(false);
     }

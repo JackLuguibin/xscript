@@ -1,18 +1,14 @@
 import { useEffect, useState } from "react";
 import { useServices } from "../app-context";
 import type { Device } from "../api";
-import { RpcError } from "../bridge/types";
 import { t } from "../strings";
+import { ErrorBanner } from "./ErrorBanner";
+import { useToast } from "./Toast";
 import { flattenTree, hitTest, nodeLabel, nodeXPath, rectPercent, selectorCode, type UiNode, type UiRect, type UiTree } from "../ui-tree";
 
 export type PointerMode = "control" | "inspect" | "color";
 
 const TOOL_PAGES = ["color", "label", "mirror", "home"] as const;
-
-function errText(e: unknown): string {
-  if (e instanceof RpcError) return `${e.message} [${e.code}]`;
-  return e instanceof Error ? e.message : String(e);
-}
 
 export function ScreenTools({
   device,
@@ -21,6 +17,7 @@ export function ScreenTools({
   hover,
   picked,
   onHit,
+  toast: toastProp,
 }: {
   device: Device;
   mode: PointerMode;
@@ -28,6 +25,8 @@ export function ScreenTools({
   hover: { x: number; y: number } | null;
   picked: { x: number; y: number; n: number } | null;
   onHit: (rect: UiRect | null, screen: { w: number; h: number } | null) => void;
+  /** The host page's toast; without one the panel shows its own. */
+  toast?: (text: string) => void;
 }) {
   const { api, inShell } = useServices();
   const [tree, setTree] = useState<UiTree | null>(null);
@@ -35,7 +34,9 @@ export function ScreenTools({
   const [miss, setMiss] = useState(false);
   const [color, setColor] = useState<string | null>(null);
   const [notice, setNotice] = useState("");
-  const [error, setError] = useState("");
+  const [error, setError] = useState<unknown>(null);
+  const local = useToast();
+  const toast = toastProp ?? local.toast;
   const devId = device.id;
 
   useEffect(() => {
@@ -44,7 +45,7 @@ export function ScreenTools({
     setMiss(false);
     setColor(null);
     setNotice("");
-    setError("");
+    setError(null);
     onHit(null, null);
     // The highlight belongs to the previous device.
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -64,7 +65,7 @@ export function ScreenTools({
   };
 
   const refresh = async (point?: { x: number; y: number }) => {
-    setError("");
+    setError(null);
     const data = (await api.uiTree(devId, 0)) as UiTree;
     applyTree(data, point);
   };
@@ -74,7 +75,7 @@ export function ScreenTools({
     let dead = false;
     if (mode === "inspect") {
       void refresh(picked).catch((e) => {
-        if (!dead) setError(errText(e));
+        if (!dead) setError(e);
       });
     } else if (mode === "color") {
       setColor(null);
@@ -84,7 +85,7 @@ export function ScreenTools({
           if (!dead) setColor(r.color);
         })
         .catch((e) => {
-          if (!dead) setError(errText(e));
+          if (!dead) setError(e);
         });
     }
     return () => {
@@ -99,26 +100,28 @@ export function ScreenTools({
   const rows = tree ? flattenTree(tree.roots ?? []) : [];
 
   const copy = async (text: string) => {
-    setError("");
+    setError(null);
     setNotice("");
     try {
       await api.copyText(text);
-      setNotice(t.inspect.copied);
+      toast(t.inspect.copied);
     } catch (e) {
-      setError(errText(e));
+      setError(e);
     }
   };
 
   const openTool = async (page: (typeof TOOL_PAGES)[number]) => {
-    setError("");
+    setError(null);
     setNotice("");
     try {
       const res = await api.toolsOpen(devId, page);
       const name = t.tools[page];
       const opened = inShell ? t.tools.opened(name) : `${t.tools.demo} ${res.url}`;
-      setNotice(res.warning ? `${opened} ${res.warning}` : opened);
+      // a warning (e.g. plain-HTTP LAN) must stay readable, so only the plain success becomes a toast
+      if (res.warning) setNotice(`${opened} ${res.warning}`);
+      else toast(opened);
     } catch (e) {
-      setError(errText(e));
+      setError(e);
     }
   };
 
@@ -144,30 +147,26 @@ export function ScreenTools({
         {color ? ` · ${t.inspect.colorLabel} ${color}` : ""}
       </p>
       {color && <span className="swatch" style={{ background: color }} aria-hidden="true" />}
-      {error && (
-        <p className="banner error" role="alert">
-          {error}
-        </p>
-      )}
+      {error !== null && <ErrorBanner error={error} onDismiss={() => setError(null)} />}
       {notice && (
         <p className="hint" role="status">
           {notice}
         </p>
       )}
       <div className="row wrap">
-        <button type="button" className="small" onClick={() => void refresh().catch((e) => setError(errText(e)))}>
+        <button type="button" className="small" onClick={() => void refresh().catch((e) => setError(e))}>
           {t.inspect.refresh}
         </button>
         <button
           type="button"
           className="small"
           onClick={() => {
-            setError("");
+            setError(null);
             setNotice("");
             void api
               .saveScreenshot(devId)
-              .then((r) => setNotice(r.saved && r.path ? t.inspect.savedShot(r.path) : t.inspect.saveCancelled))
-              .catch((e) => setError(errText(e)));
+              .then((r) => toast(r.saved && r.path ? t.inspect.savedShot(r.path) : t.inspect.saveCancelled))
+              .catch((e) => setError(e));
           }}
         >
           {t.inspect.saveShot}
@@ -233,6 +232,7 @@ export function ScreenTools({
           ))}
         </div>
       </div>
+      {!toastProp && local.toasts}
     </div>
   );
 }

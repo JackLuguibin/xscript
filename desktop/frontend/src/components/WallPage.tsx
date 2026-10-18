@@ -1,12 +1,13 @@
 import { useEffect, useState, type PointerEvent as RPointerEvent } from "react";
 import { useServices } from "../app-context";
 import type { Device } from "../api";
-import { RpcError } from "../bridge/types";
 import { t } from "../strings";
 import { useDevices } from "../useDevices";
 import { onlineSelected, pointOnDevice, relativePoint, thumbUrl } from "../wall";
 import { EmptyState } from "./EmptyState";
+import { ErrorBanner } from "./ErrorBanner";
 import { IconPhone } from "./icons";
+import { useToast } from "./Toast";
 
 const KEYS = ["back", "home", "recents"] as const;
 /** Gap between a thumbnail arriving and the next request; longer after a failed one. */
@@ -46,18 +47,14 @@ function WallThumb({ id, alt, onPointerUp }: { id: string; alt: string; onPointe
   );
 }
 
-function errText(e: unknown): string {
-  if (e instanceof RpcError) return `${e.message} [${e.code}]`;
-  return e instanceof Error ? e.message : String(e);
-}
 
 /** Thumbnail wall. Pictures are `/_shot/` polls, never a `/screen/stream` (the device allows two viewers). */
 export function WallPage() {
   const { api } = useServices();
   const devices = useDevices();
   const [selected, setSelected] = useState<Set<string>>(new Set());
-  const [notice, setNotice] = useState("");
-  const [error, setError] = useState("");
+  const { toast, toasts } = useToast();
+  const [error, setError] = useState<unknown>(null);
 
   const targets = () => onlineSelected(devices, selected);
 
@@ -71,8 +68,7 @@ export function WallPage() {
   };
 
   const broadcast = async (list: Device[], payload: Record<string, unknown> | ((d: Device) => Record<string, unknown> | null)) => {
-    setError("");
-    setNotice("");
+    setError(null);
     if (!list.length) return;
     const results = await Promise.all(
       list.map(async (d) => {
@@ -82,13 +78,13 @@ export function WallPage() {
           await api.action(d.id, body);
           return true;
         } catch (e) {
-          setError(errText(e));
+          setError(e);
           return false;
         }
       }),
     );
     const n = results.filter(Boolean).length;
-    if (n) setNotice(t.wall.sent(n));
+    if (n) toast(t.wall.sent(n));
   };
 
   if (!devices.length) {
@@ -103,11 +99,7 @@ export function WallPage() {
 
   return (
     <div className="page">
-      {error && (
-        <div className="banner error" role="alert">
-          {error}
-        </div>
-      )}
+      {error !== null && <ErrorBanner error={error} onDismiss={() => setError(null)} />}
       <div className="row toolbar">
         <button type="button" className="small" onClick={() => setSelected(new Set(devices.filter((d) => d.state === "online").map((d) => d.id)))}>
           {t.wall.selectAll}
@@ -124,11 +116,6 @@ export function WallPage() {
         ))}
       </div>
       <p className="hint">{t.wall.hint}</p>
-      {notice && (
-        <p className="hint" role="status">
-          {notice}
-        </p>
-      )}
       <div className="wall-grid">
         {devices.map((d) => {
           const online = d.state === "online";
@@ -164,6 +151,7 @@ export function WallPage() {
           );
         })}
       </div>
+      {toasts}
     </div>
   );
 }

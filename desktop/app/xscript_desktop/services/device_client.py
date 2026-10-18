@@ -27,6 +27,11 @@ class DeviceError(Exception):
     def retryable(self) -> bool:
         return self.kind in ("connect", "timeout") or self.status in (429, 502, 503, 504)
 
+    @property
+    def code(self) -> str:
+        """The RPC error code for this failure (the page maps codes to actionable hints)."""
+        return {"connect": "device.unreachable", "timeout": "device.timeout", "protocol": "device.protocol"}.get(self.kind, "device.http")
+
 
 @dataclass(frozen=True)
 class DeviceTarget:

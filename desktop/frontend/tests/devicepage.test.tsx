@@ -61,8 +61,12 @@ describe("DevicePage", () => {
     setup({ "device.connect": () => { throw { code: "device.unreachable", message: "cannot reach 127.0.0.1:41000", retryable: true }; } });
     await user.click(await screen.findByRole("button", { name: "连接 emulator-5554" }));
     const alert = await screen.findByRole("alert");
-    expect(alert.textContent).toContain("cannot reach");
-    expect(alert.textContent).toContain("device.unreachable");
+    // mapped, actionable text first; the raw message and code only behind 详情
+    expect(alert.textContent).toContain("连不上设备");
+    expect(alert.textContent).toContain("前台");
+    expect(alert.textContent).not.toContain("cannot reach");
+    await user.click(within(alert).getByRole("button", { name: "详情" }));
+    expect(alert.textContent).toContain("cannot reach 127.0.0.1:41000 [device.unreachable]");
   });
 
   it("connects a LAN address, showing the no-auth warning from Python", async () => {
