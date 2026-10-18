@@ -247,7 +247,7 @@ export function DevicePage({ refreshToken = 0, focusToken = 0 }: { refreshToken?
             {t.lanWarning}
           </p>
           <form
-            className="row"
+            className="row lan-form"
             onSubmit={(e) => {
               e.preventDefault();
               if (address.trim()) void connectLan(address.trim());
