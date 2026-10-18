@@ -260,3 +260,30 @@ class LogRedactTest(unittest.TestCase):
         self.assertNotIn("xsd_secret", rec.getMessage())
         cfg = uvicorn_log_config()
         self.assertTrue(all("redact_secrets" in h["filters"] for h in cfg["handlers"].values()))
+
+
+class RateLimiterThreadTest(unittest.TestCase):
+    def test_concurrent_allow_never_exceeds_the_limit(self):
+        import threading
+
+        from xscript_server.alerts import RateLimiter
+
+        lim = RateLimiter(limit=1000, window_s=60)
+        granted = []
+        start = threading.Barrier(8)
+
+        def worker():
+            start.wait()
+            granted.append(sum(lim.allow("1.2.3.4") for _ in range(500)))
+
+        threads = [threading.Thread(target=worker) for _ in range(8)]
+        old = sys.getswitchinterval()
+        sys.setswitchinterval(1e-6)  # switch threads as often as possible to expose unlocked check-then-append
+        try:
+            for t in threads:
+                t.start()
+            for t in threads:
+                t.join()
+        finally:
+            sys.setswitchinterval(old)
+        self.assertEqual(sum(granted), 1000)  # 4000 attempts, exactly `limit` allowed

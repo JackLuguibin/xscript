@@ -12,6 +12,7 @@ import hashlib
 import hmac
 import json
 import logging
+import threading
 import time
 import urllib.parse
 import urllib.request
@@ -123,15 +124,18 @@ class RateLimiter:
     def __init__(self, limit: int, window_s: float):
         self.limit, self.window = limit, window_s
         self.hits: dict[str, deque[float]] = {}
+        # pub_limit / apk_limit are sync dependencies, so FastAPI calls them from worker threads.
+        self._lock = threading.Lock()
 
     def allow(self, key: str) -> bool:
         now = time.time()
-        q = self.hits.setdefault(key, deque())
-        while q and now - q[0] > self.window:
-            q.popleft()
-        if len(q) >= self.limit:
-            return False
-        q.append(now)
-        if len(self.hits) > 20000:
-            self.hits = {k: v for k, v in self.hits.items() if v and now - v[-1] < self.window}
-        return True
+        with self._lock:
+            q = self.hits.setdefault(key, deque())
+            while q and now - q[0] > self.window:
+                q.popleft()
+            if len(q) >= self.limit:
+                return False
+            q.append(now)
+            if len(self.hits) > 20000:
+                self.hits = {k: v for k, v in self.hits.items() if v and now - v[-1] < self.window}
+            return True
