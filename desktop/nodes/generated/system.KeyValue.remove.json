@@ -1,0 +1,44 @@
+{
+  "type": "system.KeyValue.remove",
+  "category": "system",
+  "title": {
+    "zh": "system.KeyValue.remove",
+    "en": "system.KeyValue.remove"
+  },
+  "doc": {
+    "zh": "remove",
+    "en": "remove"
+  },
+  "exec": {
+    "in": [
+      "exec"
+    ],
+    "out": [
+      "then"
+    ]
+  },
+  "inputs": [
+    {
+      "name": "key",
+      "type": "any"
+    }
+  ],
+  "outputs": [
+    {
+      "name": "result",
+      "type": "any"
+    }
+  ],
+  "py": {
+    "imports": [
+      "from xscript.android import system"
+    ],
+    "stmt": "{id} = system.KeyValue.remove({key})"
+  },
+  "dsl": {
+    "alias": "system.KeyValue.remove"
+  },
+  "since": "0.2.6",
+  "origin": "xscript.android.system.KeyValue.remove",
+  "availability": "ok"
+}

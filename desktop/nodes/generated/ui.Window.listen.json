@@ -1,0 +1,44 @@
+{
+  "type": "ui.Window.listen",
+  "category": "ui",
+  "title": {
+    "zh": "ui.Window.listen",
+    "en": "ui.Window.listen"
+  },
+  "doc": {
+    "zh": "Catch-all handler fn(key, value).",
+    "en": "Catch-all handler fn(key, value)."
+  },
+  "exec": {
+    "in": [
+      "exec"
+    ],
+    "out": [
+      "then"
+    ]
+  },
+  "inputs": [
+    {
+      "name": "fn",
+      "type": "any"
+    }
+  ],
+  "outputs": [
+    {
+      "name": "result",
+      "type": "any"
+    }
+  ],
+  "py": {
+    "imports": [
+      "from xscript.android import ui"
+    ],
+    "stmt": "{id} = ui.Window.listen({fn})"
+  },
+  "dsl": {
+    "alias": "ui.Window.listen"
+  },
+  "since": "0.2.6",
+  "origin": "xscript.android.ui.Window.listen",
+  "availability": "ok"
+}

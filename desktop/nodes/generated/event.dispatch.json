@@ -1,0 +1,44 @@
+{
+  "type": "event.dispatch",
+  "category": "event",
+  "title": {
+    "zh": "event.dispatch",
+    "en": "event.dispatch"
+  },
+  "doc": {
+    "zh": "Deliver one event dict to matching waiters and handlers (used by the pump and by tests).",
+    "en": "Deliver one event dict to matching waiters and handlers (used by the pump and by tests)."
+  },
+  "exec": {
+    "in": [
+      "exec"
+    ],
+    "out": [
+      "then"
+    ]
+  },
+  "inputs": [
+    {
+      "name": "data",
+      "type": "any"
+    }
+  ],
+  "outputs": [
+    {
+      "name": "result",
+      "type": "any"
+    }
+  ],
+  "py": {
+    "imports": [
+      "from xscript.android import event"
+    ],
+    "stmt": "{id} = event.dispatch({data})"
+  },
+  "dsl": {
+    "alias": "event.dispatch"
+  },
+  "since": "0.2.6",
+  "origin": "xscript.android.event.dispatch",
+  "availability": "ok"
+}

@@ -1,0 +1,78 @@
+[
+  {
+    "origin": "xscript.android.event.on",
+    "reason": "varargs"
+  },
+  {
+    "origin": "xscript.android.event.wait",
+    "reason": "varargs"
+  },
+  {
+    "origin": "xscript.android.models.path",
+    "reason": "varargs"
+  },
+  {
+    "origin": "xscript.android.node.Selector.brother",
+    "reason": "varargs"
+  },
+  {
+    "origin": "xscript.android.node.Selector.child",
+    "reason": "varargs"
+  },
+  {
+    "origin": "xscript.android.node.Selector.child_count",
+    "reason": "varargs"
+  },
+  {
+    "origin": "xscript.android.node.Selector.depth",
+    "reason": "varargs"
+  },
+  {
+    "origin": "xscript.android.node.Selector.parent",
+    "reason": "varargs"
+  },
+  {
+    "origin": "xscript.android.paddle.engine",
+    "reason": "varargs"
+  },
+  {
+    "origin": "xscript.android.pip.install",
+    "reason": "varargs"
+  },
+  {
+    "origin": "xscript.android.pip.uninstall",
+    "reason": "varargs"
+  },
+  {
+    "origin": "xscript.android.system.R.img",
+    "reason": "varargs"
+  },
+  {
+    "origin": "xscript.android.system.R.res",
+    "reason": "varargs"
+  },
+  {
+    "origin": "xscript.android.system.R.root",
+    "reason": "varargs"
+  },
+  {
+    "origin": "xscript.android.system.R.sd",
+    "reason": "varargs"
+  },
+  {
+    "origin": "xscript.android.system.R.ui",
+    "reason": "varargs"
+  },
+  {
+    "origin": "xscript.android.system.Schedule.update",
+    "reason": "varargs"
+  },
+  {
+    "origin": "xscript.android.ui.Window.update",
+    "reason": "varargs"
+  },
+  {
+    "origin": "xscript.android.yolo.Yolo.find",
+    "reason": "varargs"
+  }
+]

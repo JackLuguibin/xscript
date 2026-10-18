@@ -1,0 +1,39 @@
+{
+  "type": "yolo.Detection.to_dict",
+  "category": "yolo",
+  "title": {
+    "zh": "yolo.Detection.to_dict",
+    "en": "yolo.Detection.to_dict"
+  },
+  "doc": {
+    "zh": "to_dict",
+    "en": "to_dict"
+  },
+  "exec": {
+    "in": [
+      "exec"
+    ],
+    "out": [
+      "then"
+    ]
+  },
+  "inputs": [],
+  "outputs": [
+    {
+      "name": "result",
+      "type": "any"
+    }
+  ],
+  "py": {
+    "imports": [
+      "from xscript.android import yolo"
+    ],
+    "stmt": "{id} = yolo.Detection.to_dict()"
+  },
+  "dsl": {
+    "alias": "yolo.Detection.to_dict"
+  },
+  "since": "0.2.6",
+  "origin": "xscript.android.yolo.Detection.to_dict",
+  "availability": "ok"
+}

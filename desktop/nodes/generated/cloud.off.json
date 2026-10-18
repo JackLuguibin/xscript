@@ -1,0 +1,45 @@
+{
+  "type": "cloud.off",
+  "category": "cloud",
+  "title": {
+    "zh": "cloud.off",
+    "en": "cloud.off"
+  },
+  "doc": {
+    "zh": "off",
+    "en": "off"
+  },
+  "exec": {
+    "in": [
+      "exec"
+    ],
+    "out": [
+      "then"
+    ]
+  },
+  "inputs": [
+    {
+      "name": "token",
+      "type": "any",
+      "default": null
+    }
+  ],
+  "outputs": [
+    {
+      "name": "result",
+      "type": "any"
+    }
+  ],
+  "py": {
+    "imports": [
+      "from xscript.android import cloud"
+    ],
+    "stmt": "{id} = cloud.off({token})"
+  },
+  "dsl": {
+    "alias": "cloud.off"
+  },
+  "since": "0.2.6",
+  "origin": "xscript.android.cloud.off",
+  "availability": "ok"
+}

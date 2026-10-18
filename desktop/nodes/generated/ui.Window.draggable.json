@@ -1,0 +1,45 @@
+{
+  "type": "ui.Window.draggable",
+  "category": "ui",
+  "title": {
+    "zh": "ui.Window.draggable",
+    "en": "ui.Window.draggable"
+  },
+  "doc": {
+    "zh": "draggable",
+    "en": "draggable"
+  },
+  "exec": {
+    "in": [
+      "exec"
+    ],
+    "out": [
+      "then"
+    ]
+  },
+  "inputs": [
+    {
+      "name": "enabled",
+      "type": "any",
+      "default": true
+    }
+  ],
+  "outputs": [
+    {
+      "name": "result",
+      "type": "any"
+    }
+  ],
+  "py": {
+    "imports": [
+      "from xscript.android import ui"
+    ],
+    "stmt": "{id} = ui.Window.draggable({enabled})"
+  },
+  "dsl": {
+    "alias": "ui.Window.draggable"
+  },
+  "since": "0.2.6",
+  "origin": "xscript.android.ui.Window.draggable",
+  "availability": "ok"
+}

@@ -1,0 +1,44 @@
+{
+  "type": "ui.show_image",
+  "category": "ui",
+  "title": {
+    "zh": "ui.show_image",
+    "en": "ui.show_image"
+  },
+  "doc": {
+    "zh": "Preview an image file in an overlay (tap to close).",
+    "en": "Preview an image file in an overlay (tap to close)."
+  },
+  "exec": {
+    "in": [
+      "exec"
+    ],
+    "out": [
+      "then"
+    ]
+  },
+  "inputs": [
+    {
+      "name": "path",
+      "type": "any"
+    }
+  ],
+  "outputs": [
+    {
+      "name": "result",
+      "type": "any"
+    }
+  ],
+  "py": {
+    "imports": [
+      "from xscript.android import ui"
+    ],
+    "stmt": "{id} = ui.show_image({path})"
+  },
+  "dsl": {
+    "alias": "ui.show_image"
+  },
+  "since": "0.2.6",
+  "origin": "xscript.android.ui.show_image",
+  "availability": "ok"
+}

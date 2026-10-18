@@ -1,0 +1,55 @@
+{
+  "type": "ui.float_show",
+  "category": "ui",
+  "title": {
+    "zh": "ui.float_show",
+    "en": "ui.float_show"
+  },
+  "doc": {
+    "zh": "Show the floating window (悬浮窗) for this run, even while the app is on screen.",
+    "en": "Show the floating window (悬浮窗) for this run, even while the app is on screen."
+  },
+  "exec": {
+    "in": [
+      "exec"
+    ],
+    "out": [
+      "then"
+    ]
+  },
+  "inputs": [
+    {
+      "name": "x",
+      "type": "any",
+      "default": null
+    },
+    {
+      "name": "y",
+      "type": "any",
+      "default": null
+    },
+    {
+      "name": "dim",
+      "type": "any",
+      "default": 1.0
+    }
+  ],
+  "outputs": [
+    {
+      "name": "result",
+      "type": "any"
+    }
+  ],
+  "py": {
+    "imports": [
+      "from xscript.android import ui"
+    ],
+    "stmt": "{id} = ui.float_show({x}, y={y}, dim={dim})"
+  },
+  "dsl": {
+    "alias": "ui.float_show"
+  },
+  "since": "0.2.6",
+  "origin": "xscript.android.ui.float_show",
+  "availability": "ok"
+}

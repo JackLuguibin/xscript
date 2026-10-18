@@ -1,0 +1,39 @@
+{
+  "type": "system.has_root",
+  "category": "system",
+  "title": {
+    "zh": "system.has_root",
+    "en": "system.has_root"
+  },
+  "doc": {
+    "zh": "has_root",
+    "en": "has_root"
+  },
+  "exec": {
+    "in": [
+      "exec"
+    ],
+    "out": [
+      "then"
+    ]
+  },
+  "inputs": [],
+  "outputs": [
+    {
+      "name": "result",
+      "type": "any"
+    }
+  ],
+  "py": {
+    "imports": [
+      "from xscript.android import system"
+    ],
+    "stmt": "{id} = system.has_root()"
+  },
+  "dsl": {
+    "alias": "system.has_root"
+  },
+  "since": "0.2.6",
+  "origin": "xscript.android.system.has_root",
+  "availability": "ok"
+}

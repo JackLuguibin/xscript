@@ -1,0 +1,39 @@
+{
+  "type": "ui.can_overlay",
+  "category": "ui",
+  "title": {
+    "zh": "ui.can_overlay",
+    "en": "ui.can_overlay"
+  },
+  "doc": {
+    "zh": "can_overlay",
+    "en": "can_overlay"
+  },
+  "exec": {
+    "in": [
+      "exec"
+    ],
+    "out": [
+      "then"
+    ]
+  },
+  "inputs": [],
+  "outputs": [
+    {
+      "name": "result",
+      "type": "any"
+    }
+  ],
+  "py": {
+    "imports": [
+      "from xscript.android import ui"
+    ],
+    "stmt": "{id} = ui.can_overlay()"
+  },
+  "dsl": {
+    "alias": "ui.can_overlay"
+  },
+  "since": "0.2.6",
+  "origin": "xscript.android.ui.can_overlay",
+  "availability": "ok"
+}

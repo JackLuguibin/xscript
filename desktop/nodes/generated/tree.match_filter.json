@@ -1,0 +1,56 @@
+{
+  "type": "tree.match_filter",
+  "category": "tree",
+  "title": {
+    "zh": "tree.match_filter",
+    "en": "tree.match_filter"
+  },
+  "doc": {
+    "zh": "match_filter",
+    "en": "match_filter"
+  },
+  "exec": {
+    "in": [
+      "exec"
+    ],
+    "out": [
+      "then"
+    ]
+  },
+  "inputs": [
+    {
+      "name": "raw",
+      "type": "any"
+    },
+    {
+      "name": "key",
+      "type": "any"
+    },
+    {
+      "name": "op",
+      "type": "any"
+    },
+    {
+      "name": "value",
+      "type": "any"
+    }
+  ],
+  "outputs": [
+    {
+      "name": "result",
+      "type": "any"
+    }
+  ],
+  "py": {
+    "imports": [
+      "from xscript.android import tree"
+    ],
+    "stmt": "{id} = tree.match_filter({raw}, key={key}, op={op}, value={value})"
+  },
+  "dsl": {
+    "alias": "tree.match_filter"
+  },
+  "since": "0.2.6",
+  "origin": "xscript.android.tree.match_filter",
+  "availability": "ok"
+}

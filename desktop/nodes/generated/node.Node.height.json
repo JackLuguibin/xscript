@@ -1,0 +1,39 @@
+{
+  "type": "node.Node.height",
+  "category": "node",
+  "title": {
+    "zh": "node.Node.height",
+    "en": "node.Node.height"
+  },
+  "doc": {
+    "zh": "height",
+    "en": "height"
+  },
+  "exec": {
+    "in": [
+      "exec"
+    ],
+    "out": [
+      "then"
+    ]
+  },
+  "inputs": [],
+  "outputs": [
+    {
+      "name": "result",
+      "type": "any"
+    }
+  ],
+  "py": {
+    "imports": [
+      "from xscript.android import node"
+    ],
+    "stmt": "{id} = node.Node.height()"
+  },
+  "dsl": {
+    "alias": "node.Node.height"
+  },
+  "since": "0.2.6",
+  "origin": "xscript.android.node.Node.height",
+  "availability": "ok"
+}

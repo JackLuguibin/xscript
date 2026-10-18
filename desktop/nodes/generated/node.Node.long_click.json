@@ -1,0 +1,39 @@
+{
+  "type": "node.Node.long_click",
+  "category": "node",
+  "title": {
+    "zh": "node.Node.long_click",
+    "en": "node.Node.long_click"
+  },
+  "doc": {
+    "zh": "long_click",
+    "en": "long_click"
+  },
+  "exec": {
+    "in": [
+      "exec"
+    ],
+    "out": [
+      "then"
+    ]
+  },
+  "inputs": [],
+  "outputs": [
+    {
+      "name": "result",
+      "type": "any"
+    }
+  ],
+  "py": {
+    "imports": [
+      "from xscript.android import node"
+    ],
+    "stmt": "{id} = node.Node.long_click()"
+  },
+  "dsl": {
+    "alias": "node.Node.long_click"
+  },
+  "since": "0.2.6",
+  "origin": "xscript.android.node.Node.long_click",
+  "availability": "ok"
+}

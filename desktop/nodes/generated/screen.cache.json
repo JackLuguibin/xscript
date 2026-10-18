@@ -1,0 +1,45 @@
+{
+  "type": "screen.cache",
+  "category": "screen",
+  "title": {
+    "zh": "screen.cache",
+    "en": "screen.cache"
+  },
+  "doc": {
+    "zh": "Freeze one frame for all following searches (faster multi-feature checks).",
+    "en": "Freeze one frame for all following searches (faster multi-feature checks)."
+  },
+  "exec": {
+    "in": [
+      "exec"
+    ],
+    "out": [
+      "then"
+    ]
+  },
+  "inputs": [
+    {
+      "name": "enabled",
+      "type": "any",
+      "default": true
+    }
+  ],
+  "outputs": [
+    {
+      "name": "result",
+      "type": "any"
+    }
+  ],
+  "py": {
+    "imports": [
+      "from xscript.android import screen"
+    ],
+    "stmt": "{id} = screen.cache({enabled})"
+  },
+  "dsl": {
+    "alias": "screen.cache"
+  },
+  "since": "0.2.6",
+  "origin": "xscript.android.screen.cache",
+  "availability": "ok"
+}

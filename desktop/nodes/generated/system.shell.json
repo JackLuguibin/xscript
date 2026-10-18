@@ -1,0 +1,55 @@
+{
+  "type": "system.shell",
+  "category": "system",
+  "title": {
+    "zh": "system.shell",
+    "en": "system.shell"
+  },
+  "doc": {
+    "zh": "Run a shell command (via su when available and root=True).",
+    "en": "Run a shell command (via su when available and root=True)."
+  },
+  "exec": {
+    "in": [
+      "exec"
+    ],
+    "out": [
+      "then"
+    ]
+  },
+  "inputs": [
+    {
+      "name": "cmd",
+      "type": "any"
+    },
+    {
+      "name": "root",
+      "type": "any",
+      "default": true
+    },
+    {
+      "name": "timeout",
+      "type": "any",
+      "default": 30
+    }
+  ],
+  "outputs": [
+    {
+      "name": "result",
+      "type": "any"
+    }
+  ],
+  "py": {
+    "imports": [
+      "from xscript.android import system"
+    ],
+    "stmt": "{id} = system.shell({cmd}, root={root}, timeout={timeout})"
+  },
+  "dsl": {
+    "alias": "system.shell"
+  },
+  "since": "0.2.6",
+  "origin": "xscript.android.system.shell",
+  "availability": "ok",
+  "latent": true
+}

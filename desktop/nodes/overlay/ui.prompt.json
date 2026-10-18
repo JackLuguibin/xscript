@@ -1,0 +1,44 @@
+{
+  "type": "ui.prompt",
+  "title": {
+    "zh": "输入框",
+    "en": "Prompt"
+  },
+  "doc": {
+    "zh": "弹出输入框。",
+    "en": "Ask for text."
+  },
+  "icon": "text",
+  "inputs": [
+    {
+      "name": "msg",
+      "type": "string",
+      "ui": "text"
+    },
+    {
+      "name": "title",
+      "type": "string",
+      "ui": "text"
+    },
+    {
+      "name": "value",
+      "type": "string",
+      "ui": "text"
+    },
+    {
+      "name": "hint",
+      "type": "string",
+      "ui": "text"
+    },
+    {
+      "name": "submit",
+      "type": "string",
+      "ui": "text"
+    },
+    {
+      "name": "cancel",
+      "type": "string",
+      "ui": "text"
+    }
+  ]
+}

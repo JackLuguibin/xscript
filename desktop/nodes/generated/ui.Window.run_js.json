@@ -1,0 +1,44 @@
+{
+  "type": "ui.Window.run_js",
+  "category": "ui",
+  "title": {
+    "zh": "ui.Window.run_js",
+    "en": "ui.Window.run_js"
+  },
+  "doc": {
+    "zh": "Fire-and-forget JS.",
+    "en": "Fire-and-forget JS."
+  },
+  "exec": {
+    "in": [
+      "exec"
+    ],
+    "out": [
+      "then"
+    ]
+  },
+  "inputs": [
+    {
+      "name": "code",
+      "type": "any"
+    }
+  ],
+  "outputs": [
+    {
+      "name": "result",
+      "type": "any"
+    }
+  ],
+  "py": {
+    "imports": [
+      "from xscript.android import ui"
+    ],
+    "stmt": "{id} = ui.Window.run_js({code})"
+  },
+  "dsl": {
+    "alias": "ui.Window.run_js"
+  },
+  "since": "0.2.6",
+  "origin": "xscript.android.ui.Window.run_js",
+  "availability": "ok"
+}

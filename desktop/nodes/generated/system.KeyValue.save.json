@@ -1,0 +1,48 @@
+{
+  "type": "system.KeyValue.save",
+  "category": "system",
+  "title": {
+    "zh": "system.KeyValue.save",
+    "en": "system.KeyValue.save"
+  },
+  "doc": {
+    "zh": "save",
+    "en": "save"
+  },
+  "exec": {
+    "in": [
+      "exec"
+    ],
+    "out": [
+      "then"
+    ]
+  },
+  "inputs": [
+    {
+      "name": "key",
+      "type": "any"
+    },
+    {
+      "name": "value",
+      "type": "any"
+    }
+  ],
+  "outputs": [
+    {
+      "name": "result",
+      "type": "any"
+    }
+  ],
+  "py": {
+    "imports": [
+      "from xscript.android import system"
+    ],
+    "stmt": "{id} = system.KeyValue.save({key}, value={value})"
+  },
+  "dsl": {
+    "alias": "system.KeyValue.save"
+  },
+  "since": "0.2.6",
+  "origin": "xscript.android.system.KeyValue.save",
+  "availability": "ok"
+}

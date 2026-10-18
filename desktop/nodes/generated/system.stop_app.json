@@ -1,0 +1,44 @@
+{
+  "type": "system.stop_app",
+  "category": "system",
+  "title": {
+    "zh": "system.stop_app",
+    "en": "system.stop_app"
+  },
+  "doc": {
+    "zh": "force-stop (needs root).",
+    "en": "force-stop (needs root)."
+  },
+  "exec": {
+    "in": [
+      "exec"
+    ],
+    "out": [
+      "then"
+    ]
+  },
+  "inputs": [
+    {
+      "name": "package",
+      "type": "any"
+    }
+  ],
+  "outputs": [
+    {
+      "name": "result",
+      "type": "any"
+    }
+  ],
+  "py": {
+    "imports": [
+      "from xscript.android import system"
+    ],
+    "stmt": "{id} = system.stop_app({package})"
+  },
+  "dsl": {
+    "alias": "system.stop_app"
+  },
+  "since": "0.2.6",
+  "origin": "xscript.android.system.stop_app",
+  "availability": "ok"
+}

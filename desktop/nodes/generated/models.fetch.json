@@ -1,0 +1,69 @@
+{
+  "type": "models.fetch",
+  "category": "models",
+  "title": {
+    "zh": "models.fetch",
+    "en": "models.fetch"
+  },
+  "doc": {
+    "zh": "Download `url` (or each mirror + `url` if `mirrors` is given) to `directory()/name` unless present.",
+    "en": "Download `url` (or each mirror + `url` if `mirrors` is given) to `directory()/name` unless present."
+  },
+  "exec": {
+    "in": [
+      "exec"
+    ],
+    "out": [
+      "then"
+    ]
+  },
+  "inputs": [
+    {
+      "name": "url",
+      "type": "any"
+    },
+    {
+      "name": "name",
+      "type": "any"
+    },
+    {
+      "name": "sha256",
+      "type": "any",
+      "default": null
+    },
+    {
+      "name": "mirrors",
+      "type": "any",
+      "default": null
+    },
+    {
+      "name": "timeout",
+      "type": "any",
+      "default": 60
+    },
+    {
+      "name": "progress",
+      "type": "any",
+      "default": null
+    }
+  ],
+  "outputs": [
+    {
+      "name": "result",
+      "type": "any"
+    }
+  ],
+  "py": {
+    "imports": [
+      "from xscript.android import models"
+    ],
+    "stmt": "{id} = models.fetch({url}, name={name}, sha256={sha256}, mirrors={mirrors}, timeout={timeout}, progress={progress})"
+  },
+  "dsl": {
+    "alias": "models.fetch"
+  },
+  "since": "0.2.6",
+  "origin": "xscript.android.models.fetch",
+  "availability": "ok",
+  "latent": true
+}

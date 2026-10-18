@@ -1,0 +1,68 @@
+{
+  "type": "ui.Canvas.point",
+  "category": "ui",
+  "title": {
+    "zh": "ui.Canvas.point",
+    "en": "ui.Canvas.point"
+  },
+  "doc": {
+    "zh": "point",
+    "en": "point"
+  },
+  "exec": {
+    "in": [
+      "exec"
+    ],
+    "out": [
+      "then"
+    ]
+  },
+  "inputs": [
+    {
+      "name": "x",
+      "type": "any"
+    },
+    {
+      "name": "y",
+      "type": "any"
+    },
+    {
+      "name": "color",
+      "type": "any",
+      "default": "#ff0000"
+    },
+    {
+      "name": "radius",
+      "type": "any",
+      "default": 5
+    },
+    {
+      "name": "duration",
+      "type": "any",
+      "default": 3000
+    },
+    {
+      "name": "id",
+      "type": "any",
+      "default": null
+    }
+  ],
+  "outputs": [
+    {
+      "name": "result",
+      "type": "any"
+    }
+  ],
+  "py": {
+    "imports": [
+      "from xscript.android import ui"
+    ],
+    "stmt": "{id} = ui.Canvas.point({x}, y={y}, color={color}, radius={radius}, duration={duration}, id={p_id})"
+  },
+  "dsl": {
+    "alias": "ui.Canvas.point"
+  },
+  "since": "0.2.6",
+  "origin": "xscript.android.ui.Canvas.point",
+  "availability": "ok"
+}

@@ -1,0 +1,12 @@
+{
+  "type": "flow.sequence",
+  "category": "flow",
+  "title": {"zh": "序列", "en": "Sequence"},
+  "doc": {"zh": "一次触发后按 s0、s1、s2、s3 的顺序各走一条执行线，全部结束后走 next。和并行不同，这些线在同一条线程上前后执行。", "en": "After one trigger, run s0 then s1 then s2 then s3, then next. The lines run one after another on the same thread."},
+  "exec": {"in": ["exec"], "out": ["s0", "s1", "s2", "s3", "next"]},
+  "inputs": [],
+  "outputs": [],
+  "dsl": {"alias": "seq"},
+  "since": "0.2.6",
+  "availability": "ok"
+}

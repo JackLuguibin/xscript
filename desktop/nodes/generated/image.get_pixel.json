@@ -1,0 +1,53 @@
+{
+  "type": "image.get_pixel",
+  "category": "image",
+  "title": {
+    "zh": "image.get_pixel",
+    "en": "image.get_pixel"
+  },
+  "doc": {
+    "zh": "(r, g, b) at screen/image (x, y) or None.",
+    "en": "(r, g, b) at screen/image (x, y) or None."
+  },
+  "exec": {
+    "in": [
+      "exec"
+    ],
+    "out": [
+      "then"
+    ]
+  },
+  "inputs": [
+    {
+      "name": "x",
+      "type": "any"
+    },
+    {
+      "name": "y",
+      "type": "any"
+    },
+    {
+      "name": "image",
+      "type": "any",
+      "default": null
+    }
+  ],
+  "outputs": [
+    {
+      "name": "result",
+      "type": "any"
+    }
+  ],
+  "py": {
+    "imports": [
+      "from xscript.android import image"
+    ],
+    "stmt": "{id} = image.get_pixel({x}, y={y}, image={image})"
+  },
+  "dsl": {
+    "alias": "image.get_pixel"
+  },
+  "since": "0.2.6",
+  "origin": "xscript.android.image.get_pixel",
+  "availability": "ok"
+}

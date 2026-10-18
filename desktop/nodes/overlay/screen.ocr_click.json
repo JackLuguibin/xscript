@@ -1,0 +1,35 @@
+{
+  "type": "screen.ocr_click",
+  "title": {
+    "zh": "点击文字",
+    "en": "Click text"
+  },
+  "doc": {
+    "zh": "找到文字后点击。",
+    "en": "Click a text match."
+  },
+  "icon": "search",
+  "inputs": [
+    {
+      "name": "pattern",
+      "type": "string",
+      "ui": "text"
+    },
+    {
+      "name": "timeout",
+      "type": "float",
+      "ui": "number",
+      "min": 0
+    },
+    {
+      "name": "rect",
+      "type": "rect",
+      "ui": "text"
+    },
+    {
+      "name": "engine",
+      "type": "string",
+      "ui": "text"
+    }
+  ]
+}

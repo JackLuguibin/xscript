@@ -1,0 +1,39 @@
+{
+  "type": "ui.float_hide",
+  "category": "ui",
+  "title": {
+    "zh": "ui.float_hide",
+    "en": "ui.float_hide"
+  },
+  "doc": {
+    "zh": "float_hide",
+    "en": "float_hide"
+  },
+  "exec": {
+    "in": [
+      "exec"
+    ],
+    "out": [
+      "then"
+    ]
+  },
+  "inputs": [],
+  "outputs": [
+    {
+      "name": "result",
+      "type": "any"
+    }
+  ],
+  "py": {
+    "imports": [
+      "from xscript.android import ui"
+    ],
+    "stmt": "{id} = ui.float_hide()"
+  },
+  "dsl": {
+    "alias": "ui.float_hide"
+  },
+  "since": "0.2.6",
+  "origin": "xscript.android.ui.float_hide",
+  "availability": "ok"
+}

@@ -1,0 +1,34 @@
+{
+  "type": "screen.find_image",
+  "title": {
+    "zh": "找图",
+    "en": "Find image"
+  },
+  "doc": {
+    "zh": "按模板找图。",
+    "en": "Best template match."
+  },
+  "icon": "image",
+  "inputs": [
+    {
+      "name": "template",
+      "type": "string",
+      "ui": "text"
+    },
+    {
+      "name": "rect",
+      "type": "rect",
+      "ui": "text"
+    },
+    {
+      "name": "confidence",
+      "type": "float",
+      "ui": "number",
+      "min": 0
+    },
+    {
+      "name": "image",
+      "type": "image"
+    }
+  ]
+}

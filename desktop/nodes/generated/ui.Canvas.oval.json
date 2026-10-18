@@ -1,0 +1,76 @@
+{
+  "type": "ui.Canvas.oval",
+  "category": "ui",
+  "title": {
+    "zh": "ui.Canvas.oval",
+    "en": "ui.Canvas.oval"
+  },
+  "doc": {
+    "zh": "oval",
+    "en": "oval"
+  },
+  "exec": {
+    "in": [
+      "exec"
+    ],
+    "out": [
+      "then"
+    ]
+  },
+  "inputs": [
+    {
+      "name": "x1",
+      "type": "any"
+    },
+    {
+      "name": "y1",
+      "type": "any"
+    },
+    {
+      "name": "x2",
+      "type": "any"
+    },
+    {
+      "name": "y2",
+      "type": "any"
+    },
+    {
+      "name": "color",
+      "type": "any",
+      "default": "#00ff00"
+    },
+    {
+      "name": "stroke_width",
+      "type": "any",
+      "default": 2
+    },
+    {
+      "name": "duration",
+      "type": "any",
+      "default": 3000
+    },
+    {
+      "name": "id",
+      "type": "any",
+      "default": null
+    }
+  ],
+  "outputs": [
+    {
+      "name": "result",
+      "type": "any"
+    }
+  ],
+  "py": {
+    "imports": [
+      "from xscript.android import ui"
+    ],
+    "stmt": "{id} = ui.Canvas.oval({x1}, y1={y1}, x2={x2}, y2={y2}, color={color}, stroke_width={stroke_width}, duration={duration}, id={p_id})"
+  },
+  "dsl": {
+    "alias": "ui.Canvas.oval"
+  },
+  "since": "0.2.6",
+  "origin": "xscript.android.ui.Canvas.oval",
+  "availability": "ok"
+}

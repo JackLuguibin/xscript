@@ -1,0 +1,50 @@
+{
+  "type": "event.on_key",
+  "category": "event",
+  "title": {
+    "zh": "event.on_key",
+    "en": "event.on_key"
+  },
+  "doc": {
+    "zh": "@on_key(24) / @on_key(action=\"down\"): physical keys (e.key_code, e.action 'down'/'up').",
+    "en": "@on_key(24) / @on_key(action=\"down\"): physical keys (e.key_code, e.action 'down'/'up')."
+  },
+  "exec": {
+    "in": [
+      "exec"
+    ],
+    "out": [
+      "then"
+    ]
+  },
+  "inputs": [
+    {
+      "name": "key_code",
+      "type": "any",
+      "default": null
+    },
+    {
+      "name": "action",
+      "type": "any",
+      "default": null
+    }
+  ],
+  "outputs": [
+    {
+      "name": "result",
+      "type": "any"
+    }
+  ],
+  "py": {
+    "imports": [
+      "from xscript.android import event"
+    ],
+    "stmt": "{id} = event.on_key({key_code}, action={action})"
+  },
+  "dsl": {
+    "alias": "event.on_key"
+  },
+  "since": "0.2.6",
+  "origin": "xscript.android.event.on_key",
+  "availability": "ok"
+}

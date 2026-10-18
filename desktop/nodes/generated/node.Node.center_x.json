@@ -1,0 +1,39 @@
+{
+  "type": "node.Node.center_x",
+  "category": "node",
+  "title": {
+    "zh": "node.Node.center_x",
+    "en": "node.Node.center_x"
+  },
+  "doc": {
+    "zh": "center_x",
+    "en": "center_x"
+  },
+  "exec": {
+    "in": [
+      "exec"
+    ],
+    "out": [
+      "then"
+    ]
+  },
+  "inputs": [],
+  "outputs": [
+    {
+      "name": "result",
+      "type": "any"
+    }
+  ],
+  "py": {
+    "imports": [
+      "from xscript.android import node"
+    ],
+    "stmt": "{id} = node.Node.center_x()"
+  },
+  "dsl": {
+    "alias": "node.Node.center_x"
+  },
+  "since": "0.2.6",
+  "origin": "xscript.android.node.Node.center_x",
+  "availability": "ok"
+}

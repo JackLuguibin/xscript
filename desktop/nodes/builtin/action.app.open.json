@@ -1,0 +1,14 @@
+{
+  "type": "action.app.open",
+  "category": "action",
+  "title": {"zh": "打开应用", "en": "Open app"},
+  "doc": {"zh": "按包名打开应用。", "en": "Open an app by package name."},
+  "exec": {"in": ["exec"], "out": ["then"]},
+  "inputs": [{"name": "package", "type": "string", "default": "", "ui": "text"}],
+  "outputs": [],
+  "py": {"imports": ["from xscript.android import system"], "stmt": "system.open({package})"},
+  "dsl": {"alias": "app.open"},
+  "since": "0.2.6",
+  "origin": "xscript.android.system.open",
+  "availability": "ok"
+}

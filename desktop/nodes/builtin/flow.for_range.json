@@ -1,0 +1,15 @@
+{
+  "type": "flow.for_range",
+  "category": "flow",
+  "title": {"zh": "计次循环", "en": "For range"},
+  "doc": {"zh": "body 是循环体，completed 是循环结束后的下一步，break 提前跳出。", "en": "body is the loop, completed runs after it, break leaves early."},
+  "exec": {"in": ["exec", "break", "continue"], "out": ["body", "completed"]},
+  "inputs": [
+    {"name": "start", "type": "int", "default": 0, "ui": "number"},
+    {"name": "end", "type": "int", "default": 1, "ui": "number"}
+  ],
+  "outputs": [{"name": "index", "type": "int"}],
+  "dsl": {"alias": "for"},
+  "since": "0.2.6",
+  "availability": "ok"
+}

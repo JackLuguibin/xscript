@@ -1,0 +1,39 @@
+{
+  "type": "action.recents",
+  "category": "action",
+  "title": {
+    "zh": "action.recents",
+    "en": "action.recents"
+  },
+  "doc": {
+    "zh": "recents",
+    "en": "recents"
+  },
+  "exec": {
+    "in": [
+      "exec"
+    ],
+    "out": [
+      "then"
+    ]
+  },
+  "inputs": [],
+  "outputs": [
+    {
+      "name": "result",
+      "type": "any"
+    }
+  ],
+  "py": {
+    "imports": [
+      "from xscript.android import action"
+    ],
+    "stmt": "{id} = action.recents()"
+  },
+  "dsl": {
+    "alias": "action.recents"
+  },
+  "since": "0.2.6",
+  "origin": "xscript.android.action.recents",
+  "availability": "ok"
+}

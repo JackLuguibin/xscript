@@ -1,0 +1,56 @@
+{
+  "type": "node.Selector.find_all",
+  "category": "node",
+  "title": {
+    "zh": "node.Selector.find_all",
+    "en": "node.Selector.find_all"
+  },
+  "doc": {
+    "zh": "Matching nodes; with `timeout`, re-query every `interval` seconds until something matches (one last look at the deadline).",
+    "en": "Matching nodes; with `timeout`, re-query every `interval` seconds until something matches (one last look at the deadline)."
+  },
+  "exec": {
+    "in": [
+      "exec"
+    ],
+    "out": [
+      "then"
+    ]
+  },
+  "inputs": [
+    {
+      "name": "timeout",
+      "type": "any",
+      "default": 0
+    },
+    {
+      "name": "limit",
+      "type": "any",
+      "default": 0
+    },
+    {
+      "name": "interval",
+      "type": "any",
+      "default": 0.25
+    }
+  ],
+  "outputs": [
+    {
+      "name": "result",
+      "type": "any"
+    }
+  ],
+  "py": {
+    "imports": [
+      "from xscript.android import node"
+    ],
+    "stmt": "{id} = node.Selector.find_all({timeout}, limit={limit}, interval={interval})"
+  },
+  "dsl": {
+    "alias": "node.Selector.find_all"
+  },
+  "since": "0.2.6",
+  "origin": "xscript.android.node.Selector.find_all",
+  "availability": "ok",
+  "latent": true
+}

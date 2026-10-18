@@ -1,0 +1,50 @@
+{
+  "type": "image.capture_rgba",
+  "category": "image",
+  "title": {
+    "zh": "image.capture_rgba",
+    "en": "image.capture_rgba"
+  },
+  "doc": {
+    "zh": "Screen (or rect of it) as RGBA ndarray. None when capture is unavailable.",
+    "en": "Screen (or rect of it) as RGBA ndarray. None when capture is unavailable."
+  },
+  "exec": {
+    "in": [
+      "exec"
+    ],
+    "out": [
+      "then"
+    ]
+  },
+  "inputs": [
+    {
+      "name": "rect",
+      "type": "any",
+      "default": null
+    },
+    {
+      "name": "use_cache",
+      "type": "any",
+      "default": true
+    }
+  ],
+  "outputs": [
+    {
+      "name": "result",
+      "type": "any"
+    }
+  ],
+  "py": {
+    "imports": [
+      "from xscript.android import image"
+    ],
+    "stmt": "{id} = image.capture_rgba({rect}, use_cache={use_cache})"
+  },
+  "dsl": {
+    "alias": "image.capture_rgba"
+  },
+  "since": "0.2.6",
+  "origin": "xscript.android.image.capture_rgba",
+  "availability": "ok"
+}

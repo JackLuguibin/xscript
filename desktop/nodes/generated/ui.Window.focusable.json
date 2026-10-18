@@ -1,0 +1,45 @@
+{
+  "type": "ui.Window.focusable",
+  "category": "ui",
+  "title": {
+    "zh": "ui.Window.focusable",
+    "en": "ui.Window.focusable"
+  },
+  "doc": {
+    "zh": "Allow keyboard input into the page (steals focus from the app below).",
+    "en": "Allow keyboard input into the page (steals focus from the app below)."
+  },
+  "exec": {
+    "in": [
+      "exec"
+    ],
+    "out": [
+      "then"
+    ]
+  },
+  "inputs": [
+    {
+      "name": "enabled",
+      "type": "any",
+      "default": true
+    }
+  ],
+  "outputs": [
+    {
+      "name": "result",
+      "type": "any"
+    }
+  ],
+  "py": {
+    "imports": [
+      "from xscript.android import ui"
+    ],
+    "stmt": "{id} = ui.Window.focusable({enabled})"
+  },
+  "dsl": {
+    "alias": "ui.Window.focusable"
+  },
+  "since": "0.2.6",
+  "origin": "xscript.android.ui.Window.focusable",
+  "availability": "ok"
+}

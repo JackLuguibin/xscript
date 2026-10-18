@@ -1,0 +1,15 @@
+{
+  "type": "flow.while",
+  "category": "flow",
+  "title": {"zh": "条件循环", "en": "While"},
+  "doc": {"zh": "条件为真时执行 body，最多 max 次。completed 是循环结束后的下一步，break 提前跳出。", "en": "Runs body while cond is true, at most max times. completed runs after, break leaves early."},
+  "exec": {"in": ["exec", "break", "continue"], "out": ["body", "completed"]},
+  "inputs": [
+    {"name": "cond", "type": "bool"},
+    {"name": "max", "type": "int", "default": 1, "ui": "number", "min": 1}
+  ],
+  "outputs": [],
+  "dsl": {"alias": "while"},
+  "since": "0.2.6",
+  "availability": "ok"
+}

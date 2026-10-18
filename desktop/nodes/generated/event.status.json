@@ -1,0 +1,39 @@
+{
+  "type": "event.status",
+  "category": "event",
+  "title": {
+    "zh": "event.status",
+    "en": "event.status"
+  },
+  "doc": {
+    "zh": "{\"types\": [...], \"attached\": bool, \"notification_listener\": bool} from the main process.",
+    "en": "{\"types\": [...], \"attached\": bool, \"notification_listener\": bool} from the main process."
+  },
+  "exec": {
+    "in": [
+      "exec"
+    ],
+    "out": [
+      "then"
+    ]
+  },
+  "inputs": [],
+  "outputs": [
+    {
+      "name": "result",
+      "type": "any"
+    }
+  ],
+  "py": {
+    "imports": [
+      "from xscript.android import event"
+    ],
+    "stmt": "{id} = event.status()"
+  },
+  "dsl": {
+    "alias": "event.status"
+  },
+  "since": "0.2.6",
+  "origin": "xscript.android.event.status",
+  "availability": "ok"
+}

@@ -1,0 +1,74 @@
+{
+  "type": "screen.find_all_images",
+  "category": "screen",
+  "title": {
+    "zh": "screen.find_all_images",
+    "en": "screen.find_all_images"
+  },
+  "doc": {
+    "zh": "find_all_images",
+    "en": "find_all_images"
+  },
+  "exec": {
+    "in": [
+      "exec"
+    ],
+    "out": [
+      "then"
+    ]
+  },
+  "inputs": [
+    {
+      "name": "template",
+      "type": "any"
+    },
+    {
+      "name": "rect",
+      "type": "any",
+      "default": null
+    },
+    {
+      "name": "confidence",
+      "type": "any",
+      "default": 0.9
+    },
+    {
+      "name": "rgb",
+      "type": "any",
+      "default": false
+    },
+    {
+      "name": "maxcnt",
+      "type": "any",
+      "default": 0
+    },
+    {
+      "name": "scale_range",
+      "type": "any",
+      "default": null
+    },
+    {
+      "name": "image",
+      "type": "any",
+      "default": null
+    }
+  ],
+  "outputs": [
+    {
+      "name": "result",
+      "type": "any"
+    }
+  ],
+  "py": {
+    "imports": [
+      "from xscript.android import screen"
+    ],
+    "stmt": "{id} = screen.find_all_images({template}, rect={rect}, confidence={confidence}, rgb={rgb}, maxcnt={maxcnt}, scale_range={scale_range}, image={image})"
+  },
+  "dsl": {
+    "alias": "screen.find_all_images"
+  },
+  "since": "0.2.6",
+  "origin": "xscript.android.screen.find_all_images",
+  "availability": "ok"
+}

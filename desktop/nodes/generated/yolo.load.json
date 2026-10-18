@@ -1,0 +1,64 @@
+{
+  "type": "yolo.load",
+  "category": "yolo",
+  "title": {
+    "zh": "yolo.load",
+    "en": "yolo.load"
+  },
+  "doc": {
+    "zh": "Load (and cache) a detector. `path` is an .onnx file.",
+    "en": "Load (and cache) a detector. `path` is an .onnx file."
+  },
+  "exec": {
+    "in": [
+      "exec"
+    ],
+    "out": [
+      "then"
+    ]
+  },
+  "inputs": [
+    {
+      "name": "path",
+      "type": "any"
+    },
+    {
+      "name": "names",
+      "type": "any",
+      "default": null
+    },
+    {
+      "name": "imgsz",
+      "type": "any",
+      "default": null
+    },
+    {
+      "name": "threads",
+      "type": "any",
+      "default": 4
+    },
+    {
+      "name": "accel",
+      "type": "any",
+      "default": ""
+    }
+  ],
+  "outputs": [
+    {
+      "name": "result",
+      "type": "any"
+    }
+  ],
+  "py": {
+    "imports": [
+      "from xscript.android import yolo"
+    ],
+    "stmt": "{id} = yolo.load({path}, names={names}, imgsz={imgsz}, threads={threads}, accel={accel})"
+  },
+  "dsl": {
+    "alias": "yolo.load"
+  },
+  "since": "0.2.6",
+  "origin": "xscript.android.yolo.load",
+  "availability": "ok"
+}

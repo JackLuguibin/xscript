@@ -1,0 +1,12 @@
+{
+  "type": "system.has_root",
+  "title": {
+    "zh": "是否 Root",
+    "en": "Has root"
+  },
+  "doc": {
+    "zh": "设备是否有 root。",
+    "en": "Whether the device has root."
+  },
+  "icon": "shell"
+}

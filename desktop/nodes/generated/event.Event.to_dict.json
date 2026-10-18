@@ -1,0 +1,39 @@
+{
+  "type": "event.Event.to_dict",
+  "category": "event",
+  "title": {
+    "zh": "event.Event.to_dict",
+    "en": "event.Event.to_dict"
+  },
+  "doc": {
+    "zh": "to_dict",
+    "en": "to_dict"
+  },
+  "exec": {
+    "in": [
+      "exec"
+    ],
+    "out": [
+      "then"
+    ]
+  },
+  "inputs": [],
+  "outputs": [
+    {
+      "name": "result",
+      "type": "any"
+    }
+  ],
+  "py": {
+    "imports": [
+      "from xscript.android import event"
+    ],
+    "stmt": "{id} = event.Event.to_dict()"
+  },
+  "dsl": {
+    "alias": "event.Event.to_dict"
+  },
+  "since": "0.2.6",
+  "origin": "xscript.android.event.Event.to_dict",
+  "availability": "ok"
+}

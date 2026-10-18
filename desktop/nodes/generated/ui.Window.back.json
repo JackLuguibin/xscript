@@ -1,0 +1,39 @@
+{
+  "type": "ui.Window.back",
+  "category": "ui",
+  "title": {
+    "zh": "ui.Window.back",
+    "en": "ui.Window.back"
+  },
+  "doc": {
+    "zh": "back",
+    "en": "back"
+  },
+  "exec": {
+    "in": [
+      "exec"
+    ],
+    "out": [
+      "then"
+    ]
+  },
+  "inputs": [],
+  "outputs": [
+    {
+      "name": "result",
+      "type": "any"
+    }
+  ],
+  "py": {
+    "imports": [
+      "from xscript.android import ui"
+    ],
+    "stmt": "{id} = ui.Window.back()"
+  },
+  "dsl": {
+    "alias": "ui.Window.back"
+  },
+  "since": "0.2.6",
+  "origin": "xscript.android.ui.Window.back",
+  "availability": "ok"
+}

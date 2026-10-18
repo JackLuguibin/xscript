@@ -1,0 +1,39 @@
+{
+  "type": "cloud.status",
+  "category": "cloud",
+  "title": {
+    "zh": "cloud.status",
+    "en": "cloud.status"
+  },
+  "doc": {
+    "zh": "status",
+    "en": "status"
+  },
+  "exec": {
+    "in": [
+      "exec"
+    ],
+    "out": [
+      "then"
+    ]
+  },
+  "inputs": [],
+  "outputs": [
+    {
+      "name": "result",
+      "type": "any"
+    }
+  ],
+  "py": {
+    "imports": [
+      "from xscript.android import cloud"
+    ],
+    "stmt": "{id} = cloud.status()"
+  },
+  "dsl": {
+    "alias": "cloud.status"
+  },
+  "since": "0.2.6",
+  "origin": "xscript.android.cloud.status",
+  "availability": "ok"
+}

@@ -1,0 +1,39 @@
+{
+  "type": "ime.status",
+  "category": "ime",
+  "title": {
+    "zh": "ime.status",
+    "en": "ime.status"
+  },
+  "doc": {
+    "zh": "{\"id\", \"enabled\", \"selected\", \"active\", \"previous\"}",
+    "en": "{\"id\", \"enabled\", \"selected\", \"active\", \"previous\"}"
+  },
+  "exec": {
+    "in": [
+      "exec"
+    ],
+    "out": [
+      "then"
+    ]
+  },
+  "inputs": [],
+  "outputs": [
+    {
+      "name": "result",
+      "type": "any"
+    }
+  ],
+  "py": {
+    "imports": [
+      "from xscript.android import ime"
+    ],
+    "stmt": "{id} = ime.status()"
+  },
+  "dsl": {
+    "alias": "ime.status"
+  },
+  "since": "0.2.6",
+  "origin": "xscript.android.ime.status",
+  "availability": "ok"
+}

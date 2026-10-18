@@ -1,0 +1,44 @@
+{
+  "type": "pip.missing",
+  "category": "pip",
+  "title": {
+    "zh": "pip.missing",
+    "en": "pip.missing"
+  },
+  "doc": {
+    "zh": "Requirement strings not satisfied by what is installed now.",
+    "en": "Requirement strings not satisfied by what is installed now."
+  },
+  "exec": {
+    "in": [
+      "exec"
+    ],
+    "out": [
+      "then"
+    ]
+  },
+  "inputs": [
+    {
+      "name": "requirements",
+      "type": "any"
+    }
+  ],
+  "outputs": [
+    {
+      "name": "result",
+      "type": "any"
+    }
+  ],
+  "py": {
+    "imports": [
+      "from xscript.android import pip"
+    ],
+    "stmt": "{id} = pip.missing({requirements})"
+  },
+  "dsl": {
+    "alias": "pip.missing"
+  },
+  "since": "0.2.6",
+  "origin": "xscript.android.pip.missing",
+  "availability": "ok"
+}

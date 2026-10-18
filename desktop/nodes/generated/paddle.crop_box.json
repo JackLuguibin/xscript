@@ -1,0 +1,48 @@
+{
+  "type": "paddle.crop_box",
+  "category": "paddle",
+  "title": {
+    "zh": "paddle.crop_box",
+    "en": "paddle.crop_box"
+  },
+  "doc": {
+    "zh": "Perspective-crop a text box; tall crops are rotated to horizontal.",
+    "en": "Perspective-crop a text box; tall crops are rotated to horizontal."
+  },
+  "exec": {
+    "in": [
+      "exec"
+    ],
+    "out": [
+      "then"
+    ]
+  },
+  "inputs": [
+    {
+      "name": "img",
+      "type": "any"
+    },
+    {
+      "name": "box",
+      "type": "any"
+    }
+  ],
+  "outputs": [
+    {
+      "name": "result",
+      "type": "any"
+    }
+  ],
+  "py": {
+    "imports": [
+      "from xscript.android import paddle"
+    ],
+    "stmt": "{id} = paddle.crop_box({img}, box={box})"
+  },
+  "dsl": {
+    "alias": "paddle.crop_box"
+  },
+  "since": "0.2.6",
+  "origin": "xscript.android.paddle.crop_box",
+  "availability": "ok"
+}

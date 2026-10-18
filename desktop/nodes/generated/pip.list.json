@@ -1,0 +1,39 @@
+{
+  "type": "pip.list",
+  "category": "pip",
+  "title": {
+    "zh": "pip.list",
+    "en": "pip.list"
+  },
+  "doc": {
+    "zh": "Packages installed with pip.install (not the ones bundled in the app).",
+    "en": "Packages installed with pip.install (not the ones bundled in the app)."
+  },
+  "exec": {
+    "in": [
+      "exec"
+    ],
+    "out": [
+      "then"
+    ]
+  },
+  "inputs": [],
+  "outputs": [
+    {
+      "name": "result",
+      "type": "any"
+    }
+  ],
+  "py": {
+    "imports": [
+      "from xscript.android import pip"
+    ],
+    "stmt": "{id} = pip.list()"
+  },
+  "dsl": {
+    "alias": "pip.list"
+  },
+  "since": "0.2.6",
+  "origin": "xscript.android.pip.list",
+  "availability": "ok"
+}

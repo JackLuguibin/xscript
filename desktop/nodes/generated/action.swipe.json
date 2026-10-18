@@ -1,0 +1,61 @@
+{
+  "type": "action.swipe",
+  "category": "action",
+  "title": {
+    "zh": "action.swipe",
+    "en": "action.swipe"
+  },
+  "doc": {
+    "zh": "swipe",
+    "en": "swipe"
+  },
+  "exec": {
+    "in": [
+      "exec"
+    ],
+    "out": [
+      "then"
+    ]
+  },
+  "inputs": [
+    {
+      "name": "x1",
+      "type": "any"
+    },
+    {
+      "name": "y1",
+      "type": "any"
+    },
+    {
+      "name": "x2",
+      "type": "any"
+    },
+    {
+      "name": "y2",
+      "type": "any"
+    },
+    {
+      "name": "dur",
+      "type": "any",
+      "default": 300
+    }
+  ],
+  "outputs": [
+    {
+      "name": "result",
+      "type": "any"
+    }
+  ],
+  "py": {
+    "imports": [
+      "from xscript.android import action"
+    ],
+    "stmt": "{id} = action.swipe({x1}, y1={y1}, x2={x2}, y2={y2}, dur={dur})"
+  },
+  "dsl": {
+    "alias": "action.swipe"
+  },
+  "since": "0.2.6",
+  "origin": "xscript.android.action.swipe",
+  "availability": "ok"
+}

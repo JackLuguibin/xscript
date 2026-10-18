@@ -1,0 +1,30 @@
+{
+  "type": "action.Touch.move",
+  "title": {
+    "zh": "移动触点",
+    "en": "Touch move"
+  },
+  "doc": {
+    "zh": "手指移动。",
+    "en": "Move the touch."
+  },
+  "icon": "move",
+  "inputs": [
+    {
+      "name": "x",
+      "type": "int",
+      "ui": "number"
+    },
+    {
+      "name": "y",
+      "type": "int",
+      "ui": "number"
+    },
+    {
+      "name": "dur",
+      "type": "int",
+      "ui": "number",
+      "min": 0
+    }
+  ]
+}

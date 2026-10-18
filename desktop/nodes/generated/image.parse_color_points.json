@@ -1,0 +1,44 @@
+{
+  "type": "image.parse_color_points",
+  "category": "image",
+  "title": {
+    "zh": "image.parse_color_points",
+    "en": "image.parse_color_points"
+  },
+  "doc": {
+    "zh": "'x,y,#RRGGBB[-#DDDDDD]|x2,y2,#RRGGBB|...' -> [(x, y, (r,g,b), (dr,dg,db)|None)].",
+    "en": "'x,y,#RRGGBB[-#DDDDDD]|x2,y2,#RRGGBB|...' -> [(x, y, (r,g,b), (dr,dg,db)|None)]."
+  },
+  "exec": {
+    "in": [
+      "exec"
+    ],
+    "out": [
+      "then"
+    ]
+  },
+  "inputs": [
+    {
+      "name": "colors",
+      "type": "any"
+    }
+  ],
+  "outputs": [
+    {
+      "name": "result",
+      "type": "any"
+    }
+  ],
+  "py": {
+    "imports": [
+      "from xscript.android import image"
+    ],
+    "stmt": "{id} = image.parse_color_points({colors})"
+  },
+  "dsl": {
+    "alias": "image.parse_color_points"
+  },
+  "since": "0.2.6",
+  "origin": "xscript.android.image.parse_color_points",
+  "availability": "ok"
+}

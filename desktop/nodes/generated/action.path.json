@@ -1,0 +1,49 @@
+{
+  "type": "action.path",
+  "category": "action",
+  "title": {
+    "zh": "action.path",
+    "en": "action.path"
+  },
+  "doc": {
+    "zh": "Single-finger polyline through `points` over `dur` ms.",
+    "en": "Single-finger polyline through `points` over `dur` ms."
+  },
+  "exec": {
+    "in": [
+      "exec"
+    ],
+    "out": [
+      "then"
+    ]
+  },
+  "inputs": [
+    {
+      "name": "points",
+      "type": "any"
+    },
+    {
+      "name": "dur",
+      "type": "any",
+      "default": 300
+    }
+  ],
+  "outputs": [
+    {
+      "name": "result",
+      "type": "any"
+    }
+  ],
+  "py": {
+    "imports": [
+      "from xscript.android import action"
+    ],
+    "stmt": "{id} = action.path({points}, dur={dur})"
+  },
+  "dsl": {
+    "alias": "action.path"
+  },
+  "since": "0.2.6",
+  "origin": "xscript.android.action.path",
+  "availability": "ok"
+}

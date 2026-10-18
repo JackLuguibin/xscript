@@ -1,0 +1,44 @@
+{
+  "type": "ime.set_text",
+  "category": "ime",
+  "title": {
+    "zh": "ime.set_text",
+    "en": "ime.set_text"
+  },
+  "doc": {
+    "zh": "Replace the focused field's text.",
+    "en": "Replace the focused field's text."
+  },
+  "exec": {
+    "in": [
+      "exec"
+    ],
+    "out": [
+      "then"
+    ]
+  },
+  "inputs": [
+    {
+      "name": "text",
+      "type": "any"
+    }
+  ],
+  "outputs": [
+    {
+      "name": "result",
+      "type": "any"
+    }
+  ],
+  "py": {
+    "imports": [
+      "from xscript.android import ime"
+    ],
+    "stmt": "{id} = ime.set_text({text})"
+  },
+  "dsl": {
+    "alias": "ime.set_text"
+  },
+  "since": "0.2.6",
+  "origin": "xscript.android.ime.set_text",
+  "availability": "ok"
+}

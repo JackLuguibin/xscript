@@ -1,0 +1,70 @@
+{
+  "type": "ui.prompt",
+  "category": "ui",
+  "title": {
+    "zh": "ui.prompt",
+    "en": "ui.prompt"
+  },
+  "doc": {
+    "zh": "prompt",
+    "en": "prompt"
+  },
+  "exec": {
+    "in": [
+      "exec"
+    ],
+    "out": [
+      "then"
+    ]
+  },
+  "inputs": [
+    {
+      "name": "msg",
+      "type": "any",
+      "default": "请输入信息"
+    },
+    {
+      "name": "title",
+      "type": "any",
+      "default": null
+    },
+    {
+      "name": "value",
+      "type": "any",
+      "default": null
+    },
+    {
+      "name": "hint",
+      "type": "any",
+      "default": null
+    },
+    {
+      "name": "submit",
+      "type": "any",
+      "default": "确认"
+    },
+    {
+      "name": "cancel",
+      "type": "any",
+      "default": "取消"
+    }
+  ],
+  "outputs": [
+    {
+      "name": "result",
+      "type": "any"
+    }
+  ],
+  "py": {
+    "imports": [
+      "from xscript.android import ui"
+    ],
+    "stmt": "{id} = ui.prompt({msg}, title={title}, value={value}, hint={hint}, submit={submit}, cancel={cancel})"
+  },
+  "dsl": {
+    "alias": "ui.prompt"
+  },
+  "since": "0.2.6",
+  "origin": "xscript.android.ui.prompt",
+  "availability": "ok"
+}

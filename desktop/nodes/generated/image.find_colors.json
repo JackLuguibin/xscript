@@ -1,0 +1,74 @@
+{
+  "type": "image.find_colors",
+  "category": "image",
+  "title": {
+    "zh": "image.find_colors",
+    "en": "image.find_colors"
+  },
+  "doc": {
+    "zh": "Multi-point color search. Returns Points of the first color point (screen coords).",
+    "en": "Multi-point color search. Returns Points of the first color point (screen coords)."
+  },
+  "exec": {
+    "in": [
+      "exec"
+    ],
+    "out": [
+      "then"
+    ]
+  },
+  "inputs": [
+    {
+      "name": "colors",
+      "type": "any"
+    },
+    {
+      "name": "rect",
+      "type": "any",
+      "default": null
+    },
+    {
+      "name": "sim",
+      "type": "any",
+      "default": 0.9
+    },
+    {
+      "name": "space",
+      "type": "any",
+      "default": 5
+    },
+    {
+      "name": "ori",
+      "type": "any",
+      "default": 2
+    },
+    {
+      "name": "max_num",
+      "type": "any",
+      "default": 0
+    },
+    {
+      "name": "image",
+      "type": "any",
+      "default": null
+    }
+  ],
+  "outputs": [
+    {
+      "name": "result",
+      "type": "any"
+    }
+  ],
+  "py": {
+    "imports": [
+      "from xscript.android import image"
+    ],
+    "stmt": "{id} = image.find_colors({colors}, rect={rect}, sim={sim}, space={space}, ori={ori}, max_num={max_num}, image={image})"
+  },
+  "dsl": {
+    "alias": "image.find_colors"
+  },
+  "since": "0.2.6",
+  "origin": "xscript.android.image.find_colors",
+  "availability": "ok"
+}

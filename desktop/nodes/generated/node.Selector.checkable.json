@@ -1,0 +1,45 @@
+{
+  "type": "node.Selector.checkable",
+  "category": "node",
+  "title": {
+    "zh": "node.Selector.checkable",
+    "en": "node.Selector.checkable"
+  },
+  "doc": {
+    "zh": "checkable",
+    "en": "checkable"
+  },
+  "exec": {
+    "in": [
+      "exec"
+    ],
+    "out": [
+      "then"
+    ]
+  },
+  "inputs": [
+    {
+      "name": "value",
+      "type": "any",
+      "default": true
+    }
+  ],
+  "outputs": [
+    {
+      "name": "result",
+      "type": "any"
+    }
+  ],
+  "py": {
+    "imports": [
+      "from xscript.android import node"
+    ],
+    "stmt": "{id} = node.Selector.checkable({value})"
+  },
+  "dsl": {
+    "alias": "node.Selector.checkable"
+  },
+  "since": "0.2.6",
+  "origin": "xscript.android.node.Selector.checkable",
+  "availability": "ok"
+}

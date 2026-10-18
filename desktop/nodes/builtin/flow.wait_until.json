@@ -1,0 +1,17 @@
+{
+  "type": "flow.wait_until",
+  "category": "flow",
+  "title": {"zh": "等待直到", "en": "Wait until"},
+  "doc": {"zh": "按 interval 毫秒轮询条件，最多等 timeout 毫秒。条件成立走 then，超时走 timeout。", "en": "Poll a condition every interval ms, for at most timeout ms. then runs when it holds. timeout runs when time runs out."},
+  "latent": true,
+  "exec": {"in": ["exec"], "out": ["then", "timeout"]},
+  "inputs": [
+    {"name": "cond", "type": "bool"},
+    {"name": "timeout", "type": "int", "default": 3000, "ui": "number", "min": 0},
+    {"name": "interval", "type": "int", "default": 200, "ui": "number", "min": 1}
+  ],
+  "outputs": [],
+  "dsl": {"alias": "until"},
+  "since": "0.2.6",
+  "availability": "ok"
+}

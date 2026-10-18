@@ -1,0 +1,12 @@
+{
+  "type": "data.set",
+  "category": "data",
+  "title": {"zh": "写入变量", "en": "Set"},
+  "doc": {"zh": "沿执行线把值写进流程变量。环境变量是只读的。", "en": "Writes a value along the exec line. Environment variables stay read-only."},
+  "exec": {"in": ["exec"], "out": ["then"]},
+  "inputs": [{"name": "name", "type": "string"}, {"name": "value", "type": "any"}],
+  "outputs": [],
+  "dsl": {"alias": "set"},
+  "since": "0.2.6",
+  "availability": "ok"
+}

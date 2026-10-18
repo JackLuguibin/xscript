@@ -1,0 +1,39 @@
+{
+  "type": "system.apps",
+  "category": "system",
+  "title": {
+    "zh": "system.apps",
+    "en": "system.apps"
+  },
+  "doc": {
+    "zh": "apps",
+    "en": "apps"
+  },
+  "exec": {
+    "in": [
+      "exec"
+    ],
+    "out": [
+      "then"
+    ]
+  },
+  "inputs": [],
+  "outputs": [
+    {
+      "name": "result",
+      "type": "any"
+    }
+  ],
+  "py": {
+    "imports": [
+      "from xscript.android import system"
+    ],
+    "stmt": "{id} = system.apps()"
+  },
+  "dsl": {
+    "alias": "system.apps"
+  },
+  "since": "0.2.6",
+  "origin": "xscript.android.system.apps",
+  "availability": "ok"
+}

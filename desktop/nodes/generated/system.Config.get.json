@@ -1,0 +1,45 @@
+{
+  "type": "system.Config.get",
+  "category": "system",
+  "title": {
+    "zh": "system.Config.get",
+    "en": "system.Config.get"
+  },
+  "doc": {
+    "zh": "{\"project\", \"auto_run\", \"stop_re_run\", \"boot_project\"}.",
+    "en": "{\"project\", \"auto_run\", \"stop_re_run\", \"boot_project\"}."
+  },
+  "exec": {
+    "in": [
+      "exec"
+    ],
+    "out": [
+      "then"
+    ]
+  },
+  "inputs": [
+    {
+      "name": "project",
+      "type": "any",
+      "default": null
+    }
+  ],
+  "outputs": [
+    {
+      "name": "result",
+      "type": "any"
+    }
+  ],
+  "py": {
+    "imports": [
+      "from xscript.android import system"
+    ],
+    "stmt": "{id} = system.Config.get({project})"
+  },
+  "dsl": {
+    "alias": "system.Config.get"
+  },
+  "since": "0.2.6",
+  "origin": "xscript.android.system.Config.get",
+  "availability": "ok"
+}

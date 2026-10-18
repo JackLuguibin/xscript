@@ -1,0 +1,30 @@
+{
+  "xflow": 1,
+  "name": "daily_signin",
+  "nodes": [
+    {"id": "attempt", "type": "flow.for_range", "inputs": {"start": 0, "end": 3}},
+    {"id": "btn", "type": "node.find", "inputs": {"text": "签到", "timeout": 3}},
+    {"id": "done", "type": "debug.log", "inputs": {"message": "流程结束"}},
+    {"id": "msg", "type": "debug.log", "inputs": {"message": "已签到"}},
+    {"id": "ok", "type": "flow.branch"},
+    {"id": "open", "type": "action.app.open", "inputs": {"package": "com.example.shop"}},
+    {"id": "retry", "type": "flow.wait", "inputs": {"ms": 1000}},
+    {"id": "start", "type": "event.start"},
+    {"id": "tap", "type": "action.click"},
+    {"id": "warm", "type": "flow.wait", "inputs": {"ms": 2000}}
+  ],
+  "edges": [
+    {"from": "attempt.body", "to": "btn.exec"},
+    {"from": "attempt.completed", "to": "done.exec"},
+    {"from": "btn.found", "to": "ok.cond"},
+    {"from": "btn.node", "to": "tap.target"},
+    {"from": "btn.then", "to": "ok.exec"},
+    {"from": "msg.then", "to": "attempt.break"},
+    {"from": "ok.else", "to": "retry.exec"},
+    {"from": "ok.then", "to": "tap.exec"},
+    {"from": "open.then", "to": "warm.exec"},
+    {"from": "start.then", "to": "open.exec"},
+    {"from": "tap.then", "to": "msg.exec"},
+    {"from": "warm.then", "to": "attempt.exec"}
+  ]
+}

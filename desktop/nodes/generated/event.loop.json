@@ -1,0 +1,45 @@
+{
+  "type": "event.loop",
+  "category": "event",
+  "title": {
+    "zh": "event.loop",
+    "en": "event.loop"
+  },
+  "doc": {
+    "zh": "Keep the script alive while handlers are registered (returns when all are removed, checked every `interval` seconds).",
+    "en": "Keep the script alive while handlers are registered (returns when all are removed, checked every `interval` seconds)."
+  },
+  "exec": {
+    "in": [
+      "exec"
+    ],
+    "out": [
+      "then"
+    ]
+  },
+  "inputs": [
+    {
+      "name": "interval",
+      "type": "any",
+      "default": 0.5
+    }
+  ],
+  "outputs": [
+    {
+      "name": "result",
+      "type": "any"
+    }
+  ],
+  "py": {
+    "imports": [
+      "from xscript.android import event"
+    ],
+    "stmt": "{id} = event.loop({interval})"
+  },
+  "dsl": {
+    "alias": "event.loop"
+  },
+  "since": "0.2.6",
+  "origin": "xscript.android.event.loop",
+  "availability": "ok"
+}

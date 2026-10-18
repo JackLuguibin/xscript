@@ -1,0 +1,39 @@
+{
+  "type": "onnx.available",
+  "category": "onnx",
+  "title": {
+    "zh": "onnx.available",
+    "en": "onnx.available"
+  },
+  "doc": {
+    "zh": "True when a backend can run models here (always on the device; PC needs onnxruntime).",
+    "en": "True when a backend can run models here (always on the device; PC needs onnxruntime)."
+  },
+  "exec": {
+    "in": [
+      "exec"
+    ],
+    "out": [
+      "then"
+    ]
+  },
+  "inputs": [],
+  "outputs": [
+    {
+      "name": "result",
+      "type": "any"
+    }
+  ],
+  "py": {
+    "imports": [
+      "from xscript.android import onnx"
+    ],
+    "stmt": "{id} = onnx.available()"
+  },
+  "dsl": {
+    "alias": "onnx.available"
+  },
+  "since": "0.2.6",
+  "origin": "xscript.android.onnx.available",
+  "availability": "ok"
+}

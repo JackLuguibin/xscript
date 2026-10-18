@@ -1,0 +1,75 @@
+{
+  "type": "yolo.Yolo.detect",
+  "category": "yolo",
+  "title": {
+    "zh": "yolo.Yolo.detect",
+    "en": "yolo.Yolo.detect"
+  },
+  "doc": {
+    "zh": "Detect on `image` (None = capture the screen; ndarray / Bitmap / PIL / path).",
+    "en": "Detect on `image` (None = capture the screen; ndarray / Bitmap / PIL / path)."
+  },
+  "exec": {
+    "in": [
+      "exec"
+    ],
+    "out": [
+      "then"
+    ]
+  },
+  "inputs": [
+    {
+      "name": "image",
+      "type": "any",
+      "default": null
+    },
+    {
+      "name": "rect",
+      "type": "any",
+      "default": null
+    },
+    {
+      "name": "conf",
+      "type": "any",
+      "default": 0.25
+    },
+    {
+      "name": "iou",
+      "type": "any",
+      "default": 0.45
+    },
+    {
+      "name": "classes",
+      "type": "any",
+      "default": null
+    },
+    {
+      "name": "max_det",
+      "type": "any",
+      "default": 300
+    },
+    {
+      "name": "agnostic",
+      "type": "any",
+      "default": false
+    }
+  ],
+  "outputs": [
+    {
+      "name": "result",
+      "type": "any"
+    }
+  ],
+  "py": {
+    "imports": [
+      "from xscript.android import yolo"
+    ],
+    "stmt": "{id} = yolo.Yolo.detect({image}, rect={rect}, conf={conf}, iou={iou}, classes={classes}, max_det={max_det}, agnostic={agnostic})"
+  },
+  "dsl": {
+    "alias": "yolo.Yolo.detect"
+  },
+  "since": "0.2.6",
+  "origin": "xscript.android.yolo.Yolo.detect",
+  "availability": "ok"
+}

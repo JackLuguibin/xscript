@@ -1,0 +1,52 @@
+{
+  "type": "tree.match_string",
+  "category": "tree",
+  "title": {
+    "zh": "tree.match_string",
+    "en": "tree.match_string"
+  },
+  "doc": {
+    "zh": "mode: 'exact' | 'regex' (equal or full regex match) | 'contains'.",
+    "en": "mode: 'exact' | 'regex' (equal or full regex match) | 'contains'."
+  },
+  "exec": {
+    "in": [
+      "exec"
+    ],
+    "out": [
+      "then"
+    ]
+  },
+  "inputs": [
+    {
+      "name": "actual",
+      "type": "any"
+    },
+    {
+      "name": "expected",
+      "type": "any"
+    },
+    {
+      "name": "mode",
+      "type": "any"
+    }
+  ],
+  "outputs": [
+    {
+      "name": "result",
+      "type": "any"
+    }
+  ],
+  "py": {
+    "imports": [
+      "from xscript.android import tree"
+    ],
+    "stmt": "{id} = tree.match_string({actual}, expected={expected}, mode={mode})"
+  },
+  "dsl": {
+    "alias": "tree.match_string"
+  },
+  "since": "0.2.6",
+  "origin": "xscript.android.tree.match_string",
+  "availability": "ok"
+}

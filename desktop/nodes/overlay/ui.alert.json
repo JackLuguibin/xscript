@@ -1,0 +1,29 @@
+{
+  "type": "ui.alert",
+  "title": {
+    "zh": "提示框",
+    "en": "Alert"
+  },
+  "doc": {
+    "zh": "弹出提示框。",
+    "en": "Show an alert."
+  },
+  "icon": "toast",
+  "inputs": [
+    {
+      "name": "msg",
+      "type": "string",
+      "ui": "text"
+    },
+    {
+      "name": "title",
+      "type": "string",
+      "ui": "text"
+    },
+    {
+      "name": "submit",
+      "type": "string",
+      "ui": "text"
+    }
+  ]
+}

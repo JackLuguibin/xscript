@@ -1,0 +1,45 @@
+{
+  "type": "event.on_touch",
+  "category": "event",
+  "title": {
+    "zh": "event.on_touch",
+    "en": "event.on_touch"
+  },
+  "doc": {
+    "zh": "@on_touch(\"click\"): view click / long_click / scroll with e.x, e.y (center of the view).",
+    "en": "@on_touch(\"click\"): view click / long_click / scroll with e.x, e.y (center of the view)."
+  },
+  "exec": {
+    "in": [
+      "exec"
+    ],
+    "out": [
+      "then"
+    ]
+  },
+  "inputs": [
+    {
+      "name": "action",
+      "type": "any",
+      "default": null
+    }
+  ],
+  "outputs": [
+    {
+      "name": "result",
+      "type": "any"
+    }
+  ],
+  "py": {
+    "imports": [
+      "from xscript.android import event"
+    ],
+    "stmt": "{id} = event.on_touch({action})"
+  },
+  "dsl": {
+    "alias": "event.on_touch"
+  },
+  "since": "0.2.6",
+  "origin": "xscript.android.event.on_touch",
+  "availability": "ok"
+}

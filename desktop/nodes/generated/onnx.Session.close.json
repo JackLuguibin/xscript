@@ -1,0 +1,39 @@
+{
+  "type": "onnx.Session.close",
+  "category": "onnx",
+  "title": {
+    "zh": "onnx.Session.close",
+    "en": "onnx.Session.close"
+  },
+  "doc": {
+    "zh": "close",
+    "en": "close"
+  },
+  "exec": {
+    "in": [
+      "exec"
+    ],
+    "out": [
+      "then"
+    ]
+  },
+  "inputs": [],
+  "outputs": [
+    {
+      "name": "result",
+      "type": "any"
+    }
+  ],
+  "py": {
+    "imports": [
+      "from xscript.android import onnx"
+    ],
+    "stmt": "{id} = onnx.Session.close()"
+  },
+  "dsl": {
+    "alias": "onnx.Session.close"
+  },
+  "since": "0.2.6",
+  "origin": "xscript.android.onnx.Session.close",
+  "availability": "ok"
+}

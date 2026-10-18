@@ -1,0 +1,54 @@
+{
+  "type": "action.long_click",
+  "category": "action",
+  "title": {
+    "zh": "action.long_click",
+    "en": "action.long_click"
+  },
+  "doc": {
+    "zh": "long_click",
+    "en": "long_click"
+  },
+  "exec": {
+    "in": [
+      "exec"
+    ],
+    "out": [
+      "then"
+    ]
+  },
+  "inputs": [
+    {
+      "name": "x",
+      "type": "any"
+    },
+    {
+      "name": "y",
+      "type": "any",
+      "default": null
+    },
+    {
+      "name": "dur",
+      "type": "any",
+      "default": 800
+    }
+  ],
+  "outputs": [
+    {
+      "name": "result",
+      "type": "any"
+    }
+  ],
+  "py": {
+    "imports": [
+      "from xscript.android import action"
+    ],
+    "stmt": "{id} = action.long_click({x}, y={y}, dur={dur})"
+  },
+  "dsl": {
+    "alias": "action.long_click"
+  },
+  "since": "0.2.6",
+  "origin": "xscript.android.action.long_click",
+  "availability": "ok"
+}

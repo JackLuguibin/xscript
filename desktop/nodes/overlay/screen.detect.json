@@ -1,0 +1,12 @@
+{
+  "type": "screen.detect",
+  "title": {
+    "zh": "检测",
+    "en": "Detect"
+  },
+  "doc": {
+    "zh": "在画面上做检测。",
+    "en": "Detect on the current image."
+  },
+  "icon": "search"
+}

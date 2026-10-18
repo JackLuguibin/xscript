@@ -1,0 +1,15 @@
+{
+  "type": "flow.wait",
+  "category": "flow",
+  "title": {"zh": "延时", "en": "Wait"},
+  "doc": {"zh": "等待给定的毫秒数。", "en": "Wait the given number of milliseconds."},
+  "latent": true,
+  "exec": {"in": ["exec"], "out": ["then"]},
+  "inputs": [{"name": "ms", "type": "int", "default": 0, "ui": "number", "min": 0}],
+  "outputs": [],
+  "py": {"imports": ["from xscript.android import action"], "stmt": "action.sleep({ms} / 1000)"},
+  "dsl": {"alias": "wait"},
+  "since": "0.2.6",
+  "origin": "xscript.android.action.sleep",
+  "availability": "ok"
+}

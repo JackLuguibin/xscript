@@ -1,0 +1,44 @@
+{
+  "type": "action.input",
+  "category": "action",
+  "title": {
+    "zh": "action.input",
+    "en": "action.input"
+  },
+  "doc": {
+    "zh": "Set text on the focused (or first editable) field.",
+    "en": "Set text on the focused (or first editable) field."
+  },
+  "exec": {
+    "in": [
+      "exec"
+    ],
+    "out": [
+      "then"
+    ]
+  },
+  "inputs": [
+    {
+      "name": "text",
+      "type": "any"
+    }
+  ],
+  "outputs": [
+    {
+      "name": "result",
+      "type": "any"
+    }
+  ],
+  "py": {
+    "imports": [
+      "from xscript.android import action"
+    ],
+    "stmt": "{id} = action.input({text})"
+  },
+  "dsl": {
+    "alias": "action.input"
+  },
+  "since": "0.2.6",
+  "origin": "xscript.android.action.input",
+  "availability": "ok"
+}

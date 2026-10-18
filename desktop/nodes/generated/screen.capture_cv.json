@@ -1,0 +1,45 @@
+{
+  "type": "screen.capture_cv",
+  "category": "screen",
+  "title": {
+    "zh": "screen.capture_cv",
+    "en": "screen.capture_cv"
+  },
+  "doc": {
+    "zh": "BGR numpy array of the screen (or [l, t, r, b] region).",
+    "en": "BGR numpy array of the screen (or [l, t, r, b] region)."
+  },
+  "exec": {
+    "in": [
+      "exec"
+    ],
+    "out": [
+      "then"
+    ]
+  },
+  "inputs": [
+    {
+      "name": "rect",
+      "type": "any",
+      "default": null
+    }
+  ],
+  "outputs": [
+    {
+      "name": "result",
+      "type": "any"
+    }
+  ],
+  "py": {
+    "imports": [
+      "from xscript.android import screen"
+    ],
+    "stmt": "{id} = screen.capture_cv({rect})"
+  },
+  "dsl": {
+    "alias": "screen.capture_cv"
+  },
+  "since": "0.2.6",
+  "origin": "xscript.android.screen.capture_cv",
+  "availability": "ok"
+}

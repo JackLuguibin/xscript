@@ -1,0 +1,39 @@
+{
+  "type": "pip.site_dir",
+  "category": "pip",
+  "title": {
+    "zh": "pip.site_dir",
+    "en": "pip.site_dir"
+  },
+  "doc": {
+    "zh": "site_dir",
+    "en": "site_dir"
+  },
+  "exec": {
+    "in": [
+      "exec"
+    ],
+    "out": [
+      "then"
+    ]
+  },
+  "inputs": [],
+  "outputs": [
+    {
+      "name": "result",
+      "type": "any"
+    }
+  ],
+  "py": {
+    "imports": [
+      "from xscript.android import pip"
+    ],
+    "stmt": "{id} = pip.site_dir()"
+  },
+  "dsl": {
+    "alias": "pip.site_dir"
+  },
+  "since": "0.2.6",
+  "origin": "xscript.android.pip.site_dir",
+  "availability": "ok"
+}

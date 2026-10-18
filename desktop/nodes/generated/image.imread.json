@@ -1,0 +1,49 @@
+{
+  "type": "image.imread",
+  "category": "image",
+  "title": {
+    "zh": "image.imread",
+    "en": "image.imread"
+  },
+  "doc": {
+    "zh": "cv2.imread that handles non-ASCII paths.",
+    "en": "cv2.imread that handles non-ASCII paths."
+  },
+  "exec": {
+    "in": [
+      "exec"
+    ],
+    "out": [
+      "then"
+    ]
+  },
+  "inputs": [
+    {
+      "name": "path",
+      "type": "any"
+    },
+    {
+      "name": "flags",
+      "type": "any",
+      "default": null
+    }
+  ],
+  "outputs": [
+    {
+      "name": "result",
+      "type": "any"
+    }
+  ],
+  "py": {
+    "imports": [
+      "from xscript.android import image"
+    ],
+    "stmt": "{id} = image.imread({path}, flags={flags})"
+  },
+  "dsl": {
+    "alias": "image.imread"
+  },
+  "since": "0.2.6",
+  "origin": "xscript.android.image.imread",
+  "availability": "ok"
+}

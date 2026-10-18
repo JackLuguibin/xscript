@@ -1,0 +1,19 @@
+{
+  "type": "system.exit",
+  "title": {
+    "zh": "结束脚本",
+    "en": "Exit script"
+  },
+  "doc": {
+    "zh": "结束当前脚本。",
+    "en": "Stop the running script."
+  },
+  "icon": "back",
+  "inputs": [
+    {
+      "name": "code",
+      "type": "int",
+      "ui": "number"
+    }
+  ]
+}

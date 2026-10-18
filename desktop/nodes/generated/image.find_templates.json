@@ -1,0 +1,84 @@
+{
+  "type": "image.find_templates",
+  "category": "image",
+  "title": {
+    "zh": "image.find_templates",
+    "en": "image.find_templates"
+  },
+  "doc": {
+    "zh": "parts: path or list of paths. Captures once and searches every template.",
+    "en": "parts: path or list of paths. Captures once and searches every template."
+  },
+  "exec": {
+    "in": [
+      "exec"
+    ],
+    "out": [
+      "then"
+    ]
+  },
+  "inputs": [
+    {
+      "name": "parts",
+      "type": "any"
+    },
+    {
+      "name": "rect",
+      "type": "any",
+      "default": null
+    },
+    {
+      "name": "confidence",
+      "type": "any",
+      "default": 0.9
+    },
+    {
+      "name": "rgb",
+      "type": "any",
+      "default": false
+    },
+    {
+      "name": "maxcnt",
+      "type": "any",
+      "default": 0
+    },
+    {
+      "name": "scale_range",
+      "type": "any",
+      "default": null
+    },
+    {
+      "name": "image",
+      "type": "any",
+      "default": null
+    },
+    {
+      "name": "ori",
+      "type": "any",
+      "default": null
+    },
+    {
+      "name": "fast",
+      "type": "any",
+      "default": true
+    }
+  ],
+  "outputs": [
+    {
+      "name": "result",
+      "type": "any"
+    }
+  ],
+  "py": {
+    "imports": [
+      "from xscript.android import image"
+    ],
+    "stmt": "{id} = image.find_templates({parts}, rect={rect}, confidence={confidence}, rgb={rgb}, maxcnt={maxcnt}, scale_range={scale_range}, image={image}, ori={ori}, fast={fast})"
+  },
+  "dsl": {
+    "alias": "image.find_templates"
+  },
+  "since": "0.2.6",
+  "origin": "xscript.android.image.find_templates",
+  "availability": "ok"
+}

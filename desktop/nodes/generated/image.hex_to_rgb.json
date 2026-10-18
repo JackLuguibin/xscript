@@ -1,0 +1,44 @@
+{
+  "type": "image.hex_to_rgb",
+  "category": "image",
+  "title": {
+    "zh": "image.hex_to_rgb",
+    "en": "image.hex_to_rgb"
+  },
+  "doc": {
+    "zh": "hex_to_rgb",
+    "en": "hex_to_rgb"
+  },
+  "exec": {
+    "in": [
+      "exec"
+    ],
+    "out": [
+      "then"
+    ]
+  },
+  "inputs": [
+    {
+      "name": "value",
+      "type": "any"
+    }
+  ],
+  "outputs": [
+    {
+      "name": "result",
+      "type": "any"
+    }
+  ],
+  "py": {
+    "imports": [
+      "from xscript.android import image"
+    ],
+    "stmt": "{id} = image.hex_to_rgb({value})"
+  },
+  "dsl": {
+    "alias": "image.hex_to_rgb"
+  },
+  "since": "0.2.6",
+  "origin": "xscript.android.image.hex_to_rgb",
+  "availability": "ok"
+}

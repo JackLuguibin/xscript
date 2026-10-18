@@ -1,0 +1,39 @@
+{
+  "type": "system.current_app",
+  "category": "system",
+  "title": {
+    "zh": "system.current_app",
+    "en": "system.current_app"
+  },
+  "doc": {
+    "zh": "{\"packageName\": ..., \"activity\": ...} of the foreground app.",
+    "en": "{\"packageName\": ..., \"activity\": ...} of the foreground app."
+  },
+  "exec": {
+    "in": [
+      "exec"
+    ],
+    "out": [
+      "then"
+    ]
+  },
+  "inputs": [],
+  "outputs": [
+    {
+      "name": "result",
+      "type": "any"
+    }
+  ],
+  "py": {
+    "imports": [
+      "from xscript.android import system"
+    ],
+    "stmt": "{id} = system.current_app()"
+  },
+  "dsl": {
+    "alias": "system.current_app"
+  },
+  "since": "0.2.6",
+  "origin": "xscript.android.system.current_app",
+  "availability": "ok"
+}

@@ -1,0 +1,12 @@
+{
+  "type": "system.battery",
+  "title": {
+    "zh": "电量",
+    "en": "Battery"
+  },
+  "doc": {
+    "zh": "读取电量。",
+    "en": "Read the battery."
+  },
+  "icon": "app"
+}

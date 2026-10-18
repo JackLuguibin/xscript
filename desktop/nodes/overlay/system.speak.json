@@ -1,0 +1,19 @@
+{
+  "type": "system.speak",
+  "title": {
+    "zh": "朗读",
+    "en": "Speak"
+  },
+  "doc": {
+    "zh": "朗读一段文字。",
+    "en": "Speak text."
+  },
+  "icon": "text",
+  "inputs": [
+    {
+      "name": "text",
+      "type": "string",
+      "ui": "text"
+    }
+  ]
+}

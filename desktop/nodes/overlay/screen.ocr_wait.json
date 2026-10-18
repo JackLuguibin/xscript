@@ -1,0 +1,35 @@
+{
+  "type": "screen.ocr_wait",
+  "title": {
+    "zh": "等待文字",
+    "en": "Wait for text"
+  },
+  "doc": {
+    "zh": "等到文字出现。",
+    "en": "Wait until text appears."
+  },
+  "icon": "search",
+  "inputs": [
+    {
+      "name": "pattern",
+      "type": "string",
+      "ui": "text"
+    },
+    {
+      "name": "timeout",
+      "type": "float",
+      "ui": "number",
+      "min": 0
+    },
+    {
+      "name": "rect",
+      "type": "rect",
+      "ui": "text"
+    },
+    {
+      "name": "engine",
+      "type": "string",
+      "ui": "text"
+    }
+  ]
+}

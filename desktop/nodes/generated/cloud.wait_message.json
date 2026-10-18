@@ -1,0 +1,46 @@
+{
+  "type": "cloud.wait_message",
+  "category": "cloud",
+  "title": {
+    "zh": "cloud.wait_message",
+    "en": "cloud.wait_message"
+  },
+  "doc": {
+    "zh": "Block until the next server message; returns its data or None on timeout.",
+    "en": "Block until the next server message; returns its data or None on timeout."
+  },
+  "exec": {
+    "in": [
+      "exec"
+    ],
+    "out": [
+      "then"
+    ]
+  },
+  "inputs": [
+    {
+      "name": "timeout",
+      "type": "any",
+      "default": null
+    }
+  ],
+  "outputs": [
+    {
+      "name": "result",
+      "type": "any"
+    }
+  ],
+  "py": {
+    "imports": [
+      "from xscript.android import cloud"
+    ],
+    "stmt": "{id} = cloud.wait_message({timeout})"
+  },
+  "dsl": {
+    "alias": "cloud.wait_message"
+  },
+  "since": "0.2.6",
+  "origin": "xscript.android.cloud.wait_message",
+  "availability": "ok",
+  "latent": true
+}

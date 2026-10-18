@@ -1,0 +1,50 @@
+{
+  "type": "system.Config.set_stop_re_run",
+  "category": "system",
+  "title": {
+    "zh": "system.Config.set_stop_re_run",
+    "en": "system.Config.set_stop_re_run"
+  },
+  "doc": {
+    "zh": "停止后重新运行: start the project again when it exits or crashes (not when a user stops it).",
+    "en": "停止后重新运行: start the project again when it exits or crashes (not when a user stops it)."
+  },
+  "exec": {
+    "in": [
+      "exec"
+    ],
+    "out": [
+      "then"
+    ]
+  },
+  "inputs": [
+    {
+      "name": "on",
+      "type": "any",
+      "default": true
+    },
+    {
+      "name": "project",
+      "type": "any",
+      "default": null
+    }
+  ],
+  "outputs": [
+    {
+      "name": "result",
+      "type": "any"
+    }
+  ],
+  "py": {
+    "imports": [
+      "from xscript.android import system"
+    ],
+    "stmt": "{id} = system.Config.set_stop_re_run({on}, project={project})"
+  },
+  "dsl": {
+    "alias": "system.Config.set_stop_re_run"
+  },
+  "since": "0.2.6",
+  "origin": "xscript.android.system.Config.set_stop_re_run",
+  "availability": "ok"
+}

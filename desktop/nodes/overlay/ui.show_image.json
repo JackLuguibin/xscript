@@ -1,0 +1,19 @@
+{
+  "type": "ui.show_image",
+  "title": {
+    "zh": "显示图片",
+    "en": "Show image"
+  },
+  "doc": {
+    "zh": "预览一张图片。",
+    "en": "Preview an image."
+  },
+  "icon": "image",
+  "inputs": [
+    {
+      "name": "path",
+      "type": "string",
+      "ui": "text"
+    }
+  ]
+}

@@ -1,0 +1,61 @@
+{
+  "type": "tree.collect_related",
+  "category": "tree",
+  "title": {
+    "zh": "tree.collect_related",
+    "en": "tree.collect_related"
+  },
+  "doc": {
+    "zh": "Legacy one-hop relation (child = direct children, parent = direct parent).",
+    "en": "Legacy one-hop relation (child = direct children, parent = direct parent)."
+  },
+  "exec": {
+    "in": [
+      "exec"
+    ],
+    "out": [
+      "then"
+    ]
+  },
+  "inputs": [
+    {
+      "name": "roots",
+      "type": "any"
+    },
+    {
+      "name": "anchor_filters",
+      "type": "any"
+    },
+    {
+      "name": "relation",
+      "type": "any"
+    },
+    {
+      "name": "target_filters",
+      "type": "any"
+    },
+    {
+      "name": "op",
+      "type": "any",
+      "default": "exact"
+    }
+  ],
+  "outputs": [
+    {
+      "name": "result",
+      "type": "any"
+    }
+  ],
+  "py": {
+    "imports": [
+      "from xscript.android import tree"
+    ],
+    "stmt": "{id} = tree.collect_related({roots}, anchor_filters={anchor_filters}, relation={relation}, target_filters={target_filters}, op={op})"
+  },
+  "dsl": {
+    "alias": "tree.collect_related"
+  },
+  "since": "0.2.6",
+  "origin": "xscript.android.tree.collect_related",
+  "availability": "ok"
+}

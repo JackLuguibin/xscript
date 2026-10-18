@@ -1,0 +1,39 @@
+{
+  "type": "ime.enter",
+  "category": "ime",
+  "title": {
+    "zh": "ime.enter",
+    "en": "ime.enter"
+  },
+  "doc": {
+    "zh": "The editor's action (search / send / go) when it has one, otherwise Enter.",
+    "en": "The editor's action (search / send / go) when it has one, otherwise Enter."
+  },
+  "exec": {
+    "in": [
+      "exec"
+    ],
+    "out": [
+      "then"
+    ]
+  },
+  "inputs": [],
+  "outputs": [
+    {
+      "name": "result",
+      "type": "any"
+    }
+  ],
+  "py": {
+    "imports": [
+      "from xscript.android import ime"
+    ],
+    "stmt": "{id} = ime.enter()"
+  },
+  "dsl": {
+    "alias": "ime.enter"
+  },
+  "since": "0.2.6",
+  "origin": "xscript.android.ime.enter",
+  "availability": "ok"
+}

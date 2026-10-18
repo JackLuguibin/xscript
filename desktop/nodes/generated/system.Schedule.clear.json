@@ -1,0 +1,45 @@
+{
+  "type": "system.Schedule.clear",
+  "category": "system",
+  "title": {
+    "zh": "system.Schedule.clear",
+    "en": "system.Schedule.clear"
+  },
+  "doc": {
+    "zh": "Remove every schedule of `project` (default: the running project). Returns the count.",
+    "en": "Remove every schedule of `project` (default: the running project). Returns the count."
+  },
+  "exec": {
+    "in": [
+      "exec"
+    ],
+    "out": [
+      "then"
+    ]
+  },
+  "inputs": [
+    {
+      "name": "project",
+      "type": "any",
+      "default": null
+    }
+  ],
+  "outputs": [
+    {
+      "name": "result",
+      "type": "any"
+    }
+  ],
+  "py": {
+    "imports": [
+      "from xscript.android import system"
+    ],
+    "stmt": "{id} = system.Schedule.clear({project})"
+  },
+  "dsl": {
+    "alias": "system.Schedule.clear"
+  },
+  "since": "0.2.6",
+  "origin": "xscript.android.system.Schedule.clear",
+  "availability": "ok"
+}

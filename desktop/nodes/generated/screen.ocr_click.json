@@ -1,0 +1,60 @@
+{
+  "type": "screen.ocr_click",
+  "category": "screen",
+  "title": {
+    "zh": "screen.ocr_click",
+    "en": "screen.ocr_click"
+  },
+  "doc": {
+    "zh": "ocr_click",
+    "en": "ocr_click"
+  },
+  "exec": {
+    "in": [
+      "exec"
+    ],
+    "out": [
+      "then"
+    ]
+  },
+  "inputs": [
+    {
+      "name": "pattern",
+      "type": "any"
+    },
+    {
+      "name": "timeout",
+      "type": "any",
+      "default": 0
+    },
+    {
+      "name": "rect",
+      "type": "any",
+      "default": null
+    },
+    {
+      "name": "engine",
+      "type": "any",
+      "default": null
+    }
+  ],
+  "outputs": [
+    {
+      "name": "result",
+      "type": "any"
+    }
+  ],
+  "py": {
+    "imports": [
+      "from xscript.android import screen"
+    ],
+    "stmt": "{id} = screen.ocr_click({pattern}, timeout={timeout}, rect={rect}, engine={engine})"
+  },
+  "dsl": {
+    "alias": "screen.ocr_click"
+  },
+  "since": "0.2.6",
+  "origin": "xscript.android.screen.ocr_click",
+  "availability": "ok",
+  "latent": true
+}

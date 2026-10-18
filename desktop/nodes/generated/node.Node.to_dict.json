@@ -1,0 +1,39 @@
+{
+  "type": "node.Node.to_dict",
+  "category": "node",
+  "title": {
+    "zh": "node.Node.to_dict",
+    "en": "node.Node.to_dict"
+  },
+  "doc": {
+    "zh": "to_dict",
+    "en": "to_dict"
+  },
+  "exec": {
+    "in": [
+      "exec"
+    ],
+    "out": [
+      "then"
+    ]
+  },
+  "inputs": [],
+  "outputs": [
+    {
+      "name": "result",
+      "type": "any"
+    }
+  ],
+  "py": {
+    "imports": [
+      "from xscript.android import node"
+    ],
+    "stmt": "{id} = node.Node.to_dict()"
+  },
+  "dsl": {
+    "alias": "node.Node.to_dict"
+  },
+  "since": "0.2.6",
+  "origin": "xscript.android.node.Node.to_dict",
+  "availability": "ok"
+}

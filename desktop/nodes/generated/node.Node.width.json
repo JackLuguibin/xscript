@@ -1,0 +1,39 @@
+{
+  "type": "node.Node.width",
+  "category": "node",
+  "title": {
+    "zh": "node.Node.width",
+    "en": "node.Node.width"
+  },
+  "doc": {
+    "zh": "width",
+    "en": "width"
+  },
+  "exec": {
+    "in": [
+      "exec"
+    ],
+    "out": [
+      "then"
+    ]
+  },
+  "inputs": [],
+  "outputs": [
+    {
+      "name": "result",
+      "type": "any"
+    }
+  ],
+  "py": {
+    "imports": [
+      "from xscript.android import node"
+    ],
+    "stmt": "{id} = node.Node.width()"
+  },
+  "dsl": {
+    "alias": "node.Node.width"
+  },
+  "since": "0.2.6",
+  "origin": "xscript.android.node.Node.width",
+  "availability": "ok"
+}

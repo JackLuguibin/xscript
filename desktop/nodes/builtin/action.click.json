@@ -1,0 +1,14 @@
+{
+  "type": "action.click",
+  "category": "action",
+  "title": {"zh": "点击", "en": "Click"},
+  "doc": {"zh": "点击一个控件。连到 target 时调用该控件的 click。", "en": "Click a node. A connected target calls that node's click."},
+  "exec": {"in": ["exec"], "out": ["then"]},
+  "inputs": [{"name": "target", "type": "node?"}],
+  "outputs": [],
+  "py": {"imports": ["from xscript.android import action"], "stmt": "{target}.click()"},
+  "dsl": {"alias": "click"},
+  "since": "0.2.6",
+  "origin": "xscript.android.node.Node.click",
+  "availability": "ok"
+}

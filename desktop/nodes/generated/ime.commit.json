@@ -1,0 +1,44 @@
+{
+  "type": "ime.commit",
+  "category": "ime",
+  "title": {
+    "zh": "ime.commit",
+    "en": "ime.commit"
+  },
+  "doc": {
+    "zh": "commit",
+    "en": "commit"
+  },
+  "exec": {
+    "in": [
+      "exec"
+    ],
+    "out": [
+      "then"
+    ]
+  },
+  "inputs": [
+    {
+      "name": "text",
+      "type": "any"
+    }
+  ],
+  "outputs": [
+    {
+      "name": "result",
+      "type": "any"
+    }
+  ],
+  "py": {
+    "imports": [
+      "from xscript.android import ime"
+    ],
+    "stmt": "{id} = ime.commit({text})"
+  },
+  "dsl": {
+    "alias": "ime.commit"
+  },
+  "since": "0.2.6",
+  "origin": "xscript.android.ime.commit",
+  "availability": "ok"
+}

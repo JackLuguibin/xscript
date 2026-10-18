@@ -1,0 +1,39 @@
+{
+  "type": "node.Node.top",
+  "category": "node",
+  "title": {
+    "zh": "node.Node.top",
+    "en": "node.Node.top"
+  },
+  "doc": {
+    "zh": "top",
+    "en": "top"
+  },
+  "exec": {
+    "in": [
+      "exec"
+    ],
+    "out": [
+      "then"
+    ]
+  },
+  "inputs": [],
+  "outputs": [
+    {
+      "name": "result",
+      "type": "any"
+    }
+  ],
+  "py": {
+    "imports": [
+      "from xscript.android import node"
+    ],
+    "stmt": "{id} = node.Node.top()"
+  },
+  "dsl": {
+    "alias": "node.Node.top"
+  },
+  "since": "0.2.6",
+  "origin": "xscript.android.node.Node.top",
+  "availability": "ok"
+}

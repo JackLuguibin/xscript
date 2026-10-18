@@ -1,0 +1,44 @@
+{
+  "type": "image.to_bgr",
+  "category": "image",
+  "title": {
+    "zh": "image.to_bgr",
+    "en": "image.to_bgr"
+  },
+  "doc": {
+    "zh": "Accept None (capture), BGR ndarray, PIL image, Java Bitmap or file path -> BGR ndarray.",
+    "en": "Accept None (capture), BGR ndarray, PIL image, Java Bitmap or file path -> BGR ndarray."
+  },
+  "exec": {
+    "in": [
+      "exec"
+    ],
+    "out": [
+      "then"
+    ]
+  },
+  "inputs": [
+    {
+      "name": "image",
+      "type": "any"
+    }
+  ],
+  "outputs": [
+    {
+      "name": "result",
+      "type": "any"
+    }
+  ],
+  "py": {
+    "imports": [
+      "from xscript.android import image"
+    ],
+    "stmt": "{id} = image.to_bgr({image})"
+  },
+  "dsl": {
+    "alias": "image.to_bgr"
+  },
+  "since": "0.2.6",
+  "origin": "xscript.android.image.to_bgr",
+  "availability": "ok"
+}

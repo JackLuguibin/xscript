@@ -1,0 +1,12 @@
+{
+  "type": "event.start",
+  "category": "event",
+  "title": {"zh": "启动", "en": "Start"},
+  "doc": {"zh": "流程入口。触发器本身不生成调用。", "en": "Flow entry. The trigger itself emits no call."},
+  "exec": {"in": [], "out": ["then"]},
+  "inputs": [],
+  "outputs": [],
+  "dsl": {"alias": "on start"},
+  "since": "0.2.6",
+  "availability": "ok"
+}

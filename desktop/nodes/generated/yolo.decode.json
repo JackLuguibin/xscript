@@ -1,0 +1,74 @@
+{
+  "type": "yolo.decode",
+  "category": "yolo",
+  "title": {
+    "zh": "yolo.decode",
+    "en": "yolo.decode"
+  },
+  "doc": {
+    "zh": "Raw model output → (boxes xyxy in network pixels, scores, class ids).",
+    "en": "Raw model output → (boxes xyxy in network pixels, scores, class ids)."
+  },
+  "exec": {
+    "in": [
+      "exec"
+    ],
+    "out": [
+      "then"
+    ]
+  },
+  "inputs": [
+    {
+      "name": "output",
+      "type": "any"
+    },
+    {
+      "name": "conf",
+      "type": "any",
+      "default": 0.25
+    },
+    {
+      "name": "iou",
+      "type": "any",
+      "default": 0.45
+    },
+    {
+      "name": "classes",
+      "type": "any",
+      "default": null
+    },
+    {
+      "name": "max_det",
+      "type": "any",
+      "default": 300
+    },
+    {
+      "name": "nc",
+      "type": "any",
+      "default": null
+    },
+    {
+      "name": "agnostic",
+      "type": "any",
+      "default": false
+    }
+  ],
+  "outputs": [
+    {
+      "name": "result",
+      "type": "any"
+    }
+  ],
+  "py": {
+    "imports": [
+      "from xscript.android import yolo"
+    ],
+    "stmt": "{id} = yolo.decode({output}, conf={conf}, iou={iou}, classes={classes}, max_det={max_det}, nc={nc}, agnostic={agnostic})"
+  },
+  "dsl": {
+    "alias": "yolo.decode"
+  },
+  "since": "0.2.6",
+  "origin": "xscript.android.yolo.decode",
+  "availability": "ok"
+}

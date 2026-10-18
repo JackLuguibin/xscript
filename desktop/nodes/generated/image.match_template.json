@@ -1,0 +1,87 @@
+{
+  "type": "image.match_template",
+  "category": "image",
+  "title": {
+    "zh": "image.match_template",
+    "en": "image.match_template"
+  },
+  "doc": {
+    "zh": "Template search on a BGR source. Returns AScript-shaped dicts in screen coordinates.",
+    "en": "Template search on a BGR source. Returns AScript-shaped dicts in screen coordinates."
+  },
+  "exec": {
+    "in": [
+      "exec"
+    ],
+    "out": [
+      "then"
+    ]
+  },
+  "inputs": [
+    {
+      "name": "source",
+      "type": "any"
+    },
+    {
+      "name": "part",
+      "type": "any"
+    },
+    {
+      "name": "rect",
+      "type": "any",
+      "default": null
+    },
+    {
+      "name": "confidence",
+      "type": "any",
+      "default": 0.9
+    },
+    {
+      "name": "rgb",
+      "type": "any",
+      "default": false
+    },
+    {
+      "name": "maxcnt",
+      "type": "any",
+      "default": 0
+    },
+    {
+      "name": "scale_range",
+      "type": "any",
+      "default": null
+    },
+    {
+      "name": "index",
+      "type": "any",
+      "default": 0
+    },
+    {
+      "name": "offset",
+      "type": "any"
+    },
+    {
+      "name": "fast",
+      "type": "any",
+      "default": true
+    }
+  ],
+  "outputs": [
+    {
+      "name": "result",
+      "type": "any"
+    }
+  ],
+  "py": {
+    "imports": [
+      "from xscript.android import image"
+    ],
+    "stmt": "{id} = image.match_template({source}, part={part}, rect={rect}, confidence={confidence}, rgb={rgb}, maxcnt={maxcnt}, scale_range={scale_range}, index={index}, offset={offset}, fast={fast})"
+  },
+  "dsl": {
+    "alias": "image.match_template"
+  },
+  "since": "0.2.6",
+  "origin": "xscript.android.image.match_template",
+  "availability": "ok"
+}

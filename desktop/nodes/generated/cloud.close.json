@@ -1,0 +1,39 @@
+{
+  "type": "cloud.close",
+  "category": "cloud",
+  "title": {
+    "zh": "cloud.close",
+    "en": "cloud.close"
+  },
+  "doc": {
+    "zh": "Disconnect and forget the server URL.",
+    "en": "Disconnect and forget the server URL."
+  },
+  "exec": {
+    "in": [
+      "exec"
+    ],
+    "out": [
+      "then"
+    ]
+  },
+  "inputs": [],
+  "outputs": [
+    {
+      "name": "result",
+      "type": "any"
+    }
+  ],
+  "py": {
+    "imports": [
+      "from xscript.android import cloud"
+    ],
+    "stmt": "{id} = cloud.close()"
+  },
+  "dsl": {
+    "alias": "cloud.close"
+  },
+  "since": "0.2.6",
+  "origin": "xscript.android.cloud.close",
+  "availability": "ok"
+}

@@ -1,0 +1,45 @@
+{
+  "type": "system.reboot",
+  "category": "system",
+  "title": {
+    "zh": "system.reboot",
+    "en": "system.reboot"
+  },
+  "doc": {
+    "zh": "End this run and start the project again in a fresh script process after `delay` seconds.",
+    "en": "End this run and start the project again in a fresh script process after `delay` seconds."
+  },
+  "exec": {
+    "in": [
+      "exec"
+    ],
+    "out": [
+      "then"
+    ]
+  },
+  "inputs": [
+    {
+      "name": "delay",
+      "type": "any",
+      "default": 0
+    }
+  ],
+  "outputs": [
+    {
+      "name": "result",
+      "type": "any"
+    }
+  ],
+  "py": {
+    "imports": [
+      "from xscript.android import system"
+    ],
+    "stmt": "{id} = system.reboot({delay})"
+  },
+  "dsl": {
+    "alias": "system.reboot"
+  },
+  "since": "0.2.6",
+  "origin": "xscript.android.system.reboot",
+  "availability": "ok"
+}

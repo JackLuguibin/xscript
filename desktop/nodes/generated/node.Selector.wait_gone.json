@@ -1,0 +1,51 @@
+{
+  "type": "node.Selector.wait_gone",
+  "category": "node",
+  "title": {
+    "zh": "node.Selector.wait_gone",
+    "en": "node.Selector.wait_gone"
+  },
+  "doc": {
+    "zh": "True once nothing matches (checked every `interval` seconds), False if still there after `timeout` seconds.",
+    "en": "True once nothing matches (checked every `interval` seconds), False if still there after `timeout` seconds."
+  },
+  "exec": {
+    "in": [
+      "exec"
+    ],
+    "out": [
+      "then"
+    ]
+  },
+  "inputs": [
+    {
+      "name": "timeout",
+      "type": "any",
+      "default": 10
+    },
+    {
+      "name": "interval",
+      "type": "any",
+      "default": 0.25
+    }
+  ],
+  "outputs": [
+    {
+      "name": "result",
+      "type": "any"
+    }
+  ],
+  "py": {
+    "imports": [
+      "from xscript.android import node"
+    ],
+    "stmt": "{id} = node.Selector.wait_gone({timeout}, interval={interval})"
+  },
+  "dsl": {
+    "alias": "node.Selector.wait_gone"
+  },
+  "since": "0.2.6",
+  "origin": "xscript.android.node.Selector.wait_gone",
+  "availability": "ok",
+  "latent": true
+}

@@ -1,0 +1,53 @@
+{
+  "type": "tree.match_node",
+  "category": "tree",
+  "title": {
+    "zh": "tree.match_node",
+    "en": "tree.match_node"
+  },
+  "doc": {
+    "zh": "filters: dict {field: value} (legacy xscript form) or list of (field, op, value).",
+    "en": "filters: dict {field: value} (legacy xscript form) or list of (field, op, value)."
+  },
+  "exec": {
+    "in": [
+      "exec"
+    ],
+    "out": [
+      "then"
+    ]
+  },
+  "inputs": [
+    {
+      "name": "raw",
+      "type": "any"
+    },
+    {
+      "name": "filters",
+      "type": "any"
+    },
+    {
+      "name": "op",
+      "type": "any",
+      "default": "exact"
+    }
+  ],
+  "outputs": [
+    {
+      "name": "result",
+      "type": "any"
+    }
+  ],
+  "py": {
+    "imports": [
+      "from xscript.android import tree"
+    ],
+    "stmt": "{id} = tree.match_node({raw}, filters={filters}, op={op})"
+  },
+  "dsl": {
+    "alias": "tree.match_node"
+  },
+  "since": "0.2.6",
+  "origin": "xscript.android.tree.match_node",
+  "availability": "ok"
+}

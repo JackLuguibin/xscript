@@ -1,0 +1,44 @@
+{
+  "type": "ui.Window.background",
+  "category": "ui",
+  "title": {
+    "zh": "ui.Window.background",
+    "en": "ui.Window.background"
+  },
+  "doc": {
+    "zh": "background",
+    "en": "background"
+  },
+  "exec": {
+    "in": [
+      "exec"
+    ],
+    "out": [
+      "then"
+    ]
+  },
+  "inputs": [
+    {
+      "name": "color",
+      "type": "any"
+    }
+  ],
+  "outputs": [
+    {
+      "name": "result",
+      "type": "any"
+    }
+  ],
+  "py": {
+    "imports": [
+      "from xscript.android import ui"
+    ],
+    "stmt": "{id} = ui.Window.background({color})"
+  },
+  "dsl": {
+    "alias": "ui.Window.background"
+  },
+  "since": "0.2.6",
+  "origin": "xscript.android.ui.Window.background",
+  "availability": "ok"
+}

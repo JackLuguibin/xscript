@@ -1,0 +1,12 @@
+{
+  "type": "action.back",
+  "title": {
+    "zh": "返回",
+    "en": "Back"
+  },
+  "doc": {
+    "zh": "按返回。",
+    "en": "Press back."
+  },
+  "icon": "back"
+}

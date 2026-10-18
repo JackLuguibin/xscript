@@ -1,0 +1,35 @@
+{
+  "type": "time.now",
+  "category": "time",
+  "title": {
+    "zh": "现在",
+    "en": "Now"
+  },
+  "doc": {
+    "zh": "纯数据节点，没有执行引脚。被一处使用时内联，写成 let 或被多处使用时先赋给局部变量。",
+    "en": "Pure data node with no exec pin. Inlined at a single use. A let, or several uses, becomes one local."
+  },
+  "icon": "sleep",
+  "exec": {
+    "in": [],
+    "out": []
+  },
+  "inputs": [],
+  "outputs": [
+    {
+      "name": "result",
+      "type": "float"
+    }
+  ],
+  "py": {
+    "stmt": "time.time()",
+    "imports": [
+      "import time"
+    ]
+  },
+  "dsl": {
+    "alias": "now"
+  },
+  "since": "0.2.6",
+  "availability": "ok"
+}

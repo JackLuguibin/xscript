@@ -1,0 +1,53 @@
+{
+  "type": "action.Touch.up",
+  "category": "action",
+  "title": {
+    "zh": "action.Touch.up",
+    "en": "action.Touch.up"
+  },
+  "doc": {
+    "zh": "up",
+    "en": "up"
+  },
+  "exec": {
+    "in": [
+      "exec"
+    ],
+    "out": [
+      "then"
+    ]
+  },
+  "inputs": [
+    {
+      "name": "x",
+      "type": "any"
+    },
+    {
+      "name": "y",
+      "type": "any"
+    },
+    {
+      "name": "dur",
+      "type": "any",
+      "default": 20
+    }
+  ],
+  "outputs": [
+    {
+      "name": "result",
+      "type": "any"
+    }
+  ],
+  "py": {
+    "imports": [
+      "from xscript.android import action"
+    ],
+    "stmt": "{id} = action.Touch.up({x}, y={y}, dur={dur})"
+  },
+  "dsl": {
+    "alias": "action.Touch.up"
+  },
+  "since": "0.2.6",
+  "origin": "xscript.android.action.Touch.up",
+  "availability": "ok"
+}

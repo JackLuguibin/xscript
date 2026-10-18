@@ -1,0 +1,38 @@
+{
+  "type": "list.sort",
+  "category": "list",
+  "title": {
+    "zh": "排序",
+    "en": "Sort"
+  },
+  "doc": {
+    "zh": "纯数据节点，没有执行引脚。被一处使用时内联，写成 let 或被多处使用时先赋给局部变量。",
+    "en": "Pure data node with no exec pin. Inlined at a single use. A let, or several uses, becomes one local."
+  },
+  "icon": "grid",
+  "exec": {
+    "in": [],
+    "out": []
+  },
+  "inputs": [
+    {
+      "name": "a",
+      "type": "any",
+      "default": ""
+    }
+  ],
+  "outputs": [
+    {
+      "name": "result",
+      "type": "any"
+    }
+  ],
+  "py": {
+    "stmt": "sorted(list({a}))"
+  },
+  "dsl": {
+    "alias": "sort"
+  },
+  "since": "0.2.6",
+  "availability": "ok"
+}

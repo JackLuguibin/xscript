@@ -1,0 +1,39 @@
+{
+  "type": "onnx.Session.inputs",
+  "category": "onnx",
+  "title": {
+    "zh": "onnx.Session.inputs",
+    "en": "onnx.Session.inputs"
+  },
+  "doc": {
+    "zh": "[{\"name\", \"shape\"}]; dynamic dimensions are -1.",
+    "en": "[{\"name\", \"shape\"}]; dynamic dimensions are -1."
+  },
+  "exec": {
+    "in": [
+      "exec"
+    ],
+    "out": [
+      "then"
+    ]
+  },
+  "inputs": [],
+  "outputs": [
+    {
+      "name": "result",
+      "type": "any"
+    }
+  ],
+  "py": {
+    "imports": [
+      "from xscript.android import onnx"
+    ],
+    "stmt": "{id} = onnx.Session.inputs()"
+  },
+  "dsl": {
+    "alias": "onnx.Session.inputs"
+  },
+  "since": "0.2.6",
+  "origin": "xscript.android.onnx.Session.inputs",
+  "availability": "ok"
+}

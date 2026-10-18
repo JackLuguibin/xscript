@@ -1,0 +1,12 @@
+{
+  "type": "ui.float_hide",
+  "title": {
+    "zh": "隐藏悬浮窗",
+    "en": "Hide overlay"
+  },
+  "doc": {
+    "zh": "隐藏悬浮窗。",
+    "en": "Hide the floating window."
+  },
+  "icon": "app"
+}

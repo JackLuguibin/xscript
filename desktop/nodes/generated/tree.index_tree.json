@@ -1,0 +1,44 @@
+{
+  "type": "tree.index_tree",
+  "category": "tree",
+  "title": {
+    "zh": "tree.index_tree",
+    "en": "tree.index_tree"
+  },
+  "doc": {
+    "zh": "Return (all_nodes_in_document_order, top_level_list).",
+    "en": "Return (all_nodes_in_document_order, top_level_list)."
+  },
+  "exec": {
+    "in": [
+      "exec"
+    ],
+    "out": [
+      "then"
+    ]
+  },
+  "inputs": [
+    {
+      "name": "roots",
+      "type": "any"
+    }
+  ],
+  "outputs": [
+    {
+      "name": "result",
+      "type": "any"
+    }
+  ],
+  "py": {
+    "imports": [
+      "from xscript.android import tree"
+    ],
+    "stmt": "{id} = tree.index_tree({roots})"
+  },
+  "dsl": {
+    "alias": "tree.index_tree"
+  },
+  "since": "0.2.6",
+  "origin": "xscript.android.tree.index_tree",
+  "availability": "ok"
+}

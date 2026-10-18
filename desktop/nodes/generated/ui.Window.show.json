@@ -1,0 +1,45 @@
+{
+  "type": "ui.Window.show",
+  "category": "ui",
+  "title": {
+    "zh": "ui.Window.show",
+    "en": "ui.Window.show"
+  },
+  "doc": {
+    "zh": "show",
+    "en": "show"
+  },
+  "exec": {
+    "in": [
+      "exec"
+    ],
+    "out": [
+      "then"
+    ]
+  },
+  "inputs": [
+    {
+      "name": "wait",
+      "type": "any",
+      "default": false
+    }
+  ],
+  "outputs": [
+    {
+      "name": "result",
+      "type": "any"
+    }
+  ],
+  "py": {
+    "imports": [
+      "from xscript.android import ui"
+    ],
+    "stmt": "{id} = ui.Window.show({wait})"
+  },
+  "dsl": {
+    "alias": "ui.Window.show"
+  },
+  "since": "0.2.6",
+  "origin": "xscript.android.ui.Window.show",
+  "availability": "ok"
+}

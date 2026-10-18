@@ -1,0 +1,12 @@
+{
+  "type": "flow.call",
+  "category": "flow",
+  "title": {"zh": "调用子流程", "en": "Call subflow"},
+  "doc": {"zh": "调用一个 def。有返回值时结果放在这个节点的 id 上。", "en": "Calls a def. When the def returns a value, it is stored on this node's id."},
+  "exec": {"in": ["exec"], "out": ["then"]},
+  "inputs": [],
+  "outputs": [{"name": "result", "type": "any"}],
+  "dsl": {"alias": "call"},
+  "since": "0.2.6",
+  "availability": "ok"
+}

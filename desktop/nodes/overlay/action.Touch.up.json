@@ -1,0 +1,30 @@
+{
+  "type": "action.Touch.up",
+  "title": {
+    "zh": "抬起",
+    "en": "Touch up"
+  },
+  "doc": {
+    "zh": "手指抬起。",
+    "en": "Touch up."
+  },
+  "icon": "move",
+  "inputs": [
+    {
+      "name": "x",
+      "type": "int",
+      "ui": "number"
+    },
+    {
+      "name": "y",
+      "type": "int",
+      "ui": "number"
+    },
+    {
+      "name": "dur",
+      "type": "int",
+      "ui": "number",
+      "min": 0
+    }
+  ]
+}

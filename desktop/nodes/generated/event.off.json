@@ -1,0 +1,50 @@
+{
+  "type": "event.off",
+  "category": "event",
+  "title": {
+    "zh": "event.off",
+    "en": "event.off"
+  },
+  "doc": {
+    "zh": "Remove one handler (by token or function), all handlers of `event_type`, or everything.",
+    "en": "Remove one handler (by token or function), all handlers of `event_type`, or everything."
+  },
+  "exec": {
+    "in": [
+      "exec"
+    ],
+    "out": [
+      "then"
+    ]
+  },
+  "inputs": [
+    {
+      "name": "token",
+      "type": "any",
+      "default": null
+    },
+    {
+      "name": "event_type",
+      "type": "any",
+      "default": null
+    }
+  ],
+  "outputs": [
+    {
+      "name": "result",
+      "type": "any"
+    }
+  ],
+  "py": {
+    "imports": [
+      "from xscript.android import event"
+    ],
+    "stmt": "{id} = event.off({token}, event_type={event_type})"
+  },
+  "dsl": {
+    "alias": "event.off"
+  },
+  "since": "0.2.6",
+  "origin": "xscript.android.event.off",
+  "availability": "ok"
+}

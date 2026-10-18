@@ -1,0 +1,39 @@
+{
+  "type": "tree.Pipeline.copy",
+  "category": "tree",
+  "title": {
+    "zh": "tree.Pipeline.copy",
+    "en": "tree.Pipeline.copy"
+  },
+  "doc": {
+    "zh": "copy",
+    "en": "copy"
+  },
+  "exec": {
+    "in": [
+      "exec"
+    ],
+    "out": [
+      "then"
+    ]
+  },
+  "inputs": [],
+  "outputs": [
+    {
+      "name": "result",
+      "type": "any"
+    }
+  ],
+  "py": {
+    "imports": [
+      "from xscript.android import tree"
+    ],
+    "stmt": "{id} = tree.Pipeline.copy()"
+  },
+  "dsl": {
+    "alias": "tree.Pipeline.copy"
+  },
+  "since": "0.2.6",
+  "origin": "xscript.android.tree.Pipeline.copy",
+  "availability": "ok"
+}

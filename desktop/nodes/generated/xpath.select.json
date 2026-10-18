@@ -1,0 +1,48 @@
+{
+  "type": "xpath.select",
+  "category": "xpath",
+  "title": {
+    "zh": "xpath.select",
+    "en": "xpath.select"
+  },
+  "doc": {
+    "zh": "Evaluate `xpath` against dumped roots; returns tree.Indexed nodes in document order.",
+    "en": "Evaluate `xpath` against dumped roots; returns tree.Indexed nodes in document order."
+  },
+  "exec": {
+    "in": [
+      "exec"
+    ],
+    "out": [
+      "then"
+    ]
+  },
+  "inputs": [
+    {
+      "name": "roots",
+      "type": "any"
+    },
+    {
+      "name": "xpath",
+      "type": "any"
+    }
+  ],
+  "outputs": [
+    {
+      "name": "result",
+      "type": "any"
+    }
+  ],
+  "py": {
+    "imports": [
+      "from xscript.android import xpath"
+    ],
+    "stmt": "{id} = xpath.select({roots}, xpath={xpath})"
+  },
+  "dsl": {
+    "alias": "xpath.select"
+  },
+  "since": "0.2.6",
+  "origin": "xscript.android.xpath.select",
+  "availability": "ok"
+}

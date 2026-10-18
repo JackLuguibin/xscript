@@ -1,0 +1,49 @@
+{
+  "type": "ui.toast",
+  "category": "ui",
+  "title": {
+    "zh": "ui.toast",
+    "en": "ui.toast"
+  },
+  "doc": {
+    "zh": "toast",
+    "en": "toast"
+  },
+  "exec": {
+    "in": [
+      "exec"
+    ],
+    "out": [
+      "then"
+    ]
+  },
+  "inputs": [
+    {
+      "name": "msg",
+      "type": "any"
+    },
+    {
+      "name": "dur",
+      "type": "any",
+      "default": 2000
+    }
+  ],
+  "outputs": [
+    {
+      "name": "result",
+      "type": "any"
+    }
+  ],
+  "py": {
+    "imports": [
+      "from xscript.android import ui"
+    ],
+    "stmt": "{id} = ui.toast({msg}, dur={dur})"
+  },
+  "dsl": {
+    "alias": "ui.toast"
+  },
+  "since": "0.2.6",
+  "origin": "xscript.android.ui.toast",
+  "availability": "ok"
+}

@@ -1,0 +1,13 @@
+{
+  "type": "debug.log",
+  "category": "data",
+  "title": {"zh": "打印", "en": "Log"},
+  "doc": {"zh": "打印一条消息。", "en": "Print a message."},
+  "exec": {"in": ["exec"], "out": ["then"]},
+  "inputs": [{"name": "message", "type": "string", "default": "", "ui": "text"}],
+  "outputs": [],
+  "py": {"imports": [], "stmt": "print({message})"},
+  "dsl": {"alias": "log"},
+  "since": "0.2.6",
+  "availability": "ok"
+}

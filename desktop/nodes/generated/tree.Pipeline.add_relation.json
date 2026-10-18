@@ -1,0 +1,48 @@
+{
+  "type": "tree.Pipeline.add_relation",
+  "category": "tree",
+  "title": {
+    "zh": "tree.Pipeline.add_relation",
+    "en": "tree.Pipeline.add_relation"
+  },
+  "doc": {
+    "zh": "add_relation",
+    "en": "add_relation"
+  },
+  "exec": {
+    "in": [
+      "exec"
+    ],
+    "out": [
+      "then"
+    ]
+  },
+  "inputs": [
+    {
+      "name": "relation",
+      "type": "any"
+    },
+    {
+      "name": "args",
+      "type": "any"
+    }
+  ],
+  "outputs": [
+    {
+      "name": "result",
+      "type": "any"
+    }
+  ],
+  "py": {
+    "imports": [
+      "from xscript.android import tree"
+    ],
+    "stmt": "{id} = tree.Pipeline.add_relation({relation}, args={args})"
+  },
+  "dsl": {
+    "alias": "tree.Pipeline.add_relation"
+  },
+  "since": "0.2.6",
+  "origin": "xscript.android.tree.Pipeline.add_relation",
+  "availability": "ok"
+}

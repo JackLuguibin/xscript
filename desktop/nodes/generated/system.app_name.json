@@ -1,0 +1,44 @@
+{
+  "type": "system.app_name",
+  "category": "system",
+  "title": {
+    "zh": "system.app_name",
+    "en": "system.app_name"
+  },
+  "doc": {
+    "zh": "app_name",
+    "en": "app_name"
+  },
+  "exec": {
+    "in": [
+      "exec"
+    ],
+    "out": [
+      "then"
+    ]
+  },
+  "inputs": [
+    {
+      "name": "package",
+      "type": "any"
+    }
+  ],
+  "outputs": [
+    {
+      "name": "result",
+      "type": "any"
+    }
+  ],
+  "py": {
+    "imports": [
+      "from xscript.android import system"
+    ],
+    "stmt": "{id} = system.app_name({package})"
+  },
+  "dsl": {
+    "alias": "system.app_name"
+  },
+  "since": "0.2.6",
+  "origin": "xscript.android.system.app_name",
+  "availability": "ok"
+}

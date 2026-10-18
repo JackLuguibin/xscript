@@ -1,0 +1,39 @@
+{
+  "type": "yolo.Yolo.nc",
+  "category": "yolo",
+  "title": {
+    "zh": "yolo.Yolo.nc",
+    "en": "yolo.Yolo.nc"
+  },
+  "doc": {
+    "zh": "nc",
+    "en": "nc"
+  },
+  "exec": {
+    "in": [
+      "exec"
+    ],
+    "out": [
+      "then"
+    ]
+  },
+  "inputs": [],
+  "outputs": [
+    {
+      "name": "result",
+      "type": "any"
+    }
+  ],
+  "py": {
+    "imports": [
+      "from xscript.android import yolo"
+    ],
+    "stmt": "{id} = yolo.Yolo.nc()"
+  },
+  "dsl": {
+    "alias": "yolo.Yolo.nc"
+  },
+  "since": "0.2.6",
+  "origin": "xscript.android.yolo.Yolo.nc",
+  "availability": "ok"
+}

@@ -1,0 +1,44 @@
+{
+  "type": "system.open",
+  "category": "system",
+  "title": {
+    "zh": "system.open",
+    "en": "system.open"
+  },
+  "doc": {
+    "zh": "Launch an app by package name or label.",
+    "en": "Launch an app by package name or label."
+  },
+  "exec": {
+    "in": [
+      "exec"
+    ],
+    "out": [
+      "then"
+    ]
+  },
+  "inputs": [
+    {
+      "name": "name_or_package",
+      "type": "any"
+    }
+  ],
+  "outputs": [
+    {
+      "name": "result",
+      "type": "any"
+    }
+  ],
+  "py": {
+    "imports": [
+      "from xscript.android import system"
+    ],
+    "stmt": "{id} = system.open({name_or_package})"
+  },
+  "dsl": {
+    "alias": "system.open"
+  },
+  "since": "0.2.6",
+  "origin": "xscript.android.system.open",
+  "availability": "ok"
+}

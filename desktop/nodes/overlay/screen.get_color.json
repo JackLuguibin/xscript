@@ -1,0 +1,28 @@
+{
+  "type": "screen.get_color",
+  "title": {
+    "zh": "取色",
+    "en": "Pixel color"
+  },
+  "doc": {
+    "zh": "读取一个点的颜色。",
+    "en": "Color at a point."
+  },
+  "icon": "color",
+  "inputs": [
+    {
+      "name": "x",
+      "type": "int",
+      "ui": "number"
+    },
+    {
+      "name": "y",
+      "type": "int",
+      "ui": "number"
+    },
+    {
+      "name": "image",
+      "type": "image"
+    }
+  ]
+}

@@ -1,0 +1,53 @@
+{
+  "type": "action.Touch.move",
+  "category": "action",
+  "title": {
+    "zh": "action.Touch.move",
+    "en": "action.Touch.move"
+  },
+  "doc": {
+    "zh": "move",
+    "en": "move"
+  },
+  "exec": {
+    "in": [
+      "exec"
+    ],
+    "out": [
+      "then"
+    ]
+  },
+  "inputs": [
+    {
+      "name": "x",
+      "type": "any"
+    },
+    {
+      "name": "y",
+      "type": "any"
+    },
+    {
+      "name": "dur",
+      "type": "any",
+      "default": 20
+    }
+  ],
+  "outputs": [
+    {
+      "name": "result",
+      "type": "any"
+    }
+  ],
+  "py": {
+    "imports": [
+      "from xscript.android import action"
+    ],
+    "stmt": "{id} = action.Touch.move({x}, y={y}, dur={dur})"
+  },
+  "dsl": {
+    "alias": "action.Touch.move"
+  },
+  "since": "0.2.6",
+  "origin": "xscript.android.action.Touch.move",
+  "availability": "ok"
+}

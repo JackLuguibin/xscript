@@ -1,0 +1,12 @@
+{
+  "type": "system.clipboard_get",
+  "title": {
+    "zh": "读取剪贴板",
+    "en": "Read clipboard"
+  },
+  "doc": {
+    "zh": "读取系统剪贴板。",
+    "en": "Read the clipboard."
+  },
+  "icon": "text"
+}

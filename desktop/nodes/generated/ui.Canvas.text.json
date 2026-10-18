@@ -1,0 +1,72 @@
+{
+  "type": "ui.Canvas.text",
+  "category": "ui",
+  "title": {
+    "zh": "ui.Canvas.text",
+    "en": "ui.Canvas.text"
+  },
+  "doc": {
+    "zh": "text",
+    "en": "text"
+  },
+  "exec": {
+    "in": [
+      "exec"
+    ],
+    "out": [
+      "then"
+    ]
+  },
+  "inputs": [
+    {
+      "name": "x",
+      "type": "any"
+    },
+    {
+      "name": "y",
+      "type": "any"
+    },
+    {
+      "name": "text",
+      "type": "any"
+    },
+    {
+      "name": "color",
+      "type": "any",
+      "default": "#ffffff"
+    },
+    {
+      "name": "font_size",
+      "type": "any",
+      "default": 14
+    },
+    {
+      "name": "duration",
+      "type": "any",
+      "default": 3000
+    },
+    {
+      "name": "id",
+      "type": "any",
+      "default": null
+    }
+  ],
+  "outputs": [
+    {
+      "name": "result",
+      "type": "any"
+    }
+  ],
+  "py": {
+    "imports": [
+      "from xscript.android import ui"
+    ],
+    "stmt": "{id} = ui.Canvas.text({x}, y={y}, text={text}, color={color}, font_size={font_size}, duration={duration}, id={p_id})"
+  },
+  "dsl": {
+    "alias": "ui.Canvas.text"
+  },
+  "since": "0.2.6",
+  "origin": "xscript.android.ui.Canvas.text",
+  "availability": "ok"
+}

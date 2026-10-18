@@ -1,0 +1,54 @@
+{
+  "type": "ui.alert",
+  "category": "ui",
+  "title": {
+    "zh": "ui.alert",
+    "en": "ui.alert"
+  },
+  "doc": {
+    "zh": "alert",
+    "en": "alert"
+  },
+  "exec": {
+    "in": [
+      "exec"
+    ],
+    "out": [
+      "then"
+    ]
+  },
+  "inputs": [
+    {
+      "name": "msg",
+      "type": "any"
+    },
+    {
+      "name": "title",
+      "type": "any",
+      "default": null
+    },
+    {
+      "name": "submit",
+      "type": "any",
+      "default": "确认"
+    }
+  ],
+  "outputs": [
+    {
+      "name": "result",
+      "type": "any"
+    }
+  ],
+  "py": {
+    "imports": [
+      "from xscript.android import ui"
+    ],
+    "stmt": "{id} = ui.alert({msg}, title={title}, submit={submit})"
+  },
+  "dsl": {
+    "alias": "ui.alert"
+  },
+  "since": "0.2.6",
+  "origin": "xscript.android.ui.alert",
+  "availability": "ok"
+}

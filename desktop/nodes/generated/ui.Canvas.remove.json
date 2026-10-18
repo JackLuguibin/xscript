@@ -1,0 +1,44 @@
+{
+  "type": "ui.Canvas.remove",
+  "category": "ui",
+  "title": {
+    "zh": "ui.Canvas.remove",
+    "en": "ui.Canvas.remove"
+  },
+  "doc": {
+    "zh": "remove",
+    "en": "remove"
+  },
+  "exec": {
+    "in": [
+      "exec"
+    ],
+    "out": [
+      "then"
+    ]
+  },
+  "inputs": [
+    {
+      "name": "id",
+      "type": "any"
+    }
+  ],
+  "outputs": [
+    {
+      "name": "result",
+      "type": "any"
+    }
+  ],
+  "py": {
+    "imports": [
+      "from xscript.android import ui"
+    ],
+    "stmt": "{id} = ui.Canvas.remove({p_id})"
+  },
+  "dsl": {
+    "alias": "ui.Canvas.remove"
+  },
+  "since": "0.2.6",
+  "origin": "xscript.android.ui.Canvas.remove",
+  "availability": "ok"
+}

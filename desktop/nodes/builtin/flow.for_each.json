@@ -1,0 +1,12 @@
+{
+  "type": "flow.for_each",
+  "category": "flow",
+  "title": {"zh": "遍历", "en": "For each"},
+  "doc": {"zh": "按顺序遍历 items。循环变量就是节点 id。对应 Dify 的 Iteration（顺序模式）。", "en": "Iterates items in order. The loop variable is the node id. This is Dify Iteration in sequential mode."},
+  "exec": {"in": ["exec", "break", "continue"], "out": ["body", "completed"]},
+  "inputs": [{"name": "items", "type": "list"}],
+  "outputs": [{"name": "item", "type": "any"}],
+  "dsl": {"alias": "for_each"},
+  "since": "0.2.6",
+  "availability": "ok"
+}

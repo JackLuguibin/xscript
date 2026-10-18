@@ -1,0 +1,44 @@
+{
+  "type": "screen.imread",
+  "category": "screen",
+  "title": {
+    "zh": "screen.imread",
+    "en": "screen.imread"
+  },
+  "doc": {
+    "zh": "cv2.imread that handles non-ASCII paths.",
+    "en": "cv2.imread that handles non-ASCII paths."
+  },
+  "exec": {
+    "in": [
+      "exec"
+    ],
+    "out": [
+      "then"
+    ]
+  },
+  "inputs": [
+    {
+      "name": "path",
+      "type": "any"
+    }
+  ],
+  "outputs": [
+    {
+      "name": "result",
+      "type": "any"
+    }
+  ],
+  "py": {
+    "imports": [
+      "from xscript.android import screen"
+    ],
+    "stmt": "{id} = screen.imread({path})"
+  },
+  "dsl": {
+    "alias": "screen.imread"
+  },
+  "since": "0.2.6",
+  "origin": "xscript.android.screen.imread",
+  "availability": "ok"
+}

@@ -1,0 +1,39 @@
+{
+  "type": "tree.Indexed.path",
+  "category": "tree",
+  "title": {
+    "zh": "tree.Indexed.path",
+    "en": "tree.Indexed.path"
+  },
+  "doc": {
+    "zh": "path",
+    "en": "path"
+  },
+  "exec": {
+    "in": [
+      "exec"
+    ],
+    "out": [
+      "then"
+    ]
+  },
+  "inputs": [],
+  "outputs": [
+    {
+      "name": "result",
+      "type": "any"
+    }
+  ],
+  "py": {
+    "imports": [
+      "from xscript.android import tree"
+    ],
+    "stmt": "{id} = tree.Indexed.path()"
+  },
+  "dsl": {
+    "alias": "tree.Indexed.path"
+  },
+  "since": "0.2.6",
+  "origin": "xscript.android.tree.Indexed.path",
+  "availability": "ok"
+}

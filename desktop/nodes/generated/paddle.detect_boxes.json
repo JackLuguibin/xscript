@@ -1,0 +1,82 @@
+{
+  "type": "paddle.detect_boxes",
+  "category": "paddle",
+  "title": {
+    "zh": "paddle.detect_boxes",
+    "en": "paddle.detect_boxes"
+  },
+  "doc": {
+    "zh": "DB post-processing: probability map [H, W] → list of 4x2 boxes in source pixels.",
+    "en": "DB post-processing: probability map [H, W] → list of 4x2 boxes in source pixels."
+  },
+  "exec": {
+    "in": [
+      "exec"
+    ],
+    "out": [
+      "then"
+    ]
+  },
+  "inputs": [
+    {
+      "name": "pred",
+      "type": "any"
+    },
+    {
+      "name": "src_h",
+      "type": "any"
+    },
+    {
+      "name": "src_w",
+      "type": "any"
+    },
+    {
+      "name": "thresh",
+      "type": "any",
+      "default": 0.3
+    },
+    {
+      "name": "box_thresh",
+      "type": "any",
+      "default": 0.6
+    },
+    {
+      "name": "unclip_ratio",
+      "type": "any",
+      "default": 1.5
+    },
+    {
+      "name": "max_candidates",
+      "type": "any",
+      "default": 1000
+    },
+    {
+      "name": "min_size",
+      "type": "any",
+      "default": 3
+    },
+    {
+      "name": "dilate",
+      "type": "any",
+      "default": false
+    }
+  ],
+  "outputs": [
+    {
+      "name": "result",
+      "type": "any"
+    }
+  ],
+  "py": {
+    "imports": [
+      "from xscript.android import paddle"
+    ],
+    "stmt": "{id} = paddle.detect_boxes({pred}, src_h={src_h}, src_w={src_w}, thresh={thresh}, box_thresh={box_thresh}, unclip_ratio={unclip_ratio}, max_candidates={max_candidates}, min_size={min_size}, dilate={dilate})"
+  },
+  "dsl": {
+    "alias": "paddle.detect_boxes"
+  },
+  "since": "0.2.6",
+  "origin": "xscript.android.paddle.detect_boxes",
+  "availability": "ok"
+}

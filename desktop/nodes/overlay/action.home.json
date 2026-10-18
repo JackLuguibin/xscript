@@ -1,0 +1,12 @@
+{
+  "type": "action.home",
+  "title": {
+    "zh": "主页",
+    "en": "Home"
+  },
+  "doc": {
+    "zh": "回到主页。",
+    "en": "Go home."
+  },
+  "icon": "home"
+}

@@ -1,0 +1,69 @@
+{
+  "type": "screen.detect",
+  "category": "screen",
+  "title": {
+    "zh": "screen.detect",
+    "en": "screen.detect"
+  },
+  "doc": {
+    "zh": "YOLO detections on the screen: `model` is an .onnx path or a loaded `yolo.Yolo`.",
+    "en": "YOLO detections on the screen: `model` is an .onnx path or a loaded `yolo.Yolo`."
+  },
+  "exec": {
+    "in": [
+      "exec"
+    ],
+    "out": [
+      "then"
+    ]
+  },
+  "inputs": [
+    {
+      "name": "model",
+      "type": "any"
+    },
+    {
+      "name": "rect",
+      "type": "any",
+      "default": null
+    },
+    {
+      "name": "conf",
+      "type": "any",
+      "default": 0.25
+    },
+    {
+      "name": "iou",
+      "type": "any",
+      "default": 0.45
+    },
+    {
+      "name": "image",
+      "type": "any",
+      "default": null
+    },
+    {
+      "name": "classes",
+      "type": "any",
+      "default": null
+    }
+  ],
+  "outputs": [
+    {
+      "name": "result",
+      "type": "any"
+    }
+  ],
+  "py": {
+    "imports": [
+      "from xscript.android import screen"
+    ],
+    "stmt": "{id} = screen.detect({model}, rect={rect}, conf={conf}, iou={iou}, image={image}, classes={classes})"
+  },
+  "dsl": {
+    "alias": "screen.detect"
+  },
+  "since": "0.2.6",
+  "origin": "xscript.android.screen.detect",
+  "availability": "ok"
+}

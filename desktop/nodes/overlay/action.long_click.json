@@ -1,0 +1,30 @@
+{
+  "type": "action.long_click",
+  "title": {
+    "zh": "长按",
+    "en": "Long press"
+  },
+  "doc": {
+    "zh": "在坐标上长按。",
+    "en": "Long-press a point."
+  },
+  "icon": "move",
+  "inputs": [
+    {
+      "name": "x",
+      "type": "int",
+      "ui": "number"
+    },
+    {
+      "name": "y",
+      "type": "int",
+      "ui": "number"
+    },
+    {
+      "name": "dur",
+      "type": "int",
+      "ui": "number",
+      "min": 0
+    }
+  ]
+}

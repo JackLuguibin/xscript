@@ -1,0 +1,48 @@
+{
+  "type": "string.replace",
+  "category": "string",
+  "title": {
+    "zh": "替换",
+    "en": "Replace"
+  },
+  "doc": {
+    "zh": "纯数据节点，没有执行引脚。被一处使用时内联，写成 let 或被多处使用时先赋给局部变量。",
+    "en": "Pure data node with no exec pin. Inlined at a single use. A let, or several uses, becomes one local."
+  },
+  "icon": "text",
+  "exec": {
+    "in": [],
+    "out": []
+  },
+  "inputs": [
+    {
+      "name": "a",
+      "type": "string",
+      "default": ""
+    },
+    {
+      "name": "old",
+      "type": "string",
+      "default": ""
+    },
+    {
+      "name": "new",
+      "type": "string",
+      "default": ""
+    }
+  ],
+  "outputs": [
+    {
+      "name": "result",
+      "type": "string"
+    }
+  ],
+  "py": {
+    "stmt": "str({a}).replace(str({old}), str({new}))"
+  },
+  "dsl": {
+    "alias": "replace"
+  },
+  "since": "0.2.6",
+  "availability": "ok"
+}

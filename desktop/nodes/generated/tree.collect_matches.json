@@ -1,0 +1,53 @@
+{
+  "type": "tree.collect_matches",
+  "category": "tree",
+  "title": {
+    "zh": "tree.collect_matches",
+    "en": "tree.collect_matches"
+  },
+  "doc": {
+    "zh": "collect_matches",
+    "en": "collect_matches"
+  },
+  "exec": {
+    "in": [
+      "exec"
+    ],
+    "out": [
+      "then"
+    ]
+  },
+  "inputs": [
+    {
+      "name": "nodes",
+      "type": "any"
+    },
+    {
+      "name": "filters",
+      "type": "any"
+    },
+    {
+      "name": "op",
+      "type": "any",
+      "default": "exact"
+    }
+  ],
+  "outputs": [
+    {
+      "name": "result",
+      "type": "any"
+    }
+  ],
+  "py": {
+    "imports": [
+      "from xscript.android import tree"
+    ],
+    "stmt": "{id} = tree.collect_matches({nodes}, filters={filters}, op={op})"
+  },
+  "dsl": {
+    "alias": "tree.collect_matches"
+  },
+  "since": "0.2.6",
+  "origin": "xscript.android.tree.collect_matches",
+  "availability": "ok"
+}

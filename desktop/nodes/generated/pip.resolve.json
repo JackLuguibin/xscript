@@ -1,0 +1,74 @@
+{
+  "type": "pip.resolve",
+  "category": "pip",
+  "title": {
+    "zh": "pip.resolve",
+    "en": "pip.resolve"
+  },
+  "doc": {
+    "zh": "Pick and download wheels for `requirements` and their dependencies (depth-first).",
+    "en": "Pick and download wheels for `requirements` and their dependencies (depth-first)."
+  },
+  "exec": {
+    "in": [
+      "exec"
+    ],
+    "out": [
+      "then"
+    ]
+  },
+  "inputs": [
+    {
+      "name": "requirements",
+      "type": "any"
+    },
+    {
+      "name": "target",
+      "type": "any",
+      "default": null
+    },
+    {
+      "name": "index_url",
+      "type": "any",
+      "default": null
+    },
+    {
+      "name": "upgrade",
+      "type": "any",
+      "default": false
+    },
+    {
+      "name": "finder",
+      "type": "any",
+      "default": null
+    },
+    {
+      "name": "log",
+      "type": "any"
+    },
+    {
+      "name": "timeout",
+      "type": "any",
+      "default": 60
+    }
+  ],
+  "outputs": [
+    {
+      "name": "result",
+      "type": "any"
+    }
+  ],
+  "py": {
+    "imports": [
+      "from xscript.android import pip"
+    ],
+    "stmt": "{id} = pip.resolve({requirements}, target={target}, index_url={index_url}, upgrade={upgrade}, finder={finder}, log={log}, timeout={timeout})"
+  },
+  "dsl": {
+    "alias": "pip.resolve"
+  },
+  "since": "0.2.6",
+  "origin": "xscript.android.pip.resolve",
+  "availability": "ok",
+  "latent": true
+}

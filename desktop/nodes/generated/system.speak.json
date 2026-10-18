@@ -1,0 +1,44 @@
+{
+  "type": "system.speak",
+  "category": "system",
+  "title": {
+    "zh": "system.speak",
+    "en": "system.speak"
+  },
+  "doc": {
+    "zh": "speak",
+    "en": "speak"
+  },
+  "exec": {
+    "in": [
+      "exec"
+    ],
+    "out": [
+      "then"
+    ]
+  },
+  "inputs": [
+    {
+      "name": "text",
+      "type": "any"
+    }
+  ],
+  "outputs": [
+    {
+      "name": "result",
+      "type": "any"
+    }
+  ],
+  "py": {
+    "imports": [
+      "from xscript.android import system"
+    ],
+    "stmt": "{id} = system.speak({text})"
+  },
+  "dsl": {
+    "alias": "system.speak"
+  },
+  "since": "0.2.6",
+  "origin": "xscript.android.system.speak",
+  "availability": "ok"
+}

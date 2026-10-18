@@ -1,0 +1,19 @@
+{
+  "type": "system.browser",
+  "title": {
+    "zh": "打开网页",
+    "en": "Open browser"
+  },
+  "doc": {
+    "zh": "用浏览器打开网址。",
+    "en": "Open a URL."
+  },
+  "icon": "app",
+  "inputs": [
+    {
+      "name": "url",
+      "type": "string",
+      "ui": "text"
+    }
+  ]
+}

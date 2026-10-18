@@ -1,0 +1,39 @@
+{
+  "type": "system.license_status",
+  "category": "system",
+  "title": {
+    "zh": "system.license_status",
+    "en": "system.license_status"
+  },
+  "doc": {
+    "zh": "Packaged apps: {\"required\", \"activated\", \"card\" (masked), \"card_full\", \"expires\", \"error\"}.",
+    "en": "Packaged apps: {\"required\", \"activated\", \"card\" (masked), \"card_full\", \"expires\", \"error\"}."
+  },
+  "exec": {
+    "in": [
+      "exec"
+    ],
+    "out": [
+      "then"
+    ]
+  },
+  "inputs": [],
+  "outputs": [
+    {
+      "name": "result",
+      "type": "any"
+    }
+  ],
+  "py": {
+    "imports": [
+      "from xscript.android import system"
+    ],
+    "stmt": "{id} = system.license_status()"
+  },
+  "dsl": {
+    "alias": "system.license_status"
+  },
+  "since": "0.2.6",
+  "origin": "xscript.android.system.license_status",
+  "availability": "ok"
+}

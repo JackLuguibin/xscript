@@ -1,0 +1,48 @@
+{
+  "type": "tree.find_by_path",
+  "category": "tree",
+  "title": {
+    "zh": "tree.find_by_path",
+    "en": "tree.find_by_path"
+  },
+  "doc": {
+    "zh": "find_by_path",
+    "en": "find_by_path"
+  },
+  "exec": {
+    "in": [
+      "exec"
+    ],
+    "out": [
+      "then"
+    ]
+  },
+  "inputs": [
+    {
+      "name": "nodes",
+      "type": "any"
+    },
+    {
+      "name": "path",
+      "type": "any"
+    }
+  ],
+  "outputs": [
+    {
+      "name": "result",
+      "type": "any"
+    }
+  ],
+  "py": {
+    "imports": [
+      "from xscript.android import tree"
+    ],
+    "stmt": "{id} = tree.find_by_path({nodes}, path={path})"
+  },
+  "dsl": {
+    "alias": "tree.find_by_path"
+  },
+  "since": "0.2.6",
+  "origin": "xscript.android.tree.find_by_path",
+  "availability": "ok"
+}

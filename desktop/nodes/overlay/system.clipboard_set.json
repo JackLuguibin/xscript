@@ -1,0 +1,19 @@
+{
+  "type": "system.clipboard_set",
+  "title": {
+    "zh": "写入剪贴板",
+    "en": "Write clipboard"
+  },
+  "doc": {
+    "zh": "写入系统剪贴板。",
+    "en": "Write the clipboard."
+  },
+  "icon": "text",
+  "inputs": [
+    {
+      "name": "text",
+      "type": "string",
+      "ui": "text"
+    }
+  ]
+}

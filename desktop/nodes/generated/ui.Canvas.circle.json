@@ -1,0 +1,82 @@
+{
+  "type": "ui.Canvas.circle",
+  "category": "ui",
+  "title": {
+    "zh": "ui.Canvas.circle",
+    "en": "ui.Canvas.circle"
+  },
+  "doc": {
+    "zh": "circle",
+    "en": "circle"
+  },
+  "exec": {
+    "in": [
+      "exec"
+    ],
+    "out": [
+      "then"
+    ]
+  },
+  "inputs": [
+    {
+      "name": "x",
+      "type": "any"
+    },
+    {
+      "name": "y",
+      "type": "any"
+    },
+    {
+      "name": "radius",
+      "type": "any"
+    },
+    {
+      "name": "color",
+      "type": "any",
+      "default": "#00ff00"
+    },
+    {
+      "name": "stroke_width",
+      "type": "any",
+      "default": 2
+    },
+    {
+      "name": "duration",
+      "type": "any",
+      "default": 3000
+    },
+    {
+      "name": "label",
+      "type": "any",
+      "default": null
+    },
+    {
+      "name": "font_size",
+      "type": "any",
+      "default": 12
+    },
+    {
+      "name": "id",
+      "type": "any",
+      "default": null
+    }
+  ],
+  "outputs": [
+    {
+      "name": "result",
+      "type": "any"
+    }
+  ],
+  "py": {
+    "imports": [
+      "from xscript.android import ui"
+    ],
+    "stmt": "{id} = ui.Canvas.circle({x}, y={y}, radius={radius}, color={color}, stroke_width={stroke_width}, duration={duration}, label={label}, font_size={font_size}, id={p_id})"
+  },
+  "dsl": {
+    "alias": "ui.Canvas.circle"
+  },
+  "since": "0.2.6",
+  "origin": "xscript.android.ui.Canvas.circle",
+  "availability": "ok"
+}

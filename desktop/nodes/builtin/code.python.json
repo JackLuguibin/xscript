@@ -1,0 +1,12 @@
+{
+  "type": "code.python",
+  "category": "code",
+  "title": {"zh": "代码", "en": "Code"},
+  "doc": {"zh": "一段 Python。由子图折叠而来时，meta.origin 留着原子图，源码没改就能展开回去。手写时和 Dify 的 Code 节点一样。", "en": "A Python fragment. Folded from a subgraph, meta.origin keeps the original graph so an unchanged source unfolds. A handwritten node is the same idea as Dify's Code node."},
+  "exec": {"in": ["exec"], "out": ["then"]},
+  "inputs": [],
+  "outputs": [],
+  "dsl": {"alias": "code"},
+  "since": "0.2.6",
+  "availability": "ok"
+}

@@ -1,0 +1,19 @@
+{
+  "type": "action.input",
+  "title": {
+    "zh": "输入文字",
+    "en": "Type text"
+  },
+  "doc": {
+    "zh": "把文字输入到当前焦点。",
+    "en": "Type into the focused field."
+  },
+  "icon": "text",
+  "inputs": [
+    {
+      "name": "text",
+      "type": "string",
+      "ui": "text"
+    }
+  ]
+}

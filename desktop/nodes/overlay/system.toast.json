@@ -1,0 +1,25 @@
+{
+  "type": "system.toast",
+  "title": {
+    "zh": "系统提示",
+    "en": "System toast"
+  },
+  "doc": {
+    "zh": "显示一条系统提示。",
+    "en": "Show a system toast."
+  },
+  "icon": "toast",
+  "inputs": [
+    {
+      "name": "msg",
+      "type": "string",
+      "ui": "text"
+    },
+    {
+      "name": "dur",
+      "type": "int",
+      "ui": "number",
+      "min": 0
+    }
+  ]
+}

@@ -1,0 +1,55 @@
+{
+  "type": "image.ocr",
+  "category": "image",
+  "title": {
+    "zh": "image.ocr",
+    "en": "image.ocr"
+  },
+  "doc": {
+    "zh": "Run ML Kit OCR. Returns [OcrResult] in screen coordinates.",
+    "en": "Run ML Kit OCR. Returns [OcrResult] in screen coordinates."
+  },
+  "exec": {
+    "in": [
+      "exec"
+    ],
+    "out": [
+      "then"
+    ]
+  },
+  "inputs": [
+    {
+      "name": "rect",
+      "type": "any",
+      "default": null
+    },
+    {
+      "name": "image",
+      "type": "any",
+      "default": null
+    },
+    {
+      "name": "level",
+      "type": "any",
+      "default": "line"
+    }
+  ],
+  "outputs": [
+    {
+      "name": "result",
+      "type": "any"
+    }
+  ],
+  "py": {
+    "imports": [
+      "from xscript.android import image"
+    ],
+    "stmt": "{id} = image.ocr({rect}, image={image}, level={level})"
+  },
+  "dsl": {
+    "alias": "image.ocr"
+  },
+  "since": "0.2.6",
+  "origin": "xscript.android.image.ocr",
+  "availability": "ok"
+}

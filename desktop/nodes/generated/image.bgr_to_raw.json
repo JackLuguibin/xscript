@@ -1,0 +1,44 @@
+{
+  "type": "image.bgr_to_raw",
+  "category": "image",
+  "title": {
+    "zh": "image.bgr_to_raw",
+    "en": "image.bgr_to_raw"
+  },
+  "doc": {
+    "zh": "BGR / BGRA / gray ndarray -> raw RGBA bytes with header.",
+    "en": "BGR / BGRA / gray ndarray -> raw RGBA bytes with header."
+  },
+  "exec": {
+    "in": [
+      "exec"
+    ],
+    "out": [
+      "then"
+    ]
+  },
+  "inputs": [
+    {
+      "name": "img",
+      "type": "any"
+    }
+  ],
+  "outputs": [
+    {
+      "name": "result",
+      "type": "any"
+    }
+  ],
+  "py": {
+    "imports": [
+      "from xscript.android import image"
+    ],
+    "stmt": "{id} = image.bgr_to_raw({img})"
+  },
+  "dsl": {
+    "alias": "image.bgr_to_raw"
+  },
+  "since": "0.2.6",
+  "origin": "xscript.android.image.bgr_to_raw",
+  "availability": "ok"
+}

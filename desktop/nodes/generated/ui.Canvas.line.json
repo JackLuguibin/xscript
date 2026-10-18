@@ -1,0 +1,76 @@
+{
+  "type": "ui.Canvas.line",
+  "category": "ui",
+  "title": {
+    "zh": "ui.Canvas.line",
+    "en": "ui.Canvas.line"
+  },
+  "doc": {
+    "zh": "line",
+    "en": "line"
+  },
+  "exec": {
+    "in": [
+      "exec"
+    ],
+    "out": [
+      "then"
+    ]
+  },
+  "inputs": [
+    {
+      "name": "x1",
+      "type": "any"
+    },
+    {
+      "name": "y1",
+      "type": "any"
+    },
+    {
+      "name": "x2",
+      "type": "any"
+    },
+    {
+      "name": "y2",
+      "type": "any"
+    },
+    {
+      "name": "color",
+      "type": "any",
+      "default": "#65db79"
+    },
+    {
+      "name": "stroke_width",
+      "type": "any",
+      "default": 1
+    },
+    {
+      "name": "duration",
+      "type": "any",
+      "default": 3000
+    },
+    {
+      "name": "id",
+      "type": "any",
+      "default": null
+    }
+  ],
+  "outputs": [
+    {
+      "name": "result",
+      "type": "any"
+    }
+  ],
+  "py": {
+    "imports": [
+      "from xscript.android import ui"
+    ],
+    "stmt": "{id} = ui.Canvas.line({x1}, y1={y1}, x2={x2}, y2={y2}, color={color}, stroke_width={stroke_width}, duration={duration}, id={p_id})"
+  },
+  "dsl": {
+    "alias": "ui.Canvas.line"
+  },
+  "since": "0.2.6",
+  "origin": "xscript.android.ui.Canvas.line",
+  "availability": "ok"
+}

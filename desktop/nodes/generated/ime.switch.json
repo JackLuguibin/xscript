@@ -1,0 +1,39 @@
+{
+  "type": "ime.switch",
+  "category": "ime",
+  "title": {
+    "zh": "ime.switch",
+    "en": "ime.switch"
+  },
+  "doc": {
+    "zh": "Make XScript 输入法 the current IME. Returns True when it is current now (False: user action needed).",
+    "en": "Make XScript 输入法 the current IME. Returns True when it is current now (False: user action needed)."
+  },
+  "exec": {
+    "in": [
+      "exec"
+    ],
+    "out": [
+      "then"
+    ]
+  },
+  "inputs": [],
+  "outputs": [
+    {
+      "name": "result",
+      "type": "any"
+    }
+  ],
+  "py": {
+    "imports": [
+      "from xscript.android import ime"
+    ],
+    "stmt": "{id} = ime.switch()"
+  },
+  "dsl": {
+    "alias": "ime.switch"
+  },
+  "since": "0.2.6",
+  "origin": "xscript.android.ime.switch",
+  "availability": "ok"
+}

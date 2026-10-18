@@ -1,0 +1,30 @@
+{
+  "type": "system.shell",
+  "title": {
+    "zh": "Shell",
+    "en": "Shell"
+  },
+  "doc": {
+    "zh": "执行一条 shell 命令。",
+    "en": "Run a shell command."
+  },
+  "icon": "shell",
+  "inputs": [
+    {
+      "name": "cmd",
+      "type": "string",
+      "ui": "text"
+    },
+    {
+      "name": "root",
+      "type": "bool",
+      "ui": "bool"
+    },
+    {
+      "name": "timeout",
+      "type": "float",
+      "ui": "number",
+      "min": 0
+    }
+  ]
+}

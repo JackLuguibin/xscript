@@ -1,0 +1,55 @@
+{
+  "type": "paddle.load_chars",
+  "category": "paddle",
+  "title": {
+    "zh": "paddle.load_chars",
+    "en": "paddle.load_chars"
+  },
+  "doc": {
+    "zh": "Character list: blank + keys file (or the model's `character` metadata) + space.",
+    "en": "Character list: blank + keys file (or the model's `character` metadata) + space."
+  },
+  "exec": {
+    "in": [
+      "exec"
+    ],
+    "out": [
+      "then"
+    ]
+  },
+  "inputs": [
+    {
+      "name": "keys",
+      "type": "any",
+      "default": null
+    },
+    {
+      "name": "metadata",
+      "type": "any",
+      "default": null
+    },
+    {
+      "name": "use_space",
+      "type": "any",
+      "default": true
+    }
+  ],
+  "outputs": [
+    {
+      "name": "result",
+      "type": "any"
+    }
+  ],
+  "py": {
+    "imports": [
+      "from xscript.android import paddle"
+    ],
+    "stmt": "{id} = paddle.load_chars({keys}, metadata={metadata}, use_space={use_space})"
+  },
+  "dsl": {
+    "alias": "paddle.load_chars"
+  },
+  "since": "0.2.6",
+  "origin": "xscript.android.paddle.load_chars",
+  "availability": "ok"
+}

@@ -1,0 +1,39 @@
+{
+  "type": "ime.is_active",
+  "category": "ime",
+  "title": {
+    "zh": "ime.is_active",
+    "en": "ime.is_active"
+  },
+  "doc": {
+    "zh": "is_active",
+    "en": "is_active"
+  },
+  "exec": {
+    "in": [
+      "exec"
+    ],
+    "out": [
+      "then"
+    ]
+  },
+  "inputs": [],
+  "outputs": [
+    {
+      "name": "result",
+      "type": "any"
+    }
+  ],
+  "py": {
+    "imports": [
+      "from xscript.android import ime"
+    ],
+    "stmt": "{id} = ime.is_active()"
+  },
+  "dsl": {
+    "alias": "ime.is_active"
+  },
+  "since": "0.2.6",
+  "origin": "xscript.android.ime.is_active",
+  "availability": "ok"
+}

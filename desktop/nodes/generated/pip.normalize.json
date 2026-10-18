@@ -1,0 +1,44 @@
+{
+  "type": "pip.normalize",
+  "category": "pip",
+  "title": {
+    "zh": "pip.normalize",
+    "en": "pip.normalize"
+  },
+  "doc": {
+    "zh": "normalize",
+    "en": "normalize"
+  },
+  "exec": {
+    "in": [
+      "exec"
+    ],
+    "out": [
+      "then"
+    ]
+  },
+  "inputs": [
+    {
+      "name": "name",
+      "type": "any"
+    }
+  ],
+  "outputs": [
+    {
+      "name": "result",
+      "type": "any"
+    }
+  ],
+  "py": {
+    "imports": [
+      "from xscript.android import pip"
+    ],
+    "stmt": "{id} = pip.normalize({name})"
+  },
+  "dsl": {
+    "alias": "pip.normalize"
+  },
+  "since": "0.2.6",
+  "origin": "xscript.android.pip.normalize",
+  "availability": "ok"
+}

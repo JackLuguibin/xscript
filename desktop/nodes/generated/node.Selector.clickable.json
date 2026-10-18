@@ -1,0 +1,45 @@
+{
+  "type": "node.Selector.clickable",
+  "category": "node",
+  "title": {
+    "zh": "node.Selector.clickable",
+    "en": "node.Selector.clickable"
+  },
+  "doc": {
+    "zh": "clickable",
+    "en": "clickable"
+  },
+  "exec": {
+    "in": [
+      "exec"
+    ],
+    "out": [
+      "then"
+    ]
+  },
+  "inputs": [
+    {
+      "name": "value",
+      "type": "any",
+      "default": true
+    }
+  ],
+  "outputs": [
+    {
+      "name": "result",
+      "type": "any"
+    }
+  ],
+  "py": {
+    "imports": [
+      "from xscript.android import node"
+    ],
+    "stmt": "{id} = node.Selector.clickable({value})"
+  },
+  "dsl": {
+    "alias": "node.Selector.clickable"
+  },
+  "since": "0.2.6",
+  "origin": "xscript.android.node.Selector.clickable",
+  "availability": "ok"
+}

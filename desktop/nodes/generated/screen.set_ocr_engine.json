@@ -1,0 +1,44 @@
+{
+  "type": "screen.set_ocr_engine",
+  "category": "screen",
+  "title": {
+    "zh": "screen.set_ocr_engine",
+    "en": "screen.set_ocr_engine"
+  },
+  "doc": {
+    "zh": "Default OCR engine: \"mlkit\" (built in), \"paddle\" (PP-OCRv5) or \"paddle_v4\".",
+    "en": "Default OCR engine: \"mlkit\" (built in), \"paddle\" (PP-OCRv5) or \"paddle_v4\"."
+  },
+  "exec": {
+    "in": [
+      "exec"
+    ],
+    "out": [
+      "then"
+    ]
+  },
+  "inputs": [
+    {
+      "name": "name",
+      "type": "any"
+    }
+  ],
+  "outputs": [
+    {
+      "name": "result",
+      "type": "any"
+    }
+  ],
+  "py": {
+    "imports": [
+      "from xscript.android import screen"
+    ],
+    "stmt": "{id} = screen.set_ocr_engine({name})"
+  },
+  "dsl": {
+    "alias": "screen.set_ocr_engine"
+  },
+  "since": "0.2.6",
+  "origin": "xscript.android.screen.set_ocr_engine",
+  "availability": "ok"
+}

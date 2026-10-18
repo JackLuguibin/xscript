@@ -1,0 +1,44 @@
+{
+  "type": "image.set_cache",
+  "category": "image",
+  "title": {
+    "zh": "image.set_cache",
+    "en": "image.set_cache"
+  },
+  "doc": {
+    "zh": "Freeze the current frame for all subsequent captures (AScript `screen.cache`).",
+    "en": "Freeze the current frame for all subsequent captures (AScript `screen.cache`)."
+  },
+  "exec": {
+    "in": [
+      "exec"
+    ],
+    "out": [
+      "then"
+    ]
+  },
+  "inputs": [
+    {
+      "name": "enabled",
+      "type": "any"
+    }
+  ],
+  "outputs": [
+    {
+      "name": "result",
+      "type": "any"
+    }
+  ],
+  "py": {
+    "imports": [
+      "from xscript.android import image"
+    ],
+    "stmt": "{id} = image.set_cache({enabled})"
+  },
+  "dsl": {
+    "alias": "image.set_cache"
+  },
+  "since": "0.2.6",
+  "origin": "xscript.android.image.set_cache",
+  "availability": "ok"
+}

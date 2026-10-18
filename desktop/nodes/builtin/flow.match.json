@@ -1,0 +1,12 @@
+{
+  "type": "flow.match",
+  "category": "flow",
+  "title": {"zh": "多路分支", "en": "Match"},
+  "doc": {"zh": "按值选择一条分支，_ 是默认。编译成 if/elif/else。对应 Dify 的 IF/ELIF/ELSE 和 UE 的 Switch。", "en": "Picks one branch by value. _ is the default. Compiles to if/elif/else. Same idea as Dify IF/ELIF/ELSE and a UE Switch."},
+  "exec": {"in": ["exec"], "out": ["completed"]},
+  "inputs": [{"name": "value", "type": "any"}],
+  "outputs": [],
+  "dsl": {"alias": "match"},
+  "since": "0.2.6",
+  "availability": "ok"
+}

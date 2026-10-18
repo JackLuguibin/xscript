@@ -1,0 +1,43 @@
+{
+  "type": "time.diff",
+  "category": "time",
+  "title": {
+    "zh": "时间差",
+    "en": "Elapsed"
+  },
+  "doc": {
+    "zh": "纯数据节点，没有执行引脚。被一处使用时内联，写成 let 或被多处使用时先赋给局部变量。",
+    "en": "Pure data node with no exec pin. Inlined at a single use. A let, or several uses, becomes one local."
+  },
+  "icon": "sleep",
+  "exec": {
+    "in": [],
+    "out": []
+  },
+  "inputs": [
+    {
+      "name": "a",
+      "type": "float",
+      "default": 0
+    },
+    {
+      "name": "b",
+      "type": "float",
+      "default": 0
+    }
+  ],
+  "outputs": [
+    {
+      "name": "result",
+      "type": "float"
+    }
+  ],
+  "py": {
+    "stmt": "({a} - {b})"
+  },
+  "dsl": {
+    "alias": "elapsed"
+  },
+  "since": "0.2.6",
+  "availability": "ok"
+}

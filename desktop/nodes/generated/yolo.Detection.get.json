@@ -1,0 +1,49 @@
+{
+  "type": "yolo.Detection.get",
+  "category": "yolo",
+  "title": {
+    "zh": "yolo.Detection.get",
+    "en": "yolo.Detection.get"
+  },
+  "doc": {
+    "zh": "get",
+    "en": "get"
+  },
+  "exec": {
+    "in": [
+      "exec"
+    ],
+    "out": [
+      "then"
+    ]
+  },
+  "inputs": [
+    {
+      "name": "key",
+      "type": "any"
+    },
+    {
+      "name": "default",
+      "type": "any",
+      "default": null
+    }
+  ],
+  "outputs": [
+    {
+      "name": "result",
+      "type": "any"
+    }
+  ],
+  "py": {
+    "imports": [
+      "from xscript.android import yolo"
+    ],
+    "stmt": "{id} = yolo.Detection.get({key}, default={default})"
+  },
+  "dsl": {
+    "alias": "yolo.Detection.get"
+  },
+  "since": "0.2.6",
+  "origin": "xscript.android.yolo.Detection.get",
+  "availability": "ok"
+}

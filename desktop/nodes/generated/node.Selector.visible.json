@@ -1,0 +1,45 @@
+{
+  "type": "node.Selector.visible",
+  "category": "node",
+  "title": {
+    "zh": "node.Selector.visible",
+    "en": "node.Selector.visible"
+  },
+  "doc": {
+    "zh": "visible",
+    "en": "visible"
+  },
+  "exec": {
+    "in": [
+      "exec"
+    ],
+    "out": [
+      "then"
+    ]
+  },
+  "inputs": [
+    {
+      "name": "value",
+      "type": "any",
+      "default": true
+    }
+  ],
+  "outputs": [
+    {
+      "name": "result",
+      "type": "any"
+    }
+  ],
+  "py": {
+    "imports": [
+      "from xscript.android import node"
+    ],
+    "stmt": "{id} = node.Selector.visible({value})"
+  },
+  "dsl": {
+    "alias": "node.Selector.visible"
+  },
+  "since": "0.2.6",
+  "origin": "xscript.android.node.Selector.visible",
+  "availability": "ok"
+}

@@ -1,0 +1,19 @@
+{
+  "type": "system.stop_app",
+  "title": {
+    "zh": "停止应用",
+    "en": "Stop app"
+  },
+  "doc": {
+    "zh": "强制停止一个应用。",
+    "en": "Force-stop an app."
+  },
+  "icon": "app",
+  "inputs": [
+    {
+      "name": "package",
+      "type": "string",
+      "ui": "text"
+    }
+  ]
+}

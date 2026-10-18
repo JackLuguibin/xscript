@@ -1,0 +1,52 @@
+{
+  "type": "tree.Pipeline.add_filter",
+  "category": "tree",
+  "title": {
+    "zh": "tree.Pipeline.add_filter",
+    "en": "tree.Pipeline.add_filter"
+  },
+  "doc": {
+    "zh": "add_filter",
+    "en": "add_filter"
+  },
+  "exec": {
+    "in": [
+      "exec"
+    ],
+    "out": [
+      "then"
+    ]
+  },
+  "inputs": [
+    {
+      "name": "key",
+      "type": "any"
+    },
+    {
+      "name": "op",
+      "type": "any"
+    },
+    {
+      "name": "value",
+      "type": "any"
+    }
+  ],
+  "outputs": [
+    {
+      "name": "result",
+      "type": "any"
+    }
+  ],
+  "py": {
+    "imports": [
+      "from xscript.android import tree"
+    ],
+    "stmt": "{id} = tree.Pipeline.add_filter({key}, op={op}, value={value})"
+  },
+  "dsl": {
+    "alias": "tree.Pipeline.add_filter"
+  },
+  "since": "0.2.6",
+  "origin": "xscript.android.tree.Pipeline.add_filter",
+  "availability": "ok"
+}

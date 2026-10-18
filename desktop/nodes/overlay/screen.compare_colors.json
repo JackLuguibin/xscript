@@ -1,0 +1,29 @@
+{
+  "type": "screen.compare_colors",
+  "title": {
+    "zh": "比色",
+    "en": "Compare colors"
+  },
+  "doc": {
+    "zh": "检查一组颜色点是否都匹配。",
+    "en": "Whether every color point matches."
+  },
+  "icon": "color",
+  "inputs": [
+    {
+      "name": "colors",
+      "type": "string",
+      "ui": "text"
+    },
+    {
+      "name": "sim",
+      "type": "float",
+      "ui": "number",
+      "min": 0
+    },
+    {
+      "name": "image",
+      "type": "image"
+    }
+  ]
+}

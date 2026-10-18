@@ -1,0 +1,59 @@
+{
+  "type": "screen.ocr_find_all",
+  "category": "screen",
+  "title": {
+    "zh": "screen.ocr_find_all",
+    "en": "screen.ocr_find_all"
+  },
+  "doc": {
+    "zh": "ocr_find_all",
+    "en": "ocr_find_all"
+  },
+  "exec": {
+    "in": [
+      "exec"
+    ],
+    "out": [
+      "then"
+    ]
+  },
+  "inputs": [
+    {
+      "name": "pattern",
+      "type": "any"
+    },
+    {
+      "name": "rect",
+      "type": "any",
+      "default": null
+    },
+    {
+      "name": "image",
+      "type": "any",
+      "default": null
+    },
+    {
+      "name": "engine",
+      "type": "any",
+      "default": null
+    }
+  ],
+  "outputs": [
+    {
+      "name": "result",
+      "type": "any"
+    }
+  ],
+  "py": {
+    "imports": [
+      "from xscript.android import screen"
+    ],
+    "stmt": "{id} = screen.ocr_find_all({pattern}, rect={rect}, image={image}, engine={engine})"
+  },
+  "dsl": {
+    "alias": "screen.ocr_find_all"
+  },
+  "since": "0.2.6",
+  "origin": "xscript.android.screen.ocr_find_all",
+  "availability": "ok"
+}
