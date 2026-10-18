@@ -9,6 +9,42 @@ import { EmptyState } from "./EmptyState";
 import { IconPhone } from "./icons";
 
 const KEYS = ["back", "home", "recents"] as const;
+/** Gap between a thumbnail arriving and the next request; longer after a failed one. */
+export const REFRESH_MS = 2000;
+export const RETRY_MS = 5000;
+
+function usePageVisible(): boolean {
+  const [visible, setVisible] = useState(() => document.visibilityState !== "hidden");
+  useEffect(() => {
+    const on = () => setVisible(document.visibilityState !== "hidden");
+    document.addEventListener("visibilitychange", on);
+    return () => document.removeEventListener("visibilitychange", on);
+  }, []);
+  return visible;
+}
+
+/**
+ * One device's picture. The next `/_shot/` is requested only after the previous one has loaded or
+ * failed (a slow device never has requests piling up), and not at all while the window is hidden.
+ */
+function WallThumb({ id, alt, onPointerUp }: { id: string; alt: string; onPointerUp: (e: RPointerEvent<HTMLImageElement>) => void }) {
+  const visible = usePageVisible();
+  const [tick, setTick] = useState(1);
+  const [wait, setWait] = useState<number | null>(null); // null: a request is in flight
+
+  useEffect(() => {
+    if (wait === null || !visible) return;
+    const timer = setTimeout(() => {
+      setWait(null);
+      setTick((n) => n + 1);
+    }, wait);
+    return () => clearTimeout(timer);
+  }, [wait, visible]);
+
+  return (
+    <img alt={alt} src={thumbUrl(id, tick)} onLoad={() => setWait(REFRESH_MS)} onError={() => setWait(RETRY_MS)} onPointerUp={onPointerUp} />
+  );
+}
 
 function errText(e: unknown): string {
   if (e instanceof RpcError) return `${e.message} [${e.code}]`;
@@ -20,14 +56,8 @@ export function WallPage() {
   const { api } = useServices();
   const devices = useDevices();
   const [selected, setSelected] = useState<Set<string>>(new Set());
-  const [tick, setTick] = useState(1);
   const [notice, setNotice] = useState("");
   const [error, setError] = useState("");
-
-  useEffect(() => {
-    const id = setInterval(() => setTick((n) => n + 1), 2000);
-    return () => clearInterval(id);
-  }, []);
 
   const targets = () => onlineSelected(devices, selected);
 
@@ -111,9 +141,9 @@ export function WallPage() {
                 <span className="muted">{t.state[d.state] || d.state}</span>
               </label>
               {online ? (
-                <img
+                <WallThumb
+                  id={d.id}
                   alt={`${t.wall.shot} ${label}`}
-                  src={thumbUrl(d.id, tick)}
                   onPointerUp={(e: RPointerEvent<HTMLImageElement>) => {
                     const el = e.currentTarget;
                     const r = el.getBoundingClientRect();

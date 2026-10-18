@@ -1,9 +1,9 @@
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
-import { describe, expect, it } from "vitest";
+import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { ServicesContext } from "../src/app-context";
 import { createApi } from "../src/api";
 import { RpcClient } from "../src/bridge/client";
-import { WallPage } from "../src/components/WallPage";
+import { REFRESH_MS, RETRY_MS, WallPage } from "../src/components/WallPage";
 import { createDemoTransport } from "../src/demo";
 import { onlineSelected, pointOnDevice, relativePoint, thumbUrl } from "../src/wall";
 import type { Device } from "../src/api";
@@ -53,5 +53,68 @@ describe("WallPage", () => {
     await waitFor(() => expect(clicks()).toHaveLength(2));
     expect(clicks().every((m) => m.params?.x === 540)).toBe(true);
     expect(transport.sent.some((m) => m.method === "mirror.subscribe")).toBe(false);
+  });
+});
+
+describe("WallPage thumbnails", () => {
+  const setVisibility = (state: "visible" | "hidden") => {
+    Object.defineProperty(document, "visibilityState", { configurable: true, get: () => state });
+    act(() => {
+      document.dispatchEvent(new Event("visibilitychange"));
+    });
+  };
+
+  afterEach(() => {
+    setVisibility("visible");
+    vi.useRealTimers();
+  });
+
+  async function renderWall() {
+    const transport = createDemoTransport();
+    const rpc = new RpcClient(transport);
+    const api = createApi(rpc);
+    await api.connectAdb("emulator-5554");
+    await api.connectLan("10.0.0.8:9860");
+    render(
+      <ServicesContext.Provider value={{ rpc, api, inShell: true }}>
+        <WallPage />
+      </ServicesContext.Provider>,
+    );
+    const imgs = (await screen.findAllByRole("img")) as HTMLImageElement[];
+    vi.useFakeTimers();
+    return imgs;
+  }
+
+  const t = (img: HTMLImageElement) => new URL(img.src, "http://x").searchParams.get("t");
+  const wait = (ms: number) => act(() => vi.advanceTimersByTime(ms));
+
+  it("asks for the next picture only after the previous one finished, per device", async () => {
+    const [a, b] = await renderWall();
+    expect([t(a), t(b)]).toEqual(["1", "1"]);
+    wait(10_000); // nothing arrived yet: no new requests piling up
+    expect([t(a), t(b)]).toEqual(["1", "1"]);
+
+    fireEvent.load(a);
+    wait(REFRESH_MS - 1);
+    expect(t(a)).toBe("1");
+    wait(1);
+    expect([t(a), t(b)]).toEqual(["2", "1"]); // the slow device does not hold up the other
+
+    fireEvent.error(b); // a failed picture is retried, a little later
+    wait(REFRESH_MS);
+    expect(t(b)).toBe("1");
+    wait(RETRY_MS - REFRESH_MS);
+    expect(t(b)).toBe("2");
+  });
+
+  it("pauses while the window is hidden and resumes when shown", async () => {
+    const [a] = await renderWall();
+    setVisibility("hidden");
+    fireEvent.load(a);
+    wait(60_000);
+    expect(t(a)).toBe("1");
+    setVisibility("visible");
+    wait(REFRESH_MS);
+    expect(t(a)).toBe("2");
   });
 });
