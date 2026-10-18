@@ -17,6 +17,9 @@ updates:
       - /ide/vscode-extension   # VS Code extension
     schedule:
       interval: weekly
+    ignore:
+      # must not be newer than engines.vscode (vsce refuses to package otherwise); raise both together by hand
+      - dependency-name: "@types/vscode"
     groups:
       npm-minor-patch:
         update-types: [minor, patch]
