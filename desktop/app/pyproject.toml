@@ -15,7 +15,7 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
-test = ["pytest>=8", "pytest-qt>=4.4", "pytest-asyncio>=0.23", "pytest-cov>=5"]
+test = ["pytest>=8", "pytest-qt>=4.4", "pytest-asyncio>=0.23", "pytest-cov>=5", "pytest-timeout>=2.3"]
 
 [project.scripts]
 xscript-desktop = "xscript_desktop.main:main"
@@ -29,6 +29,15 @@ xscript_desktop = ["resources/**/*"]
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 asyncio_mode = "auto"
+# A hung test (typically QtWebEngine waiting on a page/JS callback) fails here instead of stalling CI to the
+# 25-minute job limit. The slowest test takes ~7 s locally, so 120 s is a hang, not a slow runner.
+# "thread": the timer runs in its own thread, so it fires even while the main thread is blocked inside Qt's C++
+# event loop (the "signal" method only runs once Python bytecode does). It dumps every thread's stack, then
+# ends the whole run (os._exit), so there is no coverage report for that run; a per-test override is
+# @pytest.mark.timeout(N).
+timeout = 120
+timeout_method = "thread"
+required_plugins = ["pytest-timeout>=2.3"]
 filterwarnings = [
   # CPython 3.10 asyncio: a finished child's transport can be collected after the test's loop closed (harmless, no leak of the process)
   "ignore:Exception ignored in.*BaseSubprocessTransport:pytest.PytestUnraisableExceptionWarning",
