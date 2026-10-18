@@ -380,7 +380,7 @@ class ApiRouter(private val context: Context) {
         .put("float_on_run", Settings.floatOnRun)
         .put("float_always", Settings.floatAlways)
         .put("keep_screen_on", Settings.keepScreenOn)
-        .put("cloud_url", Settings.cloudUrl)
+        .put("cloud_url", com.xscript.app.cloud.CloudUrl.redact(Settings.cloudUrl))  // read-only here (PUT ignores it); the key stays on the device
 
     private fun putSettings(req: Request): Reply {
         val a = req.json()
