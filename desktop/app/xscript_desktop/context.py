@@ -9,6 +9,7 @@ from pathlib import Path
 import platform
 import sys
 import threading
+import time
 from typing import Any, Awaitable, Callable
 
 from . import __version__
@@ -25,6 +26,9 @@ from .services.tool_pages import TITLES, tool_url
 
 ACTION_TYPES = ("click", "swipe", "input", "key")
 MAX_FILE_CHARS = 2 * 1024 * 1024  # stays under the bridge's 4 MiB request cap even after JSON escaping
+AUTO_RECONNECT_KEY = "autoReconnect"  # settings row: "0" turns auto-reconnect off globally; absent / "1" = on (design §14.5)
+SAVED_CONNECT_TIMEOUT = 20.0  # startup reconnect: per-device ceiling (they run in parallel, so one slow device blocks nobody)
+SCAN_PROGRESS_EVERY = 0.25  # s between device.scan.progress events (a /24 scan is ~2500 probes)
 
 
 def _rel_path(params: dict[str, Any], key: str = "path") -> str:
@@ -98,6 +102,9 @@ class AppContext:
         # Set by the page (app.setUnsaved), read by MainWindow.closeEvent on the GUI thread: plain attribute writes.
         self.unsaved = False
         self.ui_lang = "zh"
+        self._scans: dict[str, asyncio.Event] = {}  # scanId -> cancel flag of a running device.scan
+        self._adb_ready: set[str] | None = None  # serials in state "device" at the last device.adb.list (None: no baseline yet)
+        self._hotplug_tasks: set[asyncio.Task] = set()
         self._register()
 
     def _mirror_client(self, device_id: str):
@@ -170,10 +177,11 @@ class AppContext:
             if saved is not None:
                 self.dispatcher.emit("device.state", rec.to_dict())
             return
+        auto = await self.auto_reconnect_enabled()  # a NEW row opts in to auto-reconnect while the global switch is on
         try:
             saved = await self.store.aexec(
                 self.store._remember, rec.id, rec.transport, self._saved_address(rec),
-                str(rec.status.get("device_id") or ""), str(rec.status.get("model") or ""), rec.last_seen or 0.0)
+                str(rec.status.get("device_id") or ""), str(rec.status.get("model") or ""), rec.last_seen or 0.0, auto)
         except StoreError as e:
             if e.code != "db.newer":
                 raise
@@ -222,32 +230,102 @@ class AppContext:
             "autoConnect": bool(saved.auto_connect), "sortOrder": saved.sort_order, "saved": True,
         }
 
-    async def connect_saved(self) -> list[dict[str, Any]]:
-        """Connect devices with auto_connect=1. Everyone else stays an offline card (design §14.5)."""
+    async def auto_reconnect_enabled(self) -> bool:
+        """The global switch (settings `autoReconnect`): on unless the user turned it off."""
+        try:
+            return await self.store.aexec(self.store._get_setting, AUTO_RECONNECT_KEY) != "0"
+        except StoreError:
+            return True
+
+    async def connect_saved(self, timeout: float = SAVED_CONNECT_TIMEOUT) -> list[dict[str, Any]]:
+        """Reconnect the devices with auto_connect=1, all at once (design §14.5). Everyone else stays an offline card.
+
+        Each device shows "connecting" right away and gets its own `timeout`, so one slow or dead device no longer
+        holds up the rest (this used to be a serial loop with a ~10 s probe per device). Off when the user disabled
+        auto-reconnect.
+        """
+        if not await self.auto_reconnect_enabled():
+            return []
         rows = await self.store.aexec(self.store._auto_connect)
-        out: list[dict[str, Any]] = []
-        any_live = False
-        for row in rows:
+
+        async def one(row: SavedDevice) -> tuple[dict[str, Any], bool]:
+            if row.transport not in ("adb", "lan"):
+                view = self._offline_view(row, "暂不支持自动连接 %s" % row.transport, "device.unsupported")
+                self.dispatcher.emit("device.state", view)
+                return view, False
+            self.dispatcher.emit("device.state", {**self._offline_view(row), "state": "connecting"})
             try:
-                if row.transport == "adb":
-                    rec = await self.devices.connect_adb(row.address)
-                elif row.transport == "lan":
-                    rec = await self.devices.connect_address(row.address)
-                else:
-                    view = self._offline_view(row, "暂不支持自动连接 %s" % row.transport, "device.unsupported")
-                    self.dispatcher.emit("device.state", view)
-                    out.append(view)
-                    continue
+                op = self.devices.connect_adb(row.address) if row.transport == "adb" else self.devices.connect_address(row.address)
+                rec = await asyncio.wait_for(op, timeout)
                 await self._remember(rec)
-                any_live = True
-                out.append(rec.to_dict())
+                return rec.to_dict(), True
+            except asyncio.TimeoutError:
+                view = self._offline_view(row, "自动连接 %s 超时（%.0f 秒）" % (row.address, timeout), "device.timeout")
             except (AdbError, DeviceError, StoreError) as e:
                 view = self._offline_view(row, str(e), error_code(e))
-                self.dispatcher.emit("device.state", view)
-                out.append(view)
-        if any_live:
+            self.dispatcher.emit("device.state", view)
+            return view, False
+
+        results = await asyncio.gather(*(one(r) for r in rows))
+        if any(live for _, live in results):
             self.devices.start_polling()
-        return out
+        return [view for view, _ in results]
+
+    async def _connect(self, transport: str, target: str, local_port: int = 0) -> DeviceRecord:
+        """device.connect and the ADB hotplug path: connect, put the card back on failure, remember, start polling."""
+        if transport == "adb":
+            dev_id, op = "adb:" + target, lambda: self.devices.connect_adb(target, local_port)
+        elif transport == "lan":
+            try:
+                dev_id = "lan:" + DeviceTarget.parse(target).address
+            except ValueError:
+                dev_id = ""
+            op = lambda: self.devices.connect_address(target)
+        else:
+            raise RpcError("rpc.bad_params", "unknown transport: %s" % transport)
+        was_live = bool(dev_id) and any(r.id == dev_id for r in self.devices.list())
+        try:
+            rec = await op()
+        except Exception as e:
+            await self._restore_after_failed_connect(dev_id, was_live, e)
+            raise
+        await self._remember(rec)
+        self.devices.start_polling()
+        return rec
+
+    async def _hotplug(self, devs: list[Any]) -> list[str]:
+        """Called with every adb listing. A serial that just became ready ("device": plugged in, or USB debugging just
+        allowed) and belongs to a saved auto-reconnect device gets connected in the background. The first listing
+        only sets the baseline: at startup connect_saved already covers the devices that were plugged in.
+        Returns the device ids it started connecting."""
+        ready = {d.serial for d in devs if d.state == "device"}
+        prev, self._adb_ready = self._adb_ready, ready
+        if prev is None or not await self.auto_reconnect_enabled():
+            return []
+        started: list[str] = []
+        for serial in sorted(ready - prev):
+            dev_id = "adb:" + serial
+            rec = self.devices._devices.get(dev_id)
+            if rec is not None and rec.state != "offline":
+                continue  # already connected (a replug with a stale forward shows up as offline and is reconnected)
+            try:
+                saved = await self.store.aexec(self.store._get, dev_id)
+            except StoreError:
+                continue
+            if saved is None or not saved.auto_connect:
+                continue
+            self.dispatcher.emit("device.state", {**self._offline_view(saved), "state": "connecting"})
+            task = asyncio.ensure_future(self._hotplug_connect(serial))
+            self._hotplug_tasks.add(task)
+            task.add_done_callback(self._hotplug_tasks.discard)
+            started.append(dev_id)
+        return started
+
+    async def _hotplug_connect(self, serial: str) -> None:
+        try:
+            await self._connect("adb", serial)
+        except Exception:
+            pass  # _connect already put the offline card (with the mapped error) back
 
     def _debug(self, params: dict[str, Any]) -> DebugSession:
         sess = self.debug_sessions.get(param(params, "id", str))
@@ -256,6 +334,10 @@ class AppContext:
         return sess
 
     async def shutdown(self) -> None:
+        for task in list(self._hotplug_tasks):
+            task.cancel()
+        for ev in self._scans.values():
+            ev.set()
         try:
             await self.mirror.shutdown()  # close viewer slots before the device HTTP clients go away
         finally:
@@ -303,38 +385,33 @@ class AppContext:
                     await self.store.aexec(self.store._set_setting, "adbPath", raw)
                 else:
                     await self.store.aexec(self.store._delete_setting, "adbPath")
-            return {"adbPath": self.adb.path()}
+            if "autoReconnect" in params:
+                on = param(params, "autoReconnect", bool)
+                await self.store.aexec(self.store._set_setting, AUTO_RECONNECT_KEY, "1" if on else "0")
+            return {"adbPath": self.adb.path(), "autoReconnect": await self.auto_reconnect_enabled()}
+
+        @d.method("app.settings.get")
+        @_map_errors
+        async def get_settings(params: dict[str, Any]) -> dict[str, Any]:
+            return {"adbPath": self.adb.path(), "autoReconnect": await self.auto_reconnect_enabled()}
 
         @d.method("device.adb.list")
         @_map_errors
         async def adb_list(params: dict[str, Any]) -> dict[str, Any]:
             devs = await self.adb.devices()
-            return {"adbPath": self.adb.path(), "devices": [x.to_dict() for x in devs]}
+            started = await self._hotplug(devs)
+            return {"adbPath": self.adb.path(), "devices": [x.to_dict() for x in devs], "autoConnecting": started}
 
         @d.method("device.connect")
         @_map_errors
         async def connect(params: dict[str, Any]) -> dict[str, Any]:
             transport = param(params, "transport", str)
             if transport == "adb":
-                serial = param(params, "serial", str)
-                dev_id, op = "adb:" + serial, lambda: self.devices.connect_adb(serial, param(params, "localPort", int, default=0))
+                rec = await self._connect("adb", param(params, "serial", str), param(params, "localPort", int, default=0))
             elif transport == "lan":
-                address = param(params, "address", str)
-                try:
-                    dev_id = "lan:" + DeviceTarget.parse(address).address
-                except ValueError:
-                    dev_id = ""
-                op = lambda: self.devices.connect_address(address)
+                rec = await self._connect("lan", param(params, "address", str))
             else:
                 raise RpcError("rpc.bad_params", "unknown transport: %s" % transport)
-            was_live = bool(dev_id) and any(r.id == dev_id for r in self.devices.list())
-            try:
-                rec = await op()
-            except Exception as e:
-                await self._restore_after_failed_connect(dev_id, was_live, e)
-                raise
-            await self._remember(rec)
-            self.devices.start_polling()
             return rec.to_dict()
 
         @d.method("device.list")
@@ -421,7 +498,37 @@ class AppContext:
                 hosts = lan_hosts(param(params, "cidr", str, default=None))
             if not isinstance(hosts, list) or not all(isinstance(h, str) for h in hosts) or len(hosts) > 1024:
                 raise RpcError("rpc.bad_params", "hosts must be a list of at most 1024 strings")
-            return {"found": await self.devices.scan(hosts)}
+            # With a scanId the page gets device.scan.found per hit and throttled device.scan.progress, and can cancel.
+            scan_id = param(params, "scanId", str, default="") or ""
+            cancel = asyncio.Event()
+            if scan_id:
+                if scan_id in self._scans:
+                    raise RpcError("rpc.bad_params", "scan already running: %s" % scan_id)
+                self._scans[scan_id] = cancel
+            last = [0.0]
+
+            def progress(done: int, total: int) -> None:
+                now = time.monotonic()
+                if scan_id and (done == total or now - last[0] >= SCAN_PROGRESS_EVERY):
+                    last[0] = now
+                    self.dispatcher.emit("device.scan.progress", {"scanId": scan_id, "done": done, "total": total})
+
+            def found(hit: dict[str, Any]) -> None:
+                if scan_id:
+                    self.dispatcher.emit("device.scan.found", {"scanId": scan_id, "device": hit})
+
+            try:
+                hits = await self.devices.scan(hosts, on_found=found, on_progress=progress, cancel=cancel)
+            finally:
+                self._scans.pop(scan_id, None)
+            return {"found": hits, "cancelled": cancel.is_set(), "total": len(hosts)}
+
+        @d.method("device.scan.cancel")
+        def scan_cancel(params: dict[str, Any]) -> dict[str, Any]:
+            ev = self._scans.get(param(params, "scanId", str))
+            if ev is not None:
+                ev.set()
+            return {"cancelled": ev is not None}
 
         # ---- projects / run / logs / input (P1 slice: design §12.1) ----------------------------------------------------------------
 
