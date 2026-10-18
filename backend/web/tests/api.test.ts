@@ -45,7 +45,8 @@ describe("request", () => {
     const out = await request<Blob>("POST", "/api/scripts/1/versions", form);
     expect(sent(0).body).toBe(form);
     expect(sent(0).headers["Content-Type"]).toBeUndefined();
-    expect(out).toBeInstanceOf(Blob);
+    // not toBeInstanceOf(Blob): Node's fetch Response makes its own Blob, a different class from jsdom's global one on some Node versions
+    expect(Object.prototype.toString.call(out)).toBe("[object Blob]");
     expect(await out.text()).toBe("PK...");
   });
 
