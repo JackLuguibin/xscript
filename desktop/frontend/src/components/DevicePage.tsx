@@ -345,7 +345,7 @@ export function DevicePage({
                 {(adb ?? []).map((d) => {
                   const hint = adbHint(d.state);
                   return (
-                    <li key={d.serial} className="list-item">
+                    <li key={d.serial} className="list-row">
                       <span className="avatar" aria-hidden="true" style={{ width: "2rem", height: "2rem" }}>
                         {d.isEmulator ? <IconPhone size={16} /> : <IconUsb size={16} />}
                       </span>
@@ -435,7 +435,7 @@ export function DevicePage({
                     </li>
                   )}
                   {scan.hits.map((h) => (
-                    <li key={h.address} className="list-item">
+                    <li key={h.address} className="list-row">
                       <span className="meta grow">
                         <strong>{h.address}</strong>
                         <span className="muted">{h.info.name || h.info.model}</span>

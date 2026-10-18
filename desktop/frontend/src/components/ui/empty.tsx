@@ -14,7 +14,7 @@ export function EmptyState({ icon, title, children, actions, tone = "info", role
     >
       <div className={cn("art mb-sp-1 grid size-14 place-items-center rounded-full bg-primary-soft text-primary", error && "bg-danger-bg text-danger-fg")}>{icon}</div>
       <p className="title text-lg font-[650]">{title}</p>
-      {children && <p className="desc max-w-[34rem] text-muted">{children}</p>}
+      {children && <div className="desc max-w-[34rem] text-muted">{children}</div>}
       {actions && <div className="actions mt-sp-2 flex gap-sp-2">{actions}</div>}
     </div>
   );

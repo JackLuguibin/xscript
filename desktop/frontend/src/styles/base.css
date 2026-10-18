@@ -35,6 +35,6 @@ button, input { font: inherit; color: inherit; }
     --text-on-primary: HighlightText;
   }
   :focus-visible { outline: 2px solid Highlight; }
-  button, input, .list-item, .panel, .empty, .banner, .sidebar, .badge, .nav-item { border-color: ButtonText; }
+  button, input, .list-row, .panel, .empty, .banner, .sidebar, .badge, .nav-item { border-color: ButtonText; }
   .nav-item[aria-current="page"], .skip-link:focus { background: Highlight; color: HighlightText; }
 }

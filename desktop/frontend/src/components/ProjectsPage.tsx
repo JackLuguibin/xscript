@@ -423,8 +423,8 @@ export function ProjectsPage({ pollMs = LOG_POLL_MS, onDirtyChange }: { pollMs?:
               {has("stop") ? <Spinner /> : t.projects.stop}
             </Button>
           </div>
-          {!project && <p className="muted">{t.projects.pickProject}</p>}
-          {project && !file && <p className="muted">{t.projects.pickFile}</p>}
+          {!project && <EmptyState icon={<IconFolder size={26} />} title={t.projects.pickProject} />}
+          {project && !file && <EmptyState icon={<IconFolder size={26} />} title={t.projects.pickFile} />}
           {file && file.encoding !== "utf-8" && <p className="muted">{t.projects.binary}</p>}
           {file && file.encoding === "utf-8" && (
             <CodeEditor

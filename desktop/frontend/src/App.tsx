@@ -6,6 +6,7 @@ import { useGlobalShortcuts } from "./components/GlobalShortcuts";
 import { MirrorPage } from "./components/MirrorPage";
 import { ProjectsPage } from "./components/ProjectsPage";
 import { Alert } from "./components/ui/alert";
+import { Select } from "./components/ui/select";
 import { Button } from "./components/ui/button";
 import { WallPage } from "./components/WallPage";
 import { DeviceProvider, useCurrentDevice } from "./device-context";
@@ -48,14 +49,14 @@ function DeviceSwitcher() {
   return (
     <label className="row device-switcher">
       <span className="muted">{t.deviceFlow.current}</span>
-      <select aria-label={t.deviceFlow.current} value={devId} disabled={devices.length === 0} onChange={(e) => void select(e.target.value)}>
+      <Select aria-label={t.deviceFlow.current} className="w-auto min-w-40 max-w-72" value={devId} disabled={devices.length === 0} onChange={(e) => void select(e.target.value)}>
         {devId === "" && <option value="">{t.deviceFlow.noDevice}</option>}
         {devices.map((d) => (
           <option key={d.id} value={d.id} disabled={d.state !== "online" && d.id !== devId}>
             {(d.name || d.info.name || d.info.model || d.id) + (d.state !== "online" ? `（${t.state[d.state] ?? d.state}）` : "")}
           </option>
         ))}
-      </select>
+      </Select>
     </label>
   );
 }
