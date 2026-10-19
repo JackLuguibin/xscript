@@ -363,3 +363,27 @@ async def test_disconnect_releases_the_viewer_slot():
             assert missing["ok"] is False and missing["error"]["code"] == "device.not_found"
         finally:
             await ctx.shutdown()
+
+
+@pytest.mark.timeout(10)
+async def test_poll_ends_even_when_a_cancel_is_swallowed():
+    """Python 3.10 + httpx/anyio can swallow the cancel aimed at the 429 screenshot poll; the session used to wait on
+    that poll forever (the CI desktop job's 120 s pytest timeout). The poll must still end once the gap is over."""
+    from xscript_desktop.services.mirror import _Session
+
+    class SwallowingClient:
+        screens = 0
+
+        async def screen(self, *_a, **_k):
+            SwallowingClient.screens += 1
+            try:
+                await asyncio.sleep(0.01)
+            except asyncio.CancelledError:
+                pass  # what the buggy stack does: the cancel is lost and a body comes back
+            return JPEG, "image/jpeg"
+
+    timings = MirrorTimings(0.2, 0.2, (0.05,), 0.05, 0.001, 0.05)
+    sess = _Session("dev", lambda _id: SwallowingClient(), lambda *_a: None, timings, asyncio.Lock())
+    sess.viewers["main"] = (12, 0.5, 60)
+    await asyncio.wait_for(sess._poll_for(0.1), 3)
+    assert SwallowingClient.screens >= 1
