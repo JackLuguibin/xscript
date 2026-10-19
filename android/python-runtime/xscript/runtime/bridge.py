@@ -65,6 +65,9 @@ class _MissingJava(object):
     def ocr(self, bitmap, dx=0, dy=0, level="line"):
         return "[]"
 
+    def ocr_warmup(self):
+        return None
+
     def onnx_load(self, path, opts_json="{}"):
         return '{"error": "ONNX Runtime is only available on the device"}'
 
@@ -160,6 +163,9 @@ class _JavaBridge(object):
 
     def ocr(self, bitmap, dx=0, dy=0, level="line"):
         return str(self._j.ocr(bitmap, int(dx), int(dy), str(level)))
+
+    def ocr_warmup(self):
+        self._j.ocrWarmup()
 
     def onnx_load(self, path, opts_json="{}"):
         return str(self._j.onnxLoad(str(path), str(opts_json)))
