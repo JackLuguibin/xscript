@@ -1,0 +1,206 @@
+import { execFileSync } from "node:child_process";
+import { describe, expect, it } from "vitest";
+import { compile, parse, type FlowGraph } from "../src/flow/dsl";
+import { builtinSpecs } from "../src/flow/specs";
+
+const specs = builtinSpecs();
+
+// Runs generated Python against a stub `xscript.android`: `screen` lists the texts/ids that node.find can see.
+const HARNESS = `
+import sys, types, json
+screen = set(json.loads(sys.argv[1]))
+class _Node:
+    def __init__(self, label): self.label = label
+    def click(self): print("click", self.label)
+class _Selector:
+    def __init__(self): self.key = None
+    def text(self, v): self.key = v; return self
+    def id(self, v): self.key = v; return self
+    def find(self, timeout=0): return _Node(self.key) if self.key in screen else None
+android = types.ModuleType("xscript.android")
+android.node = types.SimpleNamespace(Selector=_Selector)
+android.action = types.SimpleNamespace(sleep=lambda s: None)
+android.system = types.SimpleNamespace(open=lambda p: print("open", p), params=lambda: {})
+sys.modules["xscript"] = types.ModuleType("xscript")
+sys.modules["xscript.android"] = android
+exec(compile(sys.stdin.read(), "flow.py", "exec"), {"__name__": "__main__"})
+`;
+
+function run(python: string, screen: string[] = []): string[] {
+  const out = execFileSync("python3", ["-c", HARNESS, JSON.stringify(screen)], { input: python, encoding: "utf8", timeout: 10000 });
+  return out.split("\n").filter(Boolean);
+}
+
+/** Join two exec chains on a new `done` log, which forces the label/goto state machine. */
+function joined(text: string, from: string[]): FlowGraph {
+  const graph = parse(text);
+  return {
+    ...graph,
+    nodes: [...graph.nodes, { id: "done", type: "debug.log", inputs: { message: "结束" } }],
+    edges: [...graph.edges, ...from.map((id) => ({ from: id + ".then", to: "done.exec" }))],
+  };
+}
+
+const SIGN_IN = [
+  "flow sm  # xflow 1",
+  "def greet(name) -> text:",
+  "  hl: log(message=name)",
+  "  return text=name",
+  "on start:",
+  '  open: app.open(package="com.x")',
+  "  for loop in range(0, 2):",
+  "    lp: log(message=loop)",
+  '  g: call greet(name="Ada")',
+  "  gl: log(message=g)",
+  '  btn: node.find(text="签到", timeout=1)',
+  "  ok: if btn.found:",
+  "    tap: click(target=btn.node)",
+  "  else:",
+  '    miss: log(message="没找到")',
+  "",
+].join("\n");
+
+describe("state machine fallback", () => {
+  it("lowers calls, defs and closed loops when a join forces it, and runs both paths", () => {
+    const graph = joined(SIGN_IN, ["tap", "miss"]);
+    const out = compile(graph, specs);
+    expect(out.python).toContain("while True:");
+    expect(out.python).toContain("def greet(name):");
+    expect(out.python).toContain("for loop in range(0, 2):");
+    expect(out.python).not.toContain("pc == 'lp'");
+    expect(run(out.python, ["签到"])).toEqual(["open com.x", "0", "1", "Ada", "Ada", "click 签到", "结束"]);
+    expect(run(out.python)).toEqual(["open com.x", "0", "1", "Ada", "Ada", "没找到", "结束"]);
+    const marked = new Set(Object.values(out.lines));
+    for (const id of ["open", "loop", "lp", "g", "gl", "btn", "ok", "tap", "miss", "done", "hl"]) expect(marked.has(id)).toBe(true);
+  });
+
+  it("emits the same behaviour with trace on", () => {
+    const out = compile(joined(SIGN_IN, ["tap", "miss"]), specs, { trace: true });
+    const lines = run(out.python, ["签到"]).filter((line) => !line.startsWith("__xf"));
+    expect(lines.filter((line) => !line.includes("\t"))).toEqual(["open com.x", "0", "1", "Ada", "Ada", "click 签到", "结束"]);
+  });
+
+  it("keeps break inside a lowered loop body", () => {
+    const text = [
+      "flow brk  # xflow 1",
+      "on start:",
+      "  for loop in range(0, 5):",
+      "    lp: log(message=loop)",
+      '    btn: node.find(text="ok", timeout=0)',
+      "    hit: if btn.found:",
+      "      break",
+      "  a: log(message=\"a\")",
+      "  hit2: if btn.found:",
+      '    b: log(message="b")',
+      "  else:",
+      '    c: log(message="c")',
+      "",
+    ].join("\n");
+    const out = compile(joined(text, ["b", "c"]), specs);
+    expect(out.python).toContain("while True:");
+    expect(run(out.python, ["ok"])).toEqual(["0", "a", "b", "结束"]);
+    expect(run(out.python)).toEqual(["0", "1", "2", "3", "4", "a", "c", "结束"]);
+  });
+
+  it("refuses a loop whose body jumps out, and a container it cannot hold", () => {
+    const text = ["flow out  # xflow 1", "on start:", '  a: log(message="a")', "  for loop in range(0, 2):", '    lp: log(message="x")', '  z: log(message="z")', ""].join("\n");
+    const graph = parse(text);
+    const back: FlowGraph = { ...graph, edges: [...graph.edges, { from: "lp.then", to: "a.exec" }] };
+    expect(() => compile(back, specs)).toThrow("its body jumps out of the loop");
+    const retry = parse(["flow r  # xflow 1", "on start:", '  a: log(message="a")', "  retry times=2:", '    b: log(message="b")', ""].join("\n"));
+    const looped: FlowGraph = { ...retry, edges: [...retry.edges, { from: "b.then", to: "a.exec" }] };
+    expect(() => compile(looped, specs)).toThrow("state machine cannot lower flow.retry");
+  });
+
+  it("runs a code node, data.set and a back edge through the state machine", () => {
+    const text = [
+      "flow c  # xflow 1",
+      "var n: int = 0",
+      "on start:",
+      '  box: code(inPins="v:int", v=get(name="n"), outPins="next:int, more:bool", source="next = v + 1\\nmore = next < 3")',
+      "  s: set(name=\"n\", value=box.next)",
+      '  show: log(message=get(name="n"))',
+      "  again: if box.more:",
+      '    noop: log(message="loop")',
+      "",
+    ].join("\n");
+    const graph = parse(text);
+    const back: FlowGraph = { ...graph, edges: [...graph.edges, { from: "noop.then", to: "box.exec" }] };
+    const out = compile(back, specs);
+    expect(out.python).toContain("while True:");
+    expect(out.python).toContain("if box[1]:");
+    expect(run(out.python)).toEqual(["1", "loop", "2", "loop", "3"]);
+  });
+});
+
+describe("condition expressions", () => {
+  it("reads a multi-output code pin and a variable as conditions", () => {
+    const code = parse([
+      "flow c  # xflow 1",
+      "on start:",
+      '  box: code(outPins="hit:node?, found:bool", source="hit = None\\nfound = True")',
+      "  ok: if box.found:",
+      '    y: log(message="yes")',
+      "",
+    ].join("\n"));
+    const py = compile(code, specs).python;
+    expect(py).toContain("if box[1]:");
+    expect(run(py)).toEqual(["yes"]);
+
+    const variable: FlowGraph = {
+      xflow: 1,
+      name: "v",
+      variables: [{ name: "flag", type: "bool", default: true }],
+      nodes: [
+        { id: "start", type: "event.start" },
+        { id: "f", type: "data.get", inputs: { name: "flag" } },
+        { id: "ok", type: "flow.branch" },
+        { id: "y", type: "debug.log", inputs: { message: "on" } },
+      ],
+      edges: [
+        { from: "start.then", to: "ok.exec" },
+        { from: "f.value", to: "ok.cond" },
+        { from: "ok.then", to: "y.exec" },
+      ],
+    };
+    const vpy = compile(variable, specs).python;
+    expect(vpy).toContain("if flag:");
+    expect(run(vpy)).toEqual(["on"]);
+  });
+
+  it("names a loop variable after its node when wired from the spec pin", () => {
+    const graph = parse(["flow l  # xflow 1", "on start:", "  for loop in range(0, 2):", "    lp: log(message=loop)", '  items: code(outPins="xs:list", source="xs = [5, 6]")', "  for each in items.xs:", "    le: log(message=each)", ""].join("\n"));
+    const respec: FlowGraph = {
+      ...graph,
+      edges: graph.edges.map((edge) => (edge.from === "loop.result" ? { ...edge, from: "loop.index" } : edge.from === "each.result" ? { ...edge, from: "each.item" } : edge)),
+    };
+    expect(respec.edges.some((edge) => edge.from === "loop.index")).toBe(true);
+    expect(respec.edges.some((edge) => edge.from === "each.item")).toBe(true);
+    const py = compile(respec, specs).python;
+    expect(py).not.toContain("loop.index");
+    expect(run(py)).toEqual(["0", "1", "5", "6"]);
+  });
+
+  it("writes pass for an empty arm and runs the other one", () => {
+    const graph: FlowGraph = {
+      xflow: 1,
+      name: "arm",
+      nodes: [
+        { id: "start", type: "event.start" },
+        { id: "btn", type: "node.find", inputs: { text: "x", timeout: 0 } },
+        { id: "ok", type: "flow.branch" },
+        { id: "no", type: "debug.log", inputs: { message: "none" } },
+      ],
+      edges: [
+        { from: "start.then", to: "btn.exec" },
+        { from: "btn.then", to: "ok.exec" },
+        { from: "btn.found", to: "ok.cond" },
+        { from: "ok.else", to: "no.exec" },
+      ],
+    };
+    const py = compile(graph, specs).python;
+    expect(py).toContain("    pass");
+    expect(run(py)).toEqual(["none"]);
+    expect(run(py, ["x"])).toEqual([]);
+  });
+});
