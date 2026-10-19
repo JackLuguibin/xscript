@@ -1,5 +1,7 @@
 import { Component, createContext, useContext, useEffect, useMemo, useRef, useState, type DragEvent, type ReactNode } from "react";
-import { Background, BaseEdge, Handle, MiniMap, Position, ReactFlow, ReactFlowProvider, useStore, useUpdateNodeInternals, type ConnectionLineComponentProps, type EdgeProps, type Node, type NodeProps } from "@xyflow/react";
+import { IconSidebar } from "./icons";
+import { libraryShown, matchesNarrow, NARROW_QUERY, shouldAutoFit, startViewport, overflowEdges, toggleLibrary, wheelShift, type LibraryMode } from "../flow/panels";
+import { Background, BaseEdge, Handle, MiniMap, Position, ReactFlow, ReactFlowProvider, useNodesInitialized, useReactFlow, useStore, useUpdateNodeInternals, type ConnectionLineComponentProps, type EdgeProps, type Node, type NodeProps } from "@xyflow/react";
 import "@xyflow/react/dist/style.css";
 import { CodeEditor } from "./CodeEditor";
 import { codePins, createDslSync, danglingEdges, deleteNodes, duplicateNodes, foldGraph, mergeFlow, nodeStatement, applyNodeStatement, parse, printFlow, promoteFunction, renameInput, setCodeIo, setNodeInput, snippetFlow, unfoldGraph, type FlowGraph } from "../flow/dsl";
@@ -361,6 +363,21 @@ function RerouteNode({ id }: NodeProps) {
   );
 }
 
+/** Frames each flow once, when React Flow reports every node measured (useNodesInitialized). */
+function AutoFit({ name }: { name: string }) {
+  const ready = useNodesInitialized();
+  const { getNodes, getNodesBounds, setViewport } = useReactFlow();
+  const width = useStore((state) => state.width);
+  const height = useStore((state) => state.height);
+  const fitted = useRef<string | null>(null);
+  useEffect(() => {
+    if (!width || !height || !shouldAutoFit(fitted.current, name, ready)) return;
+    fitted.current = name;
+    void setViewport(startViewport(getNodesBounds(getNodes()), width, height));
+  }, [name, ready, width, height, getNodes, getNodesBounds, setViewport]);
+  return null;
+}
+
 function Remeasure() {
   const update = useUpdateNodeInternals();
   const ids = useStore((state) => state.nodes.map((node) => node.id).join("\n"));
@@ -610,7 +627,40 @@ export function FlowPage({ initialLayout }: { initialLayout?: FlowLayout } = {})
   const [deploying, setDeploying] = useState(false);
   const sawRunning = useRef(false);
   const [session, setSession] = useState<FlowDebug | null>(null);
-  const [library, setLibrary] = useState<"auto" | "open" | "closed">("auto");
+  const [library, setLibrary] = useState<LibraryMode>("auto");
+  const [narrow, setNarrow] = useState(matchesNarrow);
+  const narrowRef = useRef(narrow);
+  narrowRef.current = narrow;
+  const barRef = useRef<HTMLDivElement | null>(null);
+  const [barEdges, setBarEdges] = useState("");
+  useEffect(() => {
+    if (typeof window.matchMedia !== "function") return;
+    let query: MediaQueryList;
+    try {
+      query = window.matchMedia(NARROW_QUERY);
+    } catch {
+      return;
+    }
+    const onChange = () => setNarrow(query.matches);
+    query.addEventListener?.("change", onChange);
+    return () => query.removeEventListener?.("change", onChange);
+  }, []);
+  useEffect(() => {
+    const bar = barRef.current;
+    if (!bar) return;
+    const measure = () => {
+      const next = overflowEdges(bar.scrollLeft, bar.clientWidth, bar.scrollWidth);
+      setBarEdges((cur) => (cur === next ? cur : next));
+    };
+    measure();
+    bar.addEventListener("scroll", measure, { passive: true });
+    const observer = typeof ResizeObserver === "function" ? new ResizeObserver(measure) : null;
+    observer?.observe(bar);
+    return () => {
+      bar.removeEventListener("scroll", measure);
+      observer?.disconnect();
+    };
+  }, []);
   const [bottomH, setBottomH] = useState(240);
   const [dock, setDock] = useState<"text" | "python" | "breaks" | "trace" | "problems">("text");
   const [lineDraft, setLineDraft] = useState("");
@@ -863,7 +913,7 @@ export function FlowPage({ initialLayout }: { initialLayout?: FlowLayout } = {})
   breaksRef.current = breaks;
   const flow = useRef<{
     screenToFlowPosition: (point: { x: number; y: number }) => { x: number; y: number };
-    fitView: (options?: { nodes?: Array<{ id: string }>; duration?: number; padding?: number }) => void;
+    fitView: (options?: { nodes?: Array<{ id: string }>; duration?: number; padding?: number; maxZoom?: number }) => void;
   } | null>(null);
 
   const checkpoint = () => {
@@ -1413,7 +1463,7 @@ export function FlowPage({ initialLayout }: { initialLayout?: FlowLayout } = {})
         if (!foreignDialog && !isTextEntry(event.target) && key === "b" && !event.shiftKey) {
           event.preventDefault();
           event.stopPropagation();
-          setLibrary((cur) => (cur === "closed" ? "open" : "closed"));
+          setLibrary((cur) => toggleLibrary(cur, narrowRef.current));
           return;
         }
         if (!foreignDialog && (key === "z" || key === "d" || key === "f" || key === "p" || clip || (key === "y" && !event.shiftKey))) {
@@ -1656,7 +1706,7 @@ export function FlowPage({ initialLayout }: { initialLayout?: FlowLayout } = {})
     return title && title !== id ? title : "";
   };
   return (
-    <div className="flow-page" data-library={library}>
+    <div className="flow-page" data-library={libraryShown(library, narrow) ? "open" : "closed"}>
       <div className="flow-canvas" aria-label={t.flow.nodes} data-snap={snap ? "on" : "off"} data-flowing={tracePicture && flowEdges(tracePicture.running, graph.nodes.length, reducedMotion) ? tracePicture.running ?? "" : ""}>
         <nav className="flow-scope" aria-label={t.flow.scope}>
           <Button type="button" onClick={() => setScope(null)} aria-current={scope ? undefined : "page"}>
@@ -1849,7 +1899,8 @@ export function FlowPage({ initialLayout }: { initialLayout?: FlowLayout } = {})
               proOptions={{ hideAttribution: false }}
             >
               <Remeasure />
-              <MiniMap ariaLabel={t.flow.minimap} />
+              <AutoFit name={graph.name} />
+              <MiniMap ariaLabel={t.flow.minimap} pannable zoomable nodeBorderRadius={6} style={{ width: 148, height: 96 }} />
               <Background />
             </ReactFlow>
             <div className="flow-hud">
@@ -1874,7 +1925,30 @@ export function FlowPage({ initialLayout }: { initialLayout?: FlowLayout } = {})
             </Button>
           </div>
         ) : null}
-        <div className="flow-bar" role="toolbar" aria-label={t.flow.tools}>
+        <div
+          className="flow-bar"
+          role="toolbar"
+          aria-label={t.flow.tools}
+          ref={barRef}
+          data-overflow={barEdges || undefined}
+          title={barEdges ? t.flow.toolsMore : undefined}
+          onWheel={(event) => {
+            const shift = wheelShift(event.deltaX, event.deltaY);
+            if (shift) event.currentTarget.scrollLeft += shift;
+          }}
+        >
+          <Button
+            variant="ghost"
+            type="button"
+            className="flow-bar-icon"
+            aria-label={t.flow.toggleLibrary}
+            title={t.flow.toggleLibrary}
+            aria-pressed={libraryShown(library, narrow)}
+            onClick={() => setLibrary((cur) => toggleLibrary(cur, narrowRef.current))}
+          >
+            <IconSidebar size={16} />
+          </Button>
+          <span className="flow-tool-gap" aria-hidden="true" />
           <Button variant="primary" type="button" onClick={() => openMenu()}>
             {t.flow.add}
           </Button>
