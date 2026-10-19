@@ -621,6 +621,9 @@ _QUARTER_SLACK = 0.25     # 1/4 scores run low; only clearly-absent templates ar
 _MASK_REFINE_TOP = 2
 
 
+_QUARTER_MIN_STD = 2.0
+
+
 def _quarter_rank(src, tpl, sizes, threshold, src_half):
     """1/4-resolution pass over every scale (~16x cheaper than full res).
 
@@ -636,8 +639,13 @@ def _quarter_rank(src, tpl, sizes, threshold, src_half):
     base = src_half if src_half is not None else src
     quarter = _resize(base, sw // 4, sh // 4)
     low = max(0.3, threshold - _QUARTER_SLACK)
-    for w, h in sizes:
-        r = _do_match(quarter, _resize(tpl.img, max(4, w // 4), max(4, h // 4)), None)
+    small = [_resize(tpl.img, max(4, w // 4), max(4, h // 4)) for w, h in sizes]
+    # Downsampling can wash a sparse template (thin text on a flat background) out to a
+    # near-constant patch whose normalized score is noise; such a pass cannot reject.
+    if min(float(t.std()) for t in small) < _QUARTER_MIN_STD:
+        return None
+    for t in small:
+        r = _do_match(quarter, t, None)
         if cv2.minMaxLoc(r)[1] >= low:
             return sizes
     return []
