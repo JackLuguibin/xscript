@@ -41,6 +41,13 @@ def default_data_dir() -> Path:
 
 
 ICON_PATH = Path(__file__).resolve().parent / "resources" / "icon.svg"
+# --theme: true once <html data-theme> (absent = "system") is the wanted theme, else press the sidebar theme button once.
+THEME_STEP_JS = """(() => {
+  const want = %s, now = document.documentElement.getAttribute('data-theme') || 'system';
+  if (now === want) return true;
+  document.querySelector('.sidebar-foot button')?.click();
+  return false;
+})()"""
 
 
 def app_icon():
@@ -107,13 +114,17 @@ def main(argv: list[str] | None = None) -> int:
     result = {"code": 1}
     poll = QTimer()
     poll.setInterval(100)
-    elapsed = {"t": 0.0, "ready_at": None, "clicked": False, "theme_clicks": 0}
-    theme_order = ["system", "light", "dark"]
+    elapsed = {"t": 0.0, "ready_at": None, "clicked": False, "theme_ok": False}
 
     def finish(code: int) -> None:
         result["code"] = code
         poll.stop()
         app.quit()
+
+    def theme_step_done(done) -> None:
+        if done and not elapsed["theme_ok"]:
+            elapsed["theme_ok"] = True
+            elapsed["ready_at"] = elapsed["t"]  # --screenshot-delay counts from the moment the theme is in place
 
     def tick() -> None:
         elapsed["t"] += 0.1
@@ -129,9 +140,11 @@ def main(argv: list[str] | None = None) -> int:
                 runtime.submit(ctx.connect_saved())  # only rows with auto_connect=1; design §14.5
             if args.connect_adb:
                 runtime.submit(_connect(ctx, args.connect_adb))
-        if args.theme and elapsed["theme_clicks"] < theme_order.index(args.theme):
-            elapsed["theme_clicks"] += 1  # one click per tick (React re-renders between clicks): system → light → dark
-            win.page.runJavaScript("document.querySelector('.sidebar-foot button')?.click()")
+        if args.theme and not elapsed["theme_ok"]:
+            # Click the theme button (system → light → dark) until <html data-theme> shows the wanted theme, at most one
+            # click per tick so React re-renders in between. Counting clicks blindly lost one whenever the button was
+            # not rendered yet (the ?.click() did nothing) and the screenshot came out in the wrong theme.
+            win.page.runJavaScript(THEME_STEP_JS % json.dumps(args.theme), theme_step_done)
             return
         if args.selftest and not args.connect_adb:
             print(json.dumps({"selftest": "ok", "version": __version__, "page": "loaded", "bridge": "roundtrip"}))
