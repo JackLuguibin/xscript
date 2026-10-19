@@ -71,6 +71,12 @@ android {
         manifestPlaceholders["appIcon"] =
             if (packed && packProp("icon").isNotEmpty()) "@drawable/ic_pack" else "@drawable/ic_launcher"
     }
+    // The app's own text is Chinese. Libraries (AndroidX, Material, Play services) ship ~80 languages; keep
+    // English (the default) and Chinese, which is all the UI can show anyway. A bare "zh" matches none of the
+    // libraries' zh-rCN / zh-rTW / zh-rHK strings, so the regions are listed. ResourceFiltersTest checks this.
+    androidResources {
+        localeFilters += listOf("en", "zh-rCN", "zh-rTW", "zh-rHK")
+    }
 
     signingConfigs {
         if (!packed && releaseSigningFile.isFile) {
