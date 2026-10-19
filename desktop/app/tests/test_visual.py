@@ -130,3 +130,24 @@ def test_v_narrow_windows_use_the_icon_rail(vis, qtbot, theme, size):
     connect_and_shoot(vis, qtbot)
     assert vis.js(qtbot, "document.documentElement.scrollWidth <= document.documentElement.clientWidth + 1") is True
     verify("narrow-%d-%s" % (size[0], theme), vis, qtbot)
+
+
+def open_flows(sh, qtbot):
+    """Open the flow page (sample flow) and wait until React Flow has measured and framed every node."""
+    code = "(() => { const b = [...document.querySelectorAll('nav button, aside button')].find(b => b.textContent.trim().startsWith('流程')); if (!b) return false; b.click(); return true; })()"
+    qtbot.waitUntil(lambda: bool(sh._eval(qtbot, code)), timeout=8000)
+    sh.wait_js(qtbot, "document.querySelectorAll('.react-flow__node').length > 0 && [...document.querySelectorAll('.react-flow__node')].every(n => n.style.visibility !== 'hidden')", timeout=15000)
+    sh.wait_js(qtbot, "!/scale\\(1\\)$/.test(document.querySelector('.react-flow__viewport')?.style.transform || 'scale(1)')", timeout=8000)
+    qtbot.wait(800)  # AutoFit, minimap and the toolbar fades settle
+
+
+@pytest.mark.parametrize("theme,width", [("light", 1280), ("dark", 1280), ("light", 1024), ("dark", 1024)])
+def test_v_flow_page(vis, qtbot, theme, width):
+    """Flow page with the sample flow: tiered panel widths, library hidden at ≤1280 px, AutoFit framing, themed minimap."""
+    prepare(vis, qtbot, theme, size=(width, 800))
+    vis.wait_text(qtbot, "emulator-5554")
+    open_flows(vis, qtbot)
+    assert vis.js(qtbot, "document.querySelector('.flow-page').dataset.library") == "closed"
+    assert vis.js(qtbot, "document.documentElement.scrollWidth <= document.documentElement.clientWidth + 1") is True
+    assert vis.js(qtbot, "document.querySelector('.react-flow__minimap') !== null") is True
+    verify("flow-%d-%s" % (width, theme), vis, qtbot)
