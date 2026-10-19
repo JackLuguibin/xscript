@@ -1,10 +1,11 @@
 # Release: push an annotated tag vX.Y.Z (after CI is green on main) and this workflow
 #   1. re-runs the whole CI (ci.yml),
 #   2. checks tag == android versionName == extension version, a CHANGELOG section exists, the tagged commit is on main,
-#   3. builds the SIGNED release APK with the GitHub Secrets below (fails if any is missing: never a debug / unsigned APK),
-#      builds the vsix, writes SHA256SUMS,
-#   4. verifies the APK: valid signature, signer certificate == the known release certificate, versionName, 16 KB readiness,
-#   5. creates the GitHub Release (notes = CHANGELOG section) with the APK, the vsix and SHA256SUMS.
+#   3. builds the SIGNED release APKs with the GitHub Secrets below (fails if any is missing: never a debug / unsigned APK):
+#      the universal xscript-vX.Y.Z-release.apk and the phone-only xscript-vX.Y.Z-release-arm64-v8a.apk; builds the vsix,
+#      writes SHA256SUMS,
+#   4. verifies both APKs: valid signature, signer certificate == the known release certificate, versionName, 16 KB readiness,
+#   5. creates the GitHub Release (notes = CHANGELOG section) with the APKs, the vsix and SHA256SUMS.
 # Secrets (repository secrets, names only): RELEASE_KEYSTORE_BASE64 (base64 of the .p12 / .jks keystore),
 # RELEASE_STORE_PASSWORD, RELEASE_KEY_ALIAS, RELEASE_KEY_PASSWORD. They are only exposed to the "release" job.
 name: release
@@ -120,6 +121,7 @@ jobs:
           sha256sum -c SHA256SUMS
           cd "$GITHUB_WORKSPACE"
           bash scripts/release.sh verify-apk "dist/release/xscript-${TAG}-release.apk" "${TAG#v}"
+          bash scripts/release.sh verify-apk "dist/release/xscript-${TAG}-release-arm64-v8a.apk" "${TAG#v}"
 
       - name: Create the GitHub Release
         env:
@@ -129,5 +131,6 @@ jobs:
           [ -s "$RUNNER_TEMP/notes.md" ] || { echo "::error::empty CHANGELOG section for $TAG"; exit 1; }
           gh release create "$TAG" --verify-tag --title "XScript $TAG" --notes-file "$RUNNER_TEMP/notes.md" \
             "dist/release/xscript-${TAG}-release.apk" \
+            "dist/release/xscript-${TAG}-release-arm64-v8a.apk" \
             "dist/release/xscript-vscode-${TAG#v}.vsix" \
             dist/release/SHA256SUMS

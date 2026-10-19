@@ -173,6 +173,22 @@ jobs:
         run: XSCRIPT_GRADLE_TASK=:app:assembleRelease bash android/build.sh --console=plain
       - name: Release APK is 16 KB ready
         run: python scripts/check_16kb.py android/app/build/outputs/apk/release/app-release-unsigned.apk
+      # release.sh also ships a phone-only APK; it must carry arm64-v8a code and nothing for x86_64.
+      - name: Build the arm64-v8a release APK and check its ABIs
+        run: |
+          XSCRIPT_GRADLE_TASK=:app:assembleRelease bash android/build.sh -Pxscript.abis=arm64-v8a --console=plain
+          apk=android/app/build/outputs/apk/release/app-release-unsigned.apk
+          python scripts/check_16kb.py "$apk"
+          python - "$apk" <<'PY'
+          import sys, zipfile
+          names = zipfile.ZipFile(sys.argv[1]).namelist()
+          libs = {n.split("/")[1] for n in names if n.startswith("lib/")}
+          x86 = [n for n in names if "x86" in n]
+          assert libs == {"arm64-v8a"}, libs
+          assert not x86, x86[:5]
+          assert any(n.startswith("assets/chaquopy/stdlib-arm64-v8a") for n in names)
+          print("arm64-v8a only:", len(names), "entries")
+          PY
 
   desktop:
     name: desktop client (frontend type-check/tests/build + Python tests incl. offscreen QtWebEngine)

@@ -9,9 +9,11 @@
 #   scripts/release.sh prepare X.Y.Z         bump android versionName (+ versionCode + 1), extension package.json / lock,
 #                                            the README / README.en.md download link, and turn CHANGELOG "未发布" into "vX.Y.Z（date）".
 #                                            Edits files only; review, then commit (chore(release): vX.Y.Z) and push.
-#   scripts/release.sh build [--skip-apk]    dist/release/: xscript-vX.Y.Z-release.apk (signed with keys/release.properties, or the
-#                                            file in $XSCRIPT_SIGNING_FILE, via android/build.sh), xscript-vscode-X.Y.Z.vsix,
-#                                            SHA256SUMS covering both. The APK is verified (verify-apk) before it is accepted.
+#   scripts/release.sh build [--skip-apk]    dist/release/: xscript-vX.Y.Z-release.apk (arm64-v8a + x86_64, signed with
+#                                            keys/release.properties, or the file in $XSCRIPT_SIGNING_FILE, via android/build.sh),
+#                                            xscript-vX.Y.Z-release-arm64-v8a.apk (phones only, about half the size),
+#                                            xscript-vscode-X.Y.Z.vsix, SHA256SUMS covering all of them. Each APK is verified
+#                                            (verify-apk) before it is accepted.
 #   scripts/release.sh verify-apk <apk> [version]   signature valid, signer cert == the known release cert, versionName (and
 #                                            16 KB readiness via check_16kb.py). Cert: $XSCRIPT_EXPECT_CERT_SHA256 or the default below.
 #   scripts/release.sh notes [vX.Y.Z]        prints the CHANGELOG section (the Release notes)
@@ -118,6 +120,11 @@ build)
     XSCRIPT_GRADLE_TASK=:app:assembleRelease bash android/build.sh "-Pxscript.signingFile=$SIGN" --console=plain >&2
     cp android/app/build/outputs/apk/release/app-release.apk "$DIST/xscript-v$V-release.apk"
     verify_apk "$DIST/xscript-v$V-release.apk" "$V"
+    # Phones only need arm64-v8a: a second APK without the x86_64 (PC emulator) libraries, about half the size.
+    rm -f android/app/build/outputs/apk/release/*.apk
+    XSCRIPT_GRADLE_TASK=:app:assembleRelease bash android/build.sh "-Pxscript.signingFile=$SIGN" -Pxscript.abis=arm64-v8a --console=plain >&2
+    cp android/app/build/outputs/apk/release/app-release.apk "$DIST/xscript-v$V-release-arm64-v8a.apk"
+    verify_apk "$DIST/xscript-v$V-release-arm64-v8a.apk" "$V"
   fi
   (cd "$DIST" && sha256 xscript-* > SHA256SUMS && cat SHA256SUMS)
   echo "built $DIST/"
@@ -132,7 +139,7 @@ notes)
 publish)
   bash "$0" check
   V="$(app_version)"; TAG="v$V"
-  FILES=("$DIST/xscript-v$V-release.apk" "$DIST/xscript-vscode-$V.vsix" "$DIST/SHA256SUMS")
+  FILES=("$DIST/xscript-v$V-release.apk" "$DIST/xscript-v$V-release-arm64-v8a.apk" "$DIST/xscript-vscode-$V.vsix" "$DIST/SHA256SUMS")
   for f in "${FILES[@]}"; do [ -f "$f" ] || { echo "missing $f (run: $0 build)" >&2; exit 1; }; done
   (cd "$DIST" && sha256 -c SHA256SUMS >/dev/null) || { echo "SHA256SUMS does not match the files in $DIST" >&2; exit 1; }
   NOTES="$(mktemp)"
