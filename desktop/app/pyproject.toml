@@ -15,7 +15,7 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
-test = ["pytest>=8", "pytest-qt>=4.4", "pytest-asyncio>=0.23", "pytest-cov>=5", "pytest-timeout>=2.3", "jsonschema>=4.20"]
+test = ["pytest>=8", "pytest-qt>=4.4", "pytest-asyncio>=0.23", "pytest-cov>=5", "pytest-timeout>=2.3", "pytest-xdist>=3.6", "jsonschema>=4.20"]
 
 [project.scripts]
 xscript-desktop = "xscript_desktop.main:main"
