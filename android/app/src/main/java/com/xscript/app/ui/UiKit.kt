@@ -12,6 +12,7 @@ import android.view.Gravity
 import android.view.View
 import android.view.ViewGroup
 import android.widget.FrameLayout
+import android.widget.ImageView
 import android.widget.LinearLayout
 import android.widget.ScrollView
 import android.widget.TextView
@@ -73,6 +74,12 @@ object UiKit {
         if (!sameText(view.text, text)) view.text = text
     }
 
+    /** Smallest touch target, in dp (Material and Android accessibility guidance). */
+    const val MIN_TOUCH_DP = 48f
+
+    /** Widest a row's trailing value gets, as a share of the content width; longer values wrap to a second line. */
+    fun valueMaxWidth(contentWidth: Int): Int = contentWidth * 45 / 100
+
     /** Widest the title bar and content get, in dp; wider windows (tablets, landscape) center them. */
     const val MAX_CONTENT_DP = 640f
 
@@ -122,17 +129,16 @@ object UiKit {
         val bar = Capped(ctx, maxPx).apply {
             orientation = LinearLayout.HORIZONTAL
             gravity = Gravity.CENTER_VERTICAL
-            setPadding(dp(ctx, if (back) 4f else 20f), dp(ctx, 10f), dp(ctx, 16f), dp(ctx, 6f))
+            setPadding(dp(ctx, if (back) 4f else 20f), dp(ctx, 6f), dp(ctx, 8f), dp(ctx, 4f))
         }
         if (back) {
-            bar.addView(TextView(ctx).apply {
-                text = "‹"
-                textSize = 30f
-                setTextColor(p.text)
-                gravity = Gravity.CENTER
+            bar.addView(ImageView(ctx).apply {
+                setImageResource(R.drawable.ic_ui_back)
+                imageTintList = ColorStateList.valueOf(p.text)
+                scaleType = ImageView.ScaleType.CENTER
                 contentDescription = "返回"
-                layoutParams = LinearLayout.LayoutParams(dp(ctx, 44f), dp(ctx, 44f))
-                background = ripple(Color.TRANSPARENT, 22f, ctx)
+                layoutParams = LinearLayout.LayoutParams(dp(ctx, MIN_TOUCH_DP), dp(ctx, MIN_TOUCH_DP))
+                background = ripple(Color.TRANSPARENT, MIN_TOUCH_DP / 2, ctx)
                 // Through the back dispatcher, so a screen's own back handling (the editor's unsaved-changes prompt)
                 // runs for the arrow too; without one the dispatcher finishes the activity.
                 setOnClickListener { navigateBack(activity) }
@@ -144,12 +150,17 @@ object UiKit {
             textSize = 20f
             setTypeface(typeface, Typeface.BOLD)
             setTextColor(p.text)
+            maxLines = 2
+            ellipsize = android.text.TextUtils.TruncateAt.END
+            ViewCompat.setAccessibilityHeading(this, true)
         })
         if (subtitle != null) {
             titles.addView(TextView(ctx).apply {
                 text = subtitle
                 textSize = 12f
                 setTextColor(p.muted)
+                maxLines = 2
+                ellipsize = android.text.TextUtils.TruncateAt.END
             })
         }
         bar.addView(titles, LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f))
@@ -190,8 +201,10 @@ object UiKit {
             textSize = 14f
             setTextColor(palette(ctx).accent)
             gravity = Gravity.CENTER
-            setPadding(dp(ctx, 10f), dp(ctx, 8f), dp(ctx, 10f), dp(ctx, 8f))
-            background = ripple(Color.TRANSPARENT, 16f, ctx)
+            setPadding(dp(ctx, 12f), 0, dp(ctx, 12f), 0)
+            minWidth = dp(ctx, MIN_TOUCH_DP)
+            minHeight = dp(ctx, MIN_TOUCH_DP)
+            background = ripple(Color.TRANSPARENT, MIN_TOUCH_DP / 2, ctx)
             setOnClickListener { onClick() }
         }
         bar.addView(tv)
@@ -303,23 +316,28 @@ object UiKit {
             text = title
             textSize = 16f
             setTextColor(p.text)
+            maxLines = 2
+            ellipsize = android.text.TextUtils.TruncateAt.END
         }
         line.addView(t, LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f))
         val v = TextView(ctx).apply {
             text = value
             textSize = 13f
             setTextColor(p.muted)
-            maxWidth = dp(ctx, 200f)
-            isSingleLine = true
-            ellipsize = android.text.TextUtils.TruncateAt.MIDDLE
+            // Up to two lines in under half the row: a large font scale wraps the value instead of cutting it.
+            maxWidth = valueMaxWidth(minOf(ctx.resources.displayMetrics.widthPixels, dp(ctx, MAX_CONTENT_DP)))
+            maxLines = 2
+            ellipsize = android.text.TextUtils.TruncateAt.END
+            gravity = Gravity.END
         }
-        line.addView(v)
+        line.addView(v, LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT).apply {
+            leftMargin = dp(ctx, 8f)
+        })
         if (chevron) {
-            line.addView(TextView(ctx).apply {
-                text = "›"
-                textSize = 20f
-                setTextColor(p.chevron)
-                setPadding(dp(ctx, 8f), 0, 0, dp(ctx, 2f))
+            line.addView(ImageView(ctx).apply {
+                setImageResource(R.drawable.ic_ui_chevron)
+                imageTintList = ColorStateList.valueOf(p.chevron)
+                setPadding(dp(ctx, 4f), 0, 0, 0)
                 importantForAccessibility = View.IMPORTANT_FOR_ACCESSIBILITY_NO
             })
         }
@@ -402,8 +420,9 @@ object UiKit {
         textSize = 15f
         gravity = Gravity.CENTER
         setTypeface(typeface, Typeface.BOLD)
-        setPadding(dp(ctx, 18f), dp(ctx, 10f), dp(ctx, 18f), dp(ctx, 10f))
-        minHeight = dp(ctx, 44f)
+        setPadding(dp(ctx, 20f), dp(ctx, 10f), dp(ctx, 20f), dp(ctx, 10f))
+        minHeight = dp(ctx, MIN_TOUCH_DP)
+        minWidth = dp(ctx, 72f)
         paint(this, tone)
         setOnClickListener { onClick() }
     }
@@ -416,7 +435,7 @@ object UiKit {
         if (button.getTag(R.id.xscript_tone) == tone) return
         button.setTag(R.id.xscript_tone, tone)
         val (container, content) = palette(button.context).fill(tone, button.context)
-        button.background = ripple(container, 22f, button.context)
+        button.background = ripple(container, 24f, button.context)
         button.setTextColor(content)
     }
 
