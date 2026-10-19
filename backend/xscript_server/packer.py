@@ -219,6 +219,11 @@ class Packer:
             env["XSCRIPT_KEY_PASS"] = self.config.key_pass or self.config.store_pass
         return args, env
 
+    async def _cancelled(self, job_id: int, say) -> None:
+        self.cancelled.discard(job_id)
+        say("cancelled")
+        await run_in_threadpool(self._finish, job_id, "cancelled", None, "已取消")
+
     async def _run(self, job_id: int) -> None:
         info = await run_in_threadpool(self._start, job_id)
         if info is None:
@@ -241,14 +246,20 @@ class Packer:
             say("$ " + " ".join(args[1:]))
             if env.get("XSCRIPT_CLOUD_URL"):
                 say("  XSCRIPT_CLOUD_URL=%s?token=***" % env["XSCRIPT_CLOUD_URL"].split("?")[0])
+            # The job shows "running" from _start on, but there is no process to terminate until it has been spawned:
+            # a cancel in that gap only marks the job, so honour the mark on both sides of the spawn. Otherwise the
+            # build ran to the end (minutes for a real build) before the cancel took effect.
+            if job_id in self.cancelled:
+                await self._cancelled(job_id, say)
+                return
             self.proc = await asyncio.create_subprocess_exec(
                 *args, stdout=logf, stderr=asyncio.subprocess.STDOUT, env=env, cwd=str(d),
                 start_new_session=True)
+            if job_id in self.cancelled and self.proc.returncode is None:
+                self.proc.terminate()
             code = await self.proc.wait()
             if job_id in self.cancelled:
-                self.cancelled.discard(job_id)
-                say("cancelled")
-                await run_in_threadpool(self._finish, job_id, "cancelled", None, "已取消")
+                await self._cancelled(job_id, say)
                 return
             apks = sorted((d / "out").glob("*.apk")) if (d / "out").is_dir() else []
             if code != 0 or not apks:
