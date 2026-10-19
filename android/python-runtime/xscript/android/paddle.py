@@ -198,8 +198,9 @@ class PaddleOcr(object):
         # threads on these small inputs, while independent single-thread runs keep every core busy
         # (measured ~1.7x on a 4-core emulator). The rec session gets threads // workers each.
         self.rec_workers = _rec_workers(threads, rec_workers)
-        self.rec = _onnx.load(rec, max(1, int(threads or 0) // self.rec_workers) if threads else 0, accel)
-        self.cls = _onnx.load(cls, threads, accel) if cls else None
+        self.rec = _onnx.load(rec, self._worker_threads(threads), accel)
+        # The orientation classifier is batched the same way (one split per worker).
+        self.cls = _onnx.load(cls, self._worker_threads(threads), accel) if cls else None
         self.chars = load_chars(keys, self.rec.metadata)
         self.limit_side_len = int(limit_side_len)
         self.limit_type = limit_type
@@ -224,7 +225,8 @@ class PaddleOcr(object):
         shape = self.cls.inputs[0]["shape"]
         ch, cw = (shape[2], shape[3]) if len(shape) == 4 and shape[2] > 0 else (80, 160)
         batch = np.concatenate([_normalize(cv2.resize(c, (cw, ch)), _MEAN, _STD) for c in crops])
-        probs = self.cls.run_first(batch)
+        parts = np.array_split(batch, min(len(crops), getattr(self, "rec_workers", 1)))
+        probs = np.concatenate(self._map(self.cls.run_first, parts))
         out = []
         for c, p in zip(crops, probs):
             out.append(cv2.rotate(c, cv2.ROTATE_180) if p.argmax() == 1 and p.max() > threshold else c)
@@ -248,16 +250,23 @@ class PaddleOcr(object):
             for k, i in enumerate(idx):
                 results[i] = ctc_decode_argmax(best[k], conf[k], self.chars)
 
-        if len(groups) > 1 and self.rec_workers > 1:
-            # A pool per call: idle worker threads must not outlive the call, because the
-            # script runner waits for non-daemon threads before it reports a script finished.
-            from concurrent.futures import ThreadPoolExecutor
-            with ThreadPoolExecutor(min(self.rec_workers, len(groups)), thread_name_prefix="xs-paddle-rec") as ex:
-                list(ex.map(work, groups))
-        else:
-            for idx in groups:
-                work(idx)
+        self._map(work, groups)
         return results
+
+    def _worker_threads(self, threads):
+        """Intra-op threads per session when `rec_workers` runs share the cores."""
+        return max(1, int(threads) // self.rec_workers) if threads else 0
+
+    def _map(self, fn, items):
+        """[fn(item)] in order; concurrent when there are several items and workers."""
+        workers = min(getattr(self, "rec_workers", 1), len(items))
+        if workers <= 1:
+            return [fn(i) for i in items]
+        # A pool per call: idle worker threads must not outlive the call, because the
+        # script runner waits for non-daemon threads before it reports a script finished.
+        from concurrent.futures import ThreadPoolExecutor
+        with ThreadPoolExecutor(workers, thread_name_prefix="xs-paddle") as ex:
+            return list(ex.map(fn, items))
 
     def _rec_batch(self, crops, ratios, idx):
         h = self.rec_h
