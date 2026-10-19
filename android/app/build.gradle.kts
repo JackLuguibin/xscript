@@ -30,6 +30,10 @@ val releaseSigning = Properties().apply {
 // developer app (or with another packed app) and incremental builds stay valid.
 if (packed) layout.buildDirectory.set(file("build-pack/" + pack.getProperty("app_id", "app").trim()))
 fun packProp(key: String, default: String = ""): String = pack.getProperty(key, default).trim()
+// ABIs to package: a packed app's `abis`, else -Pxscript.abis (release.sh builds an arm64-only APK beside the
+// universal one), else phones (arm64-v8a) plus x86_64 PC emulators.
+val abiList: String = packProp("abis").ifEmpty { (project.findProperty("xscript.abis") as String?)?.trim().orEmpty() }
+    .ifEmpty { "arm64-v8a,x86_64" }
 fun String.kotlinQuoted(): String = "\"" + replace("\\", "\\\\").replace("\"", "\\\"").replace("$", "\\$") + "\""
 
 // Generated resources and assets for a packed build: the bundled project, app name, icon.
@@ -47,7 +51,7 @@ android {
         versionCode = if (packed) packProp("version_code", "1").toInt() else 9
         versionName = if (packed) packProp("version_name", "1.0.0") else "0.3.0"
         ndk {
-            abiFilters += (packProp("abis").ifEmpty { "arm64-v8a,x86_64" }).split(',').map { it.trim() }.filter { it.isNotEmpty() }
+            abiFilters += abiList.split(',').map { it.trim() }.filter { it.isNotEmpty() }
         }
         buildConfigField("boolean", "PACKAGED", packed.toString())
         buildConfigField("String", "PACK_PROJECT", packProp("project_name").kotlinQuoted())
