@@ -82,9 +82,9 @@ class ThemeTokensTest {
         val src = File(module, "src/main/java/com/xscript/app")
         val kit = File(src, "ui/UiKit.kt").readText()
         assertFalse("UiKit hardcodes a color", Regex("0x[0-9A-Fa-f]{8}").containsMatchIn(kit))
-        // Screens of the app's own theme; ScriptUi (script dialogs) and SchemeActivity (translucent) are not.
+        // Every screen and dialog, including script dialogs (ScriptUi) and the link dialog (SchemeActivity).
         val screens = listOf("MainActivity.kt", "ui/ProjectsActivity.kt", "ui/ProjectActivity.kt", "ui/PackActivity.kt",
-            "ui/EditorActivity.kt", "ui/LogActivity.kt", "ui/FloatControl.kt")
+            "ui/EditorActivity.kt", "ui/LogActivity.kt", "ui/FloatControl.kt", "script/ScriptUi.kt", "link/SchemeActivity.kt")
         for (name in screens) {
             val text = File(src, name).readText()
             assertFalse("$name uses android.app.AlertDialog", text.contains("import android.app.AlertDialog"))
