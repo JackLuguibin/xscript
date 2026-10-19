@@ -45,10 +45,7 @@ def ui(_shell, qtbot):
     sh.redirect.clear()
     sh.redirect[41000] = fd.port
     sh.win.resize(1100, 720)
-    sh.win.load()
-    qtbot.wait(100)
-    sh.wait_url(qtbot)
-    sh.wait_js(qtbot, "document.querySelector('main') !== null && document.body.innerText.includes('emulator-5554')", timeout=15000)
+    sh.reload(qtbot, "document.querySelector('main') !== null && document.body.innerText.includes('emulator-5554')")
     return sh
 
 
@@ -249,15 +246,13 @@ def test_e2e_16_theme_button_switches_and_survives_reload(ui, qtbot):
     """E-16 the sidebar theme button cycles system→light→dark in the real shell, sets <html data-theme>, repaints and is remembered after a reload."""
     ui.wait_text(qtbot, "主题：")
     ui.js(qtbot, "(() => { localStorage.removeItem('xscript.theme'); return 1; })()")
-    ui.win.load()
-    ui.wait_js(qtbot, "document.querySelector('.sidebar-foot button')")
+    ui.reload(qtbot, "document.querySelector('.sidebar-foot button')")
     assert ui.js(qtbot, "document.documentElement.hasAttribute('data-theme')") is False
     ui.js(qtbot, "(() => { document.querySelector('.sidebar-foot button').click(); return 1; })()")
     ui.js(qtbot, "(() => { document.querySelector('.sidebar-foot button').click(); return 1; })()")
     ui.wait_js(qtbot, "document.documentElement.getAttribute('data-theme') === 'dark'")
     assert ui.js(qtbot, "getComputedStyle(document.body).backgroundColor") == "rgb(14, 17, 22)"  # --bg of the dark tokens
-    ui.win.load()
-    ui.wait_js(qtbot, "document.documentElement.getAttribute('data-theme') === 'dark' && document.querySelector('main')")
+    ui.reload(qtbot, "document.documentElement.getAttribute('data-theme') === 'dark' && document.querySelector('main')")
     ui.js(qtbot, "(() => { localStorage.removeItem('xscript.theme'); return 1; })()")
 
 

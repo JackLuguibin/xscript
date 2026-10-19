@@ -57,10 +57,7 @@ def ui(_shell, qtbot):
     sh.redirect.clear()
     sh.redirect[41000] = fd.port
     sh.win.resize(1100, 720)
-    sh.win.load()
-    qtbot.wait(100)
-    sh.wait_url(qtbot)
-    sh.wait_js(qtbot, "document.querySelector('main') && document.body.innerText.includes('emulator-5554')", timeout=15000)
+    sh.reload(qtbot, "document.querySelector('main') && document.body.innerText.includes('emulator-5554')")
     sh.js(qtbot, _PRESS)
     return sh
 
