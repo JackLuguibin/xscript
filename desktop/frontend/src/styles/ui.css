@@ -1,0 +1,28 @@
+/* The look of the components/ui primitives (Button, Input, Textarea, Select), written with @apply so it is the same
+   Tailwind declarations the primitives used to carry as class lists. It lives in the `ui` layer (styles.css): above
+   controls/base/vendor, below components, so a component rule such as `.flow-hud button` still restyles a primitive,
+   and below utilities, so a utility class passed from markup (`<Button className="w-full">`) always wins.
+   Class order matters inside the layer: a variant comes after .ui-btn and a size after the variants. */
+
+.ui-btn { @apply inline-flex cursor-pointer items-center whitespace-nowrap disabled:cursor-not-allowed; }
+
+.ui-btn-default { @apply min-h-8 justify-center gap-sp-2 rounded-sm border border-line-strong bg-surface px-sp-3 py-sp-1 text-fg transition-[background,border-color,transform] ease-snap hover:border-primary hover:bg-surface-2 active:translate-y-px active:scale-[0.985] disabled:opacity-55; }
+.ui-btn-primary { @apply min-h-8 justify-center gap-sp-2 rounded-sm border border-primary bg-primary px-sp-3 py-sp-1 font-semibold text-on-primary transition-[background,border-color,transform] ease-snap hover:border-primary-hover hover:bg-primary-hover active:translate-y-px active:scale-[0.985] disabled:opacity-55; }
+.ui-btn-ghost { @apply min-h-8 justify-center gap-sp-2 rounded-sm border border-transparent bg-transparent px-sp-3 py-sp-1 text-fg transition-[background,border-color,transform] ease-snap hover:bg-surface-2 active:translate-y-px active:scale-[0.985] disabled:opacity-55; }
+.ui-btn-danger { @apply min-h-8 justify-center gap-sp-2 rounded-sm border border-line-strong bg-surface px-sp-3 py-sp-1 text-danger-fg transition-[background,border-color,transform] ease-snap hover:border-danger-dot hover:bg-danger-bg active:translate-y-px active:scale-[0.985] disabled:opacity-55; }
+
+/* Flat buttons of the flow canvas toolbar: no border, compact; the toolbar supplies the surface. */
+.ui-btn-toolbar, .ui-btn-toolbar-primary, .ui-btn-toolbar-danger { @apply min-h-[1.7rem] flex-none justify-center gap-sp-2 rounded-sm bg-transparent px-[0.55rem] py-0 text-[length:var(--fs-xs)] text-fg [border:0] [box-shadow:none] transition-[background,border-color,transform] ease-snap enabled:hover:bg-surface-2 active:translate-y-px active:scale-[0.985] disabled:opacity-55; }
+.ui-btn-toolbar-primary { @apply border-primary bg-primary font-semibold text-on-primary enabled:hover:bg-primary-hover; }
+.ui-btn-toolbar-danger { @apply text-danger-fg enabled:hover:bg-danger-bg; }
+
+/* Only height and text shrink: before the move, px-sp-3 from the variant out-sorted px-sp-2 here, so small buttons have
+   always rendered with the regular padding. Kept that way so this change is visually neutral. */
+.ui-btn-sm { @apply min-h-7 text-sm; }
+/* Square icon button; aria-pressed marks a toggle that is on. `enabled:` lifts the pressed fill to the specificity of the
+   toolbar hover, and coming later it keeps showing while hovered, as the old `.flow-bar` rule did. */
+.ui-btn-icon { @apply w-[1.9rem] justify-center px-0 text-muted aria-pressed:enabled:bg-primary-soft aria-pressed:text-primary; }
+
+.ui-input { @apply min-h-9 w-full rounded-sm border border-line-strong bg-surface px-sp-3 py-sp-1 text-fg transition-[border-color,box-shadow] ease-snap placeholder:text-muted hover:border-primary; }
+.ui-textarea { @apply min-h-24 w-full rounded-sm border border-line-strong bg-surface px-sp-3 py-sp-2 text-fg transition-[border-color,box-shadow] ease-snap placeholder:text-muted hover:border-primary; }
+.ui-select { @apply min-h-9 w-full rounded-sm border border-line-strong bg-surface px-sp-3 py-sp-1 pr-8 text-fg transition-[border-color,box-shadow] ease-snap hover:border-primary; }

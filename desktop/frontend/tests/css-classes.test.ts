@@ -38,8 +38,8 @@ function imports(path: string): [string, string | null][] {
 }
 
 describe("cascade layers", () => {
-  it("declares the layer order once: controls < base < vendor < utilities < components", () => {
-    expect(layerOrder()).toEqual(["theme", "controls", "base", "vendor", "utilities", "components"]);
+  it("declares the layer order once, utilities last as in Tailwind's own setup", () => {
+    expect(layerOrder()).toEqual(["theme", "controls", "base", "vendor", "ui", "components", "utilities"]);
     expect(stripComments(read("src/styles/tailwind.css"))).not.toMatch(/@layer\s+[\w\s,-]+;/);
   });
 
@@ -49,6 +49,7 @@ describe("cascade layers", () => {
       ["./styles/controls.css", "controls"],
       ["./styles/base.css", "base"],
       ["@xyflow/react/dist/style.css", "vendor"],
+      ["./styles/ui.css", "ui"],
       ["./styles/components.css", "components"],
       ["./styles/overrides.css", null],
       ["./styles/tailwind.css", null],
@@ -60,7 +61,7 @@ describe("cascade layers", () => {
   });
 
   it("keeps the layered files free of their own @layer blocks, which would nest as sublayers", () => {
-    for (const path of ["src/styles/controls.css", "src/styles/base.css", "src/styles/components.css", "src/styles/overrides.css"]) {
+    for (const path of ["src/styles/controls.css", "src/styles/base.css", "src/styles/ui.css", "src/styles/components.css", "src/styles/overrides.css"]) {
       expect(stripComments(read(path)), path).not.toMatch(/@layer\b/);
     }
   });
@@ -78,20 +79,36 @@ describe("cascade layers", () => {
   });
 });
 
-describe("our class names and Tailwind utilities", () => {
-  it("do not collide in the layers below utilities, where a same-named utility would win", async () => {
-    // `.list-item` once lost `display: flex` to Tailwind's `display: list-item` and stacked the ADB rows. components.css now
-    // sits above utilities, but controls.css and base.css do not. `grow` and `sr-only` mean the same thing in both.
-    const allowed = ["grow", "sr-only"];
-    const clashes = await utilitiesAmong(classesIn(["src/styles/controls.css", "src/styles/base.css"]));
-    expect(clashes.filter((name) => !allowed.includes(name))).toEqual([]);
+describe("ui primitives", () => {
+  const css = stripComments(read("src/styles/ui.css"));
+
+  it("keep their look in ui.css: every class a primitive emits is defined there", () => {
+    const emitted = ["button", "input", "textarea", "select"]
+      .flatMap((name) => [...read("src/components/ui/" + name + ".tsx").matchAll(/"(ui-[\w-]+)"/g)].map((hit) => hit[1]));
+    expect(emitted.length).toBeGreaterThan(10);
+    for (const name of emitted) expect(css, name).toMatch(new RegExp("\\." + name + "[\\s,{]"));
   });
 
-  it("only share names with utilities in components.css on purpose", async () => {
-    // A component rule wins over the utility of the same name now, so these are safe; the list stays explicit so a new
-    // clash (and the confusion of a class meaning two things) is a decision, not an accident.
-    const allowed = ["bg-primary", "grow", "sr-only", "text-danger-fg"];
-    const clashes = await utilitiesAmong(classesIn(["src/styles/components.css"]));
+  it("carry no Tailwind utilities of their own any more, so a className utility always wins", () => {
+    for (const name of ["button", "input", "textarea", "select"]) {
+      const source = read("src/components/ui/" + name + ".tsx");
+      expect(source, name).not.toMatch(/"[^"]*\b(min-h|px|py|rounded|border|bg)-[\w[\]-]+[^"]*"/);
+    }
+  });
+
+  it("are written as @apply rules", () => {
+    const rules = [...css.matchAll(/([^{}]+)\{([^{}]*)\}/g)];
+    expect(rules.length).toBeGreaterThan(5);
+    for (const [, selector, body] of rules) expect(body.trim(), selector.trim()).toMatch(/^@apply [^;]+;$/);
+  });
+});
+
+describe("our class names and Tailwind utilities", () => {
+  it("do not collide, so a rule of ours is never overridden by a same-named utility", async () => {
+    // Utilities are the last layer, so a same-named utility beats every rule of ours. `.list-item` once lost
+    // `display: flex` to Tailwind's `display: list-item` and stacked the ADB rows. `grow` and `sr-only` mean the same thing.
+    const allowed = ["grow", "sr-only"];
+    const clashes = await utilitiesAmong(classesIn(["src/styles/controls.css", "src/styles/base.css", "src/styles/ui.css", "src/styles/components.css"]));
     expect(clashes.filter((name) => !allowed.includes(name))).toEqual([]);
   });
 

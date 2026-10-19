@@ -1,7 +1,7 @@
 /* Tailwind utilities only. Preflight stays off: its button/img reset fights the existing controls, Monaco, and React Flow.
    Colour, type, and spacing still come from tokens.css (contrast.test.ts). @theme inline aliases them so a
    data-theme change updates utilities without copying hex values. */
-/* The layer order is declared once, in styles.css: utilities sit above controls/base and below components. */
+/* The layer order is declared once, in styles.css: utilities come last, so they override components. */
 @import "tailwindcss/theme.css" layer(theme);
 @import "tailwindcss/utilities.css" layer(utilities);
 
