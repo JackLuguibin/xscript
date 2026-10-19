@@ -15,6 +15,11 @@ import android.widget.FrameLayout
 import android.widget.LinearLayout
 import android.widget.ScrollView
 import android.widget.TextView
+import androidx.activity.ComponentActivity
+import androidx.activity.SystemBarStyle
+import androidx.activity.enableEdgeToEdge
+import androidx.core.view.ViewCompat
+import androidx.core.view.WindowInsetsCompat
 import com.xscript.app.R
 
 /** Small programmatic view kit for the AScript-style grouped list screens. */
@@ -67,16 +72,53 @@ object UiKit {
         if (!sameText(view.text, text)) view.text = text
     }
 
-    /** Screen scaffold: title bar + scrolling column. Returns the column. */
+    /** Widest the title bar and content get, in dp; wider windows (tablets, landscape) center them. */
+    const val MAX_CONTENT_DP = 640f
+
+    /** Left, top, right and bottom sizes in px (system bar, cutout or keyboard insets). */
+    data class Edges(val left: Int, val top: Int, val right: Int, val bottom: Int)
+
+    /** Padding of the whole screen: the bars and cutout on the top and sides; the bottom is the content's. */
+    fun screenPadding(bars: Edges): Edges = Edges(bars.left, bars.top, bars.right, 0)
+
+    /**
+     * Bottom padding of the scrolling content: its own [base] plus the navigation bar, or the keyboard when it is
+     * taller, so the last row scrolls clear of both while the list still draws behind the gesture bar.
+     */
+    fun contentBottom(base: Int, bars: Edges, imeBottom: Int): Int = base + maxOf(bars.bottom, imeBottom)
+
+    /** Width a column measures to: the window's, capped at [maxPx]. */
+    fun cappedWidth(available: Int, maxPx: Int): Int = minOf(available, maxPx)
+
+    /** A vertical/horizontal LinearLayout no wider than [maxPx]; its parent centers it. */
+    private class Capped(ctx: Context, private val maxPx: Int) : LinearLayout(ctx) {
+        override fun onMeasure(widthMeasureSpec: Int, heightMeasureSpec: Int) {
+            val mode = MeasureSpec.getMode(widthMeasureSpec)
+            val size = MeasureSpec.getSize(widthMeasureSpec)
+            val spec = if (mode == MeasureSpec.UNSPECIFIED) widthMeasureSpec
+            else MeasureSpec.makeMeasureSpec(cappedWidth(size, maxPx), mode)
+            super.onMeasure(spec, heightMeasureSpec)
+        }
+    }
+
+    /**
+     * Screen scaffold: title bar + scrolling column. Returns the column. Draws edge to edge: the bars are
+     * transparent and the window insets are applied as padding (bar on top and sides, content bottom).
+     */
     fun screen(activity: Activity, title: String, subtitle: String? = null, back: Boolean = true): LinearLayout {
         val ctx = activity
         val p = palette(ctx)
+        (activity as? ComponentActivity)?.enableEdgeToEdge(
+            SystemBarStyle.auto(Color.TRANSPARENT, Color.TRANSPARENT),
+            SystemBarStyle.auto(Color.TRANSPARENT, Color.TRANSPARENT),
+        )
+        val maxPx = dp(ctx, MAX_CONTENT_DP)
         val outer = LinearLayout(ctx).apply {
             orientation = LinearLayout.VERTICAL
+            gravity = Gravity.CENTER_HORIZONTAL
             setBackgroundColor(p.bg)
-            fitsSystemWindows = true
         }
-        val bar = LinearLayout(ctx).apply {
+        val bar = Capped(ctx, maxPx).apply {
             orientation = LinearLayout.HORIZONTAL
             gravity = Gravity.CENTER_VERTICAL
             setPadding(dp(ctx, if (back) 4f else 20f), dp(ctx, 10f), dp(ctx, 16f), dp(ctx, 6f))
@@ -108,14 +150,24 @@ object UiKit {
             })
         }
         bar.addView(titles, LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f))
-        outer.addView(bar)
+        outer.addView(bar, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT))
         val scroll = ScrollView(ctx).apply { isFillViewport = true }
-        val column = LinearLayout(ctx).apply {
+        val bottom = dp(ctx, 24f)
+        val column = Capped(ctx, maxPx).apply {
             orientation = LinearLayout.VERTICAL
-            setPadding(dp(ctx, 12f), dp(ctx, 4f), dp(ctx, 12f), dp(ctx, 24f))
+            setPadding(dp(ctx, 12f), dp(ctx, 4f), dp(ctx, 12f), bottom)
         }
-        scroll.addView(column)
+        scroll.addView(column, FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT, Gravity.CENTER_HORIZONTAL))
         outer.addView(scroll, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, 0, 1f))
+        ViewCompat.setOnApplyWindowInsetsListener(outer) { v, insets ->
+            val i = insets.getInsets(WindowInsetsCompat.Type.systemBars() or WindowInsetsCompat.Type.displayCutout())
+            val bars = Edges(i.left, i.top, i.right, i.bottom)
+            val pad = screenPadding(bars)
+            v.setPadding(pad.left, pad.top, pad.right, pad.bottom)
+            val ime = insets.getInsets(WindowInsetsCompat.Type.ime()).bottom
+            column.setPadding(column.paddingLeft, column.paddingTop, column.paddingRight, contentBottom(bottom, bars, ime))
+            WindowInsetsCompat.CONSUMED
+        }
         activity.setContentView(outer)
         column.tag = bar
         return column
