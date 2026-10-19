@@ -143,11 +143,13 @@ def open_flows(sh, qtbot):
 
 @pytest.mark.parametrize("theme,width", [("light", 1280), ("dark", 1280), ("light", 1024), ("dark", 1024)])
 def test_v_flow_page(vis, qtbot, theme, width):
-    """Flow page with the sample flow: tiered panel widths, library hidden at ≤1280 px, AutoFit framing, themed minimap."""
+    """Flow page with the sample flow: tiered panel widths, library hidden at ≤1280 px, inspector folded at ≤1100 px, AutoFit framing, themed minimap."""
     prepare(vis, qtbot, theme, size=(width, 800))
     vis.wait_text(qtbot, "emulator-5554")
     open_flows(vis, qtbot)
     assert vis.js(qtbot, "document.querySelector('.flow-page').dataset.library") == "closed"
+    # ≤1100 px: the inspector folds away until a node is picked, so the canvas keeps the width.
+    assert vis.js(qtbot, "document.querySelector('.flow-page').dataset.inspector") == ("closed" if width <= 1100 else "open")
     assert vis.js(qtbot, "document.documentElement.scrollWidth <= document.documentElement.clientWidth + 1") is True
     assert vis.js(qtbot, "document.querySelector('.react-flow__minimap') !== null") is True
     verify("flow-%d-%s" % (width, theme), vis, qtbot)

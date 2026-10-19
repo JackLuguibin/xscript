@@ -1,5 +1,5 @@
-import { useMemo, useRef, useState } from "react";
-import { paletteTree, userFunctions, NODE_DRAG, type PaletteDrag, type UserTemplate } from "../flow/palette";
+import { useMemo, useRef, useState, type KeyboardEvent } from "react";
+import { paletteStep, paletteTree, userFunctions, NODE_DRAG, type PaletteDrag, type UserTemplate } from "../flow/palette";
 import { searchNodes, type MenuSpec } from "../flow/search";
 import type { FlowGraph } from "../flow/dsl";
 import { t } from "../strings";
@@ -43,6 +43,9 @@ function Leaf({ label, drag, hint, onPick }: { label: string; drag: PaletteDrag;
   );
 }
 
+/** Rows the arrow keys walk through, in document order: group toggles and node leaves (not the "mine" form). */
+const ROWS = ".flow-family, .flow-cat, .flow-leaves .flow-leaf";
+
 export function NodePalette({
   specs,
   recent,
@@ -77,9 +80,52 @@ export function NodePalette({
     else onCreateNode(trimmed);
     setName("");
   };
+  const root = useRef<HTMLElement | null>(null);
+  const rows = () => [...(root.current?.querySelectorAll<HTMLButtonElement>(ROWS) ?? [])];
+  // Tree-view keys (WAI-ARIA): ↑/↓/Home/End move, → opens a folded group, ← folds an open one or goes to its group.
+  const onRowKey = (event: KeyboardEvent<HTMLElement>) => {
+    const target = event.target as HTMLElement;
+    if (!target.matches?.(ROWS)) return;
+    const list = rows();
+    const index = list.indexOf(target as HTMLButtonElement);
+    const twist = target.classList.contains("flow-twist");
+    const open = target.getAttribute("aria-expanded") === "true";
+    let next: HTMLElement | undefined;
+    if (event.key === "ArrowRight" && twist) {
+      if (!open) target.click();
+      else next = list[index + 1];
+    } else if (event.key === "ArrowLeft") {
+      if (twist && open) target.click();
+      else next = list.slice(0, index).reverse().find((row) => row.classList.contains("flow-twist") && row.getAttribute("aria-expanded") === "true" && (!target.classList.contains("flow-cat") || row.classList.contains("flow-family")));
+    } else {
+      const step = paletteStep(event.key, index, list.length);
+      if (step === null) return;
+      next = list[step];
+    }
+    event.preventDefault();
+    next?.focus();
+  };
   return (
-    <section className="flow-palette" aria-label={t.flow.palette}>
-      <Input aria-label={t.flow.paletteSearch} value={query} placeholder={t.flow.paletteSearch} onChange={(event) => setQuery(event.target.value)} />
+    <section className="flow-palette" aria-label={t.flow.palette} ref={root} onKeyDown={onRowKey}>
+      <Input
+        aria-label={t.flow.paletteSearch}
+        value={query}
+        placeholder={t.flow.paletteSearch}
+        onChange={(event) => setQuery(event.target.value)}
+        onKeyDown={(event) => {
+          if (event.key === "Escape" && query) {
+            event.preventDefault();
+            event.stopPropagation();
+            setQuery("");
+          } else if (event.key === "Enter" && hits[0]) {
+            event.preventDefault();
+            onPick({ kind: "spec", type: hits[0].type });
+          } else if (event.key === "ArrowDown") {
+            event.preventDefault();
+            rows()[0]?.focus();
+          }
+        }}
+      />
       <div className="flow-mine">
         <p className="flow-kicker">{t.flow.mine}</p>
         {functions.length ? (
@@ -141,7 +187,7 @@ export function NodePalette({
                       <div key={group.category} className="flow-branch">
                         <button type="button" className="flow-cat flow-twist" aria-expanded={shown} aria-label={t.flow.category + " " + catLabel} onClick={() => toggle(openCats, cat, setOpenCats)}>
                           {catLabel}
-                          <span aria-hidden="true"> {group.specs.length}</span>
+                          <span className="flow-cat-count" aria-hidden="true">{group.specs.length}</span>
                         </button>
                         {shown ? (
                           <div className="flow-leaves">

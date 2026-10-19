@@ -1,9 +1,9 @@
-import { Component, createContext, useContext, useEffect, useMemo, useRef, useState, type DragEvent, type ReactNode } from "react";
+import { Component, createContext, useContext, useEffect, useId, useMemo, useRef, useState, type DragEvent, type ReactNode } from "react";
 import { keepDraft, readDraft } from "../flow/draft";
 import { onCanvasPick, takeCanvasPicks } from "../flow/inbox";
 import { dropTreeNode, type TreeDrop } from "../flow/tree-drop";
 import { IconSidebar } from "./icons";
-import { focusTargets, libraryShown, matchesNarrow, NARROW_QUERY, shouldAutoFit, startViewport, overflowEdges, toggleLibrary, wheelShift, type CanvasFocus, type LibraryMode } from "../flow/panels";
+import { COMPACT_QUERY, focusTargets, inspectorShown, libraryShown, matchesNarrow, NARROW_QUERY, numberIssue, shouldAutoFit, startViewport, overflowEdges, toggleInspector, toggleLibrary, wheelShift, type CanvasFocus, type FieldIssue, type InspectorMode, type LibraryMode } from "../flow/panels";
 import { Background, BaseEdge, Handle, MiniMap, Position, ReactFlow, ReactFlowProvider, useNodesInitialized, useReactFlow, useStore, useUpdateNodeInternals, type ConnectionLineComponentProps, type EdgeProps, type Node, type NodeProps } from "@xyflow/react";
 import "@xyflow/react/dist/style.css";
 import { CodeEditor } from "./CodeEditor";
@@ -76,6 +76,81 @@ type FlowNodeData = {
   fields?: Array<{ name: string; ui: string; type?: string; value: string | number | boolean | null; min?: number; options?: string[] }>;
 } & Record<string, unknown>;
 
+function issueText(issue: FieldIssue): string {
+  if (issue.kind === "required") return t.flow.fieldRequired;
+  if (issue.kind === "integer") return t.flow.fieldInteger;
+  if (issue.kind === "min") return t.flow.fieldMin(issue.min ?? 0);
+  return t.flow.fieldNumber;
+}
+
+/**
+ * A number property with inline validation: the draft is kept while it is not a valid value (empty, not an
+ * integer for an int pin, below the pin's minimum) and the reason is shown under the field instead of the
+ * keystroke being dropped. Only valid values reach the flow.
+ */
+function NumberField({ field, caption, label, committed, onChange }: { field: InspectPin; caption: ReactNode; label: string; committed: string; onChange: (value: string | number | boolean) => void }) {
+  const [draft, setDraft] = useState(committed);
+  const [seen, setSeen] = useState(committed);
+  const [issue, setIssue] = useState<FieldIssue | null>(null);
+  const hint = useId();
+  if (seen !== committed) {
+    // Changed from elsewhere (canvas field, text, undo): show the stored value again.
+    setSeen(committed);
+    setDraft(committed);
+    setIssue(null);
+  }
+  return (
+    <label className={issue ? "is-invalid" : undefined}>
+      {caption}
+      <Input
+        aria-label={label}
+        type="number"
+        min={field.min}
+        step={field.type === "int" ? 1 : "any"}
+        value={draft}
+        aria-invalid={issue ? true : undefined}
+        aria-describedby={issue ? hint : undefined}
+        onChange={(event) => {
+          const raw = event.target.value;
+          const next = numberIssue(raw, field.type, field.min);
+          setDraft(raw);
+          setIssue(next);
+          if (next) return;
+          const value = literalFromField(field, raw);
+          if (value === null) return;
+          setSeen(String(value));
+          onChange(value);
+        }}
+      />
+      {issue ? (
+        <span className="flow-prop-error" id={hint} role="alert">
+          {issueText(issue)}
+        </span>
+      ) : null}
+    </label>
+  );
+}
+
+/** A collapsible inspector section (Figma / Unreal style); the header button carries aria-expanded. */
+function InspectGroup({ title, count, open, onToggle, children }: { title: string; count?: number; open: boolean; onToggle: () => void; children: ReactNode }) {
+  const body = useId();
+  return (
+    <section className="flow-group" aria-label={title}>
+      <h3 className="flow-group-head">
+        <button type="button" className="flow-group-toggle flow-twist" aria-expanded={open} aria-controls={body} onClick={onToggle}>
+          <span className="flow-group-title">{title}</span>
+          {count !== undefined ? <span className="flow-group-count">{count}</span> : null}
+        </button>
+      </h3>
+      {open ? (
+        <div className="flow-group-body" id={body}>
+          {children}
+        </div>
+      ) : null}
+    </section>
+  );
+}
+
 const editPin = createContext<(id: string, pin: string, value: string | number | boolean | null) => void>(() => undefined);
 const cycleBp = createContext<(id: string) => void>(() => undefined);
 
@@ -120,7 +195,8 @@ function PropertyField({ field, onChange }: { field: InspectPin; onChange: (valu
   }
   const shown = field.value == null ? "" : String(field.value);
   const numeric = field.ui === "number" && (shown === "" || Number.isFinite(Number(shown)));
-  const kind = numeric ? "number" : field.ui === "color" && /^#[0-9a-fA-F]{6}$/.test(shown) ? "color" : "text";
+  if (numeric) return <NumberField field={field} caption={caption} label={label} committed={shown} onChange={onChange} />;
+  const kind = field.ui === "color" && /^#[0-9a-fA-F]{6}$/.test(shown) ? "color" : "text";
   return (
     <label>
       {caption}
@@ -660,6 +736,11 @@ export function FlowPage({ initialLayout }: { initialLayout?: FlowLayout } = {})
   const sawRunning = useRef(false);
   const [session, setSession] = useState<FlowDebug | null>(null);
   const [library, setLibrary] = useState<LibraryMode>("auto");
+  const [inspector, setInspector] = useState<InspectorMode>("auto");
+  const [folded, setFolded] = useState<ReadonlySet<string>>(() => new Set());
+  const [compact, setCompact] = useState(() => matchesNarrow(COMPACT_QUERY));
+  const compactRef = useRef(compact);
+  compactRef.current = compact;
   const [narrow, setNarrow] = useState(matchesNarrow);
   const narrowRef = useRef(narrow);
   narrowRef.current = narrow;
@@ -674,6 +755,18 @@ export function FlowPage({ initialLayout }: { initialLayout?: FlowLayout } = {})
       return;
     }
     const onChange = () => setNarrow(query.matches);
+    query.addEventListener?.("change", onChange);
+    return () => query.removeEventListener?.("change", onChange);
+  }, []);
+  useEffect(() => {
+    if (typeof window.matchMedia !== "function") return;
+    let query: MediaQueryList;
+    try {
+      query = window.matchMedia(COMPACT_QUERY);
+    } catch {
+      return;
+    }
+    const onChange = () => setCompact(query.matches);
     query.addEventListener?.("change", onChange);
     return () => query.removeEventListener?.("change", onChange);
   }, []);
@@ -1529,6 +1622,12 @@ export function FlowPage({ initialLayout }: { initialLayout?: FlowLayout } = {})
         const key = event.key.toLowerCase();
         const overlay = event.target instanceof Element ? event.target.closest("[role=dialog]") : null;
         const foreignDialog = overlay !== null && !overlay.classList.contains("flow-menu");
+        if (!foreignDialog && !isTextEntry(event.target) && key === "i" && event.shiftKey) {
+          event.preventDefault();
+          event.stopPropagation();
+          setInspector((cur) => toggleInspector(cur, compactRef.current, pickedRef.current.length > 0));
+          return;
+        }
         if (!foreignDialog && !isTextEntry(event.target) && key === "b" && !event.shiftKey) {
           event.preventDefault();
           event.stopPropagation();
@@ -1760,6 +1859,14 @@ export function FlowPage({ initialLayout }: { initialLayout?: FlowLayout } = {})
   cutRef.current = cutSelection;
 
   const chosen = graph.nodes.find((node) => node.id === picked[0]);
+  const inspectorOpen = inspectorShown(inspector, compact, picked.length > 0);
+  const flipInspector = () => setInspector((cur) => toggleInspector(cur, compactRef.current, pickedRef.current.length > 0));
+  const foldGroup = (id: string) =>
+    setFolded((cur) => {
+      const next = new Set(cur);
+      if (!next.delete(id)) next.add(id);
+      return next;
+    });
   const chosenSpec = chosen ? specs.get(chosen.type) : undefined;
   const chosenTitle = chosen
     ? layout.nodes[chosen.id]?.title || chosenSpec?.title?.[getLanguage()] || chosenSpec?.title?.zh || chosen.id
@@ -1775,7 +1882,7 @@ export function FlowPage({ initialLayout }: { initialLayout?: FlowLayout } = {})
     return title && title !== id ? title : "";
   };
   return (
-    <div className="flow-page" data-library={libraryShown(library, narrow) ? "open" : "closed"}>
+    <div className="flow-page" data-library={libraryShown(library, narrow) ? "open" : "closed"} data-inspector={inspectorOpen ? "open" : "closed"}>
       <div className="flow-canvas" aria-label={t.flow.nodes} data-snap={snap ? "on" : "off"} data-flowing={tracePicture && flowEdges(tracePicture.running, graph.nodes.length, reducedMotion) ? tracePicture.running ?? "" : ""}>
         <nav className="flow-scope" aria-label={t.flow.scope}>
           <Button type="button" onClick={() => setScope(null)} aria-current={scope ? undefined : "page"}>
@@ -2017,6 +2124,17 @@ export function FlowPage({ initialLayout }: { initialLayout?: FlowLayout } = {})
           >
             <IconSidebar size={16} />
           </Button>
+          <Button
+            variant="ghost"
+            type="button"
+            className="flow-bar-icon flow-bar-icon-end"
+            aria-label={t.flow.toggleInspector}
+            title={t.flow.toggleInspector}
+            aria-pressed={inspectorOpen}
+            onClick={flipInspector}
+          >
+            <IconSidebar size={16} />
+          </Button>
           <span className="flow-tool-gap" aria-hidden="true" />
           <Button variant="primary" type="button" onClick={() => openMenu()}>
             {t.flow.add}
@@ -2122,7 +2240,7 @@ export function FlowPage({ initialLayout }: { initialLayout?: FlowLayout } = {})
           <VariablePanel graph={graph} onChange={apply} />
         </div>
       </aside>
-      <aside className="flow-inspector" aria-label={t.flow.inspector}>
+      <aside className="flow-inspector" aria-label={t.flow.inspector} hidden={!inspectorOpen}>
         <header className="flow-inspect-head">
           {chosen ? (
             <span className={"flow-inspect-mark cat-" + (chosenSpec?.category || "flow")}>
@@ -2139,12 +2257,15 @@ export function FlowPage({ initialLayout }: { initialLayout?: FlowLayout } = {})
             ) : null}
             {chosen ? <p className="flow-inspect-meta">{chosenDoc}</p> : null}
           </div>
+          <Button variant="ghost" type="button" className="flow-bar-icon flow-inspect-close" aria-label={t.flow.hideInspector} title={t.flow.hideInspector} onClick={() => setInspector("closed")}>
+            <span aria-hidden="true">×</span>
+          </Button>
         </header>
         <div className="flow-inspect-body">
         {!chosen && picked.length === 0 ? <p className="flow-inspect-empty">{t.flow.pickNode}</p> : null}
-        {chosen && chosenPins ? (
-          <section className="flow-props" aria-label={t.flow.properties}>
-            {layout.nodes[chosen.id] ? (
+        {(chosen && layout.nodes[chosen.id]) || lineShown ? (
+          <InspectGroup title={t.flow.groupGeneral} open={!folded.has("general")} onToggle={() => foldGroup("general")}>
+            {chosen && layout.nodes[chosen.id] ? (
               <label>
                 <span>{t.flow.displayName}</span>
                 <Input
@@ -2157,43 +2278,52 @@ export function FlowPage({ initialLayout }: { initialLayout?: FlowLayout } = {})
                 />
               </label>
             ) : null}
-            {chosenPins.inputs.map((field) => (
-              <PropertyField key={field.name} field={field} onChange={(value) => editInput(chosen.id, field.name, value)} />
-            ))}
-            {chosenPins.outputs.length ? (
-              <div className="flow-prop-outs">
-                <span>{t.flow.outputs}</span>
-                <ul aria-label={t.flow.outputs}>
-                  {chosenPins.outputs.map((pin) => (
-                    <li key={pin.name}>
-                      <span>{pin.name}</span>
-                      <span className="flow-prop-type">{pin.type}</span>
-                    </li>
-                  ))}
-                </ul>
+            {lineShown ? (
+              <label className="flow-node-line">
+                <span>{t.flow.nodeLine}</span>
+                <Textarea
+                  aria-label={t.flow.nodeLine}
+                  spellCheck={false}
+                  rows={Math.min(6, Math.max(1, lineDraft.split("\n").length))}
+                  value={lineDraft}
+                  onChange={(event) => onLine(event.target.value)}
+                />
+              </label>
+            ) : null}
+            {jumps.length ? (
+              <div className="flow-jumps">
+                {jumps.map((id) => (
+                  <Button type="button" size="sm" key={id} onClick={() => locate(id)}>
+                    {t.flow.jumpTo} {id}
+                  </Button>
+                ))}
               </div>
             ) : null}
-          </section>
+          </InspectGroup>
         ) : null}
-        {lineShown ? (
-          <label className="flow-node-line">
-            <span>{t.flow.nodeLine}</span>
-            <Textarea
-              aria-label={t.flow.nodeLine}
-              spellCheck={false}
-              rows={Math.min(6, Math.max(1, lineDraft.split("\n").length))}
-              value={lineDraft}
-              onChange={(event) => onLine(event.target.value)}
-            />
-          </label>
+        {chosen && chosenPins && chosenPins.inputs.length ? (
+          <InspectGroup title={t.flow.groupInputs} count={chosenPins.inputs.length} open={!folded.has("inputs")} onToggle={() => foldGroup("inputs")}>
+            <div className="flow-props" aria-label={t.flow.properties} role="group">
+              {chosenPins.inputs.map((field) => (
+                <PropertyField key={chosen.id + "." + field.name} field={field} onChange={(value) => editInput(chosen.id, field.name, value)} />
+              ))}
+            </div>
+          </InspectGroup>
         ) : null}
-        {jumps.map((id) => (
-          <Button type="button" key={id} onClick={() => locate(id)}>
-            {t.flow.jumpTo} {id}
-          </Button>
-        ))}
+        {chosen && chosenPins && chosenPins.outputs.length ? (
+          <InspectGroup title={t.flow.outputs} count={chosenPins.outputs.length} open={!folded.has("outputs")} onToggle={() => foldGroup("outputs")}>
+            <ul className="flow-prop-outs" aria-label={t.flow.outputs}>
+              {chosenPins.outputs.map((pin) => (
+                <li key={pin.name}>
+                  <span>{pin.name}</span>
+                  <span className="flow-prop-type">{pin.type}</span>
+                </li>
+              ))}
+            </ul>
+          </InspectGroup>
+        ) : null}
         {chosen?.type === "code.python" && !chosen.meta?.origin ? (
-          <>
+          <InspectGroup title={t.flow.groupCode} open={!folded.has("code")} onToggle={() => foldGroup("code")}>
             <label>
               {t.flow.codeIn}
               <Input
@@ -2219,10 +2349,10 @@ export function FlowPage({ initialLayout }: { initialLayout?: FlowLayout } = {})
                 onChange={(event) => editCode(chosen.id, "source", event.target.value)}
               />
             </label>
-          </>
+          </InspectGroup>
         ) : null}
         {cacheIds.length ? (
-          <section aria-label={t.flow.cache}>
+          <InspectGroup title={t.flow.cache} count={cacheIds.length > 1 ? cacheIds.length : undefined} open={!folded.has("cache")} onToggle={() => foldGroup("cache")}>
             {cacheIds.map((id) => (
               <label key={id}>
                 {cacheIds.length > 1 ? t.flow.cache + " " + id : t.flow.cache}
@@ -2237,7 +2367,7 @@ export function FlowPage({ initialLayout }: { initialLayout?: FlowLayout } = {})
                 />
               </label>
             ))}
-          </section>
+          </InspectGroup>
         ) : null}
         </div>
         <fieldset className="flow-nodes">
