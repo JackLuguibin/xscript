@@ -6,8 +6,8 @@
     "en": "onnx.load"
   },
   "doc": {
-    "zh": "Cached Session per (path, accel): loading a model costs far more than running it.",
-    "en": "Cached Session per (path, accel): loading a model costs far more than running it."
+    "zh": "Cached Session per (path, threads, accel): loading a model costs far more than running it.",
+    "en": "Cached Session per (path, threads, accel): loading a model costs far more than running it."
   },
   "exec": {
     "in": [
