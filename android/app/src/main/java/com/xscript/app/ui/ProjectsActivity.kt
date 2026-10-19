@@ -38,17 +38,20 @@ class ProjectsActivity : AppCompatActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         store = ProjectStore(this)
-        val col = UiKit.screen(this, "小程序列表", store.root.absolutePath)
-        UiKit.barAction(col, "新建") {
-            askName("新建小程序", "demo") { name ->
-                store.create(name)
-                openProject(name)
-            }
-        }
+        val col = UiKit.screen(this, "小程序列表")
+        UiKit.barAction(col, "新建") { create() }
         UiKit.barAction(col, "导入") { chooseImport() }
         list = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
         col.addView(list)
         UiKit.note(col, "入口文件为 __init__.py。AScript 脚本（from ascript.android import ...）可以直接运行。")
+        UiKit.note(col, "存放位置：" + store.root.absolutePath).setTextIsSelectable(true)
+    }
+
+    private fun create() {
+        askName("新建小程序", "demo") { name ->
+            store.create(name)
+            openProject(name)
+        }
     }
 
     override fun onResume() {
@@ -59,11 +62,11 @@ class ProjectsActivity : AppCompatActivity() {
     private fun render() {
         list.removeAllViews()
         val details = store.describe()
-        val card = UiKit.card(list)
         if (details.length() == 0) {
-            UiKit.row(card, null, 0, "还没有小程序", "点右上角新建或导入", chevron = false)
+            UiKit.empty(list, "还没有小程序", "新建一个，或导入 zip / 已安装的 AScript 脚本", "新建" to { create() }, "导入" to { chooseImport() })
             return
         }
+        val card = UiKit.card(list)
         val running = RunState.current(this)
         val fmt = SimpleDateFormat("MM-dd HH:mm", Locale.getDefault())
         for (i in 0 until details.length()) {

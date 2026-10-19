@@ -48,7 +48,7 @@ class ProjectActivity : AppCompatActivity() {
         super.onCreate(savedInstanceState)
         name = intent.getStringExtra(EXTRA_NAME) ?: return finish()
         store = ProjectStore(this)
-        val col = UiKit.screen(this, name, store.dir(name).absolutePath)
+        val col = UiKit.screen(this, name, "小程序")
         UiKit.barAction(col, "删除") { confirmDelete() }
 
         val actions = LinearLayout(this).apply {
@@ -58,7 +58,7 @@ class ProjectActivity : AppCompatActivity() {
         }
         runBtn = UiKit.button(this, "运行", UiKit.Tone.SUCCESS) { toggle() }
         actions.addView(runBtn, LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f))
-        val logBtn = UiKit.button(this, "日志", UiKit.Tone.PRIMARY) { startActivity(Intent(this, LogActivity::class.java)) }
+        val logBtn = UiKit.button(this, "日志", UiKit.Tone.NEUTRAL) { startActivity(Intent(this, LogActivity::class.java)) }
         actions.addView(logBtn, LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f).apply {
             leftMargin = UiKit.dp(this@ProjectActivity, 12f)
         })
@@ -68,6 +68,7 @@ class ProjectActivity : AppCompatActivity() {
         col.addView(options)
         files = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
         col.addView(files)
+        UiKit.note(col, "位置：" + store.dir(name).absolutePath).setTextIsSelectable(true)
     }
 
     override fun onResume() {
@@ -110,22 +111,21 @@ class ProjectActivity : AppCompatActivity() {
 
     private fun renderOptions() {
         options.removeAllViews()
-        val card = UiKit.card(options)
+        UiKit.section(options, "运行选项")
+        val card = UiKit.card(options, 8f)
         val boot = Settings.bootProject == name
-        UiKit.row(card, "⏻", 0xFF2F7CF6.toInt(), "开机自启", if (boot) "已开启" else "关闭", chevron = false) {
-            Settings.bootProject = if (boot) "" else name
-            if (!boot && Settings.bootProject == name) {
+        UiKit.switchRow(card, "⏻", 0xFF2F7CF6.toInt(), "开机自启", boot) { on ->
+            Settings.bootProject = if (on) name else if (Settings.bootProject == name) "" else Settings.bootProject
+            if (on && Settings.bootProject == name) {
                 Toast.makeText(this, "开机后等待无障碍或 Root 就绪再运行（同一时间只有一个小程序开机自启）", Toast.LENGTH_LONG).show()
             }
-            renderOptions()
-        }.value.setTextColor(if (boot) ui.success else ui.muted)
-        val rerun = name in Settings.rerunProjects
-        UiKit.row(card, "↻", 0xFF8E44AD.toInt(), "停止后重新运行", if (rerun) "已开启" else "关闭", chevron = false) {
-            Settings.rerunProjects = if (rerun) Settings.rerunProjects - name else Settings.rerunProjects + name
-            renderOptions()
-        }.value.setTextColor(if (rerun) ui.success else ui.muted)
+        }
+        UiKit.switchRow(card, "↻", 0xFF8E44AD.toInt(), "停止后重新运行", name in Settings.rerunProjects) { on ->
+            Settings.rerunProjects = if (on) Settings.rerunProjects + name else Settings.rerunProjects - name
+        }
 
-        val sched = UiKit.card(options)
+        UiKit.section(options, "定时任务")
+        val sched = UiKit.card(options, 8f)
         val list = Scheduler.store(this).list(name)
         UiKit.row(sched, "⏰", 0xFFF59E0B.toInt(), "定时任务", "${list.size} 个 · 添加") { addSchedule() }
         for (s in list) {
@@ -274,7 +274,8 @@ class ProjectActivity : AppCompatActivity() {
     private fun renderFiles() {
         files.removeAllViews()
         val arr = store.files(name)
-        val card = UiKit.card(files)
+        UiKit.section(files, "文件")
+        val card = UiKit.card(files, 8f)
         for (i in 0 until arr.length()) {
             val f = arr.getJSONObject(i)
             val path = f.getString("path")

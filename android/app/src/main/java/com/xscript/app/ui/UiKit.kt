@@ -19,6 +19,7 @@ import androidx.activity.ComponentActivity
 import androidx.activity.SystemBarStyle
 import androidx.activity.enableEdgeToEdge
 import androidx.core.view.ViewCompat
+import com.google.android.material.materialswitch.MaterialSwitch
 import androidx.core.view.WindowInsetsCompat
 import com.xscript.app.R
 
@@ -132,7 +133,9 @@ object UiKit {
                 contentDescription = "返回"
                 layoutParams = LinearLayout.LayoutParams(dp(ctx, 44f), dp(ctx, 44f))
                 background = ripple(Color.TRANSPARENT, 22f, ctx)
-                setOnClickListener { activity.finish() }
+                // Through the back dispatcher, so a screen's own back handling (the editor's unsaved-changes prompt)
+                // runs for the arrow too; without one the dispatcher finishes the activity.
+                setOnClickListener { navigateBack(activity) }
             })
         }
         val titles = LinearLayout(ctx).apply { orientation = LinearLayout.VERTICAL }
@@ -171,6 +174,11 @@ object UiKit {
         activity.setContentView(outer)
         column.tag = bar
         return column
+    }
+
+    fun navigateBack(activity: Activity) {
+        val dispatcher = (activity as? ComponentActivity)?.onBackPressedDispatcher
+        if (dispatcher != null) dispatcher.onBackPressed() else activity.finish()
     }
 
     /** Action text button on the title bar created by [screen]. */
@@ -317,6 +325,64 @@ object UiKit {
         }
         card.addView(line)
         return Row(line, t, v, p.muted)
+    }
+
+    /** A row with a trailing Material switch; tapping the row or the switch calls [onToggle] with the new state. */
+    fun switchRow(card: LinearLayout, glyph: String?, color: Int, title: String, checked: Boolean, onToggle: (Boolean) -> Unit): Row {
+        val ctx = card.context
+        lateinit var sw: MaterialSwitch
+        val row = row(card, glyph, color, title, chevron = false) { sw.toggle() }
+        sw = MaterialSwitch(ctx).apply {
+            isChecked = checked
+            // The row reads as one control: TalkBack announces the title with the switch state.
+            contentDescription = title
+            setOnCheckedChangeListener { _, on -> onToggle(on) }
+        }
+        (row.root as LinearLayout).addView(sw)
+        row.root.importantForAccessibility = View.IMPORTANT_FOR_ACCESSIBILITY_NO
+        return row
+    }
+
+    /**
+     * Empty state: a centered card with a [title], a [body] and up to two actions (the first filled, the second
+     * tonal), instead of a plain row.
+     */
+    fun empty(parent: LinearLayout, title: String, body: String, vararg actions: Pair<String, () -> Unit>): LinearLayout {
+        val ctx = parent.context
+        val p = palette(ctx)
+        val card = card(parent)
+        card.gravity = Gravity.CENTER_HORIZONTAL
+        val pad = dp(ctx, 24f)
+        card.setPadding(pad, dp(ctx, 32f), pad, pad)
+        card.addView(TextView(ctx).apply {
+            text = title
+            textSize = 17f
+            gravity = Gravity.CENTER
+            setTypeface(typeface, Typeface.BOLD)
+            setTextColor(p.text)
+        })
+        card.addView(TextView(ctx).apply {
+            text = body
+            textSize = 13f
+            gravity = Gravity.CENTER
+            setTextColor(p.muted)
+            setPadding(0, dp(ctx, 6f), 0, 0)
+        })
+        if (actions.isNotEmpty()) {
+            val line = LinearLayout(ctx).apply {
+                orientation = LinearLayout.HORIZONTAL
+                gravity = Gravity.CENTER
+                setPadding(0, dp(ctx, 20f), 0, 0)
+            }
+            actions.forEachIndexed { i, (label, onClick) ->
+                line.addView(button(ctx, label, if (i == 0) Tone.PRIMARY else Tone.NEUTRAL, onClick),
+                    LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT).apply {
+                        if (i > 0) leftMargin = dp(ctx, 12f)
+                    })
+            }
+            card.addView(line)
+        }
+        return card
     }
 
     fun note(parent: LinearLayout, text: String): TextView {
