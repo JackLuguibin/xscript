@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Dark theme values of the tokens in res/values/colors.xml (same names; ThemeTokensTest checks). -->
+<resources>
+    <color name="xscript_bg">#FF111317</color>
+    <color name="xscript_card">#FF1D2025</color>
+    <color name="xscript_text">#FFE6E8EB</color>
+    <color name="xscript_muted">#FFA2A8B0</color>
+    <color name="xscript_divider">#FF2B2F35</color>
+    <color name="xscript_chevron">#FF5B6169</color>
+    <color name="xscript_ripple">#33FFFFFF</color>
+    <color name="xscript_accent">#FF8AB4F8</color>
+    <color name="xscript_on_accent">#FF0B2A5C</color>
+    <color name="xscript_success">#FF6DD58C</color>
+    <color name="xscript_on_success">#FF003915</color>
+    <color name="xscript_danger">#FFFF8A80</color>
+    <color name="xscript_on_danger">#FF5C0A05</color>
+    <color name="xscript_neutral">#FF33373D</color>
+    <color name="xscript_on_neutral">#FFE6E8EB</color>
+    <bool name="xscript_light_bars">false</bool>
+</resources>

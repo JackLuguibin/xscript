@@ -11,12 +11,13 @@ import android.widget.LinearLayout
 import android.widget.ScrollView
 import android.widget.Toast
 import androidx.activity.OnBackPressedCallback
-import androidx.appcompat.app.AlertDialog
+import com.google.android.material.dialog.MaterialAlertDialogBuilder
 import androidx.appcompat.app.AppCompatActivity
 import com.xscript.app.project.ProjectStore
 
 /** Plain monospace editor for quick on-device fixes. Real editing happens in Cursor. */
 class EditorActivity : AppCompatActivity() {
+    private val ui by lazy { UiKit.palette(this) }
     private lateinit var editor: EditText
     private lateinit var original: String
     private lateinit var project: String
@@ -41,7 +42,7 @@ class EditorActivity : AppCompatActivity() {
             gravity = Gravity.TOP or Gravity.START
             setHorizontallyScrolling(true)
             inputType = InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_FLAG_MULTI_LINE or InputType.TYPE_TEXT_FLAG_NO_SUGGESTIONS
-            setBackgroundColor(UiKit.CARD)
+            setBackgroundColor(ui.card)
             val p = UiKit.dp(this@EditorActivity, 12f)
             setPadding(p, p, p, p)
             minHeight = resources.displayMetrics.heightPixels
@@ -58,7 +59,7 @@ class EditorActivity : AppCompatActivity() {
                     finish()
                     return
                 }
-                AlertDialog.Builder(this@EditorActivity)
+                MaterialAlertDialogBuilder(this@EditorActivity)
                     .setTitle("保存修改？")
                     .setPositiveButton("保存") { _, _ -> save(); finish() }
                     .setNegativeButton("放弃") { _, _ -> finish() }

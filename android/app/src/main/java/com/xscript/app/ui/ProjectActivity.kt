@@ -1,6 +1,6 @@
 package com.xscript.app.ui
 
-import android.app.AlertDialog
+import com.google.android.material.dialog.MaterialAlertDialogBuilder
 import android.app.DatePickerDialog
 import android.app.TimePickerDialog
 import android.content.Intent
@@ -30,6 +30,7 @@ import kotlin.concurrent.thread
 
 /** One project: run / stop, 开机自启 / 停止后重新运行, 定时任务, file list, delete. */
 class ProjectActivity : AppCompatActivity() {
+    private val ui by lazy { UiKit.palette(this) }
     private lateinit var name: String
     private lateinit var store: ProjectStore
     private lateinit var options: LinearLayout
@@ -55,9 +56,9 @@ class ProjectActivity : AppCompatActivity() {
             gravity = Gravity.CENTER_VERTICAL
             setPadding(0, UiKit.dp(this@ProjectActivity, 12f), 0, 0)
         }
-        runBtn = UiKit.button(this, "运行", UiKit.GREEN) { toggle() }
+        runBtn = UiKit.button(this, "运行", UiKit.Tone.SUCCESS) { toggle() }
         actions.addView(runBtn, LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f))
-        val logBtn = UiKit.button(this, "日志", UiKit.BLUE) { startActivity(Intent(this, LogActivity::class.java)) }
+        val logBtn = UiKit.button(this, "日志", UiKit.Tone.PRIMARY) { startActivity(Intent(this, LogActivity::class.java)) }
         actions.addView(logBtn, LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f).apply {
             leftMargin = UiKit.dp(this@ProjectActivity, 12f)
         })
@@ -84,11 +85,11 @@ class ProjectActivity : AppCompatActivity() {
     private fun updateRun() {
         val running = RunState.current(this)
         if (running == name) {
-            runBtn.text = "停止"
-            runBtn.background = UiKit.ripple(UiKit.RED, 22f, this)
+            UiKit.setText(runBtn, "停止")
+            UiKit.paint(runBtn, UiKit.Tone.DANGER)
         } else {
-            runBtn.text = if (running != null) "运行中: $running" else "运行"
-            runBtn.background = UiKit.ripple(if (running != null) UiKit.MUTED else UiKit.GREEN, 22f, this)
+            UiKit.setText(runBtn, if (running != null) "运行中: $running" else "运行")
+            UiKit.paint(runBtn, if (running != null) UiKit.Tone.NEUTRAL else UiKit.Tone.SUCCESS)
         }
     }
 
@@ -117,12 +118,12 @@ class ProjectActivity : AppCompatActivity() {
                 Toast.makeText(this, "开机后等待无障碍或 Root 就绪再运行（同一时间只有一个小程序开机自启）", Toast.LENGTH_LONG).show()
             }
             renderOptions()
-        }.value.setTextColor(if (boot) UiKit.GREEN else UiKit.MUTED)
+        }.value.setTextColor(if (boot) ui.success else ui.muted)
         val rerun = name in Settings.rerunProjects
         UiKit.row(card, "↻", 0xFF8E44AD.toInt(), "停止后重新运行", if (rerun) "已开启" else "关闭", chevron = false) {
             Settings.rerunProjects = if (rerun) Settings.rerunProjects - name else Settings.rerunProjects + name
             renderOptions()
-        }.value.setTextColor(if (rerun) UiKit.GREEN else UiKit.MUTED)
+        }.value.setTextColor(if (rerun) ui.success else ui.muted)
 
         val sched = UiKit.card(options)
         val list = Scheduler.store(this).list(name)
@@ -132,7 +133,7 @@ class ProjectActivity : AppCompatActivity() {
             UiKit.row(sched, null, 0, s.label(), next) { editSchedule(s) }
         }
         if (list.isNotEmpty() && !Scheduler.canExact(this) && Build.VERSION.SDK_INT >= 31) {
-            UiKit.row(sched, "!", UiKit.RED, "精确闹钟未授权", "可能延迟几分钟") {
+            UiKit.row(sched, "!", ui.danger, "精确闹钟未授权", "可能延迟几分钟") {
                 try {
                     startActivity(Intent(AndroidSettings.ACTION_REQUEST_SCHEDULE_EXACT_ALARM, Uri.parse("package:$packageName")))
                 } catch (_: Exception) {
@@ -143,7 +144,7 @@ class ProjectActivity : AppCompatActivity() {
 
     private fun addSchedule() {
         val kinds = arrayOf("每天定时", "每隔 N 分钟", "只运行一次")
-        AlertDialog.Builder(this)
+        MaterialAlertDialogBuilder(this)
             .setTitle("添加定时任务")
             .setItems(kinds) { _, which ->
                 when (which) {
@@ -159,7 +160,7 @@ class ProjectActivity : AppCompatActivity() {
         TimePickerDialog(this, { _, h, m ->
             val labels = arrayOf("一", "二", "三", "四", "五", "六", "日").map { "周$it" }.toTypedArray()
             val checked = BooleanArray(7) { true }
-            AlertDialog.Builder(this)
+            MaterialAlertDialogBuilder(this)
                 .setTitle("重复（全选 = 每天）")
                 .setMultiChoiceItems(labels, checked) { _, i, on -> checked[i] = on }
                 .setPositiveButton("保存") { _, _ ->
@@ -188,7 +189,7 @@ class ProjectActivity : AppCompatActivity() {
             addView(every)
             addView(window)
         }
-        AlertDialog.Builder(this)
+        MaterialAlertDialogBuilder(this)
             .setTitle("每隔 N 分钟")
             .setView(box)
             .setPositiveButton("保存") { _, _ ->
@@ -231,7 +232,7 @@ class ProjectActivity : AppCompatActivity() {
             if (s.ifRunning == Schedule.IF_RUNNING_RESTART) "有脚本在运行时：跳过" else "有脚本在运行时：停止它再运行",
             "删除",
         )
-        AlertDialog.Builder(this)
+        MaterialAlertDialogBuilder(this)
             .setTitle(s.label())
             .setItems(items) { _, which ->
                 thread {
@@ -299,7 +300,7 @@ class ProjectActivity : AppCompatActivity() {
     }
 
     private fun confirmDelete() {
-        AlertDialog.Builder(this)
+        MaterialAlertDialogBuilder(this)
             .setTitle("删除 $name？")
             .setMessage("会删除设备上该小程序的全部文件和定时任务，无法恢复。")
             .setPositiveButton("删除") { _, _ ->
