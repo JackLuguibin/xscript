@@ -187,6 +187,9 @@ jobs:
           assert libs == {"arm64-v8a"}, libs
           assert not x86, x86[:5]
           assert any(n.startswith("assets/chaquopy/stdlib-arm64-v8a") for n in names)
+          # native libraries ship compressed (useLegacyPackaging): the APK file is what users download
+          stored = [i.filename for i in zipfile.ZipFile(sys.argv[1]).infolist() if i.filename.startswith("lib/") and i.compress_type != zipfile.ZIP_DEFLATED]
+          assert not stored, stored[:5]
           print("arm64-v8a only:", len(names), "entries")
           PY
 

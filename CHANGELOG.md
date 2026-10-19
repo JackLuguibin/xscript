@@ -10,6 +10,7 @@
 - **只保留英文和中文的库资源**：AndroidX、Material、Play 服务自带约 80 种语言的界面文字，现在只打包英文和简繁中文，`resources.arsc` 从 521 KB 降到 273 KB。
 - **新增手机专用安装包** `xscript-vX.Y.Z-release-arm64-v8a.apk`：只含 arm64-v8a，约 73 MB，通用包约 138 MB。原来的 `xscript-vX.Y.Z-release.apk` 仍是通用包（arm64-v8a + x86_64），PC 上的安卓模拟器请继续用它。两个包签名、版本相同，可以互相覆盖安装。
 - **去掉内置 Python 包里设备上用不到的文件**：numpy 自带的测试套件，以及调试器 debugpy 里的 C/Cython 源码、Windows 附加进程组件和 macOS 二进制。两个安装包各小 3.4 MB；`numpy.testing`、OpenCV 的 `cv2.data` 级联文件和断点调试都不受影响。
+- **原生库压缩打包**：从 GitHub 下载的安装包大幅变小：通用包 135 MB → 82 MB，手机包 70 MB → 45 MB。安装时系统会解压当前架构的原生库，安装后占用的空间会多一些（手机包约多 13 MB），启动速度和脚本启动速度不变。
 
 ## v0.3.0（2026-10-19）
 
