@@ -68,6 +68,7 @@ class MainActivity : AppCompatActivity() {
     private lateinit var runTitle: TextView
     private lateinit var runSub: TextView
     private lateinit var runButton: TextView
+    private var runButtonRunning: Boolean? = null
 
     private val notifyPermission = registerForActivityResult(
         ActivityResultContracts.RequestPermission(),
@@ -210,16 +211,18 @@ class MainActivity : AppCompatActivity() {
 
         val running = RunState.current(this)
         if (running != null) {
-            runTitle.text = running
-            runSub.text = "运行中"
-            runButton.text = "停止"
-            runButton.background = UiKit.ripple(UiKit.RED, 22f, this)
+            UiKit.setText(runTitle, running)
+            UiKit.setText(runSub, "运行中")
         } else {
             val last = Settings.lastProject.takeIf { ProjectStore(this).exists(it) }
-            runTitle.text = last ?: "未选择小程序"
-            runSub.text = if (last != null) "上次运行 · 点小程序列表切换" else "导入或新建一个小程序"
-            runButton.text = "运行"
-            runButton.background = UiKit.ripple(UiKit.GREEN, 22f, this)
+            UiKit.setText(runTitle, last ?: "未选择小程序")
+            UiKit.setText(runSub, if (last != null) "上次运行 · 点小程序列表切换" else "导入或新建一个小程序")
+        }
+        // A new ripple background on every tick redrew the card while nothing changed; swap it only on a state change.
+        if (runButtonRunning != (running != null)) {
+            runButtonRunning = running != null
+            runButton.text = if (running != null) "停止" else "运行"
+            runButton.background = UiKit.ripple(if (running != null) UiKit.RED else UiKit.GREEN, 22f, this)
         }
     }
 

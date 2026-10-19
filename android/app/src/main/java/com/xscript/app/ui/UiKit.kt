@@ -32,9 +32,20 @@ object UiKit {
 
     class Row(val root: View, val title: TextView, val value: TextView) {
         fun value(text: CharSequence, color: Int = MUTED) {
-            value.text = text
-            value.setTextColor(color)
+            setText(value, text)
+            if (value.currentTextColor != color) value.setTextColor(color)
         }
+    }
+
+    /** Plain-text equality, so a status that did not change is not set again. */
+    fun sameText(a: CharSequence?, b: CharSequence?): Boolean = a?.toString() == b?.toString()
+
+    /**
+     * Sets the text only when it changed. TextView.setText redraws (and may re-layout) even for the same string,
+     * and the home screen re-applies every status row each 1.5 s.
+     */
+    fun setText(view: TextView, text: CharSequence) {
+        if (!sameText(view.text, text)) view.text = text
     }
 
     /** Screen scaffold: title bar + scrolling column. Returns the column. */
