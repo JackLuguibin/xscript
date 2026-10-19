@@ -22,6 +22,34 @@ env:
   NO_PROXY: 127.0.0.1,localhost
 
 jobs:
+  # Pull requests skip the heavy Android / desktop jobs when no changed file can affect them (scripts/ci_changes.py
+  # lists the areas). Pushes to main, release runs (workflow_call) and anything unexpected run everything.
+  changes:
+    name: changed areas
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    outputs:
+      android: ${{ steps.areas.outputs.android }}
+      desktop: ${{ steps.areas.outputs.desktop }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+          fetch-depth: 2  # a pull_request checkout is the test merge commit: parent 1 is the base branch
+      - name: Self-test of the rules
+        run: python3 -m unittest scripts/tests/test_ci_changes.py
+      - id: areas
+        name: Decide
+        env:
+          EVENT: ${{ github.event_name }}
+        run: |
+          if [ "$EVENT" = pull_request ]; then
+            python3 scripts/ci_changes.py HEAD^1 HEAD >> "$GITHUB_OUTPUT"
+          else
+            python3 scripts/ci_changes.py --all >> "$GITHUB_OUTPUT"
+          fi
+          cat "$GITHUB_OUTPUT"
+
   python:
     name: backend + MCP (Python ${{ matrix.python }})
     runs-on: ubuntu-24.04
@@ -144,6 +172,8 @@ jobs:
   android:
     name: Android (${{ matrix.title }})
     runs-on: ubuntu-24.04
+    needs: changes
+    if: needs.changes.outputs.android == 'true'
     timeout-minutes: 45
     strategy:
       fail-fast: false
@@ -208,6 +238,8 @@ jobs:
   desktop-frontend:
     name: desktop frontend (type-check, unit tests + coverage, build)
     runs-on: ubuntu-24.04
+    needs: changes
+    if: needs.changes.outputs.desktop == 'true'
     timeout-minutes: 15
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -231,6 +263,8 @@ jobs:
   desktop-python:
     name: desktop client (Python tests incl. offscreen QtWebEngine)
     runs-on: ubuntu-24.04
+    needs: changes
+    if: needs.changes.outputs.desktop == 'true'
     timeout-minutes: 20
     env:
       QT_QPA_PLATFORM: offscreen
@@ -276,3 +310,17 @@ jobs:
         with:
           persist-credentials: false
       - run: bash scripts/release.sh check
+
+  # One check that stays meaningful whatever was skipped: it fails if any job failed or was cancelled.
+  ci-ok:
+    name: ci ok
+    if: always()
+    needs: [changes, python, runtime, web-ide, vscode-extension, console, android, desktop-frontend, desktop-python, release-versions]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - env:
+          RESULTS: ${{ join(needs.*.result, ' ') }}
+        run: |
+          echo "job results: $RESULTS"
+          case " $RESULTS " in *" failure "*|*" cancelled "*) exit 1;; esac
