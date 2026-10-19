@@ -79,6 +79,29 @@ class ParallelRecognizeTest(unittest.TestCase):
         after = [t for t in threading.enumerate() if t.ident not in before]
         self.assertEqual([t for t in after if t.is_alive()], [])
 
+    def test_classify_split_matches_single_batch(self):
+        class Cls(object):
+            inputs = [{"shape": [-1, 3, 80, 160]}]
+
+            def __init__(self):
+                self.sizes = []
+
+            def run_first(self, batch):
+                self.sizes.append(batch.shape[0])
+                m = batch.reshape(batch.shape[0], -1).mean(axis=1)
+                return np.stack([m, -m], axis=1)  # class 0 when mean > 0, else 180 degrees
+
+        crops = self._crops()
+        outs = []
+        for workers in (1, 4):
+            e = _engine(workers)
+            e.cls = Cls()
+            outs.append(e.classify(crops, threshold=-1e9))
+            self.assertEqual(sum(e.cls.sizes), len(crops))
+            self.assertEqual(len(e.cls.sizes), workers)
+        for a, b in zip(*outs):
+            self.assertTrue(np.array_equal(a, b))
+
     def test_empty(self):
         self.assertEqual(_engine(4).recognize([]), [])
 
