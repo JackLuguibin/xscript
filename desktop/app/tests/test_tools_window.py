@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import os
+import sys
 
 import pytest
 
@@ -62,3 +63,35 @@ def test_host_loads_the_device_tools_page(qtbot, mock_device):
     finally:
         host.dispose()
         rt.stop()
+
+
+def test_dispose_releases_the_page_before_the_profile(qtbot):
+    """dispose() deletes the page, then the profile, synchronously (no longer left to deferred deletion).
+
+    Left to the event loop, Chromium's threads could segfault the process (pytest-xdist workers crashed)."""
+    win = ToolWindow("127.0.0.1", 9860)
+    qtbot.addWidget(win)
+    order: list[str] = []
+    win.page.destroyed.connect(lambda *_: order.append("page"))
+    win.profile.destroyed.connect(lambda *_: order.append("profile"))
+    win.dispose()
+    assert order == ["page", "profile"]
+    win.dispose()  # idempotent (closeEvent calls it again)
+    assert order == ["page", "profile"]
+
+
+@pytest.mark.skipif(sys.version_info >= (3, 12), reason="None is immortal from Python 3.12 on")
+def test_void_qt_calls_keep_none_alive(qtbot):
+    """Void Qt calls keep None's refcount intact (PySide6 6.12.0 does not; pyproject.toml excludes it).
+
+    6.12.0 loses a reference to None on every void method call (resize, setAttribute, deleteLater, ...). On Python
+    3.10 None's refcount then reaches zero and the process aborts with "deallocating None". If this fails, reinstall
+    PySide6 from desktop/app/pyproject.toml."""
+    from PySide6.QtWidgets import QWidget
+
+    w = QWidget()
+    qtbot.addWidget(w)
+    before = sys.getrefcount(None)
+    for _ in range(1000):
+        w.resize(10, 10)
+    assert sys.getrefcount(None) - before > -100
