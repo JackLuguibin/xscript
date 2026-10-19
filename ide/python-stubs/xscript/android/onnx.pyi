@@ -76,5 +76,5 @@ class Session(object):
         ...
 
 def load(path, threads=4, accel=''):
-    """Cached Session per (path, accel): loading a model costs far more than running it."""
+    """Cached Session per (path, threads, accel): loading a model costs far more than running it."""
     ...

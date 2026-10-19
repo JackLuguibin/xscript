@@ -15,6 +15,7 @@ Pipeline (same as PaddleOCR / RapidOCR):
   rec: SVTR/CRNN at height 48, CTC greedy decode with the model's character list
 """
 import math
+import os
 from xscript.android import image as _img
 from xscript.android import onnx as _onnx
 from xscript.android.image import OcrResult
@@ -50,7 +51,7 @@ class PaddleOcr(object):
     rec model embeds its `character` list, as the RapidOCR exports do).
     """
 
-    def __init__(self, det, rec, keys=None, cls=None, threads=4, limit_side_len=960, limit_type='max', thresh=0.3, box_thresh=0.6, unclip_ratio=1.5, rec_batch=6, accel=''):
+    def __init__(self, det, rec, keys=None, cls=None, threads=4, limit_side_len=960, limit_type='max', thresh=0.3, box_thresh=0.6, unclip_ratio=1.5, rec_batch=6, accel='', rec_workers=None):
         ...
 
     def detect(self, img):
