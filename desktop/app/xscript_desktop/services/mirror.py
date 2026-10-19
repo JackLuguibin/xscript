@@ -432,18 +432,22 @@ class _Session:
             self._wake.clear()
 
     async def _poll_for(self, delay: float) -> None:
-        task = asyncio.create_task(self._poll())
+        # On Python 3.10 a cancel that lands while httpx finishes a request can be swallowed (anyio), and the poll loop
+        # then ran forever with this session stuck awaiting it. The loop also checks `done`, and is cancelled until it ends.
+        done = asyncio.Event()
+        task = asyncio.create_task(self._poll(done))
         try:
             await self._sleep_full(delay)
         finally:
-            task.cancel()
-            try:
-                await task
-            except asyncio.CancelledError:
-                pass
+            done.set()
+            while not task.done():
+                task.cancel()
+                await asyncio.wait({task}, timeout=0.1)
+            if not task.cancelled() and task.exception() is not None:
+                raise task.exception()  # type: ignore[misc]
 
-    async def _poll(self) -> None:
-        while True:
+    async def _poll(self, done: asyncio.Event) -> None:
+        while not done.is_set():
             try:
                 body, _mime = await self._client().screen("jpg", POLL_QUALITY, POLL_MAX)
             except asyncio.CancelledError:
