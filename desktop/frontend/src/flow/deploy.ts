@@ -1,4 +1,6 @@
 import { compile, printFlow, type FlowGraph, type NodeSpec } from "./dsl";
+import type { FlowLayout } from "./layout";
+import { sourceMap, type FlowSourceMap } from "./map";
 
 /** First line of the entry stub this editor writes. Only a project whose `__init__.py` starts with it is overwritten. */
 export const STUB_MARK = "# xscript-desktop flow entry: regenerated on every run from the flow editor, edit the flow instead";
@@ -11,7 +13,7 @@ export interface DeployFile {
 }
 
 export type DeployPlan =
-  | { ok: true; project: string; files: DeployFile[] }
+  | { ok: true; project: string; files: DeployFile[]; map: FlowSourceMap }
   | { ok: false; reason: "name" | "compile"; detail: string };
 
 /** The stub imports the generated module, which runs the flow (the device imports the project as a package, §10.2). */
@@ -25,27 +27,32 @@ export function isEntryStub(content: string): boolean {
 
 /**
  * Files for running this flow as the device project named after it: the traced build in `flows/<name>.py`,
- * the flow text next to it, and the entry stub. Same layout as design §10.2 (relative import, no `__main__` guard).
+ * the flow text next to it, its source map and layout (§10.2), and the entry stub. Relative import, no `__main__`
+ * guard. The map is for the traced build the device runs, so a device traceback points back at a node; the layout
+ * travels with the flow because the device copy is the only copy of a flow run from the editor.
  */
-export function deployPlan(graph: FlowGraph, specs: Map<string, NodeSpec>): DeployPlan {
+export function deployPlan(graph: FlowGraph, specs: Map<string, NodeSpec>, layout?: FlowLayout | null): DeployPlan {
   const name = graph.name;
   if (!PROJECT_NAME.test(name)) return { ok: false, reason: "name", detail: name };
+  const build = "flows/" + name + ".py";
+  let map: FlowSourceMap;
   let python: string;
   try {
-    python = compile(graph, specs, { trace: true }).python;
+    const result = compile(graph, specs, { trace: true });
+    python = result.python;
+    map = sourceMap(result, build);
   } catch (err) {
     return { ok: false, reason: "compile", detail: err instanceof Error ? err.message : String(err) };
   }
-  return {
-    ok: true,
-    project: name,
-    files: [
-      { path: "flows/__init__.py", content: "" },
-      { path: "flows/" + name + ".py", content: python },
-      { path: "flows/" + name + ".xflow", content: printFlow(graph) },
-      { path: "__init__.py", content: entryStub(name) },
-    ],
-  };
+  const files: DeployFile[] = [
+    { path: "flows/__init__.py", content: "" },
+    { path: build, content: python },
+    { path: "flows/" + name + ".xflow", content: printFlow(graph) },
+    { path: "flows/" + name + ".xflow.map.json", content: JSON.stringify(map, null, 2) + "\n" },
+  ];
+  if (layout) files.push({ path: "flows/" + name + ".xflow.layout.json", content: JSON.stringify(layout, null, 2) + "\n" });
+  files.push({ path: "__init__.py", content: entryStub(name) });
+  return { ok: true, project: name, files, map };
 }
 
 export interface DeployApi {

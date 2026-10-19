@@ -18,7 +18,7 @@ import { mergeBoxSelection, type BoxMode } from "../flow/select";
 import { enterableScope, scopeNodeIds } from "../flow/scope";
 import { dataPinClass, pinColor } from "../flow/pins";
 import { wirePath, wireStroke } from "../flow/wire";
-import { blame, mapGraph } from "../flow/map";
+import { blame, mapGraph, type FlowSourceMap } from "../flow/map";
 import { builtinSpecs, menuSpecs, nodeBadge } from "../flow/specs";
 import { isTextEntry } from "../shortcuts";
 import { emptyLogCursor, flowEdges, followLogs, LOG_POLL_MS, pictureOf, readTrace, RUN_KEEP_MS, runKept, seqGap, type LogCursor, type NodeRun } from "../flow/trace";
@@ -653,6 +653,9 @@ export function FlowPage({ initialLayout }: { initialLayout?: FlowLayout } = {})
   const [trial, setTrial] = useState<{ code: string; line: string; busy?: boolean } | null>(null);
   const stepTicket = useRef(0);
   const [onDevice, setOnDevice] = useState<{ project: string; devId: string } | null>(null);
+  // The map of the traced build last sent to the device. Kept after the run ends (an error usually ends it) and
+  // after later edits, because the device keeps running that build until the next deploy.
+  const [deployedMap, setDeployedMap] = useState<FlowSourceMap | null>(null);
   const [deploying, setDeploying] = useState(false);
   const sawRunning = useRef(false);
   const [session, setSession] = useState<FlowDebug | null>(null);
@@ -713,7 +716,16 @@ export function FlowPage({ initialLayout }: { initialLayout?: FlowLayout } = {})
     }
   }, [graph, specs]);
   const problems = useMemo(() => diagnose(graph, parseError, specs), [graph, parseError, specs]);
-  const fault = useMemo(() => (traceLive && mapped ? blame(traceLog, mapped) : null), [traceLive, mapped, traceLog]);
+  // A device traceback is ordinary output, so it lands in the user log, not among the trace lines; read both.
+  // A traceback from the deployed build is looked up in its own map, anything else in the editor's.
+  const { fault, faultFile } = useMemo(() => {
+    const log = userLog.length ? [traceLog, ...userLog].join("\n") : traceLog;
+    for (const map of traceLive ? [deployedMap, mapped] : []) {
+      const hit = map ? blame(log, map) : null;
+      if (hit && map) return { fault: hit, faultFile: map.file };
+    }
+    return { fault: null, faultFile: "" };
+  }, [traceLive, deployedMap, mapped, traceLog, userLog]);
   const canvas = useMemo(
     () => toCanvas(graph, picked, layout, specs, measured, breaks, scope, tracePicture, reducedMotion, fault?.node ?? null),
     [graph, picked, layout, specs, measured, breaks, scope, tracePicture, reducedMotion, fault],
@@ -815,7 +827,7 @@ export function FlowPage({ initialLayout }: { initialLayout?: FlowLayout } = {})
       setNote(t.flow.noDevice);
       return;
     }
-    const plan = deployPlan(graphRef.current, specs);
+    const plan = deployPlan(graphRef.current, specs, layoutRef.current);
     if (!plan.ok) {
       setNote(plan.reason === "name" ? t.flow.deployBadName(plan.detail) : t.flow.deployCompile(plan.detail));
       return;
@@ -839,6 +851,7 @@ export function FlowPage({ initialLayout }: { initialLayout?: FlowLayout } = {})
         setNote(t.flow.deployFailed(ran.error));
         return;
       }
+      setDeployedMap(plan.map);
       setOnDevice({ project: plan.project, devId });
       setFollow(true);
       setNote(t.flow.deployed(plan.project));
@@ -2312,7 +2325,7 @@ export function FlowPage({ initialLayout }: { initialLayout?: FlowLayout } = {})
           ] as const).map(([id, label]) => (
             <Button key={id} type="button" role="tab" aria-selected={dock === id} onClick={() => setDock(id)}>
               {label}
-              {id === "problems" && problems.length ? <span className="flow-dock-count">{problems.length}</span> : null}
+              {id === "problems" && problems.length + (fault ? 1 : 0) ? <span className="flow-dock-count">{problems.length + (fault ? 1 : 0)}</span> : null}
               {id === "breaks" && breaks.length ? <span className="flow-dock-count">{breaks.length}</span> : null}
             </Button>
           ))}
@@ -2390,6 +2403,13 @@ export function FlowPage({ initialLayout }: { initialLayout?: FlowLayout } = {})
           ) : null}
           {dock === "problems" ? (
             <ul aria-label={t.flow.problems}>
+              {fault ? (
+                <li className="flow-fault-row">
+                  <Button type="button" onClick={() => locate(fault.node)}>
+                    {t.flow.faultAt(fault.node, faultFile, fault.line, fault.message)}
+                  </Button>
+                </li>
+              ) : null}
               {problems.map((item) => (
                 <li key={item.code + (item.node ?? "") + item.message}>
                   {item.node ? (
