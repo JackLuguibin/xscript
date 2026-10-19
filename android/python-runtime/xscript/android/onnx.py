@@ -200,8 +200,8 @@ _cache = {}
 
 
 def load(path, threads=4, accel=""):
-    """Cached Session per (path, accel): loading a model costs far more than running it."""
-    key = (os.path.abspath(str(path)), accel or "")
+    """Cached Session per (path, threads, accel): loading a model costs far more than running it."""
+    key = (os.path.abspath(str(path)), int(threads or 0), accel or "")
     s = _cache.get(key)
     if s is None:
         s = Session(path, threads, accel)

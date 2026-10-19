@@ -15,6 +15,7 @@ Pipeline (same as PaddleOCR / RapidOCR):
 """
 
 import math
+import os
 
 from xscript.android import image as _img
 from xscript.android import onnx as _onnx
@@ -189,11 +190,15 @@ class PaddleOcr(object):
     """
 
     def __init__(self, det, rec, keys=None, cls=None, threads=4, limit_side_len=960, limit_type="max",
-                 thresh=0.3, box_thresh=0.6, unclip_ratio=1.5, rec_batch=6, accel=""):
+                 thresh=0.3, box_thresh=0.6, unclip_ratio=1.5, rec_batch=6, accel="", rec_workers=None):
         if cv2 is None or np is None:
             raise RuntimeError("PaddleOCR needs numpy and OpenCV")
         self.det = _onnx.load(det, threads, accel)
-        self.rec = _onnx.load(rec, threads, accel)
+        # Recognition runs line batches concurrently: ONNX Runtime scales poorly past ~2 intra-op
+        # threads on these small inputs, while independent single-thread runs keep every core busy
+        # (measured ~1.7x on a 4-core emulator). The rec session gets threads // workers each.
+        self.rec_workers = _rec_workers(threads, rec_workers)
+        self.rec = _onnx.load(rec, max(1, int(threads or 0) // self.rec_workers) if threads else 0, accel)
         self.cls = _onnx.load(cls, threads, accel) if cls else None
         self.chars = load_chars(keys, self.rec.metadata)
         self.limit_side_len = int(limit_side_len)
@@ -229,24 +234,41 @@ class PaddleOcr(object):
         """[(text, confidence)] for BGR line crops."""
         if not crops:
             return []
-        h = self.rec_h
         ratios = [c.shape[1] / float(max(c.shape[0], 1)) for c in crops]
         order = np.argsort(ratios)
+        size = self.rec_batch
+        if self.rec_workers > 1:
+            # Enough batches for every worker; similar widths stay together (less padding).
+            size = max(1, min(size, int(math.ceil(len(crops) / float(self.rec_workers)))))
+        groups = [order[s:s + size] for s in range(0, len(crops), size)]
         results = [None] * len(crops)
-        for start in range(0, len(crops), self.rec_batch):
-            idx = order[start:start + self.rec_batch]
-            max_ratio = max(max(ratios[i] for i in idx), 320.0 / h)
-            width = int(math.ceil(h * max_ratio))
-            batch = np.zeros((len(idx), 3, h, width), np.float32)
-            for k, i in enumerate(idx):
-                c = crops[i]
-                rw = min(width, max(1, int(math.ceil(h * ratios[i]))))
-                r = cv2.resize(c, (rw, h)).astype(np.float32) / 255.0
-                batch[k, :, :, :rw] = ((r - 0.5) / 0.5).transpose(2, 0, 1)
-            best, conf = self.rec.run_argmax(batch)
+
+        def work(idx):
+            best, conf = self.rec.run_argmax(self._rec_batch(crops, ratios, idx))
             for k, i in enumerate(idx):
                 results[i] = ctc_decode_argmax(best[k], conf[k], self.chars)
+
+        if len(groups) > 1 and self.rec_workers > 1:
+            # A pool per call: idle worker threads must not outlive the call, because the
+            # script runner waits for non-daemon threads before it reports a script finished.
+            from concurrent.futures import ThreadPoolExecutor
+            with ThreadPoolExecutor(min(self.rec_workers, len(groups)), thread_name_prefix="xs-paddle-rec") as ex:
+                list(ex.map(work, groups))
+        else:
+            for idx in groups:
+                work(idx)
         return results
+
+    def _rec_batch(self, crops, ratios, idx):
+        h = self.rec_h
+        max_ratio = max(max(ratios[i] for i in idx), 320.0 / h)
+        width = int(math.ceil(h * max_ratio))
+        batch = np.zeros((len(idx), 3, h, width), np.float32)
+        for k, i in enumerate(idx):
+            rw = min(width, max(1, int(math.ceil(h * ratios[i]))))
+            r = cv2.resize(crops[i], (rw, h)).astype(np.float32) / 255.0
+            batch[k, :, :, :rw] = ((r - 0.5) / 0.5).transpose(2, 0, 1)
+        return batch
 
     # ---- full pipeline
 
@@ -284,6 +306,15 @@ class PaddleOcr(object):
                 "points": [[int(x), int(y)] for x, y in zip(xs, ys)],
             }))
         return out
+
+
+def _rec_workers(threads, requested):
+    """Concurrent recognition batches: explicit value, else one per thread (at most 4 and cores)."""
+    if requested is not None:
+        return max(1, int(requested))
+    if not threads:
+        return 1
+    return max(1, min(int(threads), 4, os.cpu_count() or 1))
 
 
 _default = {"engine": None, "key": None}

@@ -1,0 +1,390 @@
+{
+ "list": [
+  {
+   "text": "Settings",
+   "rect": [
+    19,
+    29,
+    317,
+    152
+   ],
+   "confidence": 0.999
+  },
+  {
+   "text": "Option 00 enabled",
+   "rect": [
+    49,
+    202,
+    484,
+    287
+   ],
+   "confidence": 0.9737
+  },
+  {
+   "text": "0%",
+   "rect": [
+    880,
+    210,
+    971,
+    282
+   ],
+   "confidence": 0.9223
+  },
+  {
+   "text": "Option 01 enabled",
+   "rect": [
+    48,
+    377,
+    482,
+    455
+   ],
+   "confidence": 0.9719
+  },
+  {
+   "text": "11%",
+   "rect": [
+    883,
+    376,
+    997,
+    452
+   ],
+   "confidence": 0.9837
+  },
+  {
+   "text": "Option 02 enabled",
+   "rect": [
+    50,
+    541,
+    483,
+    626
+   ],
+   "confidence": 0.9832
+  },
+  {
+   "text": "22%",
+   "rect": [
+    882,
+    549,
+    994,
+    621
+   ],
+   "confidence": 0.968
+  },
+  {
+   "text": "Option 03 enabled",
+   "rect": [
+    47,
+    712,
+    483,
+    796
+   ],
+   "confidence": 0.9856
+  },
+  {
+   "text": "33%",
+   "rect": [
+    879,
+    714,
+    999,
+    799
+   ],
+   "confidence": 0.9751
+  },
+  {
+   "text": "Option 04 enabled",
+   "rect": [
+    49,
+    882,
+    483,
+    967
+   ],
+   "confidence": 0.9929
+  },
+  {
+   "text": "44%",
+   "rect": [
+    878,
+    882,
+    1000,
+    966
+   ],
+   "confidence": 0.9861
+  },
+  {
+   "text": "Option 05 enabled",
+   "rect": [
+    52,
+    1059,
+    481,
+    1131
+   ],
+   "confidence": 0.991
+  },
+  {
+   "text": "55%",
+   "rect": [
+    881,
+    1056,
+    995,
+    1132
+   ],
+   "confidence": 0.9432
+  },
+  {
+   "text": "Option 06 enabled",
+   "rect": [
+    51,
+    1225,
+    480,
+    1303
+   ],
+   "confidence": 0.9686
+  },
+  {
+   "text": "66%",
+   "rect": [
+    884,
+    1229,
+    994,
+    1301
+   ],
+   "confidence": 0.9822
+  },
+  {
+   "text": "Option 07 enabled",
+   "rect": [
+    48,
+    1395,
+    482,
+    1473
+   ],
+   "confidence": 0.9783
+  },
+  {
+   "text": "77%",
+   "rect": [
+    883,
+    1399,
+    995,
+    1474
+   ],
+   "confidence": 0.8987
+  },
+  {
+   "text": "Option 08 enabled",
+   "rect": [
+    50,
+    1565,
+    482,
+    1646
+   ],
+   "confidence": 0.9776
+  },
+  {
+   "text": "88%",
+   "rect": [
+    881,
+    1569,
+    997,
+    1641
+   ],
+   "confidence": 0.9776
+  },
+  {
+   "text": "Option 09 enabled",
+   "rect": [
+    50,
+    1742,
+    481,
+    1813
+   ],
+   "confidence": 0.9722
+  },
+  {
+   "text": "99%",
+   "rect": [
+    881,
+    1738,
+    995,
+    1814
+   ],
+   "confidence": 0.9725
+  },
+  {
+   "text": "OK",
+   "rect": [
+    484,
+    2162,
+    608,
+    2258
+   ],
+   "confidence": 0.8091
+  }
+ ],
+ "hello": [
+  {
+   "text": "HELLO 2026",
+   "rect": [
+    55,
+    61,
+    451,
+    138
+   ],
+   "confidence": 0.9716
+  }
+ ],
+ "grid": [
+  {
+   "text": "alpha",
+   "rect": [
+    56,
+    91,
+    149,
+    141
+   ],
+   "confidence": 0.9989
+  },
+  {
+   "text": "beta",
+   "rect": [
+    575,
+    85,
+    672,
+    134
+   ],
+   "confidence": 0.9998
+  },
+  {
+   "text": "delta",
+   "rect": [
+    577,
+    266,
+    682,
+    314
+   ],
+   "confidence": 0.9961
+  },
+  {
+   "text": "gamma",
+   "rect": [
+    57,
+    278,
+    179,
+    321
+   ],
+   "confidence": 0.9995
+  },
+  {
+   "text": "score 1024",
+   "rect": [
+    57,
+    451,
+    246,
+    495
+   ],
+   "confidence": 0.9956
+  },
+  {
+   "text": "level 7",
+   "rect": [
+    575,
+    444,
+    720,
+    495
+   ],
+   "confidence": 0.9874
+  },
+  {
+   "text": "gold 350",
+   "rect": [
+    55,
+    629,
+    205,
+    680
+   ],
+   "confidence": 0.9979
+  },
+  {
+   "text": "exit",
+   "rect": [
+    575,
+    624,
+    658,
+    676
+   ],
+   "confidence": 0.9997
+  },
+  {
+   "text": "alpha",
+   "rect": [
+    56,
+    811,
+    149,
+    861
+   ],
+   "confidence": 0.9989
+  },
+  {
+   "text": "beta",
+   "rect": [
+    575,
+    804,
+    673,
+    855
+   ],
+   "confidence": 0.9998
+  },
+  {
+   "text": "delta",
+   "rect": [
+    577,
+    986,
+    682,
+    1034
+   ],
+   "confidence": 0.9961
+  },
+  {
+   "text": "gamma",
+   "rect": [
+    57,
+    998,
+    179,
+    1041
+   ],
+   "confidence": 0.9995
+  }
+ ],
+ "dark": [
+  {
+   "text": "Battery 87% remaining",
+   "rect": [
+    48,
+    105,
+    593,
+    169
+   ],
+   "confidence": 0.9903
+  },
+  {
+   "text": "Next run at 14:30",
+   "rect": [
+    48,
+    314,
+    427,
+    358
+   ],
+   "confidence": 0.9873
+  },
+  {
+   "text": "v0.3.0",
+   "rect": [
+    42,
+    570,
+    142,
+    608
+   ],
+   "confidence": 0.9922
+  }
+ ]
+}
