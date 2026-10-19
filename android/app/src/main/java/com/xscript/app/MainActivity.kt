@@ -68,10 +68,7 @@ class MainActivity : AppCompatActivity() {
     private lateinit var rowNotif: UiKit.Row
     private lateinit var rowStorage: UiKit.Row
     private lateinit var rowBattery: UiKit.Row
-    private lateinit var runTitle: TextView
-    private lateinit var runSub: TextView
-    private lateinit var runButton: TextView
-    private lateinit var runDot: View
+    private lateinit var run: UiKit.RunCardViews
     private lateinit var permsHeader: UiKit.Section
 
     private val notifyPermission = registerForActivityResult(
@@ -101,7 +98,7 @@ class MainActivity : AppCompatActivity() {
         val col = UiKit.screen(this, getString(R.string.app_name), "Python 自动化 · v" + XscriptApp.versionName(this), back = false)
         UiKit.barAction(col, "日志") { startActivity(Intent(this, LogActivity::class.java)) }
 
-        buildRunCard(col)
+        run = UiKit.runCard(col) { toggleRun() }
 
         // Grouped by what the user does: open a project, connect a computer, choose how scripts run, grant access.
         val apps = UiKit.card(col)
@@ -142,46 +139,6 @@ class MainActivity : AppCompatActivity() {
         }
 
         UiKit.note(col, "USB 调试：adb forward tcp:<端口> tcp:<端口>（端口见“开发者地址”，默认 9860，与 AScript 的 9096 互不冲突），然后在电脑上连接 127.0.0.1:<端口>。")
-    }
-
-    private fun buildRunCard(col: LinearLayout) {
-        val card = UiKit.card(col)
-        val line = LinearLayout(this).apply {
-            orientation = LinearLayout.HORIZONTAL
-            gravity = Gravity.CENTER_VERTICAL
-            val p = UiKit.dp(this@MainActivity, 16f)
-            setPadding(UiKit.dp(this@MainActivity, 20f), p, p, p)
-            minimumHeight = UiKit.dp(this@MainActivity, 88f)
-        }
-        val texts = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
-        runTitle = TextView(this).apply {
-            textSize = 18f
-            setTextColor(ui.text)
-            setTypeface(typeface, Typeface.BOLD)
-            maxLines = 2
-            ellipsize = android.text.TextUtils.TruncateAt.END
-        }
-        val status = LinearLayout(this).apply {
-            orientation = LinearLayout.HORIZONTAL
-            gravity = Gravity.CENTER_VERTICAL
-            setPadding(0, UiKit.dp(this@MainActivity, 4f), 0, 0)
-        }
-        val d = UiKit.dp(this, 8f)
-        runDot = UiKit.dot(this, ui.muted)
-        status.addView(runDot, LinearLayout.LayoutParams(d, d).apply { rightMargin = UiKit.dp(this@MainActivity, 6f) })
-        runSub = TextView(this).apply {
-            textSize = 13f
-            setTextColor(ui.muted)
-        }
-        status.addView(runSub, LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f))
-        texts.addView(runTitle)
-        texts.addView(status)
-        line.addView(texts, LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f).apply {
-            rightMargin = UiKit.dp(this@MainActivity, 12f)
-        })
-        runButton = UiKit.button(this, "运行", UiKit.Tone.SUCCESS) { toggleRun() }
-        line.addView(runButton)
-        card.addView(line)
     }
 
     override fun onResume() {
@@ -245,12 +202,7 @@ class MainActivity : AppCompatActivity() {
         val running = RunState.current(this)
         val last = if (running == null) Settings.lastProject.takeIf { ProjectStore(this).exists(it) } else null
         val card = HomeModel.runCard(running, last)
-        UiKit.setText(runTitle, card.title)
-        UiKit.setText(runSub, card.status)
-        UiKit.setText(runButton, card.action)
-        // paint and dotColor skip an unchanged tone: a new drawable each tick would redraw the idle screen.
-        UiKit.paint(runButton, card.tone)
-        UiKit.dotColor(runDot, if (card.running) ui.success else ui.muted)
+        UiKit.showRunCard(run, card)
     }
 
     private fun toggleRun() {

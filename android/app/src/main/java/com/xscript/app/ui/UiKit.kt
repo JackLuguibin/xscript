@@ -255,6 +255,62 @@ object UiKit {
         (dot.background as GradientDrawable).setColor(color)
     }
 
+    /** The run card at the top of the home and packaged-app screens: title, status dot + line, one action. */
+    class RunCardViews(val title: TextView, val status: TextView, val dot: View, val button: TextView)
+
+    fun runCard(parent: LinearLayout, onAction: () -> Unit): RunCardViews {
+        val ctx = parent.context
+        val p = palette(ctx)
+        val card = card(parent)
+        val line = LinearLayout(ctx).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = Gravity.CENTER_VERTICAL
+            val pad = dp(ctx, 16f)
+            setPadding(dp(ctx, 20f), pad, pad, pad)
+            minimumHeight = dp(ctx, 88f)
+        }
+        val texts = LinearLayout(ctx).apply { orientation = LinearLayout.VERTICAL }
+        val title = TextView(ctx).apply {
+            textSize = 18f
+            setTextColor(p.text)
+            setTypeface(typeface, Typeface.BOLD)
+            maxLines = 2
+            ellipsize = android.text.TextUtils.TruncateAt.END
+        }
+        val status = LinearLayout(ctx).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = Gravity.CENTER_VERTICAL
+            setPadding(0, dp(ctx, 4f), 0, 0)
+        }
+        val d = dp(ctx, 8f)
+        val dot = dot(ctx, p.muted)
+        status.addView(dot, LinearLayout.LayoutParams(d, d).apply { rightMargin = dp(ctx, 6f) })
+        val sub = TextView(ctx).apply {
+            textSize = 13f
+            setTextColor(p.muted)
+        }
+        status.addView(sub, LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f))
+        texts.addView(title)
+        texts.addView(status)
+        line.addView(texts, LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f).apply {
+            rightMargin = dp(ctx, 12f)
+        })
+        val button = button(ctx, "运行", Tone.SUCCESS, onAction)
+        line.addView(button)
+        card.addView(line)
+        return RunCardViews(title, sub, dot, button)
+    }
+
+    /** Shows [c]; every setter skips an unchanged value, so the idle screen is not redrawn each tick. */
+    fun showRunCard(v: RunCardViews, c: HomeModel.RunCard) {
+        val p = palette(v.title.context)
+        setText(v.title, c.title)
+        setText(v.status, c.status)
+        setText(v.button, c.action)
+        paint(v.button, c.tone)
+        dotColor(v.dot, if (c.running) p.success else if (c.warn) p.danger else p.muted)
+    }
+
     fun card(parent: LinearLayout, topMarginDp: Float = 12f): LinearLayout {
         val ctx = parent.context
         val card = LinearLayout(ctx).apply {

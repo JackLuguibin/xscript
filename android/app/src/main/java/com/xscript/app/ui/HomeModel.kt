@@ -3,7 +3,15 @@ package com.xscript.app.ui
 /** What the home screen shows, kept free of views so the JVM tests cover it. */
 object HomeModel {
     /** The run card: the project it is about, its status line and the primary action. */
-    data class RunCard(val title: String, val status: String, val action: String, val tone: UiKit.Tone, val running: Boolean)
+    data class RunCard(
+        val title: String,
+        val status: String,
+        val action: String,
+        val tone: UiKit.Tone,
+        val running: Boolean,
+        /** Something blocks a run (the status dot turns red). */
+        val warn: Boolean = false,
+    )
 
     /**
      * [running] is the project running now, [last] the last one run if it still exists. With neither, the action

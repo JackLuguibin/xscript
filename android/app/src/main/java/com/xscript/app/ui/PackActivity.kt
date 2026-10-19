@@ -6,15 +6,14 @@ import androidx.appcompat.app.AlertDialog
 import com.google.android.material.dialog.MaterialAlertDialogBuilder
 import android.content.ComponentName
 import android.content.Intent
-import android.graphics.Typeface
 import android.media.projection.MediaProjectionManager
 import android.net.Uri
 import android.os.Build
 import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
+import android.os.PowerManager
 import android.provider.Settings as AndroidSettings
-import android.view.Gravity
 import android.view.ViewGroup
 import android.widget.EditText
 import android.widget.LinearLayout
@@ -52,8 +51,9 @@ class PackActivity : AppCompatActivity() {
         }
     }
 
-    private lateinit var status: TextView
-    private lateinit var runButton: TextView
+    private lateinit var run: UiKit.RunCardViews
+    private lateinit var permsHeader: UiKit.Section
+    private lateinit var rowBattery: UiKit.Row
     private lateinit var rowLicense: UiKit.Row
     private lateinit var rowA11y: UiKit.Row
     private lateinit var rowOverlay: UiKit.Row
@@ -84,34 +84,20 @@ class PackActivity : AppCompatActivity() {
         val col = UiKit.screen(this, label, "v" + XscriptApp.versionName(this), back = false)
         UiKit.barAction(col, "日志") { startActivity(Intent(this, LogActivity::class.java)) }
 
-        val card = UiKit.card(col)
-        val box = LinearLayout(this).apply {
-            orientation = LinearLayout.VERTICAL
-            gravity = Gravity.CENTER_HORIZONTAL
-            val p = UiKit.dp(this@PackActivity, 20f)
-            setPadding(p, p, p, p)
-        }
-        status = TextView(this).apply {
-            textSize = 15f
-            setTextColor(ui.muted)
-            gravity = Gravity.CENTER
-        }
-        box.addView(status)
-        runButton = UiKit.button(this, "启动", UiKit.Tone.SUCCESS) { toggleRun() }
-        box.addView(runButton, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT).apply {
-            topMargin = UiKit.dp(this@PackActivity, 14f)
-        })
-        card.addView(box)
+        run = UiKit.runCard(col) { toggleRun() }
 
-        if (LicenseManager.required()) {
-            val lic = UiKit.card(col)
-            rowLicense = UiKit.row(lic, R.drawable.ic_sym_key, "卡密授权") { activateDialog() }
+        // 授权与更新 only when the build has a license or an ops server; an empty section header would look broken.
+        val ops: LinearLayout? = if (LicenseManager.required() || AppOps.enabled()) {
+            UiKit.section(col, "授权与更新")
+            UiKit.card(col, 8f)
+        } else null
+        rowLicense = if (LicenseManager.required() && ops != null) {
+            UiKit.row(ops, R.drawable.ic_sym_key, "卡密授权") { activateDialog() }
         } else {
-            rowLicense = UiKit.Row(LinearLayout(this), TextView(this), TextView(this), ui.muted)
+            UiKit.Row(LinearLayout(this), TextView(this), TextView(this), ui.muted)
         }
 
-        if (AppOps.enabled()) {
-            val ops = UiKit.card(col)
+        if (AppOps.enabled() && ops != null) {
             rowNotice = UiKit.row(ops, R.drawable.ic_sym_campaign, "公告") { showNotices(AppOps.notices(this), all = true) }
             rowUpdate = UiKit.row(ops, R.drawable.ic_sym_system_update, "应用更新") {
                 val u = AppOps.update(this)
@@ -120,7 +106,8 @@ class PackActivity : AppCompatActivity() {
             }
         }
 
-        val perms = UiKit.card(col)
+        permsHeader = UiKit.section(col, "权限")
+        val perms = UiKit.card(col, 8f)
         rowA11y = UiKit.row(perms, R.drawable.ic_sym_accessibility_new, "无障碍服务") {
             startActivity(Intent(AndroidSettings.ACTION_ACCESSIBILITY_SETTINGS))
         }
@@ -133,14 +120,15 @@ class PackActivity : AppCompatActivity() {
             capturePermission.launch(mgr.createScreenCaptureIntent())
         }
         rowRoot = UiKit.row(perms, R.drawable.ic_sym_terminal, "Root 权限") { RootShell.probeAsync { runOnUiThread { refresh() } } }
-        UiKit.row(perms, R.drawable.ic_sym_battery_saver, "后台运行") {
+        rowBattery = UiKit.row(perms, R.drawable.ic_sym_battery_saver, "后台运行") {
             startActivity(Intent(AndroidSettings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS).apply {
                 data = Uri.parse("package:$packageName")
             })
         }
         if (com.xscript.app.settings.Settings.cloudUrl.isNotEmpty()) {
-            val cloud = UiKit.card(col)
-            rowCloud = UiKit.row(cloud, R.drawable.ic_sym_cloud, "云控", chevron = false)
+            UiKit.section(col, "云控")
+            val cloud = UiKit.card(col, 8f)
+            rowCloud = UiKit.row(cloud, R.drawable.ic_sym_cloud, "云端控制", chevron = false)
         }
         UiKit.note(col, "设备 ID：" + CloudClient.deviceId(this))
 
@@ -165,15 +153,9 @@ class PackActivity : AppCompatActivity() {
     private fun refresh() {
         val running = RunState.current(this) != null
         val gate = AppOps.gate(this) ?: LicenseManager.check(this)
-        status.text = when {
-            running -> "运行中"
-            gate != null -> gate
-            !AccessibilityEngine.isOn() && RootShell.known() != true -> "请先开启无障碍服务"
-            else -> "就绪"
-        }
-        status.setTypeface(null, if (running) Typeface.BOLD else Typeface.NORMAL)
-        runButton.text = if (running) "停止" else "启动"
-        UiKit.paint(runButton, if (running) UiKit.Tone.DANGER else UiKit.Tone.SUCCESS)
+        val licenseBlocked = LicenseManager.check(this) != null
+        val needA11y = !AccessibilityEngine.isOn() && RootShell.known() != true
+        UiKit.showRunCard(run, PackModel.runCard(running, gate, AppOps.mustUpdate(this), licenseBlocked, needA11y))
 
         if (AppOps.enabled()) {
             val n = AppOps.notices(this).size
@@ -192,10 +174,10 @@ class PackActivity : AppCompatActivity() {
             if (st.optBoolean("activated") && gate == null) {
                 val exp = st.optLong("expires")
                 val until = if (exp == 0L) "永久" else java.text.SimpleDateFormat("yyyy-MM-dd HH:mm", java.util.Locale.CHINA).format(java.util.Date(exp * 1000))
-                val left = LicenseManager.usesLeft(this)
-                rowLicense.value("有效至 $until" + if (left >= 0) "，剩余 $left 次" else "", ui.success)
+                val (text, ok) = PackModel.licenseValue(true, until, LicenseManager.usesLeft(this), gate)
+                rowLicense.value(text, if (ok) ui.success else ui.danger)
             } else {
-                rowLicense.value(gate ?: "未激活", ui.danger)
+                rowLicense.value(PackModel.licenseValue(false, "", -1, gate).first, ui.danger)
             }
         }
         val a11y = AccessibilityEngine.isOn() || isAccessibilityListed()
@@ -209,6 +191,11 @@ class PackActivity : AppCompatActivity() {
             false -> rowRoot.value("未获取")
             null -> rowRoot.value("检测中")
         }
+        val battery = (getSystemService(POWER_SERVICE) as PowerManager).isIgnoringBatteryOptimizations(packageName)
+        rowBattery.value(if (battery) "不受限" else "受限", if (battery) ui.success else ui.muted)
+        var granted = 0
+        for (on in listOf(a11y, overlay, CaptureEngine.available(), RootShell.known() == true, battery)) if (on) granted++
+        UiKit.setText(permsHeader.value, HomeModel.permissionSummary(granted, 5))
         rowCloud?.value(CloudClient.label(), if (CloudClient.state == CloudClient.State.CONNECTED) ui.success else ui.muted)
     }
 
