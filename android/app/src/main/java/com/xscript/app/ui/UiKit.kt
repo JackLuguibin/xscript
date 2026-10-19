@@ -190,7 +190,48 @@ object UiKit {
         return tv
     }
 
-    fun card(parent: LinearLayout): LinearLayout {
+    /** Header above a card: [title] and an optional trailing summary, marked as a heading for TalkBack. */
+    class Section(val title: TextView, val value: TextView)
+
+    fun section(parent: LinearLayout, title: String): Section {
+        val ctx = parent.context
+        val p = palette(ctx)
+        val line = LinearLayout(ctx).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = Gravity.CENTER_VERTICAL
+            setPadding(dp(ctx, 16f), dp(ctx, 20f), dp(ctx, 16f), 0)
+        }
+        val t = TextView(ctx).apply {
+            text = title
+            textSize = 13f
+            setTypeface(typeface, Typeface.BOLD)
+            setTextColor(p.muted)
+            ViewCompat.setAccessibilityHeading(this, true)
+        }
+        line.addView(t, LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f))
+        val v = TextView(ctx).apply {
+            textSize = 12f
+            setTextColor(p.muted)
+        }
+        line.addView(v)
+        parent.addView(line)
+        return Section(t, v)
+    }
+
+    /** A small round status dot; [dotColor] repaints it only when the color changes. */
+    fun dot(ctx: Context, color: Int): View = View(ctx).apply {
+        background = GradientDrawable().apply { shape = GradientDrawable.OVAL }
+        dotColor(this, color)
+        importantForAccessibility = View.IMPORTANT_FOR_ACCESSIBILITY_NO
+    }
+
+    fun dotColor(dot: View, color: Int) {
+        if (dot.getTag(R.id.xscript_tone) == color) return
+        dot.setTag(R.id.xscript_tone, color)
+        (dot.background as GradientDrawable).setColor(color)
+    }
+
+    fun card(parent: LinearLayout, topMarginDp: Float = 12f): LinearLayout {
         val ctx = parent.context
         val card = LinearLayout(ctx).apply {
             orientation = LinearLayout.VERTICAL
@@ -201,7 +242,7 @@ object UiKit {
             clipToOutline = true
         }
         parent.addView(card, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT).apply {
-            topMargin = dp(ctx, 12f)
+            topMargin = dp(ctx, topMarginDp)
         })
         return card
     }
