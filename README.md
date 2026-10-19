@@ -64,7 +64,7 @@ XScript 将设备端 Python 运行时、自动化 API、浏览器开发工具和
 
 不想自己构建时，直接用发布好的安装包，只需要一台 Android 8.0+ 手机或模拟器和一台电脑。
 
-**1. 安装 App**：从 [GitHub Release v0.2.6](https://github.com/JackLuguibin/xscript/releases/tag/v0.2.6) 下载 `xscript-v0.2.6-release.apk`，`adb install` 或拷到手机上点开安装。v0.2.1–v0.2.3 正式版可直接覆盖升级；装过 Debug 版的设备要先卸载（会清除应用数据）。
+**1. 安装 App**：从 [GitHub Release v0.3.0](https://github.com/JackLuguibin/xscript/releases/tag/v0.3.0) 下载 `xscript-v0.3.0-release.apk`，`adb install` 或拷到手机上点开安装。v0.2.1–v0.2.3 正式版可直接覆盖升级；装过 Debug 版的设备要先卸载（会清除应用数据）。
 
 **2. 授权**：首次打开先允许 **通知**（否则开发服务不会启动），再按需开启 **辅助权限管理**（无障碍，点击和控件操作要用）、**悬浮窗权限**、**图色权限**（截图）。
 
