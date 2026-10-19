@@ -18,7 +18,6 @@ import android.view.ViewGroup
 import android.widget.EditText
 import android.widget.LinearLayout
 import android.widget.TextView
-import android.widget.Toast
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AppCompatActivity
 import com.xscript.app.XscriptApp
@@ -89,7 +88,7 @@ class PackActivity : AppCompatActivity() {
         // 授权与更新 only when the build has a license or an ops server; an empty section header would look broken.
         val ops: LinearLayout? = if (LicenseManager.required() || AppOps.enabled()) {
             UiKit.section(col, "授权与更新")
-            UiKit.card(col, 8f)
+            UiKit.card(col, UiKit.Space.S)
         } else null
         rowLicense = if (LicenseManager.required() && ops != null) {
             UiKit.row(ops, R.drawable.ic_sym_key, "卡密授权") { activateDialog() }
@@ -107,7 +106,7 @@ class PackActivity : AppCompatActivity() {
         }
 
         permsHeader = UiKit.section(col, "权限")
-        val perms = UiKit.card(col, 8f)
+        val perms = UiKit.card(col, UiKit.Space.S)
         rowA11y = UiKit.row(perms, R.drawable.ic_sym_accessibility_new, "无障碍服务") {
             startActivity(Intent(AndroidSettings.ACTION_ACCESSIBILITY_SETTINGS))
         }
@@ -127,7 +126,7 @@ class PackActivity : AppCompatActivity() {
         }
         if (com.xscript.app.settings.Settings.cloudUrl.isNotEmpty()) {
             UiKit.section(col, "云控")
-            val cloud = UiKit.card(col, 8f)
+            val cloud = UiKit.card(col, UiKit.Space.S)
             rowCloud = UiKit.row(cloud, R.drawable.ic_sym_cloud, "云端控制", chevron = false)
         }
         UiKit.note(col, "设备 ID：" + CloudClient.deviceId(this))
@@ -213,7 +212,7 @@ class PackActivity : AppCompatActivity() {
             return
         }
         val gate = ScriptService.run(this, PackInstaller.project)
-        Toast.makeText(this, gate ?: if (LicenseManager.required()) "正在启动…" else "已启动", Toast.LENGTH_SHORT).show()
+        UiKit.toast(this, gate ?: if (LicenseManager.required()) "正在启动…" else "已启动")
     }
 
     /** After a check (or on resume): forced update first, then unseen 公告, then an optional update. */
@@ -235,7 +234,7 @@ class PackActivity : AppCompatActivity() {
     private fun showNotices(items: List<AppOpsModel.Notice>, all: Boolean) {
         if (noticeDialog?.isShowing == true || updateDialog?.isShowing == true) return
         if (items.isEmpty()) {
-            Toast.makeText(this, "暂无公告", Toast.LENGTH_SHORT).show()
+            UiKit.toast(this, "暂无公告")
             return
         }
         val text = items.joinToString("\n\n") { n ->
@@ -302,11 +301,7 @@ class PackActivity : AppCompatActivity() {
             hint = if (renew) "输入新的卡密" else "输入卡密"
             isSingleLine = true
         }
-        val box = LinearLayout(this).apply {
-            val p = UiKit.dp(this@PackActivity, 20f)
-            setPadding(p, UiKit.dp(this@PackActivity, 8f), p, 0)
-            addView(input, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT))
-        }
+        val box = UiKit.dialogField(this, input)
         MaterialAlertDialogBuilder(this)
             .setTitle(if (renew) "续期" else "卡密授权")
             .setMessage(
@@ -321,7 +316,7 @@ class PackActivity : AppCompatActivity() {
                 thread(name = "xscript-activate") {
                     val res = LicenseManager.activate(this, code)
                     runOnUiThread {
-                        Toast.makeText(this, res.message, Toast.LENGTH_LONG).show()
+                        UiKit.toast(this, res.message, long = true)
                         refresh()
                     }
                 }

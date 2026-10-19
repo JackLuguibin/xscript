@@ -8,7 +8,6 @@ import android.os.Bundle
 import android.view.ViewGroup
 import android.widget.EditText
 import android.widget.LinearLayout
-import android.widget.Toast
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AppCompatActivity
 import com.xscript.app.project.ProjectStore
@@ -103,7 +102,7 @@ class ProjectsActivity : AppCompatActivity() {
             val names = store.ascriptProjects()
             runOnUiThread {
                 if (names.isEmpty()) {
-                    Toast.makeText(this, "未找到 AScript 工程（需要 Root 或文件访问权限）", Toast.LENGTH_LONG).show()
+                    UiKit.toast(this, "未找到 AScript 工程（需要 Root 或文件访问权限）", long = true)
                     return@runOnUiThread
                 }
                 MaterialAlertDialogBuilder(this)
@@ -127,11 +126,7 @@ class ProjectsActivity : AppCompatActivity() {
             isSingleLine = true
             selectAll()
         }
-        val box = LinearLayout(this).apply {
-            val p = UiKit.dp(this@ProjectsActivity, 20f)
-            setPadding(p, UiKit.dp(this@ProjectsActivity, 8f), p, 0)
-            addView(input, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT))
-        }
+        val box = UiKit.dialogField(this, input)
         MaterialAlertDialogBuilder(this)
             .setTitle(title)
             .setMessage("名称用作 Python 包名：字母/汉字/数字/下划线，不能以数字开头")
@@ -142,7 +137,7 @@ class ProjectsActivity : AppCompatActivity() {
                     ProjectStore.sanitize(name)
                     onOk(name)
                 } catch (e: Exception) {
-                    Toast.makeText(this, e.message, Toast.LENGTH_LONG).show()
+                    UiKit.toast(this, e.message, long = true)
                 }
             }
             .setNegativeButton("取消", null)
@@ -150,8 +145,7 @@ class ProjectsActivity : AppCompatActivity() {
     }
 
     private fun work(label: String, showResult: Boolean = true, block: () -> String) {
-        val toast = Toast.makeText(this, label, Toast.LENGTH_SHORT)
-        toast.show()
+        UiKit.toast(this, label)
         thread {
             val msg = try {
                 block()
@@ -159,7 +153,7 @@ class ProjectsActivity : AppCompatActivity() {
                 "失败：" + (e.message ?: e.toString())
             }
             runOnUiThread {
-                if (showResult || msg.startsWith("失败")) Toast.makeText(this, msg, Toast.LENGTH_LONG).show()
+                if (showResult || msg.startsWith("失败")) UiKit.toast(this, msg, long = true)
                 if (!isDestroyed) render()
             }
         }
