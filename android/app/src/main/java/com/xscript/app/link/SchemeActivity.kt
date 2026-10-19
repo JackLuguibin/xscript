@@ -1,10 +1,12 @@
 package com.xscript.app.link
 
+import android.view.ContextThemeWrapper
+import com.google.android.material.dialog.MaterialAlertDialogBuilder
 import android.app.Activity
-import android.app.AlertDialog
 import android.content.Intent
 import android.os.Bundle
 import com.xscript.app.BuildConfig
+import com.xscript.app.R
 import com.xscript.app.project.ProjectStore
 import com.xscript.app.runtime.DapTransport
 import com.xscript.app.runtime.ScriptService
@@ -38,7 +40,8 @@ class SchemeActivity : Activity() {
 
     private fun confirm(link: SchemeLink.Run) {
         val from = referrer?.host?.takeIf { it.isNotBlank() }?.let { "\n来自：$it" } ?: ""
-        AlertDialog.Builder(this)
+        // The activity is translucent (no theme of its own to show); the dialog uses the app's Material 3 theme.
+        MaterialAlertDialogBuilder(ContextThemeWrapper(this, R.style.Theme_Xscript))
             .setTitle("运行小程序")
             .setMessage("有链接请求运行「${link.project}」。$from\n只运行你信任来源的链接。")
             .setPositiveButton("运行") { _, _ -> execute(link) }

@@ -1,7 +1,6 @@
 package com.xscript.app.script
 
 import android.annotation.SuppressLint
-import android.app.AlertDialog
 import android.content.Context
 import android.graphics.BitmapFactory
 import android.graphics.Canvas
@@ -31,6 +30,8 @@ import android.widget.EditText
 import android.widget.FrameLayout
 import android.widget.ImageView
 import android.widget.Toast
+import com.google.android.material.dialog.MaterialAlertDialogBuilder
+import com.xscript.app.R
 import com.xscript.app.XscriptApp
 import org.json.JSONArray
 import org.json.JSONObject
@@ -146,54 +147,50 @@ object ScriptUi {
      * Returns {"ok": true|false, "value": ...}; ok=false means cancelled or no overlay permission.
      */
     private fun dialog(kind: String, a: JSONObject): String {
-        if (!canOverlay()) {
-            return JSONObject().put("ok", false).put("error", "overlay_permission").toString()
-        }
-        val result = AtomicReference(JSONObject().put("ok", false))
+        if (!canOverlay()) return ScriptDialogs.noPermission().toString()
+        val spec = ScriptDialogs.parse(kind, a)
+        val result = AtomicReference(ScriptDialogs.cancelled())
         val latch = CountDownLatch(1)
         main.post {
             try {
-                val themed = ContextThemeWrapper(ctx, android.R.style.Theme_DeviceDefault_Light_Dialog_Alert)
-                val b = AlertDialog.Builder(themed)
-                a.optString("title").takeIf { it.isNotEmpty() }?.let { b.setTitle(it) }
-                val submit = a.optString("submit", "确认")
-                val cancel = a.optString("cancel", "取消")
+                // The app's Material 3 theme (light / dark with the system) instead of the device default light
+                // dialog; the answers, buttons and widgets are unchanged (ScriptDialogsTest pins them).
+                val themed = ContextThemeWrapper(ctx, R.style.Theme_Xscript)
+                val b = MaterialAlertDialogBuilder(themed)
+                spec.title?.let { b.setTitle(it) }
                 var input: EditText? = null
                 when (kind) {
                     "alert" -> {
-                        b.setMessage(a.optString("msg"))
-                        b.setPositiveButton(submit) { _, _ -> result.set(JSONObject().put("ok", true)) }
+                        b.setMessage(spec.msg)
+                        b.setPositiveButton(spec.submit) { _, _ -> result.set(ScriptDialogs.alerted()) }
                     }
                     "confirm" -> {
-                        b.setMessage(a.optString("msg"))
-                        b.setPositiveButton(submit) { _, _ -> result.set(JSONObject().put("ok", true).put("value", true)) }
-                        b.setNegativeButton(cancel) { _, _ -> result.set(JSONObject().put("ok", true).put("value", false)) }
+                        b.setMessage(spec.msg)
+                        b.setPositiveButton(spec.submit) { _, _ -> result.set(ScriptDialogs.confirmed(true)) }
+                        b.setNegativeButton(spec.cancel) { _, _ -> result.set(ScriptDialogs.confirmed(false)) }
                     }
                     "prompt" -> {
-                        b.setMessage(a.optString("msg"))
+                        b.setMessage(spec.msg)
                         val et = EditText(themed).apply {
-                            setText(a.optString("value"))
-                            hint = a.optString("hint")
+                            setText(spec.value)
+                            hint = spec.hint
                             inputType = InputType.TYPE_CLASS_TEXT
                         }
                         input = et
-                        val pad = dp(20f)
+                        val pad = dp(24f)
                         val box = FrameLayout(themed).apply {
                             setPadding(pad, dp(8f), pad, 0)
                             addView(et)
                         }
                         b.setView(box)
-                        b.setPositiveButton(submit) { _, _ ->
-                            result.set(JSONObject().put("ok", true).put("value", input?.text?.toString().orEmpty()))
+                        b.setPositiveButton(spec.submit) { _, _ ->
+                            result.set(ScriptDialogs.prompted(input?.text?.toString().orEmpty()))
                         }
-                        b.setNegativeButton(cancel, null)
+                        b.setNegativeButton(spec.cancel, null)
                     }
                     "select" -> {
-                        val arr = a.optJSONArray("items") ?: JSONArray()
-                        val items = Array(arr.length()) { arr.optString(it) }
-                        if (a.optString("msg").isNotEmpty() && a.optString("title").isEmpty()) b.setTitle(a.optString("msg"))
-                        b.setItems(items) { _, which -> result.set(JSONObject().put("ok", true).put("value", which)) }
-                        b.setNegativeButton(cancel, null)
+                        b.setItems(spec.items.toTypedArray()) { _, which -> result.set(ScriptDialogs.selected(which)) }
+                        b.setNegativeButton(spec.cancel, null)
                     }
                 }
                 val d = b.create()
@@ -201,7 +198,7 @@ object ScriptUi {
                 d.window?.setType(overlayType())
                 d.show()
             } catch (t: Throwable) {
-                result.set(JSONObject().put("ok", false).put("error", t.message ?: t.toString()))
+                result.set(ScriptDialogs.failed(t.message ?: t.toString()))
                 latch.countDown()
             }
         }
