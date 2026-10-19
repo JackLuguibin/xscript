@@ -474,6 +474,7 @@ pre.logs.debug-console { min-height: 4rem; max-height: 10rem; }
 .xflow-node.is-run-running .xflow-run { color: var(--primary); background: var(--primary-soft); }
 .xflow-node.is-run-success .xflow-run { color: var(--success-fg); background: var(--success-bg); }
 .xflow-node.is-run-error .xflow-run, .xflow-node.is-fault .xflow-run { color: var(--danger-fg); background: var(--danger-bg); }
+.flow-fault-row button { color: var(--danger-fg); background: var(--danger-bg); border-color: color-mix(in srgb, var(--danger-dot) 40%, transparent); }
 .xflow-node.is-run-paused .xflow-run { color: var(--warning-fg); background: var(--warning-bg); }
 .flow-canvas .react-flow__edge-path, .flow-canvas .react-flow__connection-path { stroke-width: 2px; stroke-linecap: round; }
 .react-flow__edge.xflow-edge-flow .react-flow__edge-path { stroke-dasharray: 6 4; animation: xflow-dash 0.6s linear infinite; }

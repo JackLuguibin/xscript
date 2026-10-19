@@ -8,6 +8,8 @@ import { FlowPage } from "../src/components/FlowPage";
 import { createDemoTransport } from "../src/demo";
 import { deployPlan, entryStub, isEntryStub, pushPlan, STUB_MARK, type DeployApi } from "../src/flow/deploy";
 import { parse, printFlow, type FlowGraph } from "../src/flow/dsl";
+import { layoutFromGraph } from "../src/flow/layout";
+import { mapGraph, type FlowSourceMap } from "../src/flow/map";
 import { SAMPLE_FLOW } from "../src/flow/sample";
 import { builtinSpecs } from "../src/flow/specs";
 
@@ -27,13 +29,38 @@ describe("deploy plan", () => {
     expect(plan.ok).toBe(true);
     if (!plan.ok) return;
     expect(plan.project).toBe("daily_signin");
-    expect(plan.files.map((file) => file.path)).toEqual(["flows/__init__.py", "flows/daily_signin.py", "flows/daily_signin.xflow", "__init__.py"]);
+    expect(plan.files.map((file) => file.path)).toEqual(["flows/__init__.py", "flows/daily_signin.py", "flows/daily_signin.xflow", "flows/daily_signin.xflow.map.json", "__init__.py"]);
     const byPath = new Map(plan.files.map((file) => [file.path, file.content]));
     expect(byPath.get("flows/daily_signin.py")).toContain("__xf_trace");
     expect(byPath.get("flows/daily_signin.xflow")).toBe(printFlow(graph));
     expect(byPath.get("__init__.py")).toBe(entryStub("daily_signin"));
     expect(entryStub("daily_signin")).toContain("from .flows import daily_signin");
     parsesAsPython([byPath.get("flows/daily_signin.py") ?? "", byPath.get("__init__.py") ?? ""]);
+  });
+
+  it("ships the source map of the traced build, and the layout when there is one", () => {
+    const graph = parse(SAMPLE_FLOW);
+    const layout = layoutFromGraph(graph);
+    const plan = deployPlan(graph, specs, layout);
+    expect(plan.ok).toBe(true);
+    if (!plan.ok) return;
+    expect(plan.files.map((file) => file.path).slice(-3)).toEqual(["flows/daily_signin.xflow.map.json", "flows/daily_signin.xflow.layout.json", "__init__.py"]);
+    const byPath = new Map(plan.files.map((file) => [file.path, file.content]));
+    const map = JSON.parse(byPath.get("flows/daily_signin.xflow.map.json") ?? "{}") as FlowSourceMap;
+    expect(map).toEqual(plan.map);
+    expect(map.file).toBe("flows/daily_signin.py");
+    expect(JSON.parse(byPath.get("flows/daily_signin.xflow.layout.json") ?? "{}")).toEqual(layout);
+    // The map describes the traced build that is deployed, which is longer than the untraced one.
+    const lines = (byPath.get("flows/daily_signin.py") ?? "").split("\n");
+    const editor = mapGraph(graph, specs);
+    expect(map.nodes.tap).toBeDefined();
+    expect(map.nodes.tap).not.toEqual(editor.nodes.tap);
+    for (const line of map.nodes.tap ?? []) expect(lines[Number(line) - 1]).not.toBe(undefined);
+    expect(map.nodes.tap?.some((line) => /click/.test(lines[Number(line) - 1] ?? ""))).toBe(true);
+    for (const [id, rows] of Object.entries(map.nodes)) {
+      expect(graph.nodes.some((node) => node.id === id)).toBe(true);
+      expect(rows.length).toBeGreaterThan(0);
+    }
   });
 
   it("refuses a flow name that is not a project name, and a graph that does not compile", () => {
@@ -184,6 +211,56 @@ describe("run on device", () => {
     });
     await waitFor(() => expect(status()).toContain("设备上的工程 daily_signin 已结束"));
     expect(screen.getByRole("button", { name: "在设备上运行" })).toBeTruthy();
+  });
+
+  it("maps a device traceback from the deployed build back to its node, after the run ended", async () => {
+    const plan = deployPlan(parse(SAMPLE_FLOW), specs);
+    if (!plan.ok) throw new Error("sample does not deploy");
+    const line = Number(plan.map.nodes.tap?.[0]);
+    const traceback = [
+      "Traceback (most recent call last):",
+      '  File "/data/user/0/com.xscript/files/projects/daily_signin/__init__.py", line 2, in <module>',
+      `  File "/data/user/0/com.xscript/files/projects/daily_signin/flows/daily_signin.py", line ${line}, in main`,
+      "RuntimeError: node gone",
+    ];
+    let ran = false;
+    const { transport } = await mount((base) => ({
+      run: (id: string, project: string) => {
+        ran = true;
+        return base.run(id, project);
+      },
+      logs: async () => (ran ? { entries: traceback.map((text, i) => ({ seq: i + 1, ts: 0, stream: "stderr", line: text })), next: traceback.length } : { entries: [], next: 0 }),
+    }));
+    fireEvent.click(screen.getByRole("tab", { name: /问题/ }));
+    expect(screen.queryByText(/运行错误 · /)).toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: "在设备上运行" }));
+    const row = await screen.findByRole("button", { name: new RegExp(`运行错误 · tap（flows/daily_signin.py 第 ${line} 行）：RuntimeError: node gone`) });
+    act(() => {
+      transport.push({ event: true, topic: "device.state", data: { id: DEV, status: { running: true } } });
+      transport.push({ event: true, topic: "device.state", data: { id: DEV, status: { running: false } } });
+    });
+    await waitFor(() => expect(status()).toContain("已结束"));
+    expect(screen.getByRole("button", { name: /运行错误 · tap/ })).toBe(row);
+    expect(screen.getByRole("tab", { name: /问题/ }).textContent).toMatch(/\d/);
+    fireEvent.click(row);
+    expect(screen.getByLabelText("tap " + "运行错误")).toBeTruthy();
+  });
+
+  it("does not blame a traceback from another file on the deployed flow", async () => {
+    let ran = false;
+    const traceback = ["Traceback (most recent call last):", '  File "/x/projects/other/__init__.py", line 3, in <module>', "ValueError: nope"];
+    await mount((base) => ({
+      run: (id: string, project: string) => {
+        ran = true;
+        return base.run(id, project);
+      },
+      logs: async () => (ran ? { entries: traceback.map((text, i) => ({ seq: i + 1, ts: 0, stream: "stderr", line: text })), next: traceback.length } : { entries: [], next: 0 }),
+    }));
+    fireEvent.click(screen.getByRole("tab", { name: /问题/ }));
+    fireEvent.click(screen.getByRole("button", { name: "在设备上运行" }));
+    await waitFor(() => expect(status()).toContain("已在设备上运行工程 daily_signin"));
+    await new Promise((resolve) => setTimeout(resolve, 50));
+    expect(screen.queryByText(/运行错误 · /)).toBeNull();
   });
 
   it("uses the flow name as the project name", async () => {
