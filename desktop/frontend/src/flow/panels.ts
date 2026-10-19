@@ -58,3 +58,25 @@ export function startViewport(bounds: Box, width: number, height: number, opts: 
 export function shouldAutoFit(fitted: string | null, name: string, ready: boolean): boolean {
   return ready && fitted !== name;
 }
+
+/** Nodes to bring into view once they are measured, such as the ones the control tree just added. */
+export interface CanvasFocus {
+  key: number;
+  ids: readonly string[];
+}
+
+/**
+ * The node ids to frame for `focus`, or null when it was already framed (`done` is its key)
+ * or any of its nodes is missing or not measured yet.
+ */
+export function focusTargets(
+  nodes: ReadonlyArray<{ id: string; measured?: { width?: number } }>,
+  focus: CanvasFocus | null,
+  done: number,
+): string[] | null {
+  if (!focus || !focus.ids.length || focus.key === done) return null;
+  const wanted = new Set(focus.ids);
+  const hits = nodes.filter((node) => wanted.has(node.id));
+  if (hits.length !== wanted.size || hits.some((node) => !node.measured?.width)) return null;
+  return hits.map((node) => node.id);
+}

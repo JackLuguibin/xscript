@@ -11,6 +11,7 @@ import { Button } from "./components/ui/button";
 import { WallPage } from "./components/WallPage";
 import { DeviceProvider, useCurrentDevice } from "./device-context";
 import { IconFlow, IconFolder, IconGrid, IconMark, IconMonitor, IconMoon, IconPhone, IconSun } from "./components/icons";
+import { onCanvasPick } from "./flow/inbox";
 import { useLanguage } from "./i18n";
 import type { ShellPage } from "./shortcuts";
 import { t } from "./strings";
@@ -73,6 +74,8 @@ function Shell() {
   useEffect(() => {
     if (page === "projects") setProjectsOpened(true);
   }, [page]);
+  // "Add to flow" on the screen page: show the canvas, which takes the queued control when it mounts.
+  useEffect(() => onCanvasPick(() => setPage("flows")), []);
   // Tell the shell (MainWindow.closeEvent asks before closing; the language picks the prompt's wording).
   useEffect(() => {
     void api.setUnsaved(unsaved, lang).catch(() => undefined);

@@ -7,6 +7,7 @@ import { useToast } from "./Toast";
 import { flattenTree, hitTest, nodeLabel, nodeXPath, rectPercent, selectorCode, type UiNode, type UiRect, type UiTree } from "../ui-tree";
 import { Button } from "./ui/button";
 import { Textarea } from "./ui/textarea";
+import { sendToCanvas } from "../flow/inbox";
 
 export type PointerMode = "control" | "inspect" | "color";
 
@@ -210,6 +211,9 @@ export function ScreenTools({
             <Textarea className="code-snip font-mono" aria-label={t.inspect.code} readOnly value={code} rows={3} />
             <p className="hint">{t.inspect.codeHint}</p>
             <div className="row wrap">
+              <Button size="sm" variant="primary" type="button" onClick={() => { sendToCanvas(selected); toast(t.inspect.sentToCanvas); }}>
+                {t.inspect.toCanvas}
+              </Button>
               <Button size="sm" type="button" onClick={() => void copy(selectorCode(selected))}>
                 {t.inspect.copySelector}
               </Button>

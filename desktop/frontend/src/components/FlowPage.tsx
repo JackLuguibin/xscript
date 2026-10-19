@@ -1,6 +1,9 @@
 import { Component, createContext, useContext, useEffect, useMemo, useRef, useState, type DragEvent, type ReactNode } from "react";
+import { keepDraft, readDraft } from "../flow/draft";
+import { onCanvasPick, takeCanvasPicks } from "../flow/inbox";
+import { dropTreeNode, type TreeDrop } from "../flow/tree-drop";
 import { IconSidebar } from "./icons";
-import { libraryShown, matchesNarrow, NARROW_QUERY, shouldAutoFit, startViewport, overflowEdges, toggleLibrary, wheelShift, type LibraryMode } from "../flow/panels";
+import { focusTargets, libraryShown, matchesNarrow, NARROW_QUERY, shouldAutoFit, startViewport, overflowEdges, toggleLibrary, wheelShift, type CanvasFocus, type LibraryMode } from "../flow/panels";
 import { Background, BaseEdge, Handle, MiniMap, Position, ReactFlow, ReactFlowProvider, useNodesInitialized, useReactFlow, useStore, useUpdateNodeInternals, type ConnectionLineComponentProps, type EdgeProps, type Node, type NodeProps } from "@xyflow/react";
 import "@xyflow/react/dist/style.css";
 import { CodeEditor } from "./CodeEditor";
@@ -363,18 +366,28 @@ function RerouteNode({ id }: NodeProps) {
   );
 }
 
-/** Frames each flow once, when React Flow reports every node measured (useNodesInitialized). */
-function AutoFit({ name }: { name: string }) {
+/**
+ * Frames each flow once, when React Flow reports every node measured (useNodesInitialized),
+ * then frames `focus` once its nodes are measured.
+ */
+function AutoFit({ name, focus }: { name: string; focus: CanvasFocus | null }) {
   const ready = useNodesInitialized();
-  const { getNodes, getNodesBounds, setViewport } = useReactFlow();
+  const { getNodes, getNodesBounds, setViewport, fitView } = useReactFlow();
   const width = useStore((state) => state.width);
   const height = useStore((state) => state.height);
   const fitted = useRef<string | null>(null);
+  const focused = useRef(0);
   useEffect(() => {
-    if (!width || !height || !shouldAutoFit(fitted.current, name, ready)) return;
-    fitted.current = name;
-    void setViewport(startViewport(getNodesBounds(getNodes()), width, height));
-  }, [name, ready, width, height, getNodes, getNodesBounds, setViewport]);
+    if (!width || !height || !ready) return;
+    if (shouldAutoFit(fitted.current, name, ready)) {
+      fitted.current = name;
+      void setViewport(startViewport(getNodesBounds(getNodes()), width, height));
+    }
+    const ids = focusTargets(getNodes(), focus, focused.current);
+    if (!ids || !focus) return;
+    focused.current = focus.key;
+    void fitView({ nodes: ids.map((id) => ({ id })), duration: 0, padding: 0.3, maxZoom: 1 });
+  }, [name, ready, width, height, focus, getNodes, getNodesBounds, setViewport, fitView]);
   return null;
 }
 
@@ -578,6 +591,20 @@ function toCanvas(
   };
 }
 
+/** The flow kept from the last visit (its editor text, else its last valid text), or the sample. */
+function bootFlow(): { sync: ReturnType<typeof createDslSync>; layout: FlowLayout | null } {
+  const kept = readDraft();
+  for (const source of kept ? [kept.text, kept.valid] : []) {
+    try {
+      const sync = createDslSync(parse(source));
+      return { sync, layout: kept ? retainLayout(kept.layout, sync.graph) : null };
+    } catch {
+      // try the last valid text, then the sample
+    }
+  }
+  return { sync: createDslSync(parse(SAMPLE_FLOW)), layout: null };
+}
+
 export function FlowPage({ initialLayout }: { initialLayout?: FlowLayout } = {}) {
   const services = useContext(ServicesContext);
   const specs = useMemo(() => builtinSpecs(), []);
@@ -592,13 +619,15 @@ export function FlowPage({ initialLayout }: { initialLayout?: FlowLayout } = {})
   const [runs, setRuns] = useState<FlowRun[]>(() => readRuns());
   const cacheEdited = useRef(new Set<string>());
   const logCursor = useRef<LogCursor>(emptyLogCursor());
-  const sync = useRef(createDslSync(parse(SAMPLE_FLOW)));
+  const [boot] = useState(bootFlow);
+  const sync = useRef(boot.sync);
   const [text, setText] = useState(sync.current.text);
   const [graph, setGraph] = useState<FlowGraph>(sync.current.graph);
   const [picked, setPicked] = useState<string[]>([]);
+  const [focus, setFocus] = useState<CanvasFocus | null>(null);
   const [note, setNote] = useState("");
   const [parseError, setParseError] = useState("");
-  const [layout, setLayout] = useState<FlowLayout>(() => initialLayout ?? layoutFromGraph(sync.current.graph));
+  const [layout, setLayout] = useState<FlowLayout>(() => initialLayout ?? boot.layout ?? layoutFromGraph(sync.current.graph));
   const [menu, setMenu] = useState(false);
   const [query, setQuery] = useState("");
   const [openCats, setOpenCats] = useState<string[]>([]);
@@ -1015,6 +1044,33 @@ export function FlowPage({ initialLayout }: { initialLayout?: FlowLayout } = {})
     setPicked([]);
   };
   applyRef.current = apply;
+
+  useEffect(() => {
+    keepDraft({ text, valid: sync.current.text, layout });
+  }, [text, graph, layout]);
+
+  useEffect(() => {
+    const drain = () => {
+      const picks = takeCanvasPicks();
+      if (!picks.length) return;
+      let next = graphRef.current;
+      const ids: string[] = [];
+      let last: TreeDrop | null = null;
+      for (const pick of picks) {
+        last = dropTreeNode(next, pick, specs);
+        next = last.graph;
+        ids.push(...last.ids);
+      }
+      applyRef.current?.(next);
+      setPicked(ids);
+      setFocus((prev) => ({ key: (prev?.key ?? 0) + 1, ids }));
+      if (last) setNote(last.attached ? t.flow.treeAdded(last.label) : t.flow.treeFloating(last.label));
+    };
+    drain();
+    return onCanvasPick(drain);
+    // specs is memoised for the page's lifetime.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const lineId = picked.length === 1 && picked[0] !== "start" && graph.nodes.some((node) => node.id === picked[0]) ? picked[0] : null;
   const lineShown = lineId ? nodeStatement(graph, lineId) : "";
@@ -1899,7 +1955,7 @@ export function FlowPage({ initialLayout }: { initialLayout?: FlowLayout } = {})
               proOptions={{ hideAttribution: false }}
             >
               <Remeasure />
-              <AutoFit name={graph.name} />
+              <AutoFit name={graph.name} focus={focus} />
               <MiniMap ariaLabel={t.flow.minimap} pannable zoomable nodeBorderRadius={6} style={{ width: 148, height: 96 }} />
               <Background />
             </ReactFlow>
