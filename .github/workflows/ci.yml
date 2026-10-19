@@ -144,8 +144,6 @@ jobs:
   android:
     name: Android (${{ matrix.title }})
     runs-on: ubuntu-24.04
-    env:
-      GRADLE_OPTS: -Dorg.gradle.caching=false  # TEMP: measure a cold build cache; reverted in the next commit
     timeout-minutes: 45
     strategy:
       fail-fast: false
