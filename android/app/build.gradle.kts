@@ -138,6 +138,11 @@ android {
     }
     packaging {
         resources.excludes += listOf("META-INF/*.kotlin_module", "META-INF/DEPENDENCIES")
+        // Compress the .so files (about 80 MB of the universal APK) and let the installer extract them. The APKs are
+        // downloaded straight from GitHub Releases, not through Play's compressed delivery, so the file size is what users
+        // download: universal 135 → 82 MB, arm64-v8a 70 → 45 MB. The installed size grows by the extracted libraries of
+        // one ABI (~38 MB minus what the APK saved); cold start and first-script time measured the same either way.
+        jniLibs.useLegacyPackaging = true
     }
 }
 
