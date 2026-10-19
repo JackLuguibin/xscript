@@ -1,5 +1,7 @@
 import { afterEach } from "vitest";
 import { cleanup, configure } from "@testing-library/react";
+import { clearDraft } from "../src/flow/draft";
+import { resetCanvasInbox } from "../src/flow/inbox";
 
 class ResizeObserverStub {
   observe() {}
@@ -28,5 +30,7 @@ configure({ asyncUtilTimeout: 4000 });
 
 afterEach(() => {
   cleanup();
+  clearDraft(); // the flow page keeps its draft across mounts; each test starts from the sample
+  resetCanvasInbox();
   localStorage.clear(); // the current device (xscript.device) and other picks must not leak between tests
 });

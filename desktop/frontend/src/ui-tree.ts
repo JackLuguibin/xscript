@@ -93,6 +93,11 @@ export function xpathStr(value: string): string {
 
 /** A Selector() chain. Resource id, then text, then content-desc, then class + path. */
 export function selectorCode(node: UiNode): string {
+  return `from xscript.android import node\n${selectorChain(node, "node")}.find(timeout=5)`;
+}
+
+/** `<module>.Selector()…` without the find, so callers pick the module alias and timeout. */
+export function selectorChain(node: UiNode, module: string): string {
   const calls: string[] = [];
   if (node.id) calls.push(`.id(${pyStr(node.id)})`);
   else if (node.text) calls.push(`.text(${pyStr(node.text)})`);
@@ -103,7 +108,7 @@ export function selectorCode(node: UiNode): string {
   }
   if (node.clickable) calls.push(".clickable()");
   const chain = calls.length ? calls.join("") : `.path(${pyStr(node.path || "0")})`;
-  return `from xscript.android import node\nnode.Selector()${chain}.find(timeout=5)`;
+  return `${module}.Selector()${chain}`;
 }
 
 /** One XPath that points at this node. Prefer resource-id, then text, then content-desc. */

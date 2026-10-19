@@ -3,7 +3,7 @@ import { afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 import { FlowPage } from "../src/components/FlowPage";
 import { toneOf, VariablePanel } from "../src/components/VariablePanel";
 import { parse } from "../src/flow/dsl";
-import { AUTO_FIT, libraryShown, matchesNarrow, NARROW_QUERY, overflowEdges, shouldAutoFit, startViewport, toggleLibrary, wheelShift } from "../src/flow/panels";
+import { AUTO_FIT, focusTargets, libraryShown, matchesNarrow, NARROW_QUERY, overflowEdges, shouldAutoFit, startViewport, toggleLibrary, wheelShift } from "../src/flow/panels";
 
 beforeAll(() => {
   class Observer {
@@ -227,5 +227,17 @@ describe("variable rows", () => {
     const row = screen.getByRole("button", { name: "读取 HOME" }).closest("li") as HTMLElement;
     expect(row.querySelector(".flow-var-detail")).toBeNull();
     expect(row.querySelector(".flow-var-type")?.textContent).toBe("string");
+  });
+
+  it("frames dropped nodes once, after every one of them is measured", () => {
+    const m = { width: 120 };
+    const focus = { key: 2, ids: ["find", "tap"] };
+    expect(focusTargets([{ id: "find", measured: m }, { id: "tap", measured: m }, { id: "x" }], focus, 1)).toEqual(["find", "tap"]);
+    expect(focusTargets([{ id: "find", measured: m }, { id: "tap", measured: m }], focus, 2)).toBeNull();
+    expect(focusTargets([{ id: "find", measured: m }, { id: "tap" }], focus, 1)).toBeNull();
+    expect(focusTargets([{ id: "find", measured: m }, { id: "tap", measured: { width: 0 } }], focus, 1)).toBeNull();
+    expect(focusTargets([{ id: "find", measured: m }], focus, 1)).toBeNull();
+    expect(focusTargets([{ id: "find", measured: m }], null, 0)).toBeNull();
+    expect(focusTargets([{ id: "find", measured: m }], { key: 3, ids: [] }, 0)).toBeNull();
   });
 });
