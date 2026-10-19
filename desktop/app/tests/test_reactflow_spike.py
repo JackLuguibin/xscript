@@ -26,10 +26,18 @@ def spike(qapp):
     close_shell(sh)
 
 
+def open_spike(sh, qtbot) -> None:
+    """Load a fresh spike.html in every test. Under pytest-xdist the tests of this module can run on different
+    workers, so a test cannot count on an earlier one having opened the page (it waited 20 s for a page nobody
+    loaded). The marker only lives on the previous document, so the wait cannot pass before the navigation."""
+    sh._eval(qtbot, "window.__xsBeforeLoad = 1; 0")
+    sh.win.view.load(QUrl("xsapp://app/spike.html"))
+    sh.wait_js(qtbot, "!window.__xsBeforeLoad && window.__spike && window.__spike.ready", timeout=20000)
+
+
 def test_spike_renders_nodes_under_csp_and_refuses_a_bad_edge(spike, qtbot):
     sh = spike
-    sh.win.view.load(QUrl("xsapp://app/spike.html"))
-    sh.wait_js(qtbot, "window.__spike && window.__spike.ready", timeout=20000)
+    open_spike(sh, qtbot)
     assert sh.js(qtbot, "window.__spike.nodes()") == 2
     assert "React Flow" in sh.js(qtbot, "window.__spike.attribution()")
     blocked = sh.js(qtbot, "(async () => { try { await fetch('https://example.com/'); return false; } catch (e) { return true; } })()")
@@ -48,7 +56,7 @@ def test_spike_renders_nodes_under_csp_and_refuses_a_bad_edge(spike, qtbot):
 
 def test_spike_pan_samples_and_bridge_events(spike, qtbot):
     sh = spike
-    sh.wait_js(qtbot, "window.__spike && window.__spike.ready", timeout=20000)
+    open_spike(sh, qtbot)
     small = sh.js(qtbot, "window.__spike.measure(200, 300)", timeout=20000)
     assert small["count"] == 200 and small["frames"] >= 8 and small["firstRenderMs"] > 0
     large = sh.js(qtbot, "window.__spike.measure(1000, 300)", timeout=30000)
