@@ -367,8 +367,10 @@ async def test_disconnect_releases_the_viewer_slot():
 
 @pytest.mark.timeout(10)
 async def test_poll_ends_even_when_a_cancel_is_swallowed():
-    """Python 3.10 + httpx/anyio can swallow the cancel aimed at the 429 screenshot poll; the session used to wait on
-    that poll forever (the CI desktop job's 120 s pytest timeout). The poll must still end once the gap is over."""
+    """The 429 screenshot poll ends even when its cancel is swallowed.
+
+    Python 3.10 + httpx/anyio can lose that cancel; the session then waited on the poll forever (the CI desktop job's
+    120 s pytest timeout)."""
     from xscript_desktop.services.mirror import _Session
 
     class SwallowingClient:
