@@ -9,6 +9,7 @@
 - **正式版 APK 启用 R8 精简**：dex 从 4.8 MB 降到 1.0 MB（方法数 88,201 → 17,368），资源从 1.4 MB 降到 0.7 MB；安装包 143.1 MB → 138.5 MB。类名不混淆，脚本按名字调用 Java 类、报错堆栈都不受影响。通过 `plug.load_apk` 加载的插件需要自带所用的库，见 API 文档。
 - **只保留英文和中文的库资源**：AndroidX、Material、Play 服务自带约 80 种语言的界面文字，现在只打包英文和简繁中文，`resources.arsc` 从 521 KB 降到 273 KB。
 - **新增手机专用安装包** `xscript-vX.Y.Z-release-arm64-v8a.apk`：只含 arm64-v8a，约 73 MB，通用包约 138 MB。原来的 `xscript-vX.Y.Z-release.apk` 仍是通用包（arm64-v8a + x86_64），PC 上的安卓模拟器请继续用它。两个包签名、版本相同，可以互相覆盖安装。
+- **去掉内置 Python 包里设备上用不到的文件**：numpy 自带的测试套件，以及调试器 debugpy 里的 C/Cython 源码、Windows 附加进程组件和 macOS 二进制。两个安装包各小 3.4 MB；`numpy.testing`、OpenCV 的 `cv2.data` 级联文件和断点调试都不受影响。
 
 ## v0.3.0（2026-10-19）
 
