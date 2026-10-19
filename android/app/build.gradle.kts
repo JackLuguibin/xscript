@@ -96,7 +96,10 @@ android {
 
     buildTypes {
         release {
-            isMinifyEnabled = false
+            // R8: shrink and optimize the libraries (the app's own classes are kept, see proguard-rules.pro),
+            // then drop the resources nothing references any more.
+            isMinifyEnabled = true
+            isShrinkResources = true
             proguardFiles(
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro",
@@ -196,6 +199,13 @@ chaquopy {
             srcDir("../python-runtime")
         }
     }
+}
+
+// R8KeepRulesTest reads the keep rules, this script and the Python runtime; declare them so edits re-run it.
+tasks.withType<Test>().configureEach {
+    inputs.file("proguard-rules.pro").withPathSensitivity(PathSensitivity.RELATIVE)
+    inputs.file("build.gradle.kts").withPathSensitivity(PathSensitivity.RELATIVE)
+    inputs.dir("../python-runtime").withPathSensitivity(PathSensitivity.RELATIVE)
 }
 
 dependencies {
