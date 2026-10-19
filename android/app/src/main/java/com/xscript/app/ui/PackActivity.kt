@@ -1,5 +1,6 @@
 package com.xscript.app.ui
 
+import com.xscript.app.R
 import android.Manifest
 import androidx.appcompat.app.AlertDialog
 import com.google.android.material.dialog.MaterialAlertDialogBuilder
@@ -104,15 +105,15 @@ class PackActivity : AppCompatActivity() {
 
         if (LicenseManager.required()) {
             val lic = UiKit.card(col)
-            rowLicense = UiKit.row(lic, "✓", 0xFF8E44AD.toInt(), "卡密授权") { activateDialog() }
+            rowLicense = UiKit.row(lic, R.drawable.ic_sym_key, "卡密授权") { activateDialog() }
         } else {
             rowLicense = UiKit.Row(LinearLayout(this), TextView(this), TextView(this), ui.muted)
         }
 
         if (AppOps.enabled()) {
             val ops = UiKit.card(col)
-            rowNotice = UiKit.row(ops, "!", 0xFFF59E0B.toInt(), "公告") { showNotices(AppOps.notices(this), all = true) }
-            rowUpdate = UiKit.row(ops, "↑", 0xFF2F7CF6.toInt(), "应用更新") {
+            rowNotice = UiKit.row(ops, R.drawable.ic_sym_campaign, "公告") { showNotices(AppOps.notices(this), all = true) }
+            rowUpdate = UiKit.row(ops, R.drawable.ic_sym_system_update, "应用更新") {
                 val u = AppOps.update(this)
                 if (u != null && (AppOps.mustUpdate(this) || AppOps.offerUpdate(this))) showUpdateDialog(u, AppOps.mustUpdate(this))
                 else AppOps.checkAsync(this, force = true) { runOnUiThread { refresh(); afterCheck() } }
@@ -120,26 +121,26 @@ class PackActivity : AppCompatActivity() {
         }
 
         val perms = UiKit.card(col)
-        rowA11y = UiKit.row(perms, "◉", 0xFFF59E0B.toInt(), "无障碍服务") {
+        rowA11y = UiKit.row(perms, R.drawable.ic_sym_accessibility_new, "无障碍服务") {
             startActivity(Intent(AndroidSettings.ACTION_ACCESSIBILITY_SETTINGS))
         }
-        rowFloat = UiKit.row(perms, "◐", 0xFF34A853.toInt(), "悬浮窗显示") { FloatControl.chooseMode(this) { refresh() } }
-        rowOverlay = UiKit.row(perms, "▣", 0xFF34A853.toInt(), "悬浮窗权限") {
+        rowFloat = UiKit.row(perms, R.drawable.ic_sym_picture_in_picture, "悬浮窗显示") { FloatControl.chooseMode(this) { refresh() } }
+        rowOverlay = UiKit.row(perms, R.drawable.ic_sym_layers, "悬浮窗权限") {
             startActivity(FloatControl.permissionIntent(this))
         }
-        rowCapture = UiKit.row(perms, "◎", 0xFFE5484D.toInt(), "截图权限") {
+        rowCapture = UiKit.row(perms, R.drawable.ic_sym_screenshot_monitor, "截图权限") {
             val mgr = getSystemService(MEDIA_PROJECTION_SERVICE) as MediaProjectionManager
             capturePermission.launch(mgr.createScreenCaptureIntent())
         }
-        rowRoot = UiKit.row(perms, ">_", 0xFF2F7CF6.toInt(), "Root 权限") { RootShell.probeAsync { runOnUiThread { refresh() } } }
-        UiKit.row(perms, "⚡", 0xFF6B7785.toInt(), "后台运行") {
+        rowRoot = UiKit.row(perms, R.drawable.ic_sym_terminal, "Root 权限") { RootShell.probeAsync { runOnUiThread { refresh() } } }
+        UiKit.row(perms, R.drawable.ic_sym_battery_saver, "后台运行") {
             startActivity(Intent(AndroidSettings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS).apply {
                 data = Uri.parse("package:$packageName")
             })
         }
         if (com.xscript.app.settings.Settings.cloudUrl.isNotEmpty()) {
             val cloud = UiKit.card(col)
-            rowCloud = UiKit.row(cloud, "☁", 0xFF2F9BF6.toInt(), "云控", chevron = false)
+            rowCloud = UiKit.row(cloud, R.drawable.ic_sym_cloud, "云控", chevron = false)
         }
         UiKit.note(col, "设备 ID：" + CloudClient.deviceId(this))
 

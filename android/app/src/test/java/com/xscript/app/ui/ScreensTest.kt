@@ -42,8 +42,8 @@ class ScreensTest {
     @Test
     fun projectOptionsAreSwitches() {
         val project = read("ProjectActivity.kt")
-        assertTrue(project.contains("UiKit.switchRow(card, \"⏻\""))
-        assertTrue(project.contains("UiKit.switchRow(card, \"↻\""))
+        assertTrue(project.contains("UiKit.switchRow(card, R.drawable.ic_sym_power_settings_new"))
+        assertTrue(project.contains("UiKit.switchRow(card, R.drawable.ic_sym_restart_alt"))
     }
 
     @Test

@@ -16,5 +16,8 @@
     <color name="xscript_on_danger">#FF5C0A05</color>
     <color name="xscript_neutral">#FF33373D</color>
     <color name="xscript_on_neutral">#FFE6E8EB</color>
+    <!-- Icon tile: tonal container and its icon (UiKit.icon). -->
+    <color name="xscript_tile">#FF243247</color>
+    <color name="xscript_on_tile">#FFA8C7FA</color>
     <bool name="xscript_light_bars">false</bool>
 </resources>

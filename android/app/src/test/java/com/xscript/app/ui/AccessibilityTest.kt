@@ -26,7 +26,7 @@ class AccessibilityTest {
         // "‹" and "›" text glyphs scaled with the font and sat off the baseline; vectors are tinted per theme.
         assertFalse(kit.contains("\"‹\""))
         assertFalse(kit.contains("\"›\""))
-        for (name in listOf("ic_ui_back", "ic_ui_chevron")) {
+        for (name in listOf("ic_sym_arrow_back", "ic_sym_chevron_right")) {
             val xml = File(module, "src/main/res/drawable/$name.xml").readText()
             assertTrue("$name mirrors for RTL", xml.contains("android:autoMirrored=\"true\""))
         }

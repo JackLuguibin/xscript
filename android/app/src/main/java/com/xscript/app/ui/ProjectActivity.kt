@@ -1,5 +1,6 @@
 package com.xscript.app.ui
 
+import com.xscript.app.R
 import com.google.android.material.dialog.MaterialAlertDialogBuilder
 import android.app.DatePickerDialog
 import android.app.TimePickerDialog
@@ -114,26 +115,26 @@ class ProjectActivity : AppCompatActivity() {
         UiKit.section(options, "运行选项")
         val card = UiKit.card(options, 8f)
         val boot = Settings.bootProject == name
-        UiKit.switchRow(card, "⏻", 0xFF2F7CF6.toInt(), "开机自启", boot) { on ->
+        UiKit.switchRow(card, R.drawable.ic_sym_power_settings_new, "开机自启", boot) { on ->
             Settings.bootProject = if (on) name else if (Settings.bootProject == name) "" else Settings.bootProject
             if (on && Settings.bootProject == name) {
                 Toast.makeText(this, "开机后等待无障碍或 Root 就绪再运行（同一时间只有一个小程序开机自启）", Toast.LENGTH_LONG).show()
             }
         }
-        UiKit.switchRow(card, "↻", 0xFF8E44AD.toInt(), "停止后重新运行", name in Settings.rerunProjects) { on ->
+        UiKit.switchRow(card, R.drawable.ic_sym_restart_alt, "停止后重新运行", name in Settings.rerunProjects) { on ->
             Settings.rerunProjects = if (on) Settings.rerunProjects + name else Settings.rerunProjects - name
         }
 
         UiKit.section(options, "定时任务")
         val sched = UiKit.card(options, 8f)
         val list = Scheduler.store(this).list(name)
-        UiKit.row(sched, "⏰", 0xFFF59E0B.toInt(), "定时任务", "${list.size} 个 · 添加") { addSchedule() }
+        UiKit.row(sched, R.drawable.ic_sym_schedule, "定时任务", "${list.size} 个 · 添加") { addSchedule() }
         for (s in list) {
             val next = if (s.enabled && s.next > 0) "下次 " + LocalDateTime.ofInstant(java.time.Instant.ofEpochMilli(s.next), ZoneId.systemDefault()).format(NEXT_FORMAT) else "已停用"
-            UiKit.row(sched, null, 0, s.label(), next) { editSchedule(s) }
+            UiKit.row(sched, 0, s.label(), next) { editSchedule(s) }
         }
         if (list.isNotEmpty() && !Scheduler.canExact(this) && Build.VERSION.SDK_INT >= 31) {
-            UiKit.row(sched, "!", ui.danger, "精确闹钟未授权", "可能延迟几分钟") {
+            UiKit.row(sched, R.drawable.ic_sym_alarm, "精确闹钟未授权", "可能延迟几分钟") {
                 try {
                     startActivity(Intent(AndroidSettings.ACTION_REQUEST_SCHEDULE_EXACT_ALARM, Uri.parse("package:$packageName")))
                 } catch (_: Exception) {
@@ -282,7 +283,7 @@ class ProjectActivity : AppCompatActivity() {
             val editable = path.substringAfterLast('.', "").lowercase() in EDITABLE
             val size = f.optLong("size")
             val sizeLabel = if (size > 1024) "${size / 1024} KB" else "$size B"
-            UiKit.row(card, null, 0, path, sizeLabel, chevron = editable, onClick = if (editable) {
+            UiKit.row(card, 0, path, sizeLabel, chevron = editable, onClick = if (editable) {
                 {
                     startActivity(
                         Intent(this, EditorActivity::class.java)
@@ -294,7 +295,7 @@ class ProjectActivity : AppCompatActivity() {
                 null
             })
             if (i > 300) {
-                UiKit.row(card, null, 0, "…还有 ${arr.length() - i} 个文件", "", chevron = false)
+                UiKit.row(card, 0, "…还有 ${arr.length() - i} 个文件", "", chevron = false)
                 break
             }
         }
