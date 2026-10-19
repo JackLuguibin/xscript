@@ -33,3 +33,4 @@ export const IconMark = (p: P) => (<Svg {...p}><path d="M5 5l14 14M19 5L5 19" st
 export function Spinner() {
   return <span className="spinner" role="presentation" aria-hidden="true" />;
 }
+export const IconSidebar = (p: P) => (<Svg {...p}><rect x="3" y="4.5" width="18" height="15" rx="2" /><path d="M9.5 4.5v15" /></Svg>);

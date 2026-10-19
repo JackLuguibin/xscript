@@ -6,6 +6,12 @@ import { Button } from "./ui/button";
 import { Input } from "./ui/input";
 import { Select } from "./ui/select";
 
+const TONES = new Set(["any", "bool", "color", "dict", "float", "image", "int", "node", "point", "rect", "string"]);
+/** Type names map onto the pin tone tokens so a variable reads the same colour as its wire. */
+export function toneOf(type: string): string {
+  return TONES.has(type) ? type : "any";
+}
+
 export function VariablePanel({ graph, onChange }: { graph: FlowGraph; onChange: (graph: FlowGraph) => void }) {
   const [name, setName] = useState("");
   const [type, setType] = useState("string");
@@ -93,18 +99,27 @@ export function VariablePanel({ graph, onChange }: { graph: FlowGraph; onChange:
               event.dataTransfer.effectAllowed = "copy";
             }}
           >
-            <span title={row.doc}>
-              {row.category ? row.category + " / " : ""}
-              {row.kind} {row.name}: {row.type} {row.detail}
+            <span className="flow-var-kind" data-kind={row.kind}>{t.flow.varKinds[row.kind]}</span>
+            <span className="flow-var-main" title={row.doc || undefined}>
+              <span className="flow-var-name">
+                {row.category ? <span className="flow-var-cat">{row.category} / </span> : null}
+                {row.name}
+              </span>
+              <span className="flow-var-meta">
+                <span className="flow-var-type" style={{ color: "var(--tone-" + toneOf(row.type) + ")" }}>{row.type}</span>
+                {row.detail ? <span className="flow-var-detail">{row.detail}</span> : null}
+              </span>
             </span>
-            <Button type="button" onClick={() => onChange(insertGet(graph, row.name))}>
-              {t.flow.readVar}
-            </Button>
-            {row.writable ? (
-              <Button type="button" onClick={() => onChange(insertSet(graph, row.name))}>
-                {t.flow.writeVar}
+            <span className="flow-var-actions">
+              <Button type="button" onClick={() => onChange(insertGet(graph, row.name))} aria-label={t.flow.readVar + " " + row.name}>
+                {t.flow.readVar}
               </Button>
-            ) : null}
+              {row.writable ? (
+                <Button type="button" onClick={() => onChange(insertSet(graph, row.name))} aria-label={t.flow.writeVar + " " + row.name}>
+                  {t.flow.writeVar}
+                </Button>
+              ) : null}
+            </span>
           </li>
         ))}
       </ul>

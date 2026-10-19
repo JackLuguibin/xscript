@@ -259,7 +259,10 @@ describe("flow page", () => {
 
   it("adds a flow variable and a get node from the variable panel", () => {
     render(<FlowPage />);
-    expect(screen.getByText(/loop attempt/)).toBeTruthy();
+    const loopRow = screen.getByRole("button", { name: "读取 attempt" }).closest("li");
+    expect(loopRow?.querySelector(".flow-var-kind")?.textContent).toBe("循环");
+    expect(loopRow?.querySelector(".flow-var-type")?.textContent).toBe("int");
+    expect(loopRow?.querySelector(".flow-var-detail")?.textContent).toBe("flow.for_range");
     fireEvent.click(screen.getByRole("button", { name: "新建变量" }));
     fireEvent.change(screen.getByRole("textbox", { name: "变量名" }), { target: { value: "score" } });
     fireEvent.change(screen.getByRole("combobox", { name: "变量类型" }), { target: { value: "int" } });
@@ -267,7 +270,7 @@ describe("flow page", () => {
     fireEvent.click(screen.getByRole("button", { name: "添加变量" }));
     const text = (screen.getByRole("textbox", { name: "流程文本" }) as HTMLTextAreaElement).value;
     expect(text).toContain("var score: int = 1");
-    fireEvent.click(screen.getAllByRole("button", { name: "读取" })[0]);
+    fireEvent.click(screen.getByRole("button", { name: "读取 score" }));
     expect((screen.getByRole("textbox", { name: "流程文本" }) as HTMLTextAreaElement).value).toContain('get(name="score")');
     expect(document.querySelector(".react-flow__minimap")).toBeTruthy();
   });
@@ -309,7 +312,8 @@ describe("flow page", () => {
     fireEvent.click(screen.getByRole("button", { name: "添加工程参数" }));
     const text = (screen.getByRole("textbox", { name: "流程文本" }) as HTMLTextAreaElement).value;
     expect(text).toContain("param retries: int = 3");
-    expect(screen.queryAllByRole("button", { name: "写入" })).toHaveLength(0);
+    expect(screen.getByRole("button", { name: "读取 retries" })).toBeTruthy();
+    expect(screen.queryAllByRole("button", { name: /^写入/ })).toHaveLength(0);
   });
 
   it("duplicates the selected node beside the original", () => {
@@ -852,7 +856,7 @@ describe("flow page", () => {
     expect(clampDock(240)).toBe(240);
     render(<FlowPage />);
     const page = document.querySelector(".flow-page");
-    expect(page?.getAttribute("data-library")).toBe("auto");
+    expect(page?.getAttribute("data-library")).toBe("open");
     fireEvent.keyDown(window, { key: "b", ctrlKey: true });
     expect(page?.getAttribute("data-library")).toBe("closed");
     fireEvent.keyDown(window, { key: "b", ctrlKey: true });
