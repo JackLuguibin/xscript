@@ -1300,6 +1300,40 @@ export function pyIdent(id: string): string {
   return PY_RESERVED.has(id) ? id + "_" : id;
 }
 
+/** Python expression for the value on an output pin: a local, an inlined pure call, a def parameter or a tuple slot. */
+function refExpr(g: FlowGraph, ref: { node: string; pin: string }, specs?: Map<string, NodeSpec>, subst?: Map<string, string>): string {
+  const key = ref.node + "." + ref.pin;
+  if (subst?.has(key)) return subst.get(key) ?? "";
+  const src = nodeMap(g).get(ref.node);
+  if (src?.type === "data.get") return pyIdent(String(src.inputs?.name ?? ""));
+  if (src && isPure(src)) {
+    if (!shouldInline(g, src)) return pyIdent(src.id);
+    const template = specs?.get(src.type)?.py?.stmt;
+    if (!template) throw new Error("no compile template for " + src.type);
+    return fillStmt(template, src, g, undefined, specs, subst);
+  }
+  if (src?.type === "flow.def" || src?.type === "flow.macro") return pyIdent(ref.pin);
+  if (src?.type === "flow.merge" && ref.pin === "value") return pyIdent(ref.node);
+  if (src?.type === "code.python") {
+    const outs = codePins(src).outputs;
+    if (outs.length <= 1) return pyIdent(ref.node);
+    const index = outs.findIndex((pin) => pin.name === ref.pin);
+    return index < 0 ? pyIdent(ref.node) : pyIdent(ref.node) + "[" + index + "]";
+  }
+  // Loop variables are named after the loop node, whether the wire comes from the spec pin or the DSL's `result`.
+  if (src?.type === "flow.for_range" && ref.pin === "index") return pyIdent(ref.node);
+  if (src?.type === "flow.for_each" && ref.pin === "item") return pyIdent(ref.node);
+  if (src?.type === "flow.call" || ref.pin === "node" || ref.pin === "result") return pyIdent(ref.node);
+  return pyIdent(ref.node) + "." + ref.pin;
+}
+
+/** Test for a branch / while / until condition. `node.find`'s `found` is `x is not None`; anything else is its value. */
+function condExpr(g: FlowGraph, cond: { node: string; pin: string }, specs?: Map<string, NodeSpec>, subst?: Map<string, string>): string {
+  const src = nodeMap(g).get(cond.node);
+  if (src?.type === "node.find" && cond.pin === "found" && !subst?.has(cond.node + "." + cond.pin)) return "(" + pyIdent(cond.node) + " is not None)";
+  return refExpr(g, cond, specs, subst);
+}
+
 /** Replace `{pin}` with a Python literal or name. User text goes through repr, never raw splicing.
 
 `{id}` is the node id. `{node}` is also the node id when that pin is not connected, so older
@@ -1321,28 +1355,7 @@ export function fillStmt(
     const ref = lit === undefined ? inEdge(g, node.id, pin) : undefined;
     if (name === "node" && lit === undefined && !ref) return pyIdent(node.id);
     if (lit !== undefined) return pyRepr(lit);
-    if (ref) {
-      const key = ref.node + "." + ref.pin;
-      if (subst?.has(key)) return subst.get(key) ?? "";
-      const src = nodeMap(g).get(ref.node);
-      if (src?.type === "data.get") return pyIdent(String(src.inputs?.name ?? ""));
-      if (src && isPure(src)) {
-        if (!shouldInline(g, src)) return pyIdent(src.id);
-        const template = specs?.get(src.type)?.py?.stmt;
-        if (!template) throw new Error("no compile template for " + src.type);
-        return fillStmt(template, src, g, undefined, specs, subst);
-      }
-      if (src?.type === "flow.def" || src?.type === "flow.macro") return pyIdent(ref.pin);
-      if (src?.type === "flow.merge" && ref.pin === "value") return pyIdent(ref.node);
-      if (src?.type === "code.python") {
-        const outs = codePins(src).outputs;
-        if (outs.length <= 1) return pyIdent(ref.node);
-        const index = outs.findIndex((pin) => pin.name === ref.pin);
-        return index < 0 ? pyIdent(ref.node) : pyIdent(ref.node) + "[" + index + "]";
-      }
-      if (src?.type === "flow.call" || ref.pin === "node" || ref.pin === "result") return pyIdent(ref.node);
-      return pyIdent(ref.node) + "." + ref.pin;
-    }
+    if (ref) return refExpr(g, ref, specs, subst);
     if (defaults && Object.prototype.hasOwnProperty.call(defaults, pin)) return pyRepr(defaults[pin] ?? null);
     throw new Error(node.type + " is missing {" + name + "}");
   });
@@ -1501,7 +1514,7 @@ function compileBlock(
     }
     if (node.type === "flow.for_each") {
       const items = inEdge(g, id, "items");
-      const source = items ? (items.pin === "node" ? pyIdent(items.node) : pyIdent(items.node) + "." + items.pin) : pyIdent(String(node.config?.items ?? ""));
+      const source = items ? refExpr(g, items, specs, subst) : pyIdent(String(node.config?.items ?? ""));
       emit("for " + pyIdent(id) + " in " + source + ":", id, indent);
       const body = outEdge(g, id, "body");
       if (!body) emit("pass", null, indent + 1);
@@ -1518,7 +1531,7 @@ function compileBlock(
       emit("while " + counter + " < " + max + ":", id, indent);
       emit(counter + " += 1", null, indent + 1);
       const src = nodes.get(cond.node);
-      const stop = src?.type === "node.find" && cond.pin === "found" ? cond.node + " is None" : "not " + cond.node + "." + cond.pin;
+      const stop = src?.type === "node.find" && cond.pin === "found" ? pyIdent(cond.node) + " is None" : "not " + condExpr(g, cond, specs, subst);
       emit("if " + stop + ":", null, indent + 1);
       emit("break", null, indent + 2);
       compileBlock(g, specs, outEdge(g, id, "body")?.node ?? null, emit, indent + 1, trace, shown, subst);
@@ -1533,8 +1546,7 @@ function compileBlock(
       const times = Math.floor(timeout / interval);
       const counter = pyIdent(id + "_i");
       const flag = pyIdent(id + "_ok");
-      const src = nodes.get(cond.node);
-      const test = src?.type === "node.find" && cond.pin === "found" ? "(" + cond.node + " is not None)" : cond.node + "." + cond.pin;
+      const test = condExpr(g, cond, specs, subst);
       emit(flag + " = False", id, indent);
       emit(counter + " = 0", null, indent);
       emit("while " + counter + " < " + times + ":", null, indent);
@@ -1689,14 +1701,19 @@ function compileBlock(
     if (node.type === "flow.branch") {
       const cond = inEdge(g, id, "cond");
       if (!cond) throw new Error("branch without condition");
-      const src = nodes.get(cond.node);
-      const test = src?.type === "node.find" && cond.pin === "found" ? "(" + cond.node + " is not None)" : cond.node + "." + cond.pin;
+      const test = condExpr(g, cond, specs, subst);
       emit("if " + test + ":", id, indent);
-      compileBlock(g, specs, outEdge(g, id, "then")?.node ?? null, emit, indent + 1, trace, shown, subst);
+      // An arm wired straight to a loop's break/continue pin is that jump, not a walk back into the loop.
+      const arm = (edge: { node: string; pin: string } | null) => {
+        if (!edge) emit("pass", null, indent + 1);
+        else if (edge.pin === "break" || edge.pin === "continue" || edge.pin === "fail") emit(edge.pin === "fail" ? "continue" : edge.pin, null, indent + 1);
+        else compileBlock(g, specs, edge.node, emit, indent + 1, trace, shown, subst);
+      };
+      arm(outEdge(g, id, "then"));
       const els = outEdge(g, id, "else");
       if (els) {
         emit("else:", id + "(else)", indent);
-        compileBlock(g, specs, els.node, emit, indent + 1, trace, shown, subst);
+        arm(els);
       }
       return;
     }
@@ -1808,8 +1825,8 @@ function compileCall(g: FlowGraph, specs: Map<string, NodeSpec>, node: FlowNode,
       const src = nodeMap(g).get(ref.node);
       if (src?.type === "data.get") value = pyIdent(String(src.inputs?.name ?? ""));
       else if (src && isPure(src)) value = compileCall(g, specs, src, subst);
-      else if (ref.pin === "result" || ref.pin === "value" || ref.pin === "node") value = pyIdent(ref.node);
-      else value = pyIdent(ref.node) + "." + ref.pin;
+      else if (ref.pin === "value" && !subst?.has(ref.node + "." + ref.pin)) value = pyIdent(ref.node);
+      else value = refExpr(g, ref, specs, subst);
     }
     return name + " = " + value;
   }
@@ -1868,36 +1885,46 @@ function compileState(g: FlowGraph, specs: Map<string, NodeSpec>, opts?: { trace
     if (mark) map[String(lines.length)] = mark;
   };
   emitBindings(g, emit);
+  for (const node of g.nodes) {
+    if (node.type === "flow.def") emitDef(g, specs, node, emit, opts?.trace ?? false);
+  }
   const first = outEdge(g, "start", "then");
   emit("pc = " + pyRepr(first?.node ?? ""), null, 0);
   emit("while True:", null, 0);
+  const owned = new Set<string>();
+  const trace = opts?.trace ?? false;
   for (const id of stateOrder(g)) {
     const node = nodeMap(g).get(id);
-    if (!node || node.type === "event.start") continue;
-    if (node.type !== "flow.branch" && !ALIAS_OF[node.type]) throw new Error("state machine cannot lower " + node.type);
-    emit("if pc == " + pyRepr(id) + ":", id, 1);
+    if (!node || node.type === "event.start" || node.type === "flow.def" || node.type === "flow.macro" || owned.has(id)) continue;
     if (node.type === "flow.branch") {
+      emit("if pc == " + pyRepr(id) + ":", id, 1);
       const cond = inEdge(g, id, "cond");
       if (!cond) throw new Error("branch without condition");
-      const src = nodeMap(g).get(cond.node);
-      const test = src?.type === "node.find" && cond.pin === "found" ? "(" + cond.node + " is not None)" : cond.node + "." + cond.pin;
+      emitPures(g, specs, id, emit, 2, new Set());
       const then = outEdge(g, id, "then");
       const els = outEdge(g, id, "else");
-      emit("if " + test + ":", null, 2);
+      emit("if " + condExpr(g, cond, specs) + ":", null, 2);
       emit(then ? "pc = " + pyRepr(then.node) : "break", null, 3);
-      if (els) {
-        emit("else:", null, 2);
-        emit("pc = " + pyRepr(els.node), null, 3);
-      }
+      // A missing arm ends the flow, like falling off the structured `if`; staying on this pc would spin forever.
+      emit("else:", null, 2);
+      emit(els ? "pc = " + pyRepr(els.node) : "break", null, 3);
       emit("continue", null, 2);
       continue;
     }
-    const stmt = compileCall(g, specs, node);
-    if (opts?.trace && specs.get(node.type)?.latent) emit("__xf_trace(" + JSON.stringify("enter") + ", " + JSON.stringify(id) + ")", null, 2);
-    emit(stmt, null, 2);
-    if (opts?.trace) emit("__xf_trace(" + JSON.stringify("span") + ", " + JSON.stringify(id) + ", " + exitValue(node, stmt) + ")", null, 2);
-    const nxt = outEdge(g, id, "then");
-    if (nxt && nxt.pin !== "break") {
+    const outs = specs.get(node.type)?.exec.out ?? [];
+    const exit = STATE_EXIT[node.type] ?? ((ALIAS_OF[node.type] || STATE_SOLO.has(node.type)) && outs.every((pin) => pin === "then") ? "then" : null);
+    if (!exit) throw new Error("state machine cannot lower " + node.type);
+    if (exit === "completed") {
+      const inner = loopBody(g, id);
+      if (!inner) throw new Error("state machine cannot lower " + node.type + " " + id + ": its body jumps out of the loop");
+      for (const member of inner) owned.add(member);
+    }
+    emit("if pc == " + pyRepr(id) + ":", null, 1);
+    // One state: this node (and, for a loop, its whole body) compiled the structured way, then a jump.
+    const solo: FlowGraph = { ...g, edges: g.edges.filter((edge) => edge.from !== id + "." + exit) };
+    compileBlock(solo, specs, id, emit, 2, trace, new Set());
+    const nxt = outEdge(g, id, exit);
+    if (nxt && nxt.pin !== "break" && nxt.pin !== "continue" && nxt.pin !== "fail") {
       emit("pc = " + pyRepr(nxt.node), null, 2);
       emit("continue", null, 2);
     } else {
@@ -1907,6 +1934,38 @@ function compileState(g: FlowGraph, specs: Map<string, NodeSpec>, opts?: { trace
   emit("break", null, 1);
   return { python: lines.join("\n") + "\n", lines: map };
 }
+
+/** Loops a state can hold whole, keyed by the pin that leaves them. */
+const STATE_EXIT: Record<string, string> = { "flow.for_range": "completed", "flow.for_each": "completed", "flow.while": "completed" };
+/** Single-exit nodes without a DSL alias that the structured compiler already knows. */
+const STATE_SOLO = new Set(["flow.call", "code.python", "data.set", "flow.merge"]);
+
+/**
+ * Nodes run by a loop's body, when the body is closed: every node it reaches is entered only from inside it.
+ * null when the body jumps out (a goto to an outer node) or is entered from elsewhere; that needs real states.
+ */
+function loopBody(g: FlowGraph, loop: string): Set<string> | null {
+  const entry = outEdge(g, loop, "body");
+  const inner = new Set<string>();
+  if (!entry) return inner;
+  const stack = [entry.node];
+  while (stack.length) {
+    const id = stack.pop() as string;
+    if (inner.has(id)) continue;
+    if (id === loop || id === "start") return null;
+    inner.add(id);
+    stack.push(...successors(g, id));
+  }
+  for (const edge of g.edges) {
+    const to = pinNode(edge.to);
+    if (!inner.has(to) || !EXEC_IN.test(edge.to.slice(to.length + 1))) continue;
+    const from = pinNode(edge.from);
+    if (!inner.has(from) && edge.from !== loop + ".body") return null;
+  }
+  return inner;
+}
+
+const EXEC_IN = /^exec$/;
 
 function pinNode(ref: string): string {
   return ref.slice(0, ref.indexOf("."));
