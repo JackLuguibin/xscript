@@ -262,6 +262,73 @@ def _order(points, ori):
     return sorted(points, key=keys.get(ori, keys[2]))
 
 
+# Each scan direction as a view of the (rows=y, cols=x) mask whose row-major order is that direction:
+# (transpose, flip rows, flip cols). Direction 1 = (x, y) ascending = rows of the transposed mask, and so on.
+_ORI_VIEW = {
+    1: (True, False, False),
+    2: (False, False, False),
+    3: (False, False, True),
+    4: (True, True, False),
+    5: (True, True, True),
+    6: (False, True, True),
+    7: (False, True, False),
+    8: (True, False, True),
+}
+
+
+def _channel_mask(region, rgb, tol):
+    """uint8 mask (non-zero = match) of |pixel - rgb| <= tol per channel; cv2.inRange when available."""
+    if cv2 is not None:
+        lo = (max(0, rgb[2] - tol[2]), max(0, rgb[1] - tol[1]), max(0, rgb[0] - tol[0]))
+        hi = (min(255, rgb[2] + tol[2]), min(255, rgb[1] + tol[1]), min(255, rgb[0] + tol[0]))
+        return cv2.inRange(np.ascontiguousarray(region[:, :, :3]), lo, hi)
+    return _channel_ok(region, rgb, tol).view(np.uint8)
+
+
+def _greedy_points(mask, ori, space, max_num):
+    """Candidates in scan order `ori`, dropping any within `space` (both axes) of an accepted one.
+
+    Same result as sorting every candidate and checking it against all accepted points, but the scan
+    walks the mask in place: each accepted point blanks its (2*space+1)^2 square, so later candidates
+    inside it are skipped without a Python-level comparison. Returns [(x, y)] in mask coordinates.
+    """
+    t, fr, fc = _ORI_VIEW.get(int(ori or 2), _ORI_VIEW[2])
+    v = mask.T if t else mask
+    if fr:
+        v = v[::-1]
+    if fc:
+        v = v[:, ::-1]
+    # A private bool copy: blanking must not touch the caller's mask, and argmax on bool stops at the first True.
+    v = np.ascontiguousarray(v != 0)
+    rows, cols = v.shape
+    flat = v.reshape(-1)
+    chunk = max(1 << 16, cols * 4)
+    out = []
+    pos, n = 0, flat.size
+    while pos < n:
+        seg = flat[pos:pos + chunk]
+        j = int(seg.argmax())
+        if not seg[j]:
+            pos += chunk
+            continue
+        i = pos + j
+        r, c = divmod(i, cols)
+        out.append((r, c))
+        if max_num and len(out) >= max_num:
+            break
+        if space:
+            v[max(0, r - space):r + space + 1, max(0, c - space):c + space + 1] = 0
+        pos = i + 1
+    pts = []
+    for r, c in out:
+        if fr:
+            r = rows - 1 - r
+        if fc:
+            c = cols - 1 - c
+        pts.append((r, c) if t else (c, r))  # (x, y): the transposed view's rows are x
+    return pts
+
+
 def find_colors(colors, rect=None, sim=0.9, space=5, ori=2, max_num=0, image=None):
     """Multi-point color search. Returns Points of the first color point (screen coords)."""
     _need_numpy()
@@ -298,22 +365,12 @@ def find_colors(colors, rect=None, sim=0.9, space=5, ori=2, max_num=0, image=Non
         return []
     mask = None
     for dx, dy, rgb, d in rel:
-        region = img[oy0 + dy:oy1 + dy, ox0 + dx:ox1 + dx]
-        ok = _channel_ok(region, rgb, d)
-        mask = ok if mask is None else (mask & ok)
+        ok = _channel_mask(img[oy0 + dy:oy1 + dy, ox0 + dx:ox1 + dx], rgb, d)
+        mask = ok if mask is None else (cv2.bitwise_and(mask, ok) if cv2 is not None else mask & ok)
         if not mask.any():
             return []
-    ys, xs = np.nonzero(mask)
-    cands = _order([(int(x) + ox0 + offx, int(y) + oy0 + offy) for x, y in zip(xs, ys)], ori)
-    out = []
-    space = max(0, int(space))
-    for x, y in cands:
-        if space and any(abs(x - p.x) <= space and abs(y - p.y) <= space for p in out):
-            continue
-        out.append(Point(x, y))
-        if max_num and len(out) >= max_num:
-            break
-    return out
+    found = _greedy_points(mask, ori, max(0, int(space)), int(max_num or 0))
+    return [Point(x + ox0 + offx, y + oy0 + offy) for x, y in found]
 
 
 def count_color(color, rect=None, sim=0.9, image=None):
