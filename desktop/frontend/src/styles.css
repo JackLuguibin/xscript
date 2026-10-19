@@ -1,4 +1,18 @@
+/* Cascade layers, lowest first. A later layer wins regardless of selector specificity; unlayered CSS beats every layer.
+   theme      Tailwind's theme variables
+   controls   the raw button / input look (controls.css)
+   base       resets, focus ring, forced colors (base.css)
+   vendor     third-party CSS: React Flow, so our own rules always beat it
+   utilities  Tailwind utilities: they override the controls and base look the ui/ primitives start from
+   components our components (components.css). They come after utilities on purpose: components style the
+              primitives in context (`.flow-bar button`, `.flow-inspect-close`), which used to win on specificity.
+              To override a component rule from markup, use an important utility (`!h-8`).
+   tokens.css only declares custom properties and stays unlayered; overrides.css is unlayered so it can beat Monaco's own CSS. */
+@layer theme, controls, base, vendor, utilities, components;
 @import "./styles/tokens.css";
-@import "./styles/base.css";
-@import "./styles/components.css";
+@import "./styles/controls.css" layer(controls);
+@import "./styles/base.css" layer(base);
+@import "@xyflow/react/dist/style.css" layer(vendor);
+@import "./styles/components.css" layer(components);
+@import "./styles/overrides.css";
 @import "./styles/tailwind.css";

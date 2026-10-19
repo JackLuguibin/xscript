@@ -53,30 +53,7 @@ main { width: 100%; max-width: var(--content-max); padding: 0 var(--sp-5) var(--
 .list-row .hint { font-size: var(--fs-sm); color: var(--text-muted); }
 .cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 26rem), 1fr)); gap: var(--sp-4); }
 
-/* ---- buttons / inputs. Inside @layer components so Tailwind utilities (a later layer) can restyle Button and Input.
-   Raw buttons keep this look. Nav layout stays unlayered above, so the collapsed rail still wins. -------------------- */
-@layer components {
-.btn, button { display: inline-flex; align-items: center; justify-content: center; gap: var(--sp-2); min-height: 2rem; padding: var(--sp-1) var(--sp-3); border-radius: var(--r-sm); border: 1px solid var(--border-strong); background: var(--surface); color: var(--text); cursor: pointer; white-space: nowrap; transition: background var(--dur-fast) var(--ease), border-color var(--dur-fast) var(--ease), transform var(--dur-fast) var(--ease), box-shadow var(--dur-fast) var(--ease); }
-.nav-item { min-height: 2.25rem; border: 0; }
-.nav .nav-item { justify-content: flex-start; }
-@media (max-width: 760px) { .nav .nav-item { justify-content: center; } }
-.app.sidebar-collapsed .nav .nav-item { justify-content: center; }
-button:hover:not(:disabled) { background: var(--surface-2); border-color: var(--primary); }
-button:active:not(:disabled) { transform: translateY(1px) scale(0.985); }
-button:disabled { opacity: 0.55; cursor: not-allowed; }
-button.primary { background: var(--primary); border-color: var(--primary); color: var(--text-on-primary); font-weight: 600; }
-button.primary:hover:not(:disabled) { background: var(--primary-hover); border-color: var(--primary-hover); }
-button.ghost { border-color: transparent; background: transparent; }
-button.ghost:hover:not(:disabled) { background: var(--surface-2); border-color: transparent; }
-button.danger { color: var(--danger-fg); }
-button.danger:hover:not(:disabled) { background: var(--danger-bg); border-color: var(--danger-dot); }
-button.icon { padding: var(--sp-1); width: 2rem; }
-button.small { min-height: 1.75rem; font-size: var(--fs-sm); padding-inline: var(--sp-2); }
-input { min-height: 2.25rem; padding: var(--sp-1) var(--sp-3); border-radius: var(--r-sm); border: 1px solid var(--border-strong); background: var(--surface); color: var(--text); transition: border-color var(--dur-fast) var(--ease), box-shadow var(--dur-fast) var(--ease); }
-input::placeholder { color: var(--text-muted); opacity: 1; }
-input:hover { border-color: var(--primary); }
-input:focus-visible { outline-offset: 0; }
-}
+/* ---- buttons / inputs live in controls.css (the `controls` layer, see styles.css) ---- */
 
 /* Native checks, outside the button/input layer so they are not stretched into text fields. */
 input[type="checkbox"], input[type="radio"] { width: 1rem; height: 1rem; min-height: 1rem; margin: 0; padding: 0; flex: none; accent-color: var(--primary); vertical-align: middle; }
@@ -211,10 +188,7 @@ pre.logs .err { color: var(--danger-fg); }
 .lang-mark { display: inline-grid; place-items: center; width: 18px; font-size: var(--fs-xs); font-weight: 700; }
 .file-row { display: flex; gap: var(--sp-1, 4px); align-items: center; } .file-row .list-btn { flex: 1; min-width: 0; }
 
-/* debugger */
-.monaco-host .bp-glyph { background: var(--danger-dot); border-radius: 50%; width: 10px !important; height: 10px !important; margin: 4px 0 0 6px; cursor: pointer; }
-.monaco-host .dbg-current-line { background: var(--warning-bg); }
-.monaco-host .dbg-current-glyph::after { content: "➜"; color: var(--warning-fg); position: absolute; left: 4px; font-size: 12px; }
+/* debugger: the decorations Monaco draws are styled in overrides.css (unlayered, like Monaco's own CSS) */
 .debug-panel { margin-top: var(--sp-3); }
 .debug-toolbar { flex-wrap: wrap; gap: var(--sp-2); }
 .debug-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(14rem, 1fr)); gap: var(--sp-3); margin-top: var(--sp-2); }

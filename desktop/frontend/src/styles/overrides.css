@@ -1,0 +1,6 @@
+/* Unlayered on purpose: Monaco injects its CSS without a cascade layer, and unlayered rules beat every layer, so
+   rules for elements Monaco draws (breakpoint glyphs, the current line) must be unlayered too. Keep this file to
+   selectors inside .monaco-host; everything else belongs in components.css. */
+.monaco-host .bp-glyph { background: var(--danger-dot); border-radius: 50%; width: 10px !important; height: 10px !important; margin: 4px 0 0 6px; cursor: pointer; }
+.monaco-host .dbg-current-line { background: var(--warning-bg); }
+.monaco-host .dbg-current-glyph::after { content: "➜"; color: var(--warning-fg); position: absolute; left: 4px; font-size: 12px; }
