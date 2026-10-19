@@ -1,0 +1,16 @@
+# Files dropped from the pip packages before Chaquopy zips them into the APK (requirements-*.imy).
+# One regular expression per line, matched against the path inside a package directory such as
+# "numpy/core/tests/test_api.pyc". Only files that never run on a device belong here; PythonPruneTest
+# lists files that must survive.
+
+# numpy's own test suites (numpy.test()); numpy.testing, the public helpers, stays.
+^numpy/(.+/)?tests/
+# debugpy wheel: C / Cython sources of pydevd's optional speedups (not built for Android) ...
+^debugpy/.+\.(c|cpp|h|hpp|pyx|pxd)$
+# ... the extension modules built for macOS, never importable here ...
+^debugpy/.+-darwin\.so$
+^debugpy/.+\.(dll|exe|dylib|pdb)$
+# ... attaching to a running Windows process ...
+^debugpy/_vendored/pydevd/pydevd_attach_to_process/(winappdbg|windows)/
+# ... and the test suite of the vendored bytecode library.
+^debugpy/_vendored/pydevd/_pydevd_frame_eval/vendored/bytecode/tests/

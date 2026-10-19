@@ -207,6 +207,34 @@ chaquopy {
     sourceSets {
         getByName("main") {
             srcDir("../python-runtime")
+            // The runtime's unit tests run on the build machine (CI), not on devices.
+            exclude("tests/**")
+        }
+    }
+}
+
+// Drop files that never run on a device (python-prune.txt) from the installed pip packages, before Chaquopy
+// zips them into requirements-*.imy. The install directory holds common/ and one directory per ABI.
+val pythonPrune: List<Regex> = file("python-prune.txt").readLines().map { it.trim() }
+    .filter { it.isNotEmpty() && !it.startsWith("#") }.map { Regex(it) }
+tasks.matching { Regex("install\\w*PythonRequirements").matches(it.name) }.configureEach {
+    val install = this
+    inputs.file("python-prune.txt").withPathSensitivity(PathSensitivity.RELATIVE)
+    // Chaquopy adds its pip action after this callback runs; appending once the graph is ready puts the prune last.
+    gradle.taskGraph.whenReady {
+        install.doLast {
+            var count = 0
+            var bytes = 0L
+            install.outputs.files.filter { it.isDirectory }.forEach { root ->
+                root.walkTopDown().filter { it.isFile }.forEach { f ->
+                    val inPackage = f.relativeTo(root).invariantSeparatorsPath.substringAfter('/')
+                    if (pythonPrune.any { it.containsMatchIn(inPackage) }) {
+                        bytes += f.length()
+                        if (f.delete()) count++
+                    }
+                }
+            }
+            install.logger.lifecycle("python-prune: removed $count files, ${bytes / 1024} KiB")
         }
     }
 }
@@ -215,6 +243,7 @@ chaquopy {
 tasks.withType<Test>().configureEach {
     inputs.file("proguard-rules.pro").withPathSensitivity(PathSensitivity.RELATIVE)
     inputs.file("build.gradle.kts").withPathSensitivity(PathSensitivity.RELATIVE)
+    inputs.file("python-prune.txt").withPathSensitivity(PathSensitivity.RELATIVE)
     inputs.dir("../python-runtime").withPathSensitivity(PathSensitivity.RELATIVE)
 }
 
