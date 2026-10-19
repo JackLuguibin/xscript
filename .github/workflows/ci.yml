@@ -168,6 +168,11 @@ jobs:
         run: bash android/build.sh --console=plain
       - name: APK is 16 KB ready (zipalign -P 16, ELF alignment, pageSizeCompat)
         run: python scripts/check_16kb.py android/app/build/outputs/apk/debug/app-debug.apk
+      # Release builds run R8; build one unsigned here so shrinking problems show up before a tag does.
+      - name: Build the release APK (R8, unsigned)
+        run: XSCRIPT_GRADLE_TASK=:app:assembleRelease bash android/build.sh --console=plain
+      - name: Release APK is 16 KB ready
+        run: python scripts/check_16kb.py android/app/build/outputs/apk/release/app-release-unsigned.apk
 
   desktop:
     name: desktop client (frontend type-check/tests/build + Python tests incl. offscreen QtWebEngine)

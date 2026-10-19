@@ -312,6 +312,7 @@ ui.float_add_menu("rec", "/sdcard/rec.png", on_click, remove_system=False)  # �
 - **`media.recode(path, time=None)`：** 麦克风录音到文件（.m4a/.aac/.mp4、.amr/.3gp、.ogg/.opus）；`time` 毫秒，省略则后台录制、`media.stop_recode()` 结束；需要录音权限，只能在前台录。**`media.send_email(to, subject, body, cc=None)`：** 打开邮件 App 并预填草稿。
 - **`bluetooth`：** `scan(timeout, ble=False)`、`bonded()`、经典蓝牙 `connect(address)`（默认 SPP）读写、BLE `ble_connect(address)` 的 `read/write/notify`；首次使用时申请蓝牙权限。
 - **`plug.load_apk(path)` / `load_apk_dir(dir)`：** 用 DexClassLoader 加载应用自己存储里的 .apk/.jar/.dex，`load_class(name).new(...)`、`call`、`call_static`、`get/set` 反射调用。
+  插件用到的库（Kotlin 标准库、AndroidX 等）请打包在插件自己的 dex 里。正式版 APK 经过 R8 精简，宿主里的这些库只保留了 XScript 自己用到的类和方法，插件不能依赖它们。
 
 不支持以下功能，调用时会抛出 `NotImplementedError` 或打印一次性警告：
 
