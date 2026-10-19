@@ -5,7 +5,6 @@ import { dropTreeNode, type TreeDrop } from "../flow/tree-drop";
 import { IconSidebar } from "./icons";
 import { COMPACT_QUERY, focusTargets, inspectorShown, libraryShown, matchesNarrow, NARROW_QUERY, numberIssue, shouldAutoFit, startViewport, overflowEdges, toggleInspector, toggleLibrary, wheelShift, type CanvasFocus, type FieldIssue, type InspectorMode, type LibraryMode } from "../flow/panels";
 import { Background, BaseEdge, Handle, MiniMap, Position, ReactFlow, ReactFlowProvider, useNodesInitialized, useReactFlow, useStore, useUpdateNodeInternals, type ConnectionLineComponentProps, type EdgeProps, type Node, type NodeProps } from "@xyflow/react";
-import "@xyflow/react/dist/style.css";
 import { CodeEditor } from "./CodeEditor";
 import { codePins, createDslSync, danglingEdges, deleteNodes, duplicateNodes, foldGraph, mergeFlow, nodeStatement, applyNodeStatement, parse, printFlow, promoteFunction, renameInput, setCodeIo, setNodeInput, snippetFlow, unfoldGraph, type FlowGraph } from "../flow/dsl";
 import { connectPins, connectionHint, diagnose, danglingNodeIds } from "../flow/diagnostics";

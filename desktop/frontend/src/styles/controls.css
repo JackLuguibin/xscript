@@ -1,0 +1,23 @@
+/* Buttons and inputs: the raw control look. Imported into the `controls` layer (styles.css), which sits below base and
+   components: Tailwind utilities restyle Button and Input, base.css keeps `font/color: inherit` and the forced-colors
+   borders, and component rules such as the nav layout win over the raw look, so the collapsed rail still works. */
+.btn, button { display: inline-flex; align-items: center; justify-content: center; gap: var(--sp-2); min-height: 2rem; padding: var(--sp-1) var(--sp-3); border-radius: var(--r-sm); border: 1px solid var(--border-strong); background: var(--surface); color: var(--text); cursor: pointer; white-space: nowrap; transition: background var(--dur-fast) var(--ease), border-color var(--dur-fast) var(--ease), transform var(--dur-fast) var(--ease), box-shadow var(--dur-fast) var(--ease); }
+.nav-item { min-height: 2.25rem; border: 0; }
+.nav .nav-item { justify-content: flex-start; }
+@media (max-width: 760px) { .nav .nav-item { justify-content: center; } }
+.app.sidebar-collapsed .nav .nav-item { justify-content: center; }
+button:hover:not(:disabled) { background: var(--surface-2); border-color: var(--primary); }
+button:active:not(:disabled) { transform: translateY(1px) scale(0.985); }
+button:disabled { opacity: 0.55; cursor: not-allowed; }
+button.primary { background: var(--primary); border-color: var(--primary); color: var(--text-on-primary); font-weight: 600; }
+button.primary:hover:not(:disabled) { background: var(--primary-hover); border-color: var(--primary-hover); }
+button.ghost { border-color: transparent; background: transparent; }
+button.ghost:hover:not(:disabled) { background: var(--surface-2); border-color: transparent; }
+button.danger { color: var(--danger-fg); }
+button.danger:hover:not(:disabled) { background: var(--danger-bg); border-color: var(--danger-dot); }
+button.icon { padding: var(--sp-1); width: 2rem; }
+button.small { min-height: 1.75rem; font-size: var(--fs-sm); padding-inline: var(--sp-2); }
+input { min-height: 2.25rem; padding: var(--sp-1) var(--sp-3); border-radius: var(--r-sm); border: 1px solid var(--border-strong); background: var(--surface); color: var(--text); transition: border-color var(--dur-fast) var(--ease), box-shadow var(--dur-fast) var(--ease); }
+input::placeholder { color: var(--text-muted); opacity: 1; }
+input:hover { border-color: var(--primary); }
+input:focus-visible { outline-offset: 0; }
