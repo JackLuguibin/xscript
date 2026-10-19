@@ -31,19 +31,47 @@ async function attach(endpoint) {
   return session(info.webSocketDebuggerUrl, null, '');
 }
 
-async function launch(bin) {
+/** Start a headless Chrome and drive it. A start that fails (no "DevTools listening" line within `startupMs`, an early
+ *  exit, a refused DevTools socket) kills that Chrome and removes its profile before retrying with a fresh one, up to
+ *  `attempts` starts in all. An orphaned Chrome would otherwise keep the test process alive until the CI job limit. */
+async function launch(bin, {startupMs = 15000, attempts = 2} = {}) {
+  let last;
+  for (let i = 0; i < attempts; i++) {
+    const {child, profile, wsUrl} = startChrome(bin, startupMs);
+    try {
+      return await session(await wsUrl, child, profile);
+    } catch (e) {
+      last = e;
+      await stopChrome(child, profile);
+    }
+  }
+  throw last;
+}
+
+function startChrome(bin, startupMs) {
   const profile = fs.mkdtempSync(path.join(os.tmpdir(), 'xs-cdp-'));
   // GitHub-hosted Ubuntu runners block the unprivileged user namespaces Chrome's sandbox needs
   const noSandbox = process.env.CI ? ['--no-sandbox'] : [];
   const child = spawn(bin, [...noSandbox, '--headless=new', '--remote-debugging-port=0', '--user-data-dir=' + profile,
     '--no-first-run', '--no-default-browser-check', '--disable-gpu', '--window-size=1280,900', 'about:blank'],
     {stdio: ['ignore', 'ignore', 'pipe']});
-  const wsUrl = await new Promise((resolve, reject) => {
-    let err = ''; const timer = setTimeout(() => reject(Error('Chrome startup timed out: ' + err)), 15000);
+  const wsUrl = new Promise((resolve, reject) => {
+    let err = ''; const timer = setTimeout(() => reject(Error('Chrome startup timed out: ' + err)), startupMs);
+    child.once('error', e => { clearTimeout(timer); reject(e); });
     child.once('exit', code => { clearTimeout(timer); reject(Error('Chrome exited ' + code + ': ' + err)); });
     child.stderr.on('data', b => { err += b; const m = /DevTools listening on (ws:\/\/\S+)/.exec(err); if (m) { clearTimeout(timer); resolve(m[1]); } });
   });
-  return session(wsUrl, child, profile);
+  return {child, profile, wsUrl};
+}
+
+async function stopChrome(child, profile) {
+  if (child.exitCode === null && child.signalCode === null) {
+    const gone = new Promise(resolve => child.once('exit', resolve));
+    child.kill('SIGKILL');
+    await gone;
+  }
+  child.stderr.destroy();
+  try { fs.rmSync(profile, {recursive: true, force: true, maxRetries: 3}); } catch {}
 }
 
 async function session(wsUrl, child, profile) {
