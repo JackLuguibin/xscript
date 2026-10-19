@@ -250,6 +250,10 @@ tasks.withType<Test>().configureEach {
     inputs.file("build.gradle.kts").withPathSensitivity(PathSensitivity.RELATIVE)
     inputs.file("python-prune.txt").withPathSensitivity(PathSensitivity.RELATIVE)
     inputs.dir("../python-runtime").withPathSensitivity(PathSensitivity.RELATIVE)
+    // ResourceFiltersTest lists res/values-*, R8KeepRulesTest scans the Kotlin sources: with the build cache on, a
+    // change there must not replay an old result.
+    inputs.dir("src/main/res").withPathSensitivity(PathSensitivity.RELATIVE)
+    inputs.dir("src/main/java").withPathSensitivity(PathSensitivity.RELATIVE)
 }
 
 dependencies {
