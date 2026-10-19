@@ -7,6 +7,7 @@ import android.os.Looper
 import android.text.SpannableStringBuilder
 import android.text.Spanned
 import android.text.style.ForegroundColorSpan
+import android.view.View
 import android.view.ViewGroup
 import android.widget.LinearLayout
 import android.widget.ScrollView
@@ -26,6 +27,8 @@ class LogActivity : AppCompatActivity() {
     private lateinit var text: TextView
     private lateinit var scroll: ScrollView
     private lateinit var stopAction: TextView
+    private lateinit var emptyHint: View
+    private lateinit var logCard: View
     private var next = 0L
     private val buffer = SpannableStringBuilder()
     private val fmt = SimpleDateFormat("HH:mm:ss", Locale.getDefault())
@@ -45,23 +48,25 @@ class LogActivity : AppCompatActivity() {
             LogBuffer.clear(this)
             buffer.clear()
             text.text = ""
+            showEmpty(true)
         }
         scroll = col.parent as ScrollView
+        emptyHint = UiKit.empty(col, "还没有日志", "运行小程序后，print 输出和报错会显示在这里")
+        val card = UiKit.card(col, 8f)
         text = TextView(this).apply {
             typeface = Typeface.MONOSPACE
             textSize = 12f
             setTextColor(ui.text)
             setTextIsSelectable(true)
-            setBackgroundColor(ui.card)
             val p = UiKit.dp(this@LogActivity, 12f)
             setPadding(p, p, p, p)
         }
-        col.addView(text, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT).apply {
-            topMargin = UiKit.dp(this@LogActivity, 8f)
-        })
+        card.addView(text, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT))
+        logCard = card
         // Start from the last ~300 entries rather than the whole history.
         val (all, last) = LogBuffer.since(this, 0, limit = 300)
         append(all)
+        showEmpty(buffer.isEmpty())
         next = last
     }
 
@@ -76,13 +81,26 @@ class LogActivity : AppCompatActivity() {
     }
 
     private fun poll() {
-        stopAction.alpha = if (RunState.current(this) != null) 1f else 0.3f
+        // Disabled (not only dimmed) while nothing runs, so TalkBack reports it; set only on a change.
+        val running = RunState.current(this) != null
+        if (stopAction.isEnabled != running) {
+            stopAction.isEnabled = running
+            stopAction.alpha = if (running) 1f else 0.38f
+        }
+        showEmpty(buffer.isEmpty())
         val (entries, n) = LogBuffer.since(this, next)
         if (n < next) {
             buffer.clear()
         }
         next = n
         if (entries.isNotEmpty()) append(entries)
+    }
+
+    private fun showEmpty(empty: Boolean) {
+        val hint = if (empty) View.VISIBLE else View.GONE
+        if (emptyHint.visibility != hint) emptyHint.visibility = hint
+        val log = if (empty) View.GONE else View.VISIBLE
+        if (logCard.visibility != log) logCard.visibility = log
     }
 
     private fun append(entries: List<LogBuffer.Entry>) {
