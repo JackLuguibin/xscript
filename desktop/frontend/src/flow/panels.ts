@@ -14,6 +14,21 @@ export function toggleLibrary(mode: LibraryMode, narrow: boolean): LibraryMode {
   return libraryShown(mode, narrow) ? "closed" : "open";
 }
 
+export type InspectorMode = LibraryMode;
+
+/** At or below this width "auto" keeps the inspector folded until something is selected. Mirrors components.css. */
+export const COMPACT_QUERY = "(max-width: 1100px)";
+
+/** "auto" shows the inspector on wide windows, and on compact ones only while a node (or note, group…) is picked. */
+export function inspectorShown(mode: InspectorMode, compact: boolean, picking: boolean): boolean {
+  return mode === "open" || (mode === "auto" && (!compact || picking));
+}
+
+/** Flip what the user currently sees, like toggleLibrary. */
+export function toggleInspector(mode: InspectorMode, compact: boolean, picking: boolean): InspectorMode {
+  return inspectorShown(mode, compact, picking) ? "closed" : "open";
+}
+
 /** Which edges of a horizontally scrolling strip hide content: "", "start", "end" or "start end". */
 export function overflowEdges(scrollLeft: number, clientWidth: number, scrollWidth: number): string {
   const edges: string[] = [];
@@ -27,12 +42,31 @@ export function wheelShift(deltaX: number, deltaY: number): number {
   return Math.abs(deltaY) > Math.abs(deltaX) ? deltaY : 0;
 }
 
-export function matchesNarrow(): boolean {
+export function matchesNarrow(query: string = NARROW_QUERY): boolean {
   try {
-    return typeof window.matchMedia === "function" && window.matchMedia(NARROW_QUERY).matches;
+    return typeof window.matchMedia === "function" && window.matchMedia(query).matches;
   } catch {
     return false;
   }
+}
+
+export interface FieldIssue {
+  kind: "required" | "number" | "integer" | "min";
+  min?: number;
+}
+
+/**
+ * Why a number field's draft cannot be stored yet, or null when it can. A number input reports text it cannot
+ * parse as "", so an empty draft is the "type a number" case.
+ */
+export function numberIssue(raw: string, type: string, min?: number): FieldIssue | null {
+  const text = raw.trim();
+  if (!text) return { kind: "required" };
+  const value = Number(text);
+  if (!Number.isFinite(value)) return { kind: "number" };
+  if (type === "int" && !Number.isInteger(value)) return { kind: "integer" };
+  if (min !== undefined && value < min) return { kind: "min", min };
+  return null;
 }
 
 /** First view of a flow: whole graph when it stays readable, never blown up past 100%. */

@@ -270,26 +270,30 @@ pre.logs.debug-console { min-height: 4rem; max-height: 10rem; }
 @media (max-width: 760px) { .nav-item .unsaved-dot { position: absolute; top: 0.35rem; right: 0.35rem; margin: 0; } }
 .dialog-actions { justify-content: flex-end; gap: var(--sp-2); }
 
-.flow-page { display: grid; grid-template-columns: 17.5rem minmax(0, 1fr) 24rem; grid-template-rows: minmax(0, 1fr) auto; gap: var(--sp-3); align-items: stretch; min-height: 0; }
-.flow-page[data-library="open"] { grid-template-columns: 17.5rem minmax(0, 1fr) 24rem; }
-.flow-page[data-library="closed"] { grid-template-columns: minmax(0, 1fr) 24rem; }
-.flow-page[data-library="closed"] .flow-library { display: none; }
+/* Panel widths are variables so the library / inspector toggles combine with every breakpoint. */
+.flow-page { --flow-lib-w: 17.5rem; --flow-insp-w: 24rem; display: grid; grid-template-columns: var(--flow-lib-w) minmax(0, 1fr) var(--flow-insp-w); grid-template-rows: minmax(0, 1fr) auto; gap: var(--sp-3); align-items: stretch; min-height: 0; }
+.flow-page[data-library="closed"] { grid-template-columns: minmax(0, 1fr) var(--flow-insp-w); }
+.flow-page[data-inspector="closed"] { grid-template-columns: var(--flow-lib-w) minmax(0, 1fr); }
+.flow-page[data-library="closed"][data-inspector="closed"] { grid-template-columns: minmax(0, 1fr); }
+.flow-page[data-library="closed"] .flow-library, .flow-page[data-inspector="closed"] .flow-inspector { display: none; }
 .flow-page[data-library="closed"] .flow-canvas,
 .flow-page[data-library="closed"] .flow-bottom { grid-column: 1; }
 .flow-page[data-library="closed"] .flow-inspector { grid-column: 2; }
 @media (max-width: 1440px) {
-  .flow-page, .flow-page[data-library="open"] { grid-template-columns: 15rem minmax(0, 1fr) 20rem; }
-  .flow-page[data-library="closed"] { grid-template-columns: minmax(0, 1fr) 20rem; }
+  .flow-page { --flow-lib-w: 15rem; --flow-insp-w: 20rem; }
 }
 /* Narrow windows: the library starts hidden (FlowPage NARROW_QUERY) and the inspector slims down. */
 @media (max-width: 1280px) {
-  .flow-page, .flow-page[data-library="open"] { grid-template-columns: 14rem minmax(0, 1fr) 18rem; }
-  .flow-page[data-library="closed"] { grid-template-columns: minmax(0, 1fr) 18rem; }
+  .flow-page { --flow-lib-w: 14rem; --flow-insp-w: 18rem; }
+}
+/* Compact windows (COMPACT_QUERY): the inspector is narrower and folds away until something is picked. */
+@media (max-width: 1100px) {
+  .flow-page { --flow-insp-w: 16rem; }
 }
 @media (max-width: 720px) {
   .app.is-workspace, .app.is-workspace .content { height: auto; overflow: visible; }
   .app.is-workspace main { overflow: visible; }
-  .flow-page, .flow-page[data-library="open"], .flow-page[data-library="closed"], .flow-page[data-library="auto"] { grid-template-columns: 1fr; grid-template-rows: auto; height: auto; }
+  .flow-page, .flow-page[data-library], .flow-page[data-library][data-inspector] { grid-template-columns: 1fr; grid-template-rows: auto; height: auto; }
   .flow-page[data-library="closed"] .flow-canvas,
   .flow-page[data-library="closed"] .flow-bottom,
   .flow-page[data-library="closed"] .flow-inspector { grid-column: 1; }
@@ -351,13 +355,11 @@ pre.logs.debug-console { min-height: 4rem; max-height: 10rem; }
 .flow-inspect-id { margin: 2px 0 0; display: flex; gap: var(--sp-2); align-items: baseline; font-family: var(--font-mono); font-size: var(--fs-xs); color: var(--text-muted); }
 .flow-inspect-meta { margin: 2px 0 0; font-family: var(--font-sans); font-size: var(--fs-xs); color: var(--text-muted); display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
 .flow-inspect-empty { margin: 0; font-size: var(--fs-sm); font-weight: 450; color: var(--text-muted); }
-.flow-inspect-body { display: flex; flex-direction: column; gap: var(--sp-4); padding: var(--sp-4); flex: 0 1 auto; min-height: 0; max-height: 68%; overflow: auto; }
+.flow-inspect-body { display: flex; flex-direction: column; gap: var(--sp-3); padding: var(--sp-3) var(--sp-4) var(--sp-4); flex: 0 1 auto; min-height: 0; max-height: 68%; overflow: auto; }
 .flow-props { display: flex; flex-direction: column; gap: var(--sp-3); min-width: 0; }
 .flow-prop-name { display: flex; justify-content: space-between; gap: var(--sp-2); align-items: baseline; }
 .flow-prop-type { margin-left: auto; font-family: var(--font-mono); font-size: var(--fs-xs); font-weight: 450; color: var(--text-muted); }
-.flow-prop-outs { display: flex; flex-direction: column; gap: var(--sp-1); }
-.flow-prop-outs > span { font-size: var(--fs-xs); font-weight: 650; color: var(--text-muted); }
-.flow-prop-outs ul { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 2px; }
+.flow-prop-outs { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 2px; }
 .flow-prop-outs li { display: flex; align-items: center; gap: var(--sp-2); min-height: 1.5rem; font-size: var(--fs-sm); font-weight: 450; }
 .flow-inspect-body:not(:has(*)) { display: none; }
 .flow-inspect-body > button { justify-content: flex-start; min-height: 1.75rem; padding: 0 var(--sp-2); border: 0; background: transparent; color: var(--primary); font-size: var(--fs-sm); }
@@ -569,3 +571,25 @@ pre.logs.debug-console { min-height: 4rem; max-height: 10rem; }
 .panel > .hint { margin: var(--sp-2) 0 0; font-size: var(--fs-sm); line-height: 1.55; color: var(--text-muted); }
 .panel > .hint + .row { margin-top: var(--sp-3); }
 .panel.tight > h2 { margin: 0 0 var(--sp-1); font-size: var(--fs-md); font-weight: 650; }
+
+/* Inspector groups, validation and keyboard focus (Figma / VS Code style): collapsible sections with a muted
+   caps header and a count, errors under the field, and inset focus rings inside scrolling lists so they are never clipped. */
+.flow-inspect-close { margin-left: auto; flex: none; width: 1.75rem; min-height: 1.75rem; padding: 0; justify-content: center; color: var(--text-muted); font-size: var(--fs-lg); line-height: 1; }
+.flow-bar button.flow-bar-icon-end svg { transform: scaleX(-1); }
+.flow-group { display: flex; flex-direction: column; gap: var(--sp-2); min-width: 0; }
+.flow-group + .flow-group { border-top: 1px solid var(--border); padding-top: var(--sp-3); }
+.flow-group-head { margin: 0; font-size: inherit; font-weight: inherit; }
+.flow-group-toggle { width: 100%; justify-content: flex-start; min-height: 1.75rem; padding: 0 var(--sp-1); border: 0; border-radius: var(--r-sm); background: transparent; font-size: var(--fs-xs); font-weight: 650; letter-spacing: 0.04em; text-transform: uppercase; color: var(--text-muted); }
+.flow-group-toggle:hover { color: var(--text); background: var(--surface-2); border-color: transparent; }
+.flow-group-title { flex: 1; text-align: left; }
+.flow-group-count { min-width: 1.25rem; padding: 0 0.35rem; border-radius: var(--r-pill); background: var(--surface-2); font-family: var(--font-mono); font-weight: 500; letter-spacing: 0; text-align: center; color: var(--text-muted); }
+.flow-group-body { display: flex; flex-direction: column; gap: var(--sp-3); min-width: 0; }
+.flow-jumps { display: flex; flex-wrap: wrap; gap: var(--sp-1); }
+.flow-prop-error { font-size: var(--fs-xs); font-weight: 450; color: var(--danger-fg); }
+.flow-inspector label.is-invalid input { border-color: var(--danger-dot); box-shadow: 0 0 0 3px color-mix(in srgb, var(--danger-dot) 18%, transparent); }
+.flow-inspector input:focus-visible, .flow-inspector textarea:focus-visible, .flow-inspector select:focus-visible,
+.flow-palette input:focus-visible { outline: 2px solid var(--focus-ring); outline-offset: 0; border-color: var(--focus-ring); box-shadow: 0 0 0 3px color-mix(in srgb, var(--focus-ring) 22%, transparent); }
+.flow-leaf:focus-visible, .flow-family:focus-visible, .flow-cat:focus-visible, .flow-group-toggle:focus-visible,
+.flow-dock-bar [role="tab"]:focus-visible, .flow-nodes label:has(input:focus-visible) { outline: 2px solid var(--focus-ring); outline-offset: -2px; background: var(--primary-soft); color: var(--text); }
+.flow-leaf:focus-visible .flow-leaf-meta { color: var(--text); }
+.flow-cat-count { margin-left: auto; min-width: 1.25rem; padding: 0 0.35rem; border-radius: var(--r-pill); background: var(--surface-2); font-family: var(--font-mono); font-size: var(--fs-xs); font-weight: 500; text-align: center; color: var(--text-muted); }

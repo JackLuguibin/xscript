@@ -118,3 +118,13 @@ export function writeTemplates(list: readonly UserTemplate[]): void {
     // Private mode can refuse storage. The list still lives for this session.
   }
 }
+
+/** Where a key moves the focus in the palette's flat list of visible rows, or null when the key does not move it. */
+export function paletteStep(key: string, index: number, count: number): number | null {
+  if (count <= 0) return null;
+  if (key === "ArrowDown") return Math.min(count - 1, index + 1);
+  if (key === "ArrowUp") return Math.max(0, index - 1);
+  if (key === "Home") return 0;
+  if (key === "End") return count - 1;
+  return null;
+}
