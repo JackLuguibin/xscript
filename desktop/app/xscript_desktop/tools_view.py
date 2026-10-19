@@ -9,7 +9,7 @@ from __future__ import annotations
 import asyncio
 import concurrent.futures
 
-from PySide6.QtCore import QObject, Qt, QUrl, Signal
+from PySide6.QtCore import QCoreApplication, QEvent, QObject, Qt, QUrl, Signal
 from PySide6.QtGui import QDesktopServices
 from PySide6.QtWebEngineCore import QWebEnginePage, QWebEngineProfile, QWebEngineSettings, QWebEngineUrlRequestInfo, QWebEngineUrlRequestInterceptor
 from PySide6.QtWebEngineWidgets import QWebEngineView
@@ -80,9 +80,14 @@ class ToolWindow(QMainWindow):
         if self._dead:
             return
         self._dead = True
+        # QtWebEngine wants a profile's pages gone before the profile ("Release of profile requested but WebEnginePage
+        # still not deleted"). Leaving both to deferred deletion, whenever the event loop got to them, let Chromium's
+        # threads segfault the process (pytest-xdist workers). Delete synchronously, page first, like MainWindow.dispose.
         self.view.setPage(None)
         self.page.deleteLater()
+        QCoreApplication.sendPostedEvents(self.page, QEvent.Type.DeferredDelete)
         self.profile.deleteLater()
+        QCoreApplication.sendPostedEvents(self.profile, QEvent.Type.DeferredDelete)
 
     def closeEvent(self, event) -> None:
         self.dispose()

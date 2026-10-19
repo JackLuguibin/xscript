@@ -9,7 +9,9 @@ description = "XScript desktop client (PySide6 shell + React frontend)"
 requires-python = ">=3.10"
 license = { text = "MIT" }
 dependencies = [
-  "PySide6>=6.8",
+  # 6.12.0 drops a reference to None on every void method call; on Python < 3.12 (requires-python is >=3.10; CI runs 3.10)
+  # None's refcount runs out and the interpreter aborts ("deallocating None"). See test_void_qt_calls_keep_none_alive.
+  "PySide6>=6.8,!=6.12.0",
   "httpx>=0.27",
   "keyring>=25",
 ]
