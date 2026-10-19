@@ -16,6 +16,7 @@ import android.widget.ImageView
 import android.widget.LinearLayout
 import android.widget.ScrollView
 import android.widget.TextView
+import androidx.annotation.DrawableRes
 import androidx.activity.ComponentActivity
 import androidx.activity.SystemBarStyle
 import androidx.activity.enableEdgeToEdge
@@ -38,6 +39,8 @@ object UiKit {
         val accent = ctx.getColor(R.color.xscript_accent)
         val success = ctx.getColor(R.color.xscript_success)
         val danger = ctx.getColor(R.color.xscript_danger)
+        val tile = ctx.getColor(R.color.xscript_tile)
+        val onTile = ctx.getColor(R.color.xscript_on_tile)
 
         /** Container and content colors of a filled button. */
         fun fill(tone: Tone, ctx: Context): Pair<Int, Int> = when (tone) {
@@ -133,7 +136,7 @@ object UiKit {
         }
         if (back) {
             bar.addView(ImageView(ctx).apply {
-                setImageResource(R.drawable.ic_ui_back)
+                setImageResource(R.drawable.ic_sym_arrow_back)
                 imageTintList = ColorStateList.valueOf(p.text)
                 scaleType = ImageView.ScaleType.CENTER
                 contentDescription = "返回"
@@ -268,23 +271,26 @@ object UiKit {
         return card
     }
 
-    fun icon(ctx: Context, glyph: String, color: Int): View = TextView(ctx).apply {
-        text = glyph
-        textSize = 15f
-        setTextColor(Color.WHITE)
-        gravity = Gravity.CENTER
-        setTypeface(typeface, Typeface.BOLD)
+    /**
+     * Leading icon tile: a Material Symbols Rounded drawable ([iconRes], res/drawable/ic_sym_*) on the tonal
+     * container color, the same for every row.
+     */
+    fun icon(ctx: Context, @DrawableRes iconRes: Int): View = FrameLayout(ctx).apply {
+        val p = palette(ctx)
         background = GradientDrawable().apply {
-            cornerRadius = dp(ctx, 9f).toFloat()
-            setColor(color)
+            cornerRadius = dp(ctx, 10f).toFloat()
+            setColor(p.tile)
         }
+        addView(ImageView(ctx).apply {
+            setImageResource(iconRes)
+            imageTintList = ColorStateList.valueOf(p.onTile)
+        }, FrameLayout.LayoutParams(dp(ctx, 20f), dp(ctx, 20f), Gravity.CENTER))
         importantForAccessibility = View.IMPORTANT_FOR_ACCESSIBILITY_NO
     }
 
     fun row(
         card: LinearLayout,
-        glyph: String?,
-        color: Int,
+        @DrawableRes iconRes: Int,
         title: String,
         value: String = "",
         chevron: Boolean = true,
@@ -294,7 +300,7 @@ object UiKit {
         val p = palette(ctx)
         if (card.childCount > 0) {
             card.addView(View(ctx).apply { setBackgroundColor(p.divider) }, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, 1).apply {
-                leftMargin = dp(ctx, if (glyph != null) 60f else 16f)
+                leftMargin = dp(ctx, if (iconRes != 0) 64f else 16f)
             })
         }
         val line = LinearLayout(ctx).apply {
@@ -308,9 +314,9 @@ object UiKit {
                 setOnClickListener { onClick() }
             }
         }
-        if (glyph != null) {
-            val size = dp(ctx, 32f)
-            line.addView(icon(ctx, glyph, color), LinearLayout.LayoutParams(size, size).apply { rightMargin = dp(ctx, 14f) })
+        if (iconRes != 0) {
+            val size = dp(ctx, 36f)
+            line.addView(icon(ctx, iconRes), LinearLayout.LayoutParams(size, size).apply { rightMargin = dp(ctx, 14f) })
         }
         val t = TextView(ctx).apply {
             text = title
@@ -335,21 +341,21 @@ object UiKit {
         })
         if (chevron) {
             line.addView(ImageView(ctx).apply {
-                setImageResource(R.drawable.ic_ui_chevron)
+                setImageResource(R.drawable.ic_sym_chevron_right)
                 imageTintList = ColorStateList.valueOf(p.chevron)
                 setPadding(dp(ctx, 4f), 0, 0, 0)
                 importantForAccessibility = View.IMPORTANT_FOR_ACCESSIBILITY_NO
-            })
+            }, LinearLayout.LayoutParams(dp(ctx, 20f), dp(ctx, 20f)))
         }
         card.addView(line)
         return Row(line, t, v, p.muted)
     }
 
     /** A row with a trailing Material switch; tapping the row or the switch calls [onToggle] with the new state. */
-    fun switchRow(card: LinearLayout, glyph: String?, color: Int, title: String, checked: Boolean, onToggle: (Boolean) -> Unit): Row {
+    fun switchRow(card: LinearLayout, @DrawableRes iconRes: Int, title: String, checked: Boolean, onToggle: (Boolean) -> Unit): Row {
         val ctx = card.context
         lateinit var sw: MaterialSwitch
-        val row = row(card, glyph, color, title, chevron = false) { sw.toggle() }
+        val row = row(card, iconRes, title, chevron = false) { sw.toggle() }
         sw = MaterialSwitch(ctx).apply {
             isChecked = checked
             // The row reads as one control: TalkBack announces the title with the switch state.

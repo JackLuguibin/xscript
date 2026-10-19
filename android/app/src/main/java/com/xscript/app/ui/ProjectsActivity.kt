@@ -1,5 +1,6 @@
 package com.xscript.app.ui
 
+import com.xscript.app.R
 import android.app.Activity
 import com.google.android.material.dialog.MaterialAlertDialogBuilder
 import android.content.Intent
@@ -73,10 +74,9 @@ class ProjectsActivity : AppCompatActivity() {
             val d = details.getJSONObject(i)
             val name = d.getString("name")
             val flavor = d.optString("flavor")
-            val glyph = if (flavor == "ascript") "A" else "X"
-            val color = if (flavor == "ascript") 0xFF00B8D4.toInt() else 0xFF2F7CF6.toInt()
+            val icon = if (flavor == "ascript") R.drawable.ic_sym_extension else R.drawable.ic_sym_code_blocks
             val status = if (running == name) "运行中" else fmt.format(Date(d.optLong("modified")))
-            val row = UiKit.row(card, glyph, color, name, status) { openProject(name) }
+            val row = UiKit.row(card, icon, name, status) { openProject(name) }
             if (running == name) row.value(status, ui.success)
         }
     }

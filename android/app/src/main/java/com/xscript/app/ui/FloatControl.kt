@@ -518,7 +518,7 @@ object FloatControl {
         }
         val pal = palette(ctx)
         toggleIcon?.let { i ->
-            i.setImageResource(if (running) R.drawable.ic_float_stop else R.drawable.ic_float_play)
+            i.setImageResource(if (running) R.drawable.ic_sym_stop else R.drawable.ic_sym_play_arrow)
             i.setColorFilter(if (running) pal.stop else pal.play)
         }
         setText(toggleLabel, if (running) "停止" else "运行")
@@ -579,7 +579,7 @@ object FloatControl {
                     if (bmp != null) {
                         icon.setImageBitmap(bmp)
                     } else {
-                        icon.setImageResource(R.drawable.ic_float_menu)
+                        icon.setImageResource(R.drawable.ic_sym_menu)
                         icon.setColorFilter(pal.text)
                     }
                 }
@@ -748,7 +748,7 @@ object FloatControl {
         hd.addView(t)
         hd.addView(tm)
 
-        val (tgBox, tgIcon, tgLabel) = iconButtonParts(ctx, "运行", "运行脚本", pal) { it.setImageResource(R.drawable.ic_float_play) }
+        val (tgBox, tgIcon, tgLabel) = iconButtonParts(ctx, "运行", "运行脚本", pal) { it.setImageResource(R.drawable.ic_sym_play_arrow) }
         tgBox.setOnClickListener {
             if (RunState.current(ctx) != null) {
                 ScriptService.stop(ctx)
@@ -763,17 +763,17 @@ object FloatControl {
             }
             action(ctx)
         }
-        val logs = iconButton(ctx, "日志", "查看日志", pal) { it.setImageResource(R.drawable.ic_float_log); it.setColorFilter(pal.text) }
+        val logs = iconButton(ctx, "日志", "查看日志", pal) { it.setImageResource(R.drawable.ic_sym_article); it.setColorFilter(pal.text) }
         logs.setOnClickListener {
             startApp(ctx, LogActivity::class.java)
             action(ctx)
         }
-        val open = iconButton(ctx, "打开", "打开应用", pal) { it.setImageResource(R.drawable.ic_float_open); it.setColorFilter(pal.text) }
+        val open = iconButton(ctx, "打开", "打开应用", pal) { it.setImageResource(R.drawable.ic_sym_open_in_new); it.setColorFilter(pal.text) }
         open.setOnClickListener {
             startApp(ctx, com.xscript.app.LauncherActivity.home(ctx))
             action(ctx)
         }
-        val hide = iconButton(ctx, "隐藏", "隐藏悬浮窗，下次运行或打开应用后再出现", pal) { it.setImageResource(R.drawable.ic_float_hide); it.setColorFilter(pal.text) }
+        val hide = iconButton(ctx, "隐藏", "隐藏悬浮窗，下次运行或打开应用后再出现", pal) { it.setImageResource(R.drawable.ic_sym_visibility_off); it.setColorFilter(pal.text) }
         hide.setOnClickListener {
             userHidden = true
             syncOnMain(ctx, false)

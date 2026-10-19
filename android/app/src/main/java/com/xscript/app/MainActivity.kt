@@ -105,39 +105,39 @@ class MainActivity : AppCompatActivity() {
 
         // Grouped by what the user does: open a project, connect a computer, choose how scripts run, grant access.
         val apps = UiKit.card(col)
-        rowProjects = UiKit.row(apps, "⬡", 0xFF00B8D4.toInt(), "小程序列表") {
+        rowProjects = UiKit.row(apps, R.drawable.ic_sym_apps, "小程序列表") {
             startActivity(Intent(this, ProjectsActivity::class.java))
         }
 
         UiKit.section(col, "开发与连接")
         val dev = UiKit.card(col, 8f)
-        rowEndpoint = UiKit.row(dev, "</>", 0xFF2F7CF6.toInt(), "开发者地址") { copyEndpoint() }
-        rowAi = UiKit.row(dev, "✦", 0xFF10A37F.toInt(), "AI 编程连接") { showAiHelp() }
-        rowCloud = UiKit.row(dev, "☁", 0xFF2F9BF6.toInt(), "云端控制") { editCloud() }
-        rowLink = UiKit.row(dev, "⇄", 0xFF6366F1.toInt(), "链接启动") { chooseLinkMode() }
+        rowEndpoint = UiKit.row(dev, R.drawable.ic_sym_code, "开发者地址") { copyEndpoint() }
+        rowAi = UiKit.row(dev, R.drawable.ic_sym_smart_toy, "AI 编程连接") { showAiHelp() }
+        rowCloud = UiKit.row(dev, R.drawable.ic_sym_cloud, "云端控制") { editCloud() }
+        rowLink = UiKit.row(dev, R.drawable.ic_sym_link, "链接启动") { chooseLinkMode() }
 
         UiKit.section(col, "运行设置")
         val run = UiKit.card(col, 8f)
-        rowMode = UiKit.row(run, "▶", 0xFF8E44AD.toInt(), "运行模式") { chooseMode() }
-        rowFloat = UiKit.row(run, "◐", 0xFF34A853.toInt(), "悬浮窗显示") { FloatControl.chooseMode(this) { refresh() } }
+        rowMode = UiKit.row(run, R.drawable.ic_sym_tune, "运行模式") { chooseMode() }
+        rowFloat = UiKit.row(run, R.drawable.ic_sym_picture_in_picture, "悬浮窗显示") { FloatControl.chooseMode(this) { refresh() } }
 
         permsHeader = UiKit.section(col, "权限")
         val perms = UiKit.card(col, 8f)
-        rowOverlay = UiKit.row(perms, "▣", 0xFF34A853.toInt(), "悬浮窗权限") { openOverlaySettings() }
-        rowA11y = UiKit.row(perms, "◉", 0xFFF59E0B.toInt(), "辅助权限管理") {
+        rowOverlay = UiKit.row(perms, R.drawable.ic_sym_layers, "悬浮窗权限") { openOverlaySettings() }
+        rowA11y = UiKit.row(perms, R.drawable.ic_sym_accessibility_new, "辅助权限管理") {
             startActivity(Intent(AndroidSettings.ACTION_ACCESSIBILITY_SETTINGS))
         }
-        rowRoot = UiKit.row(perms, ">_", 0xFF2F7CF6.toInt(), "Root 权限") { requestRoot() }
-        rowCapture = UiKit.row(perms, "◎", 0xFFE5484D.toInt(), "图色权限") { requestCapture() }
-        rowNotif = UiKit.row(perms, "✉", 0xFF10A37F.toInt(), "通知使用权") {
+        rowRoot = UiKit.row(perms, R.drawable.ic_sym_terminal, "Root 权限") { requestRoot() }
+        rowCapture = UiKit.row(perms, R.drawable.ic_sym_screenshot_monitor, "图色权限") { requestCapture() }
+        rowNotif = UiKit.row(perms, R.drawable.ic_sym_notifications, "通知使用权") {
             startActivity(Intent(AndroidSettings.ACTION_NOTIFICATION_LISTENER_SETTINGS))
         }
-        rowStorage = UiKit.row(perms, "▤", 0xFF6B7785.toInt(), "文件访问权限") { requestStorage() }
-        rowBattery = UiKit.row(perms, "⚡", 0xFF6B7785.toInt(), "后台运行") { requestBattery() }
+        rowStorage = UiKit.row(perms, R.drawable.ic_sym_folder, "文件访问权限") { requestStorage() }
+        rowBattery = UiKit.row(perms, R.drawable.ic_sym_battery_saver, "后台运行") { requestBattery() }
 
         UiKit.section(col, "系统")
         val sys = UiKit.card(col, 8f)
-        UiKit.row(sys, "⚙", 0xFF5F6B7A.toInt(), "开发者选项") {
+        UiKit.row(sys, R.drawable.ic_sym_developer_mode, "开发者选项") {
             startActivity(Intent(AndroidSettings.ACTION_APPLICATION_DEVELOPMENT_SETTINGS))
         }
 
