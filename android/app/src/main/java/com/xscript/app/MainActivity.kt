@@ -17,6 +17,7 @@ import android.os.Looper
 import android.os.PowerManager
 import android.provider.Settings as AndroidSettings
 import android.view.Gravity
+import android.view.View
 import android.view.ViewGroup
 import android.widget.EditText
 import android.widget.LinearLayout
@@ -37,6 +38,7 @@ import com.xscript.app.runtime.RunState
 import com.xscript.app.runtime.ScriptService
 import com.xscript.app.settings.Settings
 import com.xscript.app.ui.FloatControl
+import com.xscript.app.ui.HomeModel
 import com.xscript.app.ui.LogActivity
 import com.xscript.app.ui.ProjectsActivity
 import com.xscript.app.ui.UiKit
@@ -69,7 +71,8 @@ class MainActivity : AppCompatActivity() {
     private lateinit var runTitle: TextView
     private lateinit var runSub: TextView
     private lateinit var runButton: TextView
-    private var runButtonRunning: Boolean? = null
+    private lateinit var runDot: View
+    private lateinit var permsHeader: UiKit.Section
 
     private val notifyPermission = registerForActivityResult(
         ActivityResultContracts.RequestPermission(),
@@ -100,31 +103,40 @@ class MainActivity : AppCompatActivity() {
 
         buildRunCard(col)
 
-        val dev = UiKit.card(col)
-        rowEndpoint = UiKit.row(dev, "</>", 0xFF2F7CF6.toInt(), "开发者地址") { copyEndpoint() }
-        rowAi = UiKit.row(dev, "✦", 0xFF10A37F.toInt(), "AI 编程连接") { showAiHelp() }
-        rowMode = UiKit.row(dev, "▶", 0xFF8E44AD.toInt(), "运行模式") { chooseMode() }
-        rowLink = UiKit.row(dev, "⇄", 0xFF6366F1.toInt(), "链接启动") { chooseLinkMode() }
-        rowFloat = UiKit.row(dev, "◐", 0xFF34A853.toInt(), "悬浮窗显示") { FloatControl.chooseMode(this) { refresh() } }
-        rowOverlay = UiKit.row(dev, "▣", 0xFF34A853.toInt(), "悬浮窗权限") { openOverlaySettings() }
-        rowRoot = UiKit.row(dev, ">_", 0xFF2F7CF6.toInt(), "Root 权限") { requestRoot() }
-        rowCapture = UiKit.row(dev, "◎", 0xFFE5484D.toInt(), "图色权限") { requestCapture() }
-        rowCloud = UiKit.row(dev, "☁", 0xFF2F9BF6.toInt(), "云端控制") { editCloud() }
-
+        // Grouped by what the user does: open a project, connect a computer, choose how scripts run, grant access.
         val apps = UiKit.card(col)
         rowProjects = UiKit.row(apps, "⬡", 0xFF00B8D4.toInt(), "小程序列表") {
             startActivity(Intent(this, ProjectsActivity::class.java))
         }
 
-        val sys = UiKit.card(col)
-        rowA11y = UiKit.row(sys, "◉", 0xFFF59E0B.toInt(), "辅助权限管理") {
+        UiKit.section(col, "开发与连接")
+        val dev = UiKit.card(col, 8f)
+        rowEndpoint = UiKit.row(dev, "</>", 0xFF2F7CF6.toInt(), "开发者地址") { copyEndpoint() }
+        rowAi = UiKit.row(dev, "✦", 0xFF10A37F.toInt(), "AI 编程连接") { showAiHelp() }
+        rowCloud = UiKit.row(dev, "☁", 0xFF2F9BF6.toInt(), "云端控制") { editCloud() }
+        rowLink = UiKit.row(dev, "⇄", 0xFF6366F1.toInt(), "链接启动") { chooseLinkMode() }
+
+        UiKit.section(col, "运行设置")
+        val run = UiKit.card(col, 8f)
+        rowMode = UiKit.row(run, "▶", 0xFF8E44AD.toInt(), "运行模式") { chooseMode() }
+        rowFloat = UiKit.row(run, "◐", 0xFF34A853.toInt(), "悬浮窗显示") { FloatControl.chooseMode(this) { refresh() } }
+
+        permsHeader = UiKit.section(col, "权限")
+        val perms = UiKit.card(col, 8f)
+        rowOverlay = UiKit.row(perms, "▣", 0xFF34A853.toInt(), "悬浮窗权限") { openOverlaySettings() }
+        rowA11y = UiKit.row(perms, "◉", 0xFFF59E0B.toInt(), "辅助权限管理") {
             startActivity(Intent(AndroidSettings.ACTION_ACCESSIBILITY_SETTINGS))
         }
-        rowNotif = UiKit.row(sys, "✉", 0xFF10A37F.toInt(), "通知使用权") {
+        rowRoot = UiKit.row(perms, ">_", 0xFF2F7CF6.toInt(), "Root 权限") { requestRoot() }
+        rowCapture = UiKit.row(perms, "◎", 0xFFE5484D.toInt(), "图色权限") { requestCapture() }
+        rowNotif = UiKit.row(perms, "✉", 0xFF10A37F.toInt(), "通知使用权") {
             startActivity(Intent(AndroidSettings.ACTION_NOTIFICATION_LISTENER_SETTINGS))
         }
-        rowStorage = UiKit.row(sys, "▤", 0xFF6B7785.toInt(), "文件访问权限") { requestStorage() }
-        rowBattery = UiKit.row(sys, "⚡", 0xFF6B7785.toInt(), "后台运行") { requestBattery() }
+        rowStorage = UiKit.row(perms, "▤", 0xFF6B7785.toInt(), "文件访问权限") { requestStorage() }
+        rowBattery = UiKit.row(perms, "⚡", 0xFF6B7785.toInt(), "后台运行") { requestBattery() }
+
+        UiKit.section(col, "系统")
+        val sys = UiKit.card(col, 8f)
         UiKit.row(sys, "⚙", 0xFF5F6B7A.toInt(), "开发者选项") {
             startActivity(Intent(AndroidSettings.ACTION_APPLICATION_DEVELOPMENT_SETTINGS))
         }
@@ -138,21 +150,35 @@ class MainActivity : AppCompatActivity() {
             orientation = LinearLayout.HORIZONTAL
             gravity = Gravity.CENTER_VERTICAL
             val p = UiKit.dp(this@MainActivity, 16f)
-            setPadding(p, p, p, p)
+            setPadding(UiKit.dp(this@MainActivity, 20f), p, p, p)
+            minimumHeight = UiKit.dp(this@MainActivity, 88f)
         }
         val texts = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
         runTitle = TextView(this).apply {
-            textSize = 17f
+            textSize = 18f
             setTextColor(ui.text)
             setTypeface(typeface, Typeface.BOLD)
+            maxLines = 2
+            ellipsize = android.text.TextUtils.TruncateAt.END
         }
+        val status = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = Gravity.CENTER_VERTICAL
+            setPadding(0, UiKit.dp(this@MainActivity, 4f), 0, 0)
+        }
+        val d = UiKit.dp(this, 8f)
+        runDot = UiKit.dot(this, ui.muted)
+        status.addView(runDot, LinearLayout.LayoutParams(d, d).apply { rightMargin = UiKit.dp(this@MainActivity, 6f) })
         runSub = TextView(this).apply {
-            textSize = 12f
+            textSize = 13f
             setTextColor(ui.muted)
         }
+        status.addView(runSub, LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f))
         texts.addView(runTitle)
-        texts.addView(runSub)
-        line.addView(texts, LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f))
+        texts.addView(status)
+        line.addView(texts, LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f).apply {
+            rightMargin = UiKit.dp(this@MainActivity, 12f)
+        })
         runButton = UiKit.button(this, "运行", UiKit.Tone.SUCCESS) { toggleRun() }
         line.addView(runButton)
         card.addView(line)
@@ -210,21 +236,21 @@ class MainActivity : AppCompatActivity() {
         rowStorage.value(if (hasStorage()) "已授权" else "未授权", if (hasStorage()) ui.success else ui.muted)
         rowBattery.value(if (isIgnoringBattery()) "不受限" else "受限", if (isIgnoringBattery()) ui.success else ui.muted)
 
+        var granted = 0
+        for (on in listOf(overlay, a11y, RootShell.known() == true, CaptureEngine.available(), notif, hasStorage(), isIgnoringBattery())) {
+            if (on) granted++
+        }
+        UiKit.setText(permsHeader.value, HomeModel.permissionSummary(granted, 7))
+
         val running = RunState.current(this)
-        if (running != null) {
-            UiKit.setText(runTitle, running)
-            UiKit.setText(runSub, "运行中")
-        } else {
-            val last = Settings.lastProject.takeIf { ProjectStore(this).exists(it) }
-            UiKit.setText(runTitle, last ?: "未选择小程序")
-            UiKit.setText(runSub, if (last != null) "上次运行 · 点小程序列表切换" else "导入或新建一个小程序")
-        }
-        // A new ripple background on every tick redrew the card while nothing changed; swap it only on a state change.
-        if (runButtonRunning != (running != null)) {
-            runButtonRunning = running != null
-            runButton.text = if (running != null) "停止" else "运行"
-            UiKit.paint(runButton, if (running != null) UiKit.Tone.DANGER else UiKit.Tone.SUCCESS)
-        }
+        val last = if (running == null) Settings.lastProject.takeIf { ProjectStore(this).exists(it) } else null
+        val card = HomeModel.runCard(running, last)
+        UiKit.setText(runTitle, card.title)
+        UiKit.setText(runSub, card.status)
+        UiKit.setText(runButton, card.action)
+        // paint and dotColor skip an unchanged tone: a new drawable each tick would redraw the idle screen.
+        UiKit.paint(runButton, card.tone)
+        UiKit.dotColor(runDot, if (card.running) ui.success else ui.muted)
     }
 
     private fun toggleRun() {
