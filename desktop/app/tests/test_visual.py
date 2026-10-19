@@ -51,10 +51,7 @@ def prepare(sh, qtbot, theme: str, size=(1100, 720), devices=DEVICES, adb_missin
     sh.wait_url(qtbot)
     qtbot.wait(300)
     sh._eval(qtbot, "localStorage.setItem('xscript.theme', %r); 0" % theme)
-    sh.win.load()
-    qtbot.wait(100)
-    sh.wait_url(qtbot)
-    sh.wait_js(qtbot, "document.documentElement.getAttribute('data-theme') === %r && document.querySelector('main')" % theme, timeout=15000)
+    sh.reload(qtbot, "document.documentElement.getAttribute('data-theme') === %r && document.querySelector('main')" % theme)
     sh.wait_js(qtbot, "!document.querySelector('[aria-busy=\"true\"]')", timeout=10000)
 
 

@@ -62,6 +62,16 @@ class Shell:
     def wait_url(self, qtbot, timeout: int = 15000) -> None:
         qtbot.waitUntil(lambda: self.win.page.url().toString().startswith("xsapp://app"), timeout=timeout)
 
+    def reload(self, qtbot, ready: str, timeout: int = 15000) -> None:
+        """Reload the page and wait until `ready` holds in the *new* document.
+
+        Waiting on `ready` alone can pass on the old page before navigation starts; the next call then runs mid-navigation
+        (document.documentElement is null). The marker only exists on the old window object."""
+        self._eval(qtbot, "window.__xsBeforeReload = 1; 0")
+        self.win.load()
+        self.wait_url(qtbot)
+        self.wait_js(qtbot, "!window.__xsBeforeReload && document.documentElement && (%s)" % ready, timeout=timeout)
+
     def wait_js(self, qtbot, expr: str, timeout: int = 8000, interval: int = 50) -> None:
         """Wait until the (synchronous) JS expression is truthy."""
         qtbot.waitUntil(lambda: bool(self._eval(qtbot, "!!(%s)" % expr, timeout)), timeout=timeout)
