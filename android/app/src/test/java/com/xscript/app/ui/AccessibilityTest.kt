@@ -17,7 +17,8 @@ class AccessibilityTest {
         assertEquals(48f, UiKit.MIN_TOUCH_DP)
         // The back arrow is MIN_TOUCH_DP square; title bar actions and buttons are at least that tall.
         assertTrue(kit.contains("LinearLayout.LayoutParams(dp(ctx, MIN_TOUCH_DP), dp(ctx, MIN_TOUCH_DP))"))
-        assertEquals(2, Regex("""minHeight = dp\(ctx, MIN_TOUCH_DP\)""").findAll(kit).count())
+        // Buttons, title bar actions and dialog text fields.
+        assertEquals(3, Regex("""minHeight = dp\(ctx, MIN_TOUCH_DP\)""").findAll(kit).count())
         assertFalse(kit.contains("dp(ctx, 44f)"))
     }
 

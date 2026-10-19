@@ -9,7 +9,6 @@ import android.widget.EditText
 import android.widget.HorizontalScrollView
 import android.widget.LinearLayout
 import android.widget.ScrollView
-import android.widget.Toast
 import androidx.activity.OnBackPressedCallback
 import com.google.android.material.dialog.MaterialAlertDialogBuilder
 import androidx.appcompat.app.AppCompatActivity
@@ -38,19 +37,19 @@ class EditorActivity : AppCompatActivity() {
         editor = EditText(this).apply {
             setText(original)
             typeface = Typeface.MONOSPACE
-            textSize = 13f
+            textSize = UiKit.Type.LABEL
             gravity = Gravity.TOP or Gravity.START
             setHorizontallyScrolling(true)
             inputType = InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_FLAG_MULTI_LINE or InputType.TYPE_TEXT_FLAG_NO_SUGGESTIONS
             setBackgroundColor(ui.card)
-            val p = UiKit.dp(this@EditorActivity, 12f)
+            val p = UiKit.dp(this@EditorActivity, UiKit.Space.M)
             setPadding(p, p, p, p)
             minHeight = resources.displayMetrics.heightPixels
         }
         val h = HorizontalScrollView(this).apply { isFillViewport = true }
         h.addView(editor, ViewGroup.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.MATCH_PARENT))
         col.addView(h, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT).apply {
-            topMargin = UiKit.dp(this@EditorActivity, 8f)
+            topMargin = UiKit.dp(this@EditorActivity, UiKit.Space.S)
         })
 
         onBackPressedDispatcher.addCallback(this, object : OnBackPressedCallback(true) {
@@ -73,7 +72,7 @@ class EditorActivity : AppCompatActivity() {
         val text = editor.text.toString()
         ProjectStore(this).writeFile(project, path, text, "utf-8")
         original = text
-        Toast.makeText(this, "已保存", Toast.LENGTH_SHORT).show()
+        UiKit.toast(this, "已保存")
     }
 
     companion object {

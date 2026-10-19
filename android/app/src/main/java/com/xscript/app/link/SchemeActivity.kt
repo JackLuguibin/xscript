@@ -4,13 +4,13 @@ import android.app.Activity
 import android.app.AlertDialog
 import android.content.Intent
 import android.os.Bundle
-import android.widget.Toast
 import com.xscript.app.BuildConfig
 import com.xscript.app.project.ProjectStore
 import com.xscript.app.runtime.DapTransport
 import com.xscript.app.runtime.ScriptService
 import com.xscript.app.runtime.ScriptSupervisor
 import com.xscript.app.settings.Settings
+import com.xscript.app.ui.UiKit
 
 /**
  * Entry for `xscript://run?name=…` / `xscript://stop` (packaged apps: `<application id>://…`).
@@ -67,7 +67,7 @@ class SchemeActivity : Activity() {
     }
 
     private fun done(text: String) {
-        Toast.makeText(this, text, Toast.LENGTH_LONG).show()
+        UiKit.toast(this, text, long = true)
         finish()
     }
 

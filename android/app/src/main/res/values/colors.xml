@@ -7,6 +7,8 @@
     <color name="xscript_text">#FF1F2329</color>
     <color name="xscript_muted">#FF646A73</color>
     <color name="xscript_divider">#FFEDEEF0</color>
+    <!-- Hairline around surfaces that float over other apps (the floating control). -->
+    <color name="xscript_outline">#FFC4C7CC</color>
     <color name="xscript_chevron">#FFB8BCC4</color>
     <color name="xscript_ripple">#1F000000</color>
     <color name="xscript_accent">#FF1A66E0</color>

@@ -457,25 +457,24 @@ object FloatControl {
         return FloatLogic.Insets(0, size("status_bar_height"), 0, if (portrait && hasNav) size("navigation_bar_height") else 0)
     }
 
-    private fun stateColor(running: Boolean, error: Boolean): Int = when {
-        error -> Color.parseColor("#FFFF5A52")
-        running -> Color.parseColor("#FF34C759")
-        else -> Color.parseColor("#FF9AA5B1")
+    private fun stateColor(ctx: Context, running: Boolean, error: Boolean): Int {
+        val p = palette(ctx)
+        return when {
+            error -> p.stop
+            running -> p.play
+            else -> p.sub
+        }
     }
 
-    /** Colours for light / dark mode: a light panel with dark icons in light mode, a dark one with light icons at night. */
+    /**
+     * The app's color tokens (UiKit.Palette, res/values[-night]/colors.xml), so the window matches the screens in light
+     * and dark mode: the card surface with an outline, text / muted text, success for run and danger for stop.
+     */
     private class Palette(val bg: Int, val stroke: Int, val text: Int, val sub: Int, val ripple: Int, val play: Int, val stop: Int)
 
-    private fun palette(ctx: Context): Palette = if (night(ctx)) {
-        Palette(
-            Color.argb(255, 34, 39, 46), Color.argb(110, 255, 255, 255), Color.parseColor("#FFEAEFF4"),
-            Color.parseColor("#FFAEB9C4"), Color.argb(70, 255, 255, 255), Color.parseColor("#FF4CD27A"), Color.parseColor("#FFFF6B63"),
-        )
-    } else {
-        Palette(
-            Color.argb(255, 249, 250, 252), Color.argb(70, 0, 0, 0), Color.parseColor("#FF1B2430"),
-            Color.parseColor("#FF5B6773"), Color.argb(46, 0, 0, 0), Color.parseColor("#FF1E9E4A"), Color.parseColor("#FFD93A32"),
-        )
+    private fun palette(ctx: Context): Palette {
+        val p = UiKit.palette(ctx)
+        return Palette(p.card, p.outline, p.text, p.muted, p.ripple, p.success, p.danger)
     }
 
     private fun panelBackground(ctx: Context, radiusDp: Float) = GradientDrawable().apply {
@@ -483,7 +482,7 @@ object FloatControl {
         cornerRadius = dp(ctx, radiusDp).toFloat()
         // The hairline keeps the window visible on a background of the same brightness.
         setColor(p.bg)
-        setStroke(dp(ctx, 1f).coerceAtLeast(1), p.stroke)
+        setStroke(dp(ctx, UiKit.Size.HAIRLINE).coerceAtLeast(1), p.stroke)
     }
 
     private fun render(ctx: Context) {
@@ -493,7 +492,7 @@ object FloatControl {
         val err = errorNow && !running
         modeNow = state.mode
 
-        val color = stateColor(running, err)
+        val color = stateColor(ctx, running, err)
         val titleText = when {
             running -> name ?: lastName
             err -> "${lastName.ifEmpty { "脚本" }} 出错"
@@ -514,7 +513,7 @@ object FloatControl {
         (dot?.background as? GradientDrawable)?.setColor(color)
         ball?.let { b ->
             setText(b, when { running -> FloatLogic.formatBall(elapsed); err -> "!"; else -> "空闲" })
-            (b.background as? GradientDrawable)?.setStroke(dp(ctx, 3f), color)
+            (b.background as? GradientDrawable)?.setStroke(dp(ctx, UiKit.Size.RING), color)
         }
         val pal = palette(ctx)
         toggleIcon?.let { i ->
@@ -674,27 +673,27 @@ object FloatControl {
         }
         val label = TextView(ctx).apply {
             this.text = text
-            textSize = 11f
+            textSize = UiKit.Type.CAPTION
             setTextColor(pal.text)
             gravity = Gravity.CENTER
             isSingleLine = true
             ellipsize = android.text.TextUtils.TruncateAt.END
-            maxWidth = dp(ctx, 72f)
+            maxWidth = dp(ctx, UiKit.Size.BUTTON_MIN_WIDTH)
             importantForAccessibility = View.IMPORTANT_FOR_ACCESSIBILITY_NO
         }
         val box = LinearLayout(ctx).apply {
             orientation = LinearLayout.VERTICAL
             gravity = Gravity.CENTER
-            minimumWidth = dp(ctx, 64f)
-            minimumHeight = dp(ctx, 56f)
-            setPadding(dp(ctx, 4f), dp(ctx, 6f), dp(ctx, 4f), dp(ctx, 5f))
+            minimumWidth = dp(ctx, UiKit.Size.FLOAT_BUTTON)
+            minimumHeight = dp(ctx, UiKit.Size.ROW)
+            setPadding(dp(ctx, UiKit.Space.XS), dp(ctx, UiKit.Space.S), dp(ctx, UiKit.Space.XS), dp(ctx, UiKit.Space.XS))
             contentDescription = desc
             isClickable = true
             background = android.graphics.drawable.RippleDrawable(
-                android.content.res.ColorStateList.valueOf(pal.ripple), null, rounded(ctx, Color.BLACK, 14f),
+                android.content.res.ColorStateList.valueOf(pal.ripple), null, rounded(ctx, Color.BLACK, UiKit.Radius.SMALL),
             )
-            addView(icon, LinearLayout.LayoutParams(dp(ctx, 24f), dp(ctx, 24f)).apply { gravity = Gravity.CENTER_HORIZONTAL })
-            addView(label, LinearLayout.LayoutParams(WRAP, WRAP).apply { topMargin = dp(ctx, 3f); gravity = Gravity.CENTER_HORIZONTAL })
+            addView(icon, LinearLayout.LayoutParams(dp(ctx, UiKit.Size.ICON_LARGE), dp(ctx, UiKit.Size.ICON_LARGE)).apply { gravity = Gravity.CENTER_HORIZONTAL })
+            addView(label, LinearLayout.LayoutParams(WRAP, WRAP).apply { topMargin = dp(ctx, UiKit.Space.XS); gravity = Gravity.CENTER_HORIZONTAL })
         }
         return Triple(box, icon, label)
     }
@@ -715,34 +714,34 @@ object FloatControl {
         }
         val b = LinearLayout(ctx).apply {
             orientation = LinearLayout.VERTICAL
-            val p = dp(ctx, 4f)
+            val p = dp(ctx, UiKit.Space.XS)
             setPadding(p, p, p, p)
-            background = panelBackground(ctx, 24f)
+            background = panelBackground(ctx, UiKit.Radius.FULL)
         }
         val hd = LinearLayout(ctx).apply {
             orientation = LinearLayout.HORIZONTAL
             gravity = Gravity.CENTER_VERTICAL
-            minimumHeight = dp(ctx, 48f)
-            setPadding(dp(ctx, 12f), 0, dp(ctx, 14f), 0)
+            minimumHeight = dp(ctx, UiKit.MIN_TOUCH_DP)
+            setPadding(dp(ctx, UiKit.Space.M), 0, dp(ctx, UiKit.Space.L), 0)
             isClickable = true
         }
         val d = View(ctx).apply {
-            layoutParams = LinearLayout.LayoutParams(dp(ctx, 10f), dp(ctx, 10f)).apply { rightMargin = dp(ctx, 8f) }
+            layoutParams = LinearLayout.LayoutParams(dp(ctx, UiKit.Size.DOT), dp(ctx, UiKit.Size.DOT)).apply { rightMargin = dp(ctx, UiKit.Space.S) }
             background = GradientDrawable().apply { shape = GradientDrawable.OVAL }
             importantForAccessibility = View.IMPORTANT_FOR_ACCESSIBILITY_NO
         }
         val t = TextView(ctx).apply {
             setTextColor(pal.text)
-            textSize = 14f
-            maxWidth = dp(ctx, 140f)
+            textSize = UiKit.Type.BODY
+            maxWidth = dp(ctx, UiKit.Size.FLOAT_TITLE_MAX)
             isSingleLine = true
             ellipsize = android.text.TextUtils.TruncateAt.END
         }
         val tm = TextView(ctx).apply {
             setTextColor(pal.sub)
-            textSize = 13f
+            textSize = UiKit.Type.LABEL
             typeface = android.graphics.Typeface.MONOSPACE
-            setPadding(dp(ctx, 8f), 0, 0, 0)
+            setPadding(dp(ctx, UiKit.Space.S), 0, 0, 0)
         }
         hd.addView(d)
         hd.addView(t)
@@ -789,7 +788,7 @@ object FloatControl {
         }
         val pnl = LinearLayout(ctx).apply {
             orientation = LinearLayout.VERTICAL
-            setPadding(dp(ctx, 4f), 0, dp(ctx, 4f), dp(ctx, 2f))
+            setPadding(dp(ctx, UiKit.Space.XS), 0, dp(ctx, UiKit.Space.XS), dp(ctx, UiKit.Space.XS))
             addView(sys, LinearLayout.LayoutParams(WRAP, WRAP).apply { gravity = Gravity.CENTER_HORIZONTAL })
             addView(menu, LinearLayout.LayoutParams(WRAP, WRAP).apply { gravity = Gravity.CENTER_HORIZONTAL })
         }
@@ -802,12 +801,12 @@ object FloatControl {
         val ballView = TextView(ctx).apply {
             gravity = Gravity.CENTER
             setTextColor(pal.text)
-            textSize = 11f
+            textSize = UiKit.Type.BADGE
             typeface = android.graphics.Typeface.create(android.graphics.Typeface.MONOSPACE, android.graphics.Typeface.BOLD)
             isSingleLine = true
-            val size = dp(ctx, 48f)
+            val size = dp(ctx, UiKit.MIN_TOUCH_DP)
             layoutParams = FrameLayout.LayoutParams(size, size)
-            background = panelBackground(ctx, 24f).also { it.cornerRadius = dp(ctx, 24f).toFloat() }
+            background = panelBackground(ctx, UiKit.Radius.FULL)
             isClickable = true
             visibility = View.GONE
         }
@@ -834,7 +833,7 @@ object FloatControl {
         }
         lp = newLp
 
-        val slop = maxOf(ViewConfiguration.get(ctx).scaledTouchSlop, dp(ctx, 6f))
+        val slop = maxOf(ViewConfiguration.get(ctx).scaledTouchSlop, dp(ctx, UiKit.Space.S))
         val touch = dragListener(ctx, frame, wm, slop)
         hd.setOnTouchListener(touch)
         ballView.setOnTouchListener(touch)

@@ -13,7 +13,6 @@ import android.view.Gravity
 import android.view.ViewGroup
 import android.widget.EditText
 import android.widget.LinearLayout
-import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
 import com.xscript.app.project.ProjectStore
 import com.xscript.app.runtime.RunState
@@ -55,13 +54,13 @@ class ProjectActivity : AppCompatActivity() {
         val actions = LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL
             gravity = Gravity.CENTER_VERTICAL
-            setPadding(0, UiKit.dp(this@ProjectActivity, 12f), 0, 0)
+            setPadding(0, UiKit.dp(this@ProjectActivity, UiKit.Space.M), 0, 0)
         }
         runBtn = UiKit.button(this, "运行", UiKit.Tone.SUCCESS) { toggle() }
         actions.addView(runBtn, LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f))
         val logBtn = UiKit.button(this, "日志", UiKit.Tone.NEUTRAL) { startActivity(Intent(this, LogActivity::class.java)) }
         actions.addView(logBtn, LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f).apply {
-            leftMargin = UiKit.dp(this@ProjectActivity, 12f)
+            leftMargin = UiKit.dp(this@ProjectActivity, UiKit.Space.M)
         })
         col.addView(actions)
 
@@ -99,7 +98,7 @@ class ProjectActivity : AppCompatActivity() {
         val running = RunState.current(this)
         when {
             running == name -> ScriptService.stop(this)
-            running != null -> Toast.makeText(this, "$running 正在运行，先停止它", Toast.LENGTH_SHORT).show()
+            running != null -> UiKit.toast(this, "$running 正在运行，先停止它")
             else -> {
                 Settings.lastProject = name
                 ScriptService.run(this, name)
@@ -113,12 +112,12 @@ class ProjectActivity : AppCompatActivity() {
     private fun renderOptions() {
         options.removeAllViews()
         UiKit.section(options, "运行选项")
-        val card = UiKit.card(options, 8f)
+        val card = UiKit.card(options, UiKit.Space.S)
         val boot = Settings.bootProject == name
         UiKit.switchRow(card, R.drawable.ic_sym_power_settings_new, "开机自启", boot) { on ->
             Settings.bootProject = if (on) name else if (Settings.bootProject == name) "" else Settings.bootProject
             if (on && Settings.bootProject == name) {
-                Toast.makeText(this, "开机后等待无障碍或 Root 就绪再运行（同一时间只有一个小程序开机自启）", Toast.LENGTH_LONG).show()
+                UiKit.toast(this, "开机后等待无障碍或 Root 就绪再运行（同一时间只有一个小程序开机自启）", long = true)
             }
         }
         UiKit.switchRow(card, R.drawable.ic_sym_restart_alt, "停止后重新运行", name in Settings.rerunProjects) { on ->
@@ -126,7 +125,7 @@ class ProjectActivity : AppCompatActivity() {
         }
 
         UiKit.section(options, "定时任务")
-        val sched = UiKit.card(options, 8f)
+        val sched = UiKit.card(options, UiKit.Space.S)
         val list = Scheduler.store(this).list(name)
         UiKit.row(sched, R.drawable.ic_sym_schedule, "定时任务", "${list.size} 个 · 添加") { addSchedule() }
         for (s in list) {
@@ -167,7 +166,7 @@ class ProjectActivity : AppCompatActivity() {
                 .setPositiveButton("保存") { _, _ ->
                     val days = (1..7).filter { checked[it - 1] }
                     if (days.isEmpty()) {
-                        Toast.makeText(this, "至少选一天", Toast.LENGTH_SHORT).show()
+                        UiKit.toast(this, "至少选一天")
                         return@setPositiveButton
                     }
                     save(JSONObject().put("kind", "daily").put("time", "%02d:%02d".format(h, m)).put("weekdays", JSONArray(if (days.size == 7) emptyList() else days)))
@@ -183,13 +182,7 @@ class ProjectActivity : AppCompatActivity() {
             inputType = android.text.InputType.TYPE_CLASS_NUMBER
         }
         val window = EditText(this).apply { hint = "时间段（可选），例如 08:00-23:00" }
-        val box = LinearLayout(this).apply {
-            orientation = LinearLayout.VERTICAL
-            val p = UiKit.dp(this@ProjectActivity, 20f)
-            setPadding(p, UiKit.dp(this@ProjectActivity, 8f), p, 0)
-            addView(every)
-            addView(window)
-        }
+        val box = UiKit.dialogField(this, every, window)
         MaterialAlertDialogBuilder(this)
             .setTitle("每隔 N 分钟")
             .setView(box)
@@ -220,7 +213,7 @@ class ProjectActivity : AppCompatActivity() {
                 e.message
             }
             runOnUiThread {
-                if (error != null) Toast.makeText(this, error, Toast.LENGTH_LONG).show()
+                if (error != null) UiKit.toast(this, error, long = true)
                 renderOptions()
             }
         }
@@ -262,7 +255,7 @@ class ProjectActivity : AppCompatActivity() {
                         e.message
                     }
                     runOnUiThread {
-                        if (msg != null) Toast.makeText(ctx, msg, Toast.LENGTH_SHORT).show()
+                        if (msg != null) UiKit.toast(ctx, msg)
                         renderOptions()
                     }
                 }
@@ -276,7 +269,7 @@ class ProjectActivity : AppCompatActivity() {
         files.removeAllViews()
         val arr = store.files(name)
         UiKit.section(files, "文件")
-        val card = UiKit.card(files, 8f)
+        val card = UiKit.card(files, UiKit.Space.S)
         for (i in 0 until arr.length()) {
             val f = arr.getJSONObject(i)
             val path = f.getString("path")

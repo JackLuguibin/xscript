@@ -16,6 +16,7 @@ import android.widget.ImageView
 import android.widget.LinearLayout
 import android.widget.ScrollView
 import android.widget.TextView
+import android.widget.Toast
 import androidx.annotation.DrawableRes
 import androidx.activity.ComponentActivity
 import androidx.activity.SystemBarStyle
@@ -25,8 +26,70 @@ import com.google.android.material.materialswitch.MaterialSwitch
 import androidx.core.view.WindowInsetsCompat
 import com.xscript.app.R
 
-/** Small programmatic view kit for the AScript-style grouped list screens. */
+/**
+ * Small programmatic view kit for the grouped list screens, and the style guide every screen follows
+ * (docs/android-ui-style.md has the long form; StyleTokensTest enforces the rules below):
+ *
+ * - Colors only from [Palette] (res/values[-night]/colors.xml). No hex literals or Color.rgb in screens.
+ * - Sizes only from [Space] (padding, margins), [Radius] (corners), [Size] (fixed sizes) and [Type] (text sp).
+ * - Icons: Material Symbols Rounded vectors (res/drawable/ic_sym_*), shown by [icon] on a tonal tile or tinted
+ *   inline. No emoji or text glyphs as icons.
+ * - Structure: [screen] (title bar), [section] header above each [card], [row] / [switchRow] inside cards with an
+ *   inset divider, [empty] for empty lists, [note] for footnotes, [runCard] for the primary run state.
+ * - Buttons: [button] with [Tone]: PRIMARY / SUCCESS / DANGER filled for the one main action of a card, NEUTRAL
+ *   (tonal) for secondary ones, [barAction] (text) on the title bar. Every target is at least [MIN_TOUCH_DP].
+ * - Status: a row value colored success / danger / muted, or a [dot]; no other chip styles.
+ * - Dialogs: MaterialAlertDialogBuilder on Theme.Xscript; a text field inside goes through [dialogField].
+ * - Short feedback: [toast] (works from services and the overlay too, where there is no snackbar host).
+ */
 object UiKit {
+    /** Spacing scale, dp. Paddings and margins use these steps only. */
+    object Space {
+        const val XS = 4f
+        const val S = 8f
+        const val M = 12f
+        const val L = 16f
+        const val XL = 20f
+        const val XXL = 24f
+        const val XXXL = 32f
+    }
+
+    /** Corner radii, dp: small (icon tiles, floating buttons), card, and full (pill buttons, the floating window). */
+    object Radius {
+        const val SMALL = 12f
+        const val CARD = 16f
+        const val FULL = 24f
+    }
+
+    /** Fixed sizes, dp. */
+    object Size {
+        const val HAIRLINE = 1f
+        /** Status ring of the floating ball. */
+        const val RING = 3f
+        const val DOT = 8f
+        const val ICON = 20f
+        const val ICON_LARGE = 24f
+        const val TILE = 36f
+        const val ROW = 56f
+        const val BUTTON_MIN_WIDTH = 72f
+        const val RUN_CARD = 88f
+        const val FLOAT_BUTTON = 64f
+        const val FLOAT_TITLE_MAX = 140f
+    }
+
+    /** Typography roles, sp. Bold only for [TITLE], [HEADLINE], section headers and buttons. */
+    object Type {
+        const val TITLE = 20f
+        const val HEADLINE = 18f
+        const val BODY_LARGE = 16f
+        const val BUTTON = 15f
+        const val BODY = 14f
+        const val LABEL = 13f
+        const val CAPTION = 12f
+        /** Only the 48dp floating ball, whose timer must fit its circle. */
+        const val BADGE = 11f
+    }
+
     /** Color tokens of the current theme (res/values and res/values-night colors.xml). Activities keep one. */
     class Palette(ctx: Context) {
         val bg = ctx.getColor(R.color.xscript_bg)
@@ -34,6 +97,7 @@ object UiKit {
         val text = ctx.getColor(R.color.xscript_text)
         val muted = ctx.getColor(R.color.xscript_muted)
         val divider = ctx.getColor(R.color.xscript_divider)
+        val outline = ctx.getColor(R.color.xscript_outline)
         val chevron = ctx.getColor(R.color.xscript_chevron)
         val ripple = ctx.getColor(R.color.xscript_ripple)
         val accent = ctx.getColor(R.color.xscript_accent)
@@ -132,7 +196,7 @@ object UiKit {
         val bar = Capped(ctx, maxPx).apply {
             orientation = LinearLayout.HORIZONTAL
             gravity = Gravity.CENTER_VERTICAL
-            setPadding(dp(ctx, if (back) 4f else 20f), dp(ctx, 6f), dp(ctx, 8f), dp(ctx, 4f))
+            setPadding(dp(ctx, if (back) Space.XS else Space.XL), dp(ctx, Space.S), dp(ctx, Space.S), dp(ctx, Space.XS))
         }
         if (back) {
             bar.addView(ImageView(ctx).apply {
@@ -150,7 +214,7 @@ object UiKit {
         val titles = LinearLayout(ctx).apply { orientation = LinearLayout.VERTICAL }
         titles.addView(TextView(ctx).apply {
             text = title
-            textSize = 20f
+            textSize = Type.TITLE
             setTypeface(typeface, Typeface.BOLD)
             setTextColor(p.text)
             maxLines = 2
@@ -160,7 +224,7 @@ object UiKit {
         if (subtitle != null) {
             titles.addView(TextView(ctx).apply {
                 text = subtitle
-                textSize = 12f
+                textSize = Type.CAPTION
                 setTextColor(p.muted)
                 maxLines = 2
                 ellipsize = android.text.TextUtils.TruncateAt.END
@@ -169,10 +233,10 @@ object UiKit {
         bar.addView(titles, LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f))
         outer.addView(bar, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT))
         val scroll = ScrollView(ctx).apply { isFillViewport = true }
-        val bottom = dp(ctx, 24f)
+        val bottom = dp(ctx, Space.XXL)
         val column = Capped(ctx, maxPx).apply {
             orientation = LinearLayout.VERTICAL
-            setPadding(dp(ctx, 12f), dp(ctx, 4f), dp(ctx, 12f), bottom)
+            setPadding(dp(ctx, Space.M), dp(ctx, Space.XS), dp(ctx, Space.M), bottom)
         }
         scroll.addView(column, FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT, Gravity.CENTER_HORIZONTAL))
         outer.addView(scroll, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, 0, 1f))
@@ -201,10 +265,10 @@ object UiKit {
         val ctx = column.context
         val tv = TextView(ctx).apply {
             text = label
-            textSize = 14f
+            textSize = Type.BODY
             setTextColor(palette(ctx).accent)
             gravity = Gravity.CENTER
-            setPadding(dp(ctx, 12f), 0, dp(ctx, 12f), 0)
+            setPadding(dp(ctx, Space.M), 0, dp(ctx, Space.M), 0)
             minWidth = dp(ctx, MIN_TOUCH_DP)
             minHeight = dp(ctx, MIN_TOUCH_DP)
             background = ripple(Color.TRANSPARENT, MIN_TOUCH_DP / 2, ctx)
@@ -223,18 +287,18 @@ object UiKit {
         val line = LinearLayout(ctx).apply {
             orientation = LinearLayout.HORIZONTAL
             gravity = Gravity.CENTER_VERTICAL
-            setPadding(dp(ctx, 16f), dp(ctx, 20f), dp(ctx, 16f), 0)
+            setPadding(dp(ctx, Space.L), dp(ctx, Space.XL), dp(ctx, Space.L), 0)
         }
         val t = TextView(ctx).apply {
             text = title
-            textSize = 13f
+            textSize = Type.LABEL
             setTypeface(typeface, Typeface.BOLD)
             setTextColor(p.muted)
             ViewCompat.setAccessibilityHeading(this, true)
         }
         line.addView(t, LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f))
         val v = TextView(ctx).apply {
-            textSize = 12f
+            textSize = Type.CAPTION
             setTextColor(p.muted)
         }
         line.addView(v)
@@ -265,13 +329,13 @@ object UiKit {
         val line = LinearLayout(ctx).apply {
             orientation = LinearLayout.HORIZONTAL
             gravity = Gravity.CENTER_VERTICAL
-            val pad = dp(ctx, 16f)
-            setPadding(dp(ctx, 20f), pad, pad, pad)
-            minimumHeight = dp(ctx, 88f)
+            val pad = dp(ctx, Space.L)
+            setPadding(dp(ctx, Space.XL), pad, pad, pad)
+            minimumHeight = dp(ctx, Size.RUN_CARD)
         }
         val texts = LinearLayout(ctx).apply { orientation = LinearLayout.VERTICAL }
         val title = TextView(ctx).apply {
-            textSize = 18f
+            textSize = Type.HEADLINE
             setTextColor(p.text)
             setTypeface(typeface, Typeface.BOLD)
             maxLines = 2
@@ -280,20 +344,20 @@ object UiKit {
         val status = LinearLayout(ctx).apply {
             orientation = LinearLayout.HORIZONTAL
             gravity = Gravity.CENTER_VERTICAL
-            setPadding(0, dp(ctx, 4f), 0, 0)
+            setPadding(0, dp(ctx, Space.XS), 0, 0)
         }
-        val d = dp(ctx, 8f)
+        val d = dp(ctx, Size.DOT)
         val dot = dot(ctx, p.muted)
-        status.addView(dot, LinearLayout.LayoutParams(d, d).apply { rightMargin = dp(ctx, 6f) })
+        status.addView(dot, LinearLayout.LayoutParams(d, d).apply { rightMargin = dp(ctx, Space.S) })
         val sub = TextView(ctx).apply {
-            textSize = 13f
+            textSize = Type.LABEL
             setTextColor(p.muted)
         }
         status.addView(sub, LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f))
         texts.addView(title)
         texts.addView(status)
         line.addView(texts, LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f).apply {
-            rightMargin = dp(ctx, 12f)
+            rightMargin = dp(ctx, Space.M)
         })
         val button = button(ctx, "运行", Tone.SUCCESS, onAction)
         line.addView(button)
@@ -311,12 +375,12 @@ object UiKit {
         dotColor(v.dot, if (c.running) p.success else if (c.warn) p.danger else p.muted)
     }
 
-    fun card(parent: LinearLayout, topMarginDp: Float = 12f): LinearLayout {
+    fun card(parent: LinearLayout, topMarginDp: Float = Space.M): LinearLayout {
         val ctx = parent.context
         val card = LinearLayout(ctx).apply {
             orientation = LinearLayout.VERTICAL
             background = GradientDrawable().apply {
-                cornerRadius = dp(ctx, 16f).toFloat()
+                cornerRadius = dp(ctx, Radius.CARD).toFloat()
                 setColor(palette(ctx).card)
             }
             clipToOutline = true
@@ -334,13 +398,13 @@ object UiKit {
     fun icon(ctx: Context, @DrawableRes iconRes: Int): View = FrameLayout(ctx).apply {
         val p = palette(ctx)
         background = GradientDrawable().apply {
-            cornerRadius = dp(ctx, 10f).toFloat()
+            cornerRadius = dp(ctx, Radius.SMALL).toFloat()
             setColor(p.tile)
         }
         addView(ImageView(ctx).apply {
             setImageResource(iconRes)
             imageTintList = ColorStateList.valueOf(p.onTile)
-        }, FrameLayout.LayoutParams(dp(ctx, 20f), dp(ctx, 20f), Gravity.CENTER))
+        }, FrameLayout.LayoutParams(dp(ctx, Size.ICON), dp(ctx, Size.ICON), Gravity.CENTER))
         importantForAccessibility = View.IMPORTANT_FOR_ACCESSIBILITY_NO
     }
 
@@ -356,14 +420,15 @@ object UiKit {
         val p = palette(ctx)
         if (card.childCount > 0) {
             card.addView(View(ctx).apply { setBackgroundColor(p.divider) }, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, 1).apply {
-                leftMargin = dp(ctx, if (iconRes != 0) 64f else 16f)
+                // Inset to the title: under the icon tile the line would cut the row's leading edge.
+                leftMargin = dp(ctx, if (iconRes != 0) Space.L + Size.TILE + Space.L else Space.L)
             })
         }
         val line = LinearLayout(ctx).apply {
             orientation = LinearLayout.HORIZONTAL
             gravity = Gravity.CENTER_VERTICAL
-            minimumHeight = dp(ctx, 56f)
-            setPadding(dp(ctx, 14f), dp(ctx, 8f), dp(ctx, 12f), dp(ctx, 8f))
+            minimumHeight = dp(ctx, Size.ROW)
+            setPadding(dp(ctx, Space.L), dp(ctx, Space.S), dp(ctx, Space.M), dp(ctx, Space.S))
             if (onClick != null) {
                 background = ripple(p.card, 0f, ctx)
                 isClickable = true
@@ -371,12 +436,12 @@ object UiKit {
             }
         }
         if (iconRes != 0) {
-            val size = dp(ctx, 36f)
-            line.addView(icon(ctx, iconRes), LinearLayout.LayoutParams(size, size).apply { rightMargin = dp(ctx, 14f) })
+            val size = dp(ctx, Size.TILE)
+            line.addView(icon(ctx, iconRes), LinearLayout.LayoutParams(size, size).apply { rightMargin = dp(ctx, Space.L) })
         }
         val t = TextView(ctx).apply {
             text = title
-            textSize = 16f
+            textSize = Type.BODY_LARGE
             setTextColor(p.text)
             maxLines = 2
             ellipsize = android.text.TextUtils.TruncateAt.END
@@ -384,7 +449,7 @@ object UiKit {
         line.addView(t, LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f))
         val v = TextView(ctx).apply {
             text = value
-            textSize = 13f
+            textSize = Type.LABEL
             setTextColor(p.muted)
             // Up to two lines in under half the row: a large font scale wraps the value instead of cutting it.
             maxWidth = valueMaxWidth(minOf(ctx.resources.displayMetrics.widthPixels, dp(ctx, MAX_CONTENT_DP)))
@@ -393,15 +458,15 @@ object UiKit {
             gravity = Gravity.END
         }
         line.addView(v, LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT).apply {
-            leftMargin = dp(ctx, 8f)
+            leftMargin = dp(ctx, Space.S)
         })
         if (chevron) {
             line.addView(ImageView(ctx).apply {
                 setImageResource(R.drawable.ic_sym_chevron_right)
                 imageTintList = ColorStateList.valueOf(p.chevron)
-                setPadding(dp(ctx, 4f), 0, 0, 0)
+                setPadding(dp(ctx, Space.XS), 0, 0, 0)
                 importantForAccessibility = View.IMPORTANT_FOR_ACCESSIBILITY_NO
-            }, LinearLayout.LayoutParams(dp(ctx, 20f), dp(ctx, 20f)))
+            }, LinearLayout.LayoutParams(dp(ctx, Size.ICON), dp(ctx, Size.ICON)))
         }
         card.addView(line)
         return Row(line, t, v, p.muted)
@@ -432,32 +497,32 @@ object UiKit {
         val p = palette(ctx)
         val card = card(parent)
         card.gravity = Gravity.CENTER_HORIZONTAL
-        val pad = dp(ctx, 24f)
-        card.setPadding(pad, dp(ctx, 32f), pad, pad)
+        val pad = dp(ctx, Space.XXL)
+        card.setPadding(pad, dp(ctx, Space.XXXL), pad, pad)
         card.addView(TextView(ctx).apply {
             text = title
-            textSize = 17f
+            textSize = Type.HEADLINE
             gravity = Gravity.CENTER
             setTypeface(typeface, Typeface.BOLD)
             setTextColor(p.text)
         })
         card.addView(TextView(ctx).apply {
             text = body
-            textSize = 13f
+            textSize = Type.LABEL
             gravity = Gravity.CENTER
             setTextColor(p.muted)
-            setPadding(0, dp(ctx, 6f), 0, 0)
+            setPadding(0, dp(ctx, Space.S), 0, 0)
         })
         if (actions.isNotEmpty()) {
             val line = LinearLayout(ctx).apply {
                 orientation = LinearLayout.HORIZONTAL
                 gravity = Gravity.CENTER
-                setPadding(0, dp(ctx, 20f), 0, 0)
+                setPadding(0, dp(ctx, Space.XL), 0, 0)
             }
             actions.forEachIndexed { i, (label, onClick) ->
                 line.addView(button(ctx, label, if (i == 0) Tone.PRIMARY else Tone.NEUTRAL, onClick),
                     LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT).apply {
-                        if (i > 0) leftMargin = dp(ctx, 12f)
+                        if (i > 0) leftMargin = dp(ctx, Space.M)
                     })
             }
             card.addView(line)
@@ -469,9 +534,9 @@ object UiKit {
         val ctx = parent.context
         val tv = TextView(ctx).apply {
             this.text = text
-            textSize = 12f
+            textSize = Type.CAPTION
             setTextColor(palette(ctx).muted)
-            setPadding(dp(ctx, 8f), dp(ctx, 10f), dp(ctx, 8f), 0)
+            setPadding(dp(ctx, Space.S), dp(ctx, Space.M), dp(ctx, Space.S), 0)
         }
         parent.addView(tv)
         return tv
@@ -479,12 +544,12 @@ object UiKit {
 
     fun button(ctx: Context, label: String, tone: Tone, onClick: () -> Unit): TextView = TextView(ctx).apply {
         text = label
-        textSize = 15f
+        textSize = Type.BUTTON
         gravity = Gravity.CENTER
         setTypeface(typeface, Typeface.BOLD)
-        setPadding(dp(ctx, 20f), dp(ctx, 10f), dp(ctx, 20f), dp(ctx, 10f))
+        setPadding(dp(ctx, Space.XL), dp(ctx, Space.S), dp(ctx, Space.XL), dp(ctx, Space.S))
         minHeight = dp(ctx, MIN_TOUCH_DP)
-        minWidth = dp(ctx, 72f)
+        minWidth = dp(ctx, Size.BUTTON_MIN_WIDTH)
         paint(this, tone)
         setOnClickListener { onClick() }
     }
@@ -497,7 +562,7 @@ object UiKit {
         if (button.getTag(R.id.xscript_tone) == tone) return
         button.setTag(R.id.xscript_tone, tone)
         val (container, content) = palette(button.context).fill(tone, button.context)
-        button.background = ripple(container, 24f, button.context)
+        button.background = ripple(container, Radius.FULL, button.context)
         button.setTextColor(content)
     }
 
@@ -511,6 +576,26 @@ object UiKit {
             setColor(Color.WHITE)
         }
         return RippleDrawable(ColorStateList.valueOf(palette(ctx).ripple), shape, mask)
+    }
+
+    /**
+     * Text fields ([inputs], stacked) placed in a dialog's custom view with the Material dialog's 24dp content inset, at least
+     * [MIN_TOUCH_DP] tall.
+     */
+    fun dialogField(ctx: Context, vararg inputs: View): LinearLayout = LinearLayout(ctx).apply {
+        orientation = LinearLayout.VERTICAL
+        val p = dp(ctx, Space.XXL)
+        setPadding(p, dp(ctx, Space.S), p, 0)
+        for (input in inputs) {
+            // A single-line EditText measures about 45dp; the field is a touch target too.
+            (input as? TextView)?.minHeight = dp(ctx, MIN_TOUCH_DP)
+            addView(input, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT))
+        }
+    }
+
+    /** Short feedback: the system toast, the one style used everywhere (it also works from the overlay and services). */
+    fun toast(ctx: Context, text: CharSequence?, long: Boolean = false) {
+        Toast.makeText(ctx, text, if (long) Toast.LENGTH_LONG else Toast.LENGTH_SHORT).show()
     }
 
     fun spacer(parent: ViewGroup, heightDp: Float) {

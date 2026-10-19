@@ -52,13 +52,13 @@ class LogActivity : AppCompatActivity() {
         }
         scroll = col.parent as ScrollView
         emptyHint = UiKit.empty(col, "还没有日志", "运行小程序后，print 输出和报错会显示在这里")
-        val card = UiKit.card(col, 8f)
+        val card = UiKit.card(col, UiKit.Space.S)
         text = TextView(this).apply {
             typeface = Typeface.MONOSPACE
-            textSize = 12f
+            textSize = UiKit.Type.CAPTION
             setTextColor(ui.text)
             setTextIsSelectable(true)
-            val p = UiKit.dp(this@LogActivity, 12f)
+            val p = UiKit.dp(this@LogActivity, UiKit.Space.M)
             setPadding(p, p, p, p)
         }
         card.addView(text, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT))

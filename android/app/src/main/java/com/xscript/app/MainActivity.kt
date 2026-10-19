@@ -22,7 +22,6 @@ import android.view.ViewGroup
 import android.widget.EditText
 import android.widget.LinearLayout
 import android.widget.TextView
-import android.widget.Toast
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AppCompatActivity
 import com.xscript.app.a11y.AccessibilityEngine
@@ -107,19 +106,19 @@ class MainActivity : AppCompatActivity() {
         }
 
         UiKit.section(col, "开发与连接")
-        val dev = UiKit.card(col, 8f)
+        val dev = UiKit.card(col, UiKit.Space.S)
         rowEndpoint = UiKit.row(dev, R.drawable.ic_sym_code, "开发者地址") { copyEndpoint() }
         rowAi = UiKit.row(dev, R.drawable.ic_sym_smart_toy, "AI 编程连接") { showAiHelp() }
         rowCloud = UiKit.row(dev, R.drawable.ic_sym_cloud, "云端控制") { editCloud() }
         rowLink = UiKit.row(dev, R.drawable.ic_sym_link, "链接启动") { chooseLinkMode() }
 
         UiKit.section(col, "运行设置")
-        val run = UiKit.card(col, 8f)
+        val run = UiKit.card(col, UiKit.Space.S)
         rowMode = UiKit.row(run, R.drawable.ic_sym_tune, "运行模式") { chooseMode() }
         rowFloat = UiKit.row(run, R.drawable.ic_sym_picture_in_picture, "悬浮窗显示") { FloatControl.chooseMode(this) { refresh() } }
 
         permsHeader = UiKit.section(col, "权限")
-        val perms = UiKit.card(col, 8f)
+        val perms = UiKit.card(col, UiKit.Space.S)
         rowOverlay = UiKit.row(perms, R.drawable.ic_sym_layers, "悬浮窗权限") { openOverlaySettings() }
         rowA11y = UiKit.row(perms, R.drawable.ic_sym_accessibility_new, "辅助权限管理") {
             startActivity(Intent(AndroidSettings.ACTION_ACCESSIBILITY_SETTINGS))
@@ -133,7 +132,7 @@ class MainActivity : AppCompatActivity() {
         rowBattery = UiKit.row(perms, R.drawable.ic_sym_battery_saver, "后台运行") { requestBattery() }
 
         UiKit.section(col, "系统")
-        val sys = UiKit.card(col, 8f)
+        val sys = UiKit.card(col, UiKit.Space.S)
         UiKit.row(sys, R.drawable.ic_sym_developer_mode, "开发者选项") {
             startActivity(Intent(AndroidSettings.ACTION_APPLICATION_DEVELOPMENT_SETTINGS))
         }
@@ -216,13 +215,13 @@ class MainActivity : AppCompatActivity() {
             return
         }
         ScriptService.run(this, last)
-        Toast.makeText(this, "启动 $last", Toast.LENGTH_SHORT).show()
+        UiKit.toast(this, "启动 $last")
     }
 
     private fun copyEndpoint() {
         val url = "http://${NetworkInfo.localIp(this)}:${NetworkInfo.PORT}/"
         (getSystemService(CLIPBOARD_SERVICE) as ClipboardManager).setPrimaryClip(ClipData.newPlainText("xscript", url))
-        Toast.makeText(this, "已复制 $url", Toast.LENGTH_SHORT).show()
+        UiKit.toast(this, "已复制 $url")
     }
 
     private fun showAiHelp() {
@@ -273,7 +272,7 @@ class MainActivity : AppCompatActivity() {
     private fun requestRoot() {
         RootShell.probeAsync { ok ->
             runOnUiThread {
-                Toast.makeText(this, if (ok) "已获取 Root" else "未获取 Root", Toast.LENGTH_SHORT).show()
+                UiKit.toast(this, if (ok) "已获取 Root" else "未获取 Root")
                 refresh()
             }
         }
@@ -290,11 +289,7 @@ class MainActivity : AppCompatActivity() {
             hint = "wss://example.com/device?token=..."
             isSingleLine = true
         }
-        val box = LinearLayout(this).apply {
-            val p = UiKit.dp(this@MainActivity, 20f)
-            setPadding(p, UiKit.dp(this@MainActivity, 8f), p, 0)
-            addView(input, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT))
-        }
+        val box = UiKit.dialogField(this, input)
         MaterialAlertDialogBuilder(this)
             .setTitle("云端控制")
             .setMessage("设备主动连接控制服务器的 WebSocket，服务器即可远程调用与局域网相同的接口。" +
@@ -304,7 +299,7 @@ class MainActivity : AppCompatActivity() {
                 try {
                     CloudClient.connect(this, input.text.toString())
                 } catch (e: Exception) {
-                    Toast.makeText(this, e.message, Toast.LENGTH_LONG).show()
+                    UiKit.toast(this, e.message, long = true)
                 }
             }
             .setNeutralButton("断开") { _, _ -> CloudClient.forget() }
