@@ -2113,7 +2113,7 @@ export function FlowPage({ initialLayout }: { initialLayout?: FlowLayout } = {})
           }}
         >
           <Button
-            variant="ghost"
+            variant="toolbar" size="icon"
             type="button"
             className="flow-bar-icon"
             aria-label={t.flow.toggleLibrary}
@@ -2124,7 +2124,7 @@ export function FlowPage({ initialLayout }: { initialLayout?: FlowLayout } = {})
             <IconSidebar size={16} />
           </Button>
           <Button
-            variant="ghost"
+            variant="toolbar" size="icon"
             type="button"
             className="flow-bar-icon flow-bar-icon-end"
             aria-label={t.flow.toggleInspector}
@@ -2135,20 +2135,20 @@ export function FlowPage({ initialLayout }: { initialLayout?: FlowLayout } = {})
             <IconSidebar size={16} />
           </Button>
           <span className="flow-tool-gap" aria-hidden="true" />
-          <Button variant="primary" type="button" onClick={() => openMenu()}>
+          <Button variant="toolbarPrimary" type="button" onClick={() => openMenu()}>
             {t.flow.add}
           </Button>
           <span className="flow-tool-gap" aria-hidden="true" />
-          <Button type="button" onClick={boxSelection} disabled={!picked.some((id) => layout.nodes[id])}>
+          <Button variant="toolbar" type="button" onClick={boxSelection} disabled={!picked.some((id) => layout.nodes[id])}>
             {t.flow.comment}
           </Button>
-          <Button type="button" onClick={placeNote}>
+          <Button variant="toolbar" type="button" onClick={placeNote}>
             {t.flow.note}
           </Button>
-          <Button type="button" onClick={() => { const next = chosen ? enterableScope(graph, chosen.id) : null; if (next) setScope(next); }} disabled={!chosen || !enterableScope(graph, chosen.id)}>
+          <Button variant="toolbar" type="button" onClick={() => { const next = chosen ? enterableScope(graph, chosen.id) : null; if (next) setScope(next); }} disabled={!chosen || !enterableScope(graph, chosen.id)}>
             {t.flow.enter}
           </Button>
-          <Button
+          <Button variant="toolbar"
             type="button"
             onClick={() => {
               const scope = chosen ? enterableScope(graph, chosen.id) : null;
@@ -2164,54 +2164,54 @@ export function FlowPage({ initialLayout }: { initialLayout?: FlowLayout } = {})
           >
             {t.flow.promote}
           </Button>
-          <Button type="button" onClick={collapseSelection} disabled={!picked.some((id) => layout.nodes[id])}>
+          <Button variant="toolbar" type="button" onClick={collapseSelection} disabled={!picked.some((id) => layout.nodes[id])}>
             {t.flow.collapse}
           </Button>
-          <Button type="button" onClick={fold} disabled={picked.length < 1}>
+          <Button variant="toolbar" type="button" onClick={fold} disabled={picked.length < 1}>
             {t.flow.fold}
           </Button>
-          <Button type="button" onClick={unfold} disabled={picked.length !== 1 || chosen?.type !== "code.python"}>
+          <Button variant="toolbar" type="button" onClick={unfold} disabled={picked.length !== 1 || chosen?.type !== "code.python"}>
             {t.flow.unfold}
           </Button>
           <span className="flow-tool-gap" aria-hidden="true" />
-          <Button type="button" onClick={copySelection} disabled={!picked.some((id) => graph.nodes.some((node) => node.id === id))}>
+          <Button variant="toolbar" type="button" onClick={copySelection} disabled={!picked.some((id) => graph.nodes.some((node) => node.id === id))}>
             {t.flow.copy}
           </Button>
-          <Button type="button" onClick={duplicate} disabled={!picked.some((id) => graph.nodes.some((node) => node.id === id))}>
+          <Button variant="toolbar" type="button" onClick={duplicate} disabled={!picked.some((id) => graph.nodes.some((node) => node.id === id))}>
             {t.flow.duplicate}
           </Button>
-          <Button type="button" onClick={() => void paste()}>
+          <Button variant="toolbar" type="button" onClick={() => void paste()}>
             {t.flow.paste}
           </Button>
-          <Button type="button" onClick={undo} disabled={stack.past.length === 0}>
+          <Button variant="toolbar" type="button" onClick={undo} disabled={stack.past.length === 0}>
             {t.flow.undo}
           </Button>
-          <Button type="button" onClick={redo} disabled={stack.future.length === 0}>
+          <Button variant="toolbar" type="button" onClick={redo} disabled={stack.future.length === 0}>
             {t.flow.redo}
           </Button>
           <span className="flow-tool-gap" aria-hidden="true" />
-          <Button variant="danger" type="button" onClick={() => dropPicked(picked)} disabled={picked.length < 1}>
+          <Button variant="toolbarDanger" type="button" onClick={() => dropPicked(picked)} disabled={picked.length < 1}>
             {t.flow.remove}
           </Button>
-          <Button type="button" onClick={runStep} disabled={!chosen}>
+          <Button variant="toolbar" type="button" onClick={runStep} disabled={!chosen}>
             {t.flow.step}
           </Button>
           <span className="flow-tool-gap" aria-hidden="true" />
-          <Button variant="primary" type="button" onClick={() => applyDebug("run")}>
+          <Button variant="toolbarPrimary" type="button" onClick={() => applyDebug("run")}>
             {t.flow.runFlow}
           </Button>
-          <Button type="button" onClick={() => applyDebug("step")}>
+          <Button variant="toolbar" type="button" onClick={() => applyDebug("step")}>
             {t.flow.stepFlow}
           </Button>
-          <Button type="button" onClick={() => applyDebug("stop")} disabled={session?.status !== "paused"}>
+          <Button variant="toolbar" type="button" onClick={() => applyDebug("stop")} disabled={session?.status !== "paused"}>
             {t.flow.stopFlow}
           </Button>
           {onDevice ? (
-            <Button variant="danger" type="button" onClick={() => void stopOnDevice()}>
+            <Button variant="toolbarDanger" type="button" onClick={() => void stopOnDevice()}>
               {t.flow.stopOnDevice}
             </Button>
           ) : (
-            <Button type="button" onClick={() => void runOnDevice()} disabled={deploying} aria-busy={deploying ? true : undefined}>
+            <Button variant="toolbar" type="button" onClick={() => void runOnDevice()} disabled={deploying} aria-busy={deploying ? true : undefined}>
               {t.flow.runOnDevice}
             </Button>
           )}

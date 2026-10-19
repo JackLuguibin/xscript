@@ -5,7 +5,7 @@ export function Input({ className, ...props }: InputHTMLAttributes<HTMLInputElem
   return (
     <input
       className={cn(
-        "min-h-9 w-full rounded-sm border border-line-strong bg-surface px-sp-3 py-sp-1 text-fg transition-[border-color,box-shadow] duration-fast ease-snap placeholder:text-muted hover:border-primary",
+        "ui-input",
         className,
       )}
       {...props}

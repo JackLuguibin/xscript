@@ -208,7 +208,7 @@ export function ScreenTools({
         )}
         {selected && (
           <>
-            <Textarea className="code-snip font-mono" aria-label={t.inspect.code} readOnly value={code} rows={3} />
+            <Textarea className="code-snip" aria-label={t.inspect.code} readOnly value={code} rows={3} />
             <p className="hint">{t.inspect.codeHint}</p>
             <div className="row wrap">
               <Button size="sm" variant="primary" type="button" onClick={() => { sendToCanvas(selected); toast(t.inspect.sentToCanvas); }}>

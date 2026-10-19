@@ -3,16 +3,16 @@
    controls   the raw button / input look (controls.css)
    base       resets, focus ring, forced colors (base.css)
    vendor     third-party CSS: React Flow, so our own rules always beat it
-   utilities  Tailwind utilities: they override the controls and base look the ui/ primitives start from
-   components our components (components.css). They come after utilities on purpose: components style the
-              primitives in context (`.flow-bar button`, `.flow-inspect-close`), which used to win on specificity.
-              To override a component rule from markup, use an important utility (`!h-8`).
+   ui         the components/ui primitives (ui.css): Button variants, Input, Textarea, Select
+   components our components (components.css); they may restyle a primitive in context (`.flow-hud button`)
+   utilities  Tailwind utilities, last as in Tailwind's own setup: a utility in markup overrides any component rule
    tokens.css only declares custom properties and stays unlayered; overrides.css is unlayered so it can beat Monaco's own CSS. */
-@layer theme, controls, base, vendor, utilities, components;
+@layer theme, controls, base, vendor, ui, components, utilities;
 @import "./styles/tokens.css";
 @import "./styles/controls.css" layer(controls);
 @import "./styles/base.css" layer(base);
 @import "@xyflow/react/dist/style.css" layer(vendor);
+@import "./styles/ui.css" layer(ui);
 @import "./styles/components.css" layer(components);
 @import "./styles/overrides.css";
 @import "./styles/tailwind.css";

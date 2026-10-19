@@ -299,19 +299,13 @@ pre.logs.debug-console { min-height: 4rem; max-height: 10rem; }
 .flow-side fieldset { display: flex; flex-wrap: wrap; gap: var(--sp-2) var(--sp-3); border: 1px solid var(--border); border-radius: var(--r-md); padding: var(--sp-2) var(--sp-3); }
 .flow-side fieldset label { display: flex; align-items: center; gap: var(--sp-1); }
 .flow-bar { position: absolute; top: 0; left: 0; right: 0; z-index: 6; display: flex; flex-wrap: nowrap; align-items: center; gap: 2px; max-width: none; padding: 2px 6px; overflow-x: auto; background: var(--surface); border: 0; border-bottom: 1px solid var(--border); border-radius: 0; box-shadow: none; }
-.flow-bar button { flex: none; min-height: 1.7rem; padding: 0 0.55rem; border: 0; background: transparent; font-size: var(--fs-xs); border-radius: var(--r-sm); box-shadow: none; }
-.flow-bar button:hover:not(:disabled) { background: var(--surface-2); border-color: transparent; }
-.flow-bar button.bg-primary { background: var(--primary); color: var(--text-on-primary); border-color: var(--primary); }
-.flow-bar button.bg-primary:hover:not(:disabled) { background: var(--primary-hover); border-color: var(--primary-hover); }
-.flow-bar button.text-danger-fg:hover:not(:disabled) { background: var(--danger-bg); }
 .flow-bar { scrollbar-width: none; }
 .flow-bar::-webkit-scrollbar { display: none; }
 /* Edge fades show hidden buttons; a mask only reads alpha, so "black" is not a theme colour. */
 .flow-bar[data-overflow="end"] { mask-image: linear-gradient(to right, black calc(100% - 2.5rem), transparent); }
 .flow-bar[data-overflow="start"] { mask-image: linear-gradient(to right, transparent, black 2.5rem); }
 .flow-bar[data-overflow="start end"] { mask-image: linear-gradient(to right, transparent, black 2.5rem, black calc(100% - 2.5rem), transparent); }
-.flow-bar button.flow-bar-icon { width: 1.9rem; padding: 0; justify-content: center; color: var(--text-muted); }
-.flow-bar button.flow-bar-icon[aria-pressed="true"] { color: var(--primary); background: var(--primary-soft); }
+/* Toolbar buttons are Button variant="toolbar" / "toolbarPrimary" / "toolbarDanger", icons size="icon" (components/ui/button.tsx). */
 .flow-bar .flow-tool-gap { width: 1px; height: 1rem; margin: 0 2px; align-self: center; background: var(--border); }
 .flow-debug { flex: none; margin: 0 0 0 var(--sp-2); font-size: var(--fs-xs); font-weight: 650; color: var(--text-muted); white-space: nowrap; }
 .flow-debug.is-paused { color: var(--primary); }
