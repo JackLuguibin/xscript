@@ -1,9 +1,21 @@
 <?xml version="1.0" encoding="utf-8"?>
+<!-- Color tokens. res/values-night/colors.xml defines the same names for the dark theme (ThemeTokensTest checks
+     the name sets match and that text/background pairs keep WCAG AA contrast). UiKit.Palette reads these. -->
 <resources>
     <color name="xscript_bg">#FFF2F3F5</color>
     <color name="xscript_card">#FFFFFFFF</color>
-    <color name="xscript_accent">#FF2F7CF6</color>
     <color name="xscript_text">#FF1F2329</color>
-    <color name="xscript_muted">#FF8F959E</color>
-    <color name="xscript_danger">#FFE5484D</color>
+    <color name="xscript_muted">#FF646A73</color>
+    <color name="xscript_divider">#FFEDEEF0</color>
+    <color name="xscript_chevron">#FFB8BCC4</color>
+    <color name="xscript_ripple">#1F000000</color>
+    <color name="xscript_accent">#FF1A66E0</color>
+    <color name="xscript_on_accent">#FFFFFFFF</color>
+    <color name="xscript_success">#FF188038</color>
+    <color name="xscript_on_success">#FFFFFFFF</color>
+    <color name="xscript_danger">#FFD93025</color>
+    <color name="xscript_on_danger">#FFFFFFFF</color>
+    <color name="xscript_neutral">#FFE4E6EA</color>
+    <color name="xscript_on_neutral">#FF1F2329</color>
+    <bool name="xscript_light_bars">true</bool>
 </resources>

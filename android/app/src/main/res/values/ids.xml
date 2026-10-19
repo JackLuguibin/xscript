@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- View tag: the UiKit.Tone a button is painted with, so repainting the same tone is skipped. -->
+    <item name="xscript_tone" type="id" />
+</resources>

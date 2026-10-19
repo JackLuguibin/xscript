@@ -1,7 +1,7 @@
 package com.xscript.app.ui
 
 import android.app.Activity
-import android.app.AlertDialog
+import com.google.android.material.dialog.MaterialAlertDialogBuilder
 import android.content.Intent
 import android.os.Bundle
 import android.view.ViewGroup
@@ -19,6 +19,7 @@ import kotlin.concurrent.thread
 
 /** 小程序列表: local projects, plus import from zip or from an installed AScript. */
 class ProjectsActivity : AppCompatActivity() {
+    private val ui by lazy { UiKit.palette(this) }
     private lateinit var store: ProjectStore
     private lateinit var list: LinearLayout
 
@@ -70,10 +71,10 @@ class ProjectsActivity : AppCompatActivity() {
             val name = d.getString("name")
             val flavor = d.optString("flavor")
             val glyph = if (flavor == "ascript") "A" else "X"
-            val color = if (flavor == "ascript") 0xFF00B8D4.toInt() else UiKit.BLUE
+            val color = if (flavor == "ascript") 0xFF00B8D4.toInt() else 0xFF2F7CF6.toInt()
             val status = if (running == name) "运行中" else fmt.format(Date(d.optLong("modified")))
             val row = UiKit.row(card, glyph, color, name, status) { openProject(name) }
-            if (running == name) row.value(status, UiKit.GREEN)
+            if (running == name) row.value(status, ui.success)
         }
     }
 
@@ -82,7 +83,7 @@ class ProjectsActivity : AppCompatActivity() {
     }
 
     private fun chooseImport() {
-        AlertDialog.Builder(this)
+        MaterialAlertDialogBuilder(this)
             .setTitle("导入小程序")
             .setItems(arrayOf("从 zip 文件导入", "从 AScript 导入 (/sdcard/airscript/model)")) { _, which ->
                 if (which == 0) {
@@ -102,7 +103,7 @@ class ProjectsActivity : AppCompatActivity() {
                     Toast.makeText(this, "未找到 AScript 工程（需要 Root 或文件访问权限）", Toast.LENGTH_LONG).show()
                     return@runOnUiThread
                 }
-                AlertDialog.Builder(this)
+                MaterialAlertDialogBuilder(this)
                     .setTitle("选择 AScript 工程")
                     .setItems(names.toTypedArray()) { _, which ->
                         val n = names[which]
@@ -128,7 +129,7 @@ class ProjectsActivity : AppCompatActivity() {
             setPadding(p, UiKit.dp(this@ProjectsActivity, 8f), p, 0)
             addView(input, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT))
         }
-        AlertDialog.Builder(this)
+        MaterialAlertDialogBuilder(this)
             .setTitle(title)
             .setMessage("名称用作 Python 包名：字母/汉字/数字/下划线，不能以数字开头")
             .setView(box)

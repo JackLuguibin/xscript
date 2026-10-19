@@ -1,7 +1,7 @@
 package com.xscript.app
 
 import android.Manifest
-import android.app.AlertDialog
+import com.google.android.material.dialog.MaterialAlertDialogBuilder
 import android.content.ComponentName
 import android.content.ClipData
 import android.content.ClipboardManager
@@ -43,6 +43,7 @@ import com.xscript.app.ui.UiKit
 
 /** Home screen, laid out like AScript's device page: status rows grouped in cards. */
 class MainActivity : AppCompatActivity() {
+    private val ui by lazy { UiKit.palette(this) }
     private val handler = Handler(Looper.getMainLooper())
     private val tick = object : Runnable {
         override fun run() {
@@ -142,17 +143,17 @@ class MainActivity : AppCompatActivity() {
         val texts = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
         runTitle = TextView(this).apply {
             textSize = 17f
-            setTextColor(UiKit.TEXT)
+            setTextColor(ui.text)
             setTypeface(typeface, Typeface.BOLD)
         }
         runSub = TextView(this).apply {
             textSize = 12f
-            setTextColor(UiKit.MUTED)
+            setTextColor(ui.muted)
         }
         texts.addView(runTitle)
         texts.addView(runSub)
         line.addView(texts, LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f))
-        runButton = UiKit.button(this, "运行", UiKit.GREEN) { toggleRun() }
+        runButton = UiKit.button(this, "运行", UiKit.Tone.SUCCESS) { toggleRun() }
         line.addView(runButton)
         card.addView(line)
     }
@@ -172,12 +173,12 @@ class MainActivity : AppCompatActivity() {
         val ip = NetworkInfo.localIp(this)
         rowEndpoint.value("http://$ip:${NetworkInfo.PORT}/")
         val ai = ClientTracker.active()
-        if (ai != null) rowAi.value("已连接", UiKit.GREEN) else rowAi.value("未连接")
+        if (ai != null) rowAi.value("已连接", ui.success) else rowAi.value("未连接")
         rowMode.value(Settings.runModeLabel())
         rowLink.value(Settings.schemeModeLabel())
 
         val overlay = FloatControl.canShow(this)
-        rowOverlay.value(if (overlay) "已授权" else "未授权，点此开启", if (overlay) UiKit.GREEN else UiKit.RED)
+        rowOverlay.value(if (overlay) "已授权" else "未授权，点此开启", if (overlay) ui.success else ui.danger)
         rowFloat.value(FloatControl.modeSummary(this))
 
         val a11y = AccessibilityEngine.isOn()
@@ -188,26 +189,26 @@ class MainActivity : AppCompatActivity() {
                 listed -> "已开启(未连接)"
                 else -> "未开启"
             },
-            if (a11y) UiKit.GREEN else UiKit.RED,
+            if (a11y) ui.success else ui.danger,
         )
 
         when (RootShell.known()) {
-            true -> rowRoot.value("已获取", UiKit.GREEN)
+            true -> rowRoot.value("已获取", ui.success)
             false -> rowRoot.value("未获取")
             null -> rowRoot.value("检测中")
         }
 
         val cap = CaptureEngine.sourceLabel()
-        rowCapture.value(cap, if (CaptureEngine.available()) UiKit.GREEN else UiKit.RED)
+        rowCapture.value(cap, if (CaptureEngine.available()) ui.success else ui.danger)
 
         val cloud = CloudClient.label()
-        rowCloud.value(cloud, if (CloudClient.state == CloudClient.State.CONNECTED) UiKit.GREEN else UiKit.MUTED)
+        rowCloud.value(cloud, if (CloudClient.state == CloudClient.State.CONNECTED) ui.success else ui.muted)
 
         rowProjects.value("${ProjectStore(this).list().size} 个")
         val notif = hasNotificationAccess()
-        rowNotif.value(if (notif) "已授权" else "未授权", if (notif) UiKit.GREEN else UiKit.MUTED)
-        rowStorage.value(if (hasStorage()) "已授权" else "未授权", if (hasStorage()) UiKit.GREEN else UiKit.MUTED)
-        rowBattery.value(if (isIgnoringBattery()) "不受限" else "受限", if (isIgnoringBattery()) UiKit.GREEN else UiKit.MUTED)
+        rowNotif.value(if (notif) "已授权" else "未授权", if (notif) ui.success else ui.muted)
+        rowStorage.value(if (hasStorage()) "已授权" else "未授权", if (hasStorage()) ui.success else ui.muted)
+        rowBattery.value(if (isIgnoringBattery()) "不受限" else "受限", if (isIgnoringBattery()) ui.success else ui.muted)
 
         val running = RunState.current(this)
         if (running != null) {
@@ -222,7 +223,7 @@ class MainActivity : AppCompatActivity() {
         if (runButtonRunning != (running != null)) {
             runButtonRunning = running != null
             runButton.text = if (running != null) "停止" else "运行"
-            runButton.background = UiKit.ripple(if (running != null) UiKit.RED else UiKit.GREEN, 22f, this)
+            UiKit.paint(runButton, if (running != null) UiKit.Tone.DANGER else UiKit.Tone.SUCCESS)
         }
     }
 
@@ -249,7 +250,7 @@ class MainActivity : AppCompatActivity() {
     private fun showAiHelp() {
         val ip = NetworkInfo.localIp(this)
         val who = ClientTracker.active()
-        AlertDialog.Builder(this)
+        MaterialAlertDialogBuilder(this)
             .setTitle("AI 编程连接")
             .setMessage(
                 (if (who != null) "当前连接：$who\n\n" else "") +
@@ -262,7 +263,7 @@ class MainActivity : AppCompatActivity() {
 
     private fun chooseLinkMode() {
         val modes = arrayOf(com.xscript.app.link.SchemeLink.MODE_CONFIRM, com.xscript.app.link.SchemeLink.MODE_ALLOW, com.xscript.app.link.SchemeLink.MODE_OFF)
-        AlertDialog.Builder(this)
+        MaterialAlertDialogBuilder(this)
             .setTitle("链接启动（xscript://run?name=…）")
             .setSingleChoiceItems(modes.map { Settings.schemeModeLabel(it) }.toTypedArray(), modes.indexOf(Settings.schemeMode)) { d, which ->
                 Settings.schemeMode = modes[which]
@@ -276,7 +277,7 @@ class MainActivity : AppCompatActivity() {
     private fun chooseMode() {
         val modes = arrayOf(Settings.MODE_AUTO, Settings.MODE_ACCESSIBILITY, Settings.MODE_ROOT)
         val labels = modes.map { Settings.runModeLabel(it) }.toTypedArray()
-        AlertDialog.Builder(this)
+        MaterialAlertDialogBuilder(this)
             .setTitle("运行模式")
             .setSingleChoiceItems(labels, modes.indexOf(Settings.runMode)) { d, which ->
                 Settings.runMode = modes[which]
@@ -316,7 +317,7 @@ class MainActivity : AppCompatActivity() {
             setPadding(p, UiKit.dp(this@MainActivity, 8f), p, 0)
             addView(input, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT))
         }
-        AlertDialog.Builder(this)
+        MaterialAlertDialogBuilder(this)
             .setTitle("云端控制")
             .setMessage("设备主动连接控制服务器的 WebSocket，服务器即可远程调用与局域网相同的接口。" +
                 if (CloudClient.lastError.isNotEmpty()) "\n\n最近错误：${CloudClient.lastError}" else "")

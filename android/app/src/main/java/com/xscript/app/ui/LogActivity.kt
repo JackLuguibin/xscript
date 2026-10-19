@@ -21,6 +21,7 @@ import java.util.Locale
 
 /** Live tail of the runtime log (stdout black, stderr red). */
 class LogActivity : AppCompatActivity() {
+    private val ui by lazy { UiKit.palette(this) }
     private val handler = Handler(Looper.getMainLooper())
     private lateinit var text: TextView
     private lateinit var scroll: ScrollView
@@ -49,9 +50,9 @@ class LogActivity : AppCompatActivity() {
         text = TextView(this).apply {
             typeface = Typeface.MONOSPACE
             textSize = 12f
-            setTextColor(UiKit.TEXT)
+            setTextColor(ui.text)
             setTextIsSelectable(true)
-            setBackgroundColor(UiKit.CARD)
+            setBackgroundColor(ui.card)
             val p = UiKit.dp(this@LogActivity, 12f)
             setPadding(p, p, p, p)
         }
@@ -90,7 +91,7 @@ class LogActivity : AppCompatActivity() {
             val start = buffer.length
             buffer.append(fmt.format(Date(e.ts))).append("  ").append(e.line.trimEnd('\n')).append('\n')
             if (e.stream == "stderr") {
-                buffer.setSpan(ForegroundColorSpan(UiKit.RED), start, buffer.length, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
+                buffer.setSpan(ForegroundColorSpan(ui.danger), start, buffer.length, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
             }
         }
         // Cap memory: keep the last ~200 KB.

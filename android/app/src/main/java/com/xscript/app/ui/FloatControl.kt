@@ -234,7 +234,7 @@ object FloatControl {
     /** Dialog to pick 运行时显示 / 后台一直显示 / 已关闭; guides to the system permission page when the grant is missing. */
     fun chooseMode(activity: Activity, onChange: () -> Unit) {
         val modes = arrayOf("run", "always", "off")
-        androidx.appcompat.app.AlertDialog.Builder(activity)
+        com.google.android.material.dialog.MaterialAlertDialogBuilder(activity)
             .setTitle("悬浮窗显示")
             .setSingleChoiceItems(modes.map { Settings.floatModeLabel(it) }.toTypedArray(), modes.indexOf(Settings.floatMode)) { d, which ->
                 Settings.floatMode = modes[which]
@@ -248,7 +248,7 @@ object FloatControl {
     }
 
     private fun askPermission(activity: Activity) {
-        androidx.appcompat.app.AlertDialog.Builder(activity)
+        com.google.android.material.dialog.MaterialAlertDialogBuilder(activity)
             .setTitle("需要悬浮窗权限")
             .setMessage("应用切到后台后，悬浮窗才能显示运行状态。没有这个权限时悬浮窗不会出现，脚本运行不受影响。")
             .setPositiveButton("去开启") { _, _ ->

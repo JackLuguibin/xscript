@@ -1,13 +1,25 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <style name="Theme.Xscript" parent="Theme.MaterialComponents.Light.NoActionBar">
+    <!-- Material 3, light and dark (DayNight follows the system). The colors are the tokens in colors.xml, which
+         res/values-night overrides; dynamic color is not applied so status colors and the brand blue stay fixed. -->
+    <style name="Theme.Xscript" parent="Theme.Material3.DayNight.NoActionBar">
         <item name="android:statusBarColor">@color/xscript_bg</item>
         <item name="android:navigationBarColor">@color/xscript_bg</item>
         <item name="android:windowBackground">@color/xscript_bg</item>
-        <item name="android:windowLightStatusBar">true</item>
-        <item name="android:windowLightNavigationBar">true</item>
+        <item name="android:colorBackground">@color/xscript_bg</item>
+        <item name="android:windowLightStatusBar">@bool/xscript_light_bars</item>
+        <item name="android:windowLightNavigationBar">@bool/xscript_light_bars</item>
         <item name="colorPrimary">@color/xscript_accent</item>
-        <item name="colorOnPrimary">@android:color/white</item>
+        <item name="colorOnPrimary">@color/xscript_on_accent</item>
         <item name="colorAccent">@color/xscript_accent</item>
+        <item name="colorError">@color/xscript_danger</item>
+        <item name="colorOnError">@color/xscript_on_danger</item>
+        <item name="colorSurface">@color/xscript_card</item>
+        <item name="colorOnSurface">@color/xscript_text</item>
+        <item name="colorOnSurfaceVariant">@color/xscript_muted</item>
+        <item name="colorSurfaceContainerHigh">@color/xscript_card</item>
+        <item name="colorOutlineVariant">@color/xscript_divider</item>
+        <!-- No primary-colored elevation tint on raised surfaces (dialogs): they keep the neutral card color. -->
+        <item name="elevationOverlayEnabled">false</item>
     </style>
 </resources>

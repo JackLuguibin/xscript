@@ -1,7 +1,8 @@
 package com.xscript.app.ui
 
 import android.Manifest
-import android.app.AlertDialog
+import androidx.appcompat.app.AlertDialog
+import com.google.android.material.dialog.MaterialAlertDialogBuilder
 import android.content.ComponentName
 import android.content.Intent
 import android.graphics.Typeface
@@ -41,6 +42,7 @@ import kotlin.concurrent.thread
  * and the permissions the script needs. No developer tools.
  */
 class PackActivity : AppCompatActivity() {
+    private val ui by lazy { UiKit.palette(this) }
     private val handler = Handler(Looper.getMainLooper())
     private val tick = object : Runnable {
         override fun run() {
@@ -90,11 +92,11 @@ class PackActivity : AppCompatActivity() {
         }
         status = TextView(this).apply {
             textSize = 15f
-            setTextColor(UiKit.MUTED)
+            setTextColor(ui.muted)
             gravity = Gravity.CENTER
         }
         box.addView(status)
-        runButton = UiKit.button(this, "启动", UiKit.GREEN) { toggleRun() }
+        runButton = UiKit.button(this, "启动", UiKit.Tone.SUCCESS) { toggleRun() }
         box.addView(runButton, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT).apply {
             topMargin = UiKit.dp(this@PackActivity, 14f)
         })
@@ -104,7 +106,7 @@ class PackActivity : AppCompatActivity() {
             val lic = UiKit.card(col)
             rowLicense = UiKit.row(lic, "✓", 0xFF8E44AD.toInt(), "卡密授权") { activateDialog() }
         } else {
-            rowLicense = UiKit.Row(LinearLayout(this), TextView(this), TextView(this))
+            rowLicense = UiKit.Row(LinearLayout(this), TextView(this), TextView(this), ui.muted)
         }
 
         if (AppOps.enabled()) {
@@ -170,18 +172,18 @@ class PackActivity : AppCompatActivity() {
         }
         status.setTypeface(null, if (running) Typeface.BOLD else Typeface.NORMAL)
         runButton.text = if (running) "停止" else "启动"
-        runButton.background = UiKit.ripple(if (running) UiKit.RED else UiKit.GREEN, 22f, this)
+        UiKit.paint(runButton, if (running) UiKit.Tone.DANGER else UiKit.Tone.SUCCESS)
 
         if (AppOps.enabled()) {
             val n = AppOps.notices(this).size
-            rowNotice?.value(if (n == 0) "暂无" else "$n 条", if (AppOps.unseenNotices(this).isNotEmpty()) UiKit.RED else UiKit.MUTED)
+            rowNotice?.value(if (n == 0) "暂无" else "$n 条", if (AppOps.unseenNotices(this).isNotEmpty()) ui.danger else ui.muted)
             rowUpdate?.value(
                 when {
                     AppOps.mustUpdate(this) -> "必须更新"
                     AppOps.offerUpdate(this) -> "有新版本"
                     else -> "已是最新"
                 },
-                if (AppOps.mustUpdate(this)) UiKit.RED else if (AppOps.offerUpdate(this)) UiKit.GREEN else UiKit.MUTED,
+                if (AppOps.mustUpdate(this)) ui.danger else if (AppOps.offerUpdate(this)) ui.success else ui.muted,
             )
         }
         if (LicenseManager.required()) {
@@ -190,23 +192,23 @@ class PackActivity : AppCompatActivity() {
                 val exp = st.optLong("expires")
                 val until = if (exp == 0L) "永久" else java.text.SimpleDateFormat("yyyy-MM-dd HH:mm", java.util.Locale.CHINA).format(java.util.Date(exp * 1000))
                 val left = LicenseManager.usesLeft(this)
-                rowLicense.value("有效至 $until" + if (left >= 0) "，剩余 $left 次" else "", UiKit.GREEN)
+                rowLicense.value("有效至 $until" + if (left >= 0) "，剩余 $left 次" else "", ui.success)
             } else {
-                rowLicense.value(gate ?: "未激活", UiKit.RED)
+                rowLicense.value(gate ?: "未激活", ui.danger)
             }
         }
         val a11y = AccessibilityEngine.isOn() || isAccessibilityListed()
-        rowA11y.value(if (a11y) "已开启" else "未开启", if (a11y) UiKit.GREEN else UiKit.RED)
+        rowA11y.value(if (a11y) "已开启" else "未开启", if (a11y) ui.success else ui.danger)
         val overlay = FloatControl.canShow(this)
-        rowOverlay.value(if (overlay) "已授权" else "未授权，点此开启", if (overlay) UiKit.GREEN else UiKit.MUTED)
+        rowOverlay.value(if (overlay) "已授权" else "未授权，点此开启", if (overlay) ui.success else ui.muted)
         rowFloat.value(FloatControl.modeSummary(this))
-        rowCapture.value(CaptureEngine.sourceLabel(), if (CaptureEngine.available()) UiKit.GREEN else UiKit.MUTED)
+        rowCapture.value(CaptureEngine.sourceLabel(), if (CaptureEngine.available()) ui.success else ui.muted)
         when (RootShell.known()) {
-            true -> rowRoot.value("已获取", UiKit.GREEN)
+            true -> rowRoot.value("已获取", ui.success)
             false -> rowRoot.value("未获取")
             null -> rowRoot.value("检测中")
         }
-        rowCloud?.value(CloudClient.label(), if (CloudClient.state == CloudClient.State.CONNECTED) UiKit.GREEN else UiKit.MUTED)
+        rowCloud?.value(CloudClient.label(), if (CloudClient.state == CloudClient.State.CONNECTED) ui.success else ui.muted)
     }
 
     private fun toggleRun() {
@@ -252,7 +254,7 @@ class PackActivity : AppCompatActivity() {
             val tag = when (n.level) { "urgent" -> "【紧急】"; "warning" -> "【提醒】"; else -> "" }
             tag + n.title + (if (n.body.isNotBlank()) "\n" + n.body else "")
         }
-        noticeDialog = AlertDialog.Builder(this)
+        noticeDialog = MaterialAlertDialogBuilder(this)
             .setTitle(if (all) "公告" else "新公告")
             .setMessage(text)
             .setPositiveButton("知道了") { _, _ -> AppOps.markSeen(this, items); refresh() }
@@ -271,7 +273,7 @@ class PackActivity : AppCompatActivity() {
             if (force) append("\n\n低于最低要求（").append(u.minCode).append("），更新后才能继续使用。")
             if (u.notes.isNotBlank()) append("\n\n").append(u.notes)
         }
-        val b = AlertDialog.Builder(this).setTitle(if (force) "必须更新" else "发现新版本").setMessage(msg).setCancelable(!force)
+        val b = MaterialAlertDialogBuilder(this).setTitle(if (force) "必须更新" else "发现新版本").setMessage(msg).setCancelable(!force)
             .setPositiveButton(if (inApp) "下载并安装" else "打开下载页", null)
         if (!force) b.setNegativeButton("稍后") { _, _ -> AppOps.dismissUpdate(this, u.latestCode) }
         val d = b.create()
@@ -317,7 +319,7 @@ class PackActivity : AppCompatActivity() {
             setPadding(p, UiKit.dp(this@PackActivity, 8f), p, 0)
             addView(input, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT))
         }
-        AlertDialog.Builder(this)
+        MaterialAlertDialogBuilder(this)
             .setTitle(if (renew) "续期" else "卡密授权")
             .setMessage(
                 (if (renew) {
