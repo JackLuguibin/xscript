@@ -10,6 +10,7 @@ Per stub module (xscript.android.*) the source lists functions as
     {"names": [["back", "bool"], ["home", "bool"]], "doc": ...}  one entry, signatures joined by "; "
     {"name": "on_key", "decorator": true}                       "@on_key(...)"
     {"name": "install", "hide": ["log"]}                        drops internal parameters
+    {"name": "to_wgs84", "from": "xscript.android.coords"}     a name the module re-exports from another stub
 A missing doc falls back to the first paragraph of the stub docstring. Every public stub function must be
 listed or named in "omit", every public stub class listed in "classes" or "omit_classes", and every listed
 name must exist, so a new or removed runtime API fails --check until the source is updated. Modules with
@@ -77,12 +78,22 @@ def _module(spec: dict) -> dict:
     fns = {n.name: n for n in tree.body if isinstance(n, ast.FunctionDef) and not n.name.startswith("_")}
     classes = {n.name for n in tree.body if isinstance(n, ast.ClassDef) and not n.name.startswith("_")}
     seen: set[str] = set()
+    named: set[str] = set()
+    sources: dict[str, dict[str, ast.FunctionDef]] = {}  # other stubs this module re-exports from ("from")
 
-    def stub_fn(fname: str) -> ast.FunctionDef:
+    def stub_fn(fname: str, source: str | None = None) -> ast.FunctionDef:
+        if fname in named:
+            raise CatalogError("%s.%s is listed twice" % (name, fname))
+        named.add(fname)
+        if source:
+            if source not in sources:
+                sources[source] = {n.name: n for n in _stub_tree(source).body
+                                   if isinstance(n, ast.FunctionDef) and not n.name.startswith("_")}
+            if fname not in sources[source]:
+                raise CatalogError("%s.%s: not defined in the %s stub" % (name, fname, source))
+            return sources[source][fname]
         if fname not in fns:
             raise CatalogError("%s.%s is in api_catalog_src.json but not in the stubs" % (name, fname))
-        if fname in seen:
-            raise CatalogError("%s.%s is listed twice" % (name, fname))
         seen.add(fname)
         return fns[fname]
 
@@ -90,24 +101,29 @@ def _module(spec: dict) -> dict:
     for f in spec.get("functions", []):
         hide = f.get("hide", [])
         if "names" in f:
-            parts, sigs = [], []
+            parts, sigs, first = [], [], None
             for fname, ret in f["names"]:
-                fn = stub_fn(fname)
+                fn = stub_fn(fname, f.get("from"))
+                first = first or fn
                 parts.append(fname)
                 sigs.append(_signature(fn, hide) + (" -> " + ret if ret else ""))
             entry = {"name": " / ".join(parts), "signature": "; ".join(sigs),
-                     "doc": f.get("doc") or _first_paragraph(fns[parts[0]])}
+                     "doc": f.get("doc") or _first_paragraph(first)}
         else:
-            fn = stub_fn(f["name"])
+            fn = stub_fn(f["name"], f.get("from"))
             sig = ("@" if f.get("decorator") else "") + _signature(fn, hide)
             if f.get("returns"):
                 sig += " -> " + f["returns"]
             entry = {"name": f["name"], "signature": sig, "doc": f.get("doc") or _first_paragraph(fn)}
         out_fns.append(entry)
     for fname in spec.get("omit", []):
-        if fname not in fns:
+        if fname not in fns and not any(fname in d for d in sources.values()):
             raise CatalogError("%s: omit names %s, which is not in the stubs" % (name, fname))
         seen.add(fname)
+    for source, defs in sources.items():  # a module that re-exports from a stub covers all of it
+        new = sorted(set(defs) - named - set(spec.get("omit", [])))
+        if new:
+            raise CatalogError("%s: %s functions %s are neither in the catalog nor in \"omit\"" % (name, source, new))
     new = sorted(set(fns) - seen)
     if new:
         raise CatalogError("%s: public functions %s are neither in the catalog nor in \"omit\"" % (name, new))

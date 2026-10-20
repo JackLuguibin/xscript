@@ -1,0 +1,48 @@
+{
+  "type": "coords.gcj02_to_wgs84",
+  "category": "coords",
+  "title": {
+    "zh": "coords.gcj02_to_wgs84",
+    "en": "coords.gcj02_to_wgs84"
+  },
+  "doc": {
+    "zh": "GCJ-02 -> WGS84 by iterating the forward transform (error well under 1 m inside China).",
+    "en": "GCJ-02 -> WGS84 by iterating the forward transform (error well under 1 m inside China)."
+  },
+  "exec": {
+    "in": [
+      "exec"
+    ],
+    "out": [
+      "then"
+    ]
+  },
+  "inputs": [
+    {
+      "name": "lon",
+      "type": "any"
+    },
+    {
+      "name": "lat",
+      "type": "any"
+    }
+  ],
+  "outputs": [
+    {
+      "name": "result",
+      "type": "any"
+    }
+  ],
+  "py": {
+    "imports": [
+      "from xscript.android import coords"
+    ],
+    "stmt": "{id} = coords.gcj02_to_wgs84({lon}, lat={lat})"
+  },
+  "dsl": {
+    "alias": "coords.gcj02_to_wgs84"
+  },
+  "since": "0.2.6",
+  "origin": "xscript.android.coords.gcj02_to_wgs84",
+  "availability": "ok"
+}

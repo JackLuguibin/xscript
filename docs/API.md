@@ -255,6 +255,28 @@ system.params()                           # 云控 app_run "param"
 
 命令集、通信协议和参考服务端见 [CLOUD.md](CLOUD.md)。
 
+## location（定位与坐标转换）
+
+定位订阅与 AScript 共用同一套实现（`request` / `get_last` / `close` / `mock`），手机给出的坐标是 WGS84。
+在国内，高德、腾讯地图用 GCJ-02，百度用 BD-09。下面这些转换函数是纯 Python，不需要设备，参数和返回值都是 `(lon, lat)`（度）：
+
+```python
+from xscript.android import location
+
+loc = location.get_last()                      # WGS84
+lon, lat = loc.getLongitude(), loc.getLatitude()
+location.from_wgs84(lon, lat)                  # → GCJ-02（默认，高德 / 腾讯）
+location.from_wgs84(lon, lat, "bd09")          # → BD-09（百度）
+location.to_wgs84(116.404, 39.915, "bd09")     # 百度坐标 → WGS84
+location.convert(116.404, 39.915, "gcj02", "bd09")
+```
+
+- `convert(lon, lat, from_type, to_type)`：任意两种之间转换。`to_wgs84` / `from_wgs84` 是它的简写。
+- 两两直接转换：`wgs84_to_gcj02`、`gcj02_to_wgs84`、`gcj02_to_bd09`、`bd09_to_gcj02`、`wgs84_to_bd09`、`bd09_to_wgs84`。
+- 类型名不区分大小写，也接受别名：`gps`；`gcj` / `amap` / `gaode` / `tencent`；`bd09ll` / `baidu`（`coord_type(name)` 返回规范名）。无法识别时抛 `ValueError`。
+- 中国境外 GCJ-02 与 WGS84 相同，原样返回。GCJ-02 → WGS84 用迭代反解，国内误差远小于 1 米。
+- `ascript.android.location` 中有同名函数，行为相同。
+
 ## system
 
 ```python
@@ -429,7 +451,7 @@ ui.float_add_menu("rec", "/sdcard/rec.png", on_click, remove_system=False)  # �
 - **截图：** `capture()` 与 AScript 一样返回 android `Bitmap`。`capture_cv` 返回 BGR numpy 数组。
 - **事件：** `NotificationEvent` 事件携带的是纯数据，因此 `event.raw` 为 `None`。`Selector.on_event` 收到的对象提供 `getEventType()`、`getPackageName()`、`getClassName()` 和 `getText()`。
 - **`system.reboot(ms)`：** 在新的脚本进程中重启项目，不会重启设备。
-- **`sms`、`sensor`、`location`：** 短信（只读）、传感器、定位订阅与最近位置；`location.mock.start(lon, lat, accuracy=5.0, interval=1000, coord_type="bd09")` / `stop()` / `status()` 做系统模拟定位（需在开发者选项里把应用设为「模拟位置信息应用」，有 Root 时自动授予；bd09/gcj02 自动转 WGS84，另有 `location.to_wgs84()` 等转换函数）。
+- **`sms`、`sensor`、`location`：** 短信（只读）、传感器、定位订阅与最近位置；`location.mock.start(lon, lat, accuracy=5.0, interval=1000, coord_type="bd09")` / `stop()` / `status()` 做系统模拟定位（需在开发者选项里把应用设为「模拟位置信息应用」，有 Root 时自动授予；bd09/gcj02 自动转 WGS84，另有 `location.to_wgs84()` / `from_wgs84()` / `convert()` 等转换函数，见上文 location 一节）。
 - **`media.recode(path, time=None)`：** 麦克风录音到文件（.m4a/.aac/.mp4、.amr/.3gp、.ogg/.opus）；`time` 毫秒，省略则后台录制、`media.stop_recode()` 结束；需要录音权限，只能在前台录。**`media.send_email(to, subject, body, cc=None)`：** 打开邮件 App 并预填草稿。
 - **`bluetooth`：** `scan(timeout, ble=False)`、`bonded()`、经典蓝牙 `connect(address)`（默认 SPP）读写、BLE `ble_connect(address)` 的 `read/write/notify`；首次使用时申请蓝牙权限。
 - **`plug.load_apk(path)` / `load_apk_dir(dir)`：** 用 DexClassLoader 加载应用自己存储里的 .apk/.jar/.dex，`load_class(name).new(...)`、`call`、`call_static`、`get/set` 反射调用。

@@ -1,0 +1,48 @@
+{
+  "type": "coords.bd09_to_wgs84",
+  "category": "coords",
+  "title": {
+    "zh": "coords.bd09_to_wgs84",
+    "en": "coords.bd09_to_wgs84"
+  },
+  "doc": {
+    "zh": "BD-09 (百度) -> WGS84 (GPS), via GCJ-02.",
+    "en": "BD-09 (百度) -> WGS84 (GPS), via GCJ-02."
+  },
+  "exec": {
+    "in": [
+      "exec"
+    ],
+    "out": [
+      "then"
+    ]
+  },
+  "inputs": [
+    {
+      "name": "lon",
+      "type": "any"
+    },
+    {
+      "name": "lat",
+      "type": "any"
+    }
+  ],
+  "outputs": [
+    {
+      "name": "result",
+      "type": "any"
+    }
+  ],
+  "py": {
+    "imports": [
+      "from xscript.android import coords"
+    ],
+    "stmt": "{id} = coords.bd09_to_wgs84({lon}, lat={lat})"
+  },
+  "dsl": {
+    "alias": "coords.bd09_to_wgs84"
+  },
+  "since": "0.2.6",
+  "origin": "xscript.android.coords.bd09_to_wgs84",
+  "availability": "ok"
+}

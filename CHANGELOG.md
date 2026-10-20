@@ -14,6 +14,7 @@
 - 修复：v0.4.0 桌面端 dmg 在别的 Mac 上下载后提示“XScript 已损坏，无法打开”。原因是打包脚本在签名之后又改了 Info.plist，签名失效。现在改完后重新签名并校验；v0.4.0 Release 里的 dmg 已替换（标签未动），首次打开说明已更新。
 - 发布流程：release 工作流在 macOS 运行器上构建并校验桌面端 dmg，与 APK 一起附到 Release 并写入 `SHA256SUMS`。
 - MCP / 后台 AI 写脚本的 API 目录改由 `scripts/gen_api_catalog.py` 从 stub 生成（签名不再手抄），CI 检查两份副本和运行时是否一致；顺带修正了 `yolo.decode`、`pip.install_requirements`、`cloud.on_message` 等过时签名，补上 `system.open_app_setting`、`ui.float_add_menu`、`onnx.available`、`cloud.connected` / `cloud.off`。
+- 定位：`xscript.android.location` 新增坐标转换 `to_wgs84`、`from_wgs84`、`convert`，以及 WGS84 / GCJ-02（高德、腾讯）/ BD-09（百度）两两转换函数，与 `ascript.android.location` 同名同实现（新模块 `xscript.android.coords`）。
 
 ## v0.4.0（2026-10-20）
 

@@ -1,0 +1,48 @@
+{
+  "type": "coords.wgs84_to_gcj02",
+  "category": "coords",
+  "title": {
+    "zh": "coords.wgs84_to_gcj02",
+    "en": "coords.wgs84_to_gcj02"
+  },
+  "doc": {
+    "zh": "WGS84 (GPS) -> GCJ-02 (高德 / 腾讯). Unchanged outside China.",
+    "en": "WGS84 (GPS) -> GCJ-02 (高德 / 腾讯). Unchanged outside China."
+  },
+  "exec": {
+    "in": [
+      "exec"
+    ],
+    "out": [
+      "then"
+    ]
+  },
+  "inputs": [
+    {
+      "name": "lon",
+      "type": "any"
+    },
+    {
+      "name": "lat",
+      "type": "any"
+    }
+  ],
+  "outputs": [
+    {
+      "name": "result",
+      "type": "any"
+    }
+  ],
+  "py": {
+    "imports": [
+      "from xscript.android import coords"
+    ],
+    "stmt": "{id} = coords.wgs84_to_gcj02({lon}, lat={lat})"
+  },
+  "dsl": {
+    "alias": "coords.wgs84_to_gcj02"
+  },
+  "since": "0.2.6",
+  "origin": "xscript.android.coords.wgs84_to_gcj02",
+  "availability": "ok"
+}

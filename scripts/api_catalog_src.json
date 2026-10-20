@@ -1025,6 +1025,92 @@
       ]
     },
     {
+      "name": "xscript.android.location",
+      "description": "GPS / network location (WGS84) and China coordinate conversion: WGS84 (GPS, what Android reports), GCJ-02 (高德 / 腾讯) and BD-09 (百度). `location.mock.start(lon, lat, accuracy=5.0, interval=1000, coord_type='bd09')` / `stop()` / `status()` sets a system mock location. Converters are pure Python and take / return (lon, lat).",
+      "functions": [
+        {
+          "name": "request",
+          "from": "ascript.android.location",
+          "returns": "None",
+          "doc": "Subscribe to location updates: call_back(Location) on a worker thread; Location has getLatitude() / getLongitude() / getAccuracy() / getTime() ..."
+        },
+        {
+          "name": "get_last",
+          "from": "ascript.android.location",
+          "returns": "Location | None",
+          "doc": "Last known location (WGS84) or None."
+        },
+        {
+          "name": "close",
+          "from": "ascript.android.location",
+          "returns": "None",
+          "doc": "Stop all subscriptions."
+        },
+        {
+          "name": "to_wgs84",
+          "from": "xscript.android.coords",
+          "returns": "(lon, lat)"
+        },
+        {
+          "name": "from_wgs84",
+          "from": "xscript.android.coords",
+          "returns": "(lon, lat)"
+        },
+        {
+          "name": "convert",
+          "from": "xscript.android.coords",
+          "returns": "(lon, lat)"
+        },
+        {
+          "names": [
+            [
+              "wgs84_to_gcj02",
+              "(lon, lat)"
+            ],
+            [
+              "gcj02_to_wgs84",
+              "(lon, lat)"
+            ]
+          ],
+          "from": "xscript.android.coords",
+          "doc": "WGS84 <-> GCJ-02 (高德 / 腾讯); unchanged outside China."
+        },
+        {
+          "names": [
+            [
+              "gcj02_to_bd09",
+              "(lon, lat)"
+            ],
+            [
+              "bd09_to_gcj02",
+              "(lon, lat)"
+            ]
+          ],
+          "from": "xscript.android.coords",
+          "doc": "GCJ-02 <-> BD-09 (百度)."
+        },
+        {
+          "names": [
+            [
+              "wgs84_to_bd09",
+              "(lon, lat)"
+            ],
+            [
+              "bd09_to_wgs84",
+              "(lon, lat)"
+            ]
+          ],
+          "from": "xscript.android.coords",
+          "doc": "WGS84 <-> BD-09, via GCJ-02."
+        },
+        {
+          "name": "coord_type",
+          "from": "xscript.android.coords",
+          "returns": "str"
+        }
+      ]
+    },
+    {
       "name": "ascript.android",
       "description": "AScript compatibility package (modelled on ascript-tip 1.3.0). Existing AScript projects run unchanged; import with `from ascript.android import action, node, screen, system, ui, media`. Also implemented: sms (read-only), location (incl. mock location), sensor, bluetooth, plug.load_apk (external APK/JAR via reflection), media.recode / send_email, and FindImages method='smart' / find_sift (keypoint matching, template fallback).",
       "functions": [
@@ -1131,7 +1217,7 @@
         {
           "name": "location.mock",
           "signature": "location.mock.start(lon, lat, accuracy=5.0, interval=1000, coord_type='bd09') / stop() / status()",
-          "doc": "System mock location (MockLocationApi). bd09/gcj02 are converted to GPS (to_wgs84, gcj02_to_wgs84, bd09_to_gcj02). XScript must be the mock-location app in developer options (granted automatically with root)."
+          "doc": "System mock location (MockLocationApi). bd09/gcj02 are converted to GPS (to_wgs84, from_wgs84, convert, gcj02_to_wgs84, bd09_to_wgs84 ...). XScript must be the mock-location app in developer options (granted automatically with root)."
         },
         {
           "name": "plug.load_apk / load_apk_dir",

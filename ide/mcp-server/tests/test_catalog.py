@@ -62,15 +62,20 @@ class CatalogTest(unittest.TestCase):
             self.assertIn(expected, names)
 
     def test_catalog_names_exist_in_runtime_source(self):
-        # Every plain function listed for xscript.android.* must be defined in android/python-runtime.
+        # Every plain function listed for xscript.android.* must be defined in android/python-runtime, in the module
+        # itself or re-exported there with `from ... import name` (e.g. location's converters from coords).
+        import ast
+
         runtime = Path(__file__).resolve().parents[3] / "android" / "python-runtime"
         for mod in self.catalog["modules"]:
             if not mod["name"].startswith("xscript.android."):
                 continue
-            src = (runtime / (mod["name"].replace(".", "/") + ".py")).read_text(encoding="utf-8")
+            tree = ast.parse((runtime / (mod["name"].replace(".", "/") + ".py")).read_text(encoding="utf-8"))
+            names = {n.name for n in tree.body if isinstance(n, ast.FunctionDef)}
+            names |= {a.asname or a.name for n in tree.body if isinstance(n, ast.ImportFrom) for a in n.names}
             for fn in mod.get("functions", []):
                 for name in fn["name"].replace(" ", "").split("/"):
-                    self.assertIn("def %s(" % name, src, "%s.%s" % (mod["name"], name))
+                    self.assertIn(name, names, "%s.%s" % (mod["name"], name))
 
 
 class ServerCatalogToolsTest(unittest.TestCase):

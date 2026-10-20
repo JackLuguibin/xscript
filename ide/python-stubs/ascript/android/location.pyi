@@ -51,22 +51,7 @@ def get_last():
 def close():
     """Stop receiving updates and remove Android listeners (safe to repeat)."""
     ...
-
-def wgs84_to_gcj02(lon, lat):
-    ...
-
-def gcj02_to_wgs84(lon, lat):
-    """Iterative inverse (error well under 1 m inside China)."""
-    ...
-
-def bd09_to_gcj02(lon, lat):
-    ...
-
-def gcj02_to_bd09(lon, lat):
-    ...
-
-def to_wgs84(lon, lat, coord_type='wgs84'):
-    ...
+from xscript.android.coords import wgs84_to_gcj02, gcj02_to_wgs84, bd09_to_gcj02, gcj02_to_bd09, wgs84_to_bd09, bd09_to_wgs84, to_wgs84, from_wgs84, convert
 
 class MockLocationApi:
     """System-wide mock location (AScript location.mock). The device must have XScript selected under
