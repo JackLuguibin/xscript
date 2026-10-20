@@ -20,7 +20,7 @@ The project provides a native `xscript.android.*` API and an `ascript.android.*`
 - **Image and visual recognition**: screenshots, color picking and color finding, template matching, OCR, OpenCV image processing, the GP image/color pipeline, and YOLO and PaddleOCR inference on ONNX Runtime.
 - **Script development and debugging**: multi-file editing in the browser, save-and-run, logs, breakpoints, step execution, call stack and variable inspection; a VS Code / Cursor extension, an MCP server and Python type stubs.
 - **Device services**: permission requests, read-only SMS queries, location, sensors, event listeners, notifications, clipboard, KeyValue storage, and HTML / floating UI.
-- **Project and run management**: project import/export, installing Python dependencies at runtime, run on boot, scheduled tasks and restart-on-error control.
+- **Project and run management**: project import/export, installing Python dependencies at runtime, run on boot, scheduled tasks, restart-on-error control, and launch links (`xscript://`, also AScript's `ascript://run?local=…`).
 - **Self-hosted admin backend**: device groups, batch tasks, remote operation, screen wall, logs, alerts, account roles and operation audit.
 - **App distribution**: script release and rollback, standalone APK packaging, signed updates and activation-code (license) management.
 
