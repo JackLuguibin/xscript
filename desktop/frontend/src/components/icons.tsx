@@ -17,6 +17,7 @@ export const IconRefresh = (p: P) => (<Svg {...p}><path d="M20 11a8 8 0 1 0-2.3 
 export const IconCamera = (p: P) => (<Svg {...p}><path d="M4 8h3l1.6-2.5h6.8L17 8h3v11H4z" /><circle cx="12" cy="13.2" r="3.4" /></Svg>);
 export const IconSun = (p: P) => (<Svg {...p}><circle cx="12" cy="12" r="4" /><path d="M12 2.5v2.2M12 19.3v2.2M2.5 12h2.2M19.3 12h2.2M5.3 5.3l1.6 1.6M17.1 17.1l1.6 1.6M5.3 18.7l1.6-1.6M17.1 6.9l1.6-1.6" /></Svg>);
 export const IconMoon = (p: P) => (<Svg {...p}><path d="M20 14.6A8.2 8.2 0 0 1 9.4 4 8.2 8.2 0 1 0 20 14.6z" /></Svg>);
+export const IconCloud = (p: P) => (<Svg {...p}><path d="M7 18.5h10.5a4 4 0 0 0 .6-7.95A6 6 0 0 0 6.6 9.6 4.5 4.5 0 0 0 7 18.5z" /></Svg>);
 export const IconMonitor = (p: P) => (<Svg {...p}><rect x="3" y="4" width="18" height="12.5" rx="2" /><path d="M8.5 20.5h7M12 16.5v4" /></Svg>);
 export const IconAlert = (p: P) => (<Svg {...p}><path d="M12 3.5l9.5 16.5h-19z" /><path d="M12 10v4.2" /><circle cx="12" cy="17.2" r=".7" fill="currentColor" /></Svg>);
 export const IconInfo = (p: P) => (<Svg {...p}><circle cx="12" cy="12" r="9" /><path d="M12 11v5.5" /><circle cx="12" cy="7.8" r=".7" fill="currentColor" /></Svg>);

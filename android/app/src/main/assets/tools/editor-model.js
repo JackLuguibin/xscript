@@ -139,6 +139,33 @@
       const content = doc.content;
       await this.api("PUT", this.projectUrl(doc.project) + "/files", {path: doc.path, content, encoding: "utf-8"});
       doc.saved = content;
+      doc.generated = await this.generateUi(doc.project, doc.path, content);
+    }
+    /** res/ui/<name>.ui.json was saved: write res/ui/<name>.html and ui_<name>.py next to the project entry, like
+     *  the VS Code designer (shared generator tools/ui-form.js). Returns {files, error}; an invalid spec writes
+     *  nothing. Open, unedited tabs of the generated files are refreshed; ones with unsaved edits are left alone. */
+    async generateUi(project, path, text) {
+      const F = EditorModel.uiForm(), name = F && F.formName(path);
+      if (!name) return null;
+      let spec;
+      try { spec = F.parseSpec(text); } catch (e) { return {files: [], error: "不是有效的 JSON：" + e.message}; }
+      const errors = F.validateSpec(spec);
+      if (errors.length) return {files: [], error: errors.join("；")};
+      const m = /^(.*\/)?res\/ui\/[^/]+$/.exec(path);
+      const root = m ? m[1] || "" : path.slice(0, path.lastIndexOf("/") + 1);
+      const files = [];
+      for (const [rel, content] of Object.entries(F.outputs(spec, name))) {
+        const target = root + rel, open = this.documents.get(this.key(target, project));
+        if (open && this.dirty(open)) continue;
+        await this.api("PUT", this.projectUrl(project) + "/files", {path: target, content, encoding: "utf-8"});
+        if (open) { open.content = content; open.saved = content; }
+        files.push(target);
+      }
+      return {files, error: ""};
+    }
+    static uiForm() {
+      if (root.XSUiForm) return root.XSUiForm;
+      try { return typeof require === "function" ? require("./ui-form.js") : null; } catch (e) { return null; }
     }
     async saveAll(project = this.project) {
       for (const doc of this.documents.values()) if (doc.project === project && this.dirty(doc)) await this.save(doc);
@@ -226,6 +253,24 @@
 
     // ---- project-wide search / replace ----
     static get MAX_UNDO_CHARS() { return 20 * 1024 * 1024; }
+    /** Every .py file of the project as {path, content} for the symbol table (unsaved editor content wins). */
+    async pythonSources(project = this.project) {
+      const tree = await this.listTree(project), list = tree.files.filter(f => /\.py$/.test(f.path) && !(f.size > 400000)), out = [];
+      let next = 0;
+      const worker = async () => {
+        for (;;) {
+          const f = list[next++]; if (!f) return;
+          const open = this.documents.get(this.key(f.path, project));
+          if (open) { if (!open.binary) out.push({path: f.path, content: open.content}); continue; }
+          try {
+            const file = await this.api("GET", this.projectUrl(project) + "/file?path=" + encodeURIComponent(f.path));
+            if (file.encoding !== "base64") out.push({path: f.path, content: file.content || ""});
+          } catch (e) { /* unreadable file: left out of the index */ }
+        }
+      };
+      await Promise.all([worker(), worker(), worker(), worker()]);
+      return out.sort((a, b) => a.path < b.path ? -1 : 1);
+    }
     static get search() { return root.EditorSearch || (typeof require === "function" ? require("./editor-search.js").EditorSearch : null); }
     /**
      * Search every text file of the project (unsaved editor content wins over the saved file).

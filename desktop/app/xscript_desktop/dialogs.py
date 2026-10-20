@@ -33,23 +33,23 @@ class DirectoryPicker(QObject):
 class FileSaver(QObject):
     """Save dialog for a screenshot. The page never chooses the path (design §5.3: the shell owns the filesystem)."""
 
-    _ask = Signal(object)
+    _ask = Signal(object, str, str, str)
 
     def __init__(self, parent: QWidget) -> None:
         super().__init__(parent)
         self._parent = parent
         self._ask.connect(self._show, Qt.ConnectionType.QueuedConnection)
 
-    def _show(self, fut: concurrent.futures.Future) -> None:
+    def _show(self, fut: concurrent.futures.Future, title: str, name: str, filt: str) -> None:
         try:
-            path, _selected = QFileDialog.getSaveFileName(self._parent, "保存截图", "xscript-screen.png", "PNG (*.png)")
+            path, _selected = QFileDialog.getSaveFileName(self._parent, title, name, filt)
             fut.set_result(path or None)
         except Exception as e:  # pragma: no cover - Qt failure
             fut.set_exception(e)
 
-    async def save(self) -> str | None:
+    async def save(self, title: str = "保存截图", name: str = "xscript-screen.png", filt: str = "PNG (*.png)") -> str | None:
         fut: concurrent.futures.Future = concurrent.futures.Future()
-        self._ask.emit(fut)
+        self._ask.emit(fut, title, name, filt)
         return await asyncio.wrap_future(fut)
 
 

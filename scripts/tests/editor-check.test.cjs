@@ -55,3 +55,24 @@ test('never throws and stays fast on garbage and large input', () => {
   const big = 'def f(a):\n    return [a, (a + 1)]\n'.repeat(5000);
   const t = Date.now(); assert.deepEqual(EditorCheck.check(big), []); assert.ok(Date.now() - t < 1500, 'took ' + (Date.now() - t));
 });
+test('parser-based: errors the old line scanner missed, with Chinese messages', () => {
+  const cases = [
+    ['f() = 1\n', 1, /函数调用/], ['f(a=1, b)\n', 1, /位置参数/], ['def f(a=1, b): pass\n', 1, /默认值/],
+    ['x = 1 +\n', 1, /语法错误/], ['x = [1, 2 3]\n', 1, /逗号/], ['try:\n    pass\nx = 1\n', 3, /except|finally/],
+    ['x = 1 if y\n', 1, /else/], ['x = 0x\n', 1, /数字/], ['a, b += 1\n', 1, /增强赋值/], ['del f()\n', 1, /删除/],
+  ];
+  for (const [src, line, re] of cases) { const d = one(src); assert.equal(d.line, line, src); assert.match(d.message, re, src); }
+});
+test('false-positive regression set: valid code the parser must accept', () => {
+  const ok = [
+    'match x:\n    case [1, *rest] if rest:\n        pass\n    case {"k": v, **kw}:\n        pass\n    case P(x=0) | Q() as q:\n        pass\n    case _:\n        pass\n',
+    'match(x)\nmatch = [1]\nmatch[0] = 2\ncase = 3\n_ = case\n', 'print >> f\nx = print\nprint\n',
+    'def f(a, /, b, *, c, **d) -> "T":\n    return (yield from g())\n', 'with (open(a) as f, open(b) as g):\n    pass\n',
+    'x = [y := 1, y ** 2]\nif any((z := i) for i in x): pass\n', 'x = a[1:2, ::3, ...]\nb = c[:, None]\n',
+    'try:\n    pass\nexcept* ValueError as e:\n    pass\n', 'class A(B, metaclass=M, **kw):\n    x: int\n    y: "str" = ""\n',
+    'async def f():\n    async with a as b:\n        return [i async for i in b if await i]\n', 'x = {**a, "b": 1}\ny = {*a, 1}\n',
+    'if x:\n    pass\n# comment at column 0\n    # indented comment\nelse:\n    pass\n', 'x = 1 \\\n  + 2\n', 'lambda *a, k=1, **kw: (a, k, kw)\n',
+    "s = f'{x!r:>{w}}' u'u'\nb = rb'\\d' b''\n", 'del a, b[0], c.d\nglobal g\nassert x, "m"\nraise E from None\n', 'for (a, *b), c in d: pass\n',
+  ];
+  for (const src of ok) assert.deepEqual(msgs(src), [], JSON.stringify(src));
+});

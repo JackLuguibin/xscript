@@ -117,7 +117,9 @@
 
 /* Project search / replace (sidebar mode) */
 .ide.searching { grid-template-columns:min(360px, 46vw) minmax(0,1fr); }
-.ide.searching #files, .ide.searching #files-heading { display:none; }
+.ide.searching #files, .ide.searching #files-heading, .ide.refs #files, .ide.refs #files-heading { display:none; }
+.refs-panel .sr-file { padding:0 10px; height:24px; }
+.ref-def { margin-left:auto; flex:0 0 auto; padding:0 5px; border-radius:9px; background:var(--accent-soft); font-family:var(--sans, inherit); font-size:10px; }
 .search-panel { display:flex; flex-direction:column; gap:6px; min-height:0; flex:1; }
 .search-panel[hidden] { display:none; }
 .search-panel input[type="text"] { width:100%; box-sizing:border-box; }
@@ -186,3 +188,27 @@
 .new-project-dialog .tpl-item span { display: flex; flex-direction: column; min-width: 0; }
 .new-project-dialog .tpl-item small { opacity: .75; }
 .new-project-dialog .np-error { color: var(--bad); font-size: 12px; min-height: 16px; margin-top: 6px; }
+
+/* UI designer (res/ui/<name>.ui.json): tools/ui-designer.js, same view as the VS Code extension */
+.ide-designer { flex:1; min-height:160px; overflow:auto; display:grid; grid-template-columns:150px minmax(220px,1fr) 250px minmax(260px,1fr); gap:12px; padding:12px; box-sizing:border-box; color:var(--text); }
+.ide-designer[hidden] { display:none; }
+.ide-edit-area[hidden] { display:none; }
+.ide-designer .col { overflow:auto; min-height:0; }
+.ide-designer h4 { margin:0 0 8px; font-weight:600; color:var(--text-strong); }
+.ide-designer .pal button { display:block; width:100%; margin:0 0 6px; text-align:left; cursor:grab; }
+.ide-designer .list { min-height:120px; border:1px dashed var(--divider); border-radius:var(--radius); padding:6px; }
+.ide-designer .list.over { border-color:var(--accent); }
+.ide-designer .item { display:flex; align-items:center; gap:6px; padding:6px 8px; margin:0 0 4px; border-radius:var(--radius); background:var(--bg-hi); cursor:grab; }
+.ide-designer .item.sel { outline:1px solid var(--accent); background:var(--accent-soft); }
+.ide-designer .item.drop-before { box-shadow:0 -2px 0 var(--accent); }
+.ide-designer .item .k { color:var(--muted); font-size:90%; min-width:62px; }
+.ide-designer .item .t { flex:1; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.ide-designer .item button { background:none; border:0; color:inherit; cursor:pointer; padding:2px 4px; min-height:0; }
+.ide-designer .props label { display:block; margin:0 0 8px; }
+.ide-designer .props label span { display:block; color:var(--muted); margin-bottom:2px; font-size:90%; }
+.ide-designer .props input, .ide-designer .props textarea, .ide-designer .props select { width:100%; box-sizing:border-box; }
+.ide-designer .props input[type=checkbox] { width:auto; }
+.ide-designer .errors { color:var(--bad); margin:6px 0; white-space:pre-wrap; }
+.ide-designer .hint { color:var(--muted); margin:8px 0; font-size:90%; }
+.ide-designer iframe { width:100%; height:60vh; border:1px solid var(--divider); background:#fff; border-radius:var(--radius); }
+@media (max-width: 900px) { .ide-designer { grid-template-columns:1fr; } .ide-designer iframe { height:50vh; } }

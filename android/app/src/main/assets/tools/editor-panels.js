@@ -14,6 +14,7 @@
     const ide = document.querySelector(".ide");
 
     function open(prefill) {
+      ide.classList.remove("refs"); $("refs-panel").hidden = true;
       ide.classList.add("searching"); $("search-panel").hidden = false;
       if (prefill) $("search-q").value = prefill;
       $("search-q").focus(); $("search-q").select();
@@ -122,6 +123,49 @@
     return {open, close, run, reset, state};
   }
 
+  // ---- find references (Shift+F12) ----
+  // ctx: {open(path, line, col, length)}
+  function initRefs(ctx) {
+    const ide = document.querySelector(".ide");
+    let refs = [];
+    function close() { ide.classList.remove("refs"); $("refs-panel").hidden = true; }
+    function show(name, list) {
+      refs = list; ide.classList.remove("searching"); $("search-panel").hidden = true; $("open-search").setAttribute("aria-pressed", "false");
+      ide.classList.add("refs", "sidebar-open"); $("refs-panel").hidden = false;
+      $("refs-title").textContent = "引用：" + name;
+      const files = new Set(list.map(r => r.path));
+      $("refs-summary").textContent = list.length + " 处，" + files.size + " 个文件";
+      const box = $("refs-results"); box.replaceChildren();
+      for (const path of files) {
+        const head = make("div", "sr-file"); head.append(make("span", "sr-path", path), make("span", "sr-count", String(list.filter(r => r.path === path).length)));
+        box.append(head);
+        list.forEach((r, i) => {
+          if (r.path !== path) return;
+          const row = make("button", "sr-match"); row.type = "button"; row.dataset.i = String(i); row.title = path + ":" + r.line + (r.def ? "（定义）" : "");
+          const at = r.text.indexOf(name), tx = make("span", "tx");
+          if (at >= 0) tx.append(make("span", "", r.text.slice(0, at)), make("mark", "", name), make("span", "", r.text.slice(at + name.length))); else tx.textContent = r.text;
+          row.append(make("span", "ln", String(r.line)), tx);
+          if (r.def) row.append(make("span", "ref-def", "定义"));
+          box.append(row);
+        });
+      }
+      const first = box.querySelector(".sr-match"); if (first) first.focus();
+    }
+    $("refs-results").addEventListener("click", e => {
+      const row = e.target.closest(".sr-match"); if (!row) return;
+      const r = refs[Number(row.dataset.i)]; if (r) ctx.open(r.path, r.line, r.col, r.length);
+    });
+    $("refs-close").addEventListener("click", close);
+    $("refs-panel").addEventListener("keydown", e => {
+      if (e.key === "Escape") { e.preventDefault(); close(); $("editor").focus(); }
+      if (e.key === "ArrowDown" || e.key === "ArrowUp") {
+        const rows = [...$("refs-results").querySelectorAll(".sr-match")], i = rows.indexOf(document.activeElement);
+        if (i >= 0) { e.preventDefault(); rows[Math.max(0, Math.min(rows.length - 1, i + (e.key === "ArrowDown" ? 1 : -1)))].focus(); }
+      }
+    });
+    return {show, close};
+  }
+
   // ---- screenshot dock ----
   // ctx: {api, model, message, refreshFiles(), insertAtCaret(text)}
   function initShot(ctx) {
@@ -185,5 +229,5 @@
     return {take, state: () => ({blob, point})};
   }
 
-  root.EditorPanels = {initSearch, initShot};
+  root.EditorPanels = {initSearch, initShot, initRefs};
 })(typeof window !== "undefined" ? window : globalThis);

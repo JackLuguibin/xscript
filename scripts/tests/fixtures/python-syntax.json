@@ -1,0 +1,870 @@
+[
+{
+"src": "x = \"abc\ny = 1\n",
+"line": 1
+},
+{
+"src": "x = 1\ns = \"\"\"never closed\nmore\n",
+"line": 2
+},
+{
+"src": "x = (1, 2]\n",
+"line": 1
+},
+{
+"src": "foo(1,\n",
+"line": 1
+},
+{
+"src": "x = 1)\n",
+"line": 1
+},
+{
+"src": "if x\n    pass\n",
+"line": 1
+},
+{
+"src": "def f()\n    pass\n",
+"line": 1
+},
+{
+"src": "for i in range(3):\nprint(i)\n",
+"line": 2
+},
+{
+"src": "def f():\n",
+"line": 1
+},
+{
+"src": "x = 1\n    y = 2\n",
+"line": 2
+},
+{
+"src": "if x:\n        a = 1\n    b = 2\n",
+"line": 3
+},
+{
+"src": "print \"hello\"\n",
+"line": 1
+},
+{
+"src": "x = a $ b\n",
+"line": 1
+},
+{
+"src": "f() = 1\n",
+"line": 1
+},
+{
+"src": "def f(a=1, b): pass\n",
+"line": 1
+},
+{
+"src": "x = 1 +\n",
+"line": 1
+},
+{
+"src": "if x:\npass\n",
+"line": 2
+},
+{
+"src": "class A\n  pass",
+"line": 1
+},
+{
+"src": "x = [1,\n2\ny = 3\n",
+"line": 1
+},
+{
+"src": "return\n",
+"line": null
+},
+{
+"src": "lambda: (yield)\n",
+"line": null
+},
+{
+"src": "a, b += 1\n",
+"line": 1
+},
+{
+"src": "del f()\n",
+"line": 1
+},
+{
+"src": "x = yield = 3\n",
+"line": 1
+},
+{
+"src": "f(**a, *b)\n",
+"line": 1
+},
+{
+"src": "f(a=1, b)\n",
+"line": 1
+},
+{
+"src": "import a.b as\n",
+"line": 1
+},
+{
+"src": "from . import (a, b,)\n",
+"line": null
+},
+{
+"src": "from x import *, y\n",
+"line": 1
+},
+{
+"src": "try:\n    pass\n",
+"line": 2
+},
+{
+"src": "else:\n    pass\n",
+"line": 1
+},
+{
+"src": "x = 1 if y\n",
+"line": 1
+},
+{
+"src": "[x for x in]\n",
+"line": 1
+},
+{
+"src": "(a for a in b, c)\n",
+"line": 1
+},
+{
+"src": "def f(*, **k): pass\n",
+"line": 1
+},
+{
+"src": "def f(**k, a): pass\n",
+"line": 1
+},
+{
+"src": "with (a as b, c as d):\n    pass\n",
+"line": null
+},
+{
+"src": "match x:\n    case 1 | 2:\n        pass\n    case {\"a\": b, **rest}:\n        pass\n    case Point(x=0) if y:\n        pass\n    case [1, *others]:\n        pass\n    case _:\n        pass\n",
+"line": null
+},
+{
+"src": "x = 0x\n",
+"line": 1
+},
+{
+"src": "x = 1_000\ny = 1e-3j\nz = 0o17\n",
+"line": null
+},
+{
+"src": "async def f():\n    await x\n    async for a in b: pass\n",
+"line": null
+},
+{
+"src": "nonlocal x\n",
+"line": null
+},
+{
+"src": "def f():\n    x = 1\n  y = 2\n",
+"line": 3
+},
+{
+"src": "  x = 1\n",
+"line": 1
+},
+{
+"src": "x = {1: 2, **a, 3}\n",
+"line": 1
+},
+{
+"src": "x = (1 2)\n",
+"line": 1
+},
+{
+"src": "f(x for x in y, 1)\n",
+"line": 1
+},
+{
+"src": "a = b = c\n",
+"line": null
+},
+{
+"src": "x: int = 1\n",
+"line": null
+},
+{
+"src": "(a): int\n",
+"line": null
+},
+{
+"src": "a.b: int\n",
+"line": null
+},
+{
+"src": "f(): int\n",
+"line": 1
+},
+{
+"src": "x = not\n",
+"line": 1
+},
+{
+"src": "if x:\n    pass\nelif:\n    pass\n",
+"line": 3
+},
+{
+"src": "print\n",
+"line": null
+},
+{
+"src": "print x\n",
+"line": 1
+},
+{
+"src": "assert x, \"m\"\n",
+"line": null
+},
+{
+"src": "raise E from e\n",
+"line": null
+},
+{
+"src": "global a, b\n",
+"line": null
+},
+{
+"src": "@d\n@e.f(1)\nclass C(B, metaclass=M):\n    pass\n",
+"line": null
+},
+{
+"src": "x = *a, b\n",
+"line": null
+},
+{
+"src": "*a = b\n",
+"line": null
+},
+{
+"src": "x = [*a, *b]\n",
+"line": null
+},
+{
+"src": "f\"{x!r}\" \"y\" b\"z\"\n",
+"line": 1
+},
+{
+"src": "match(x)\nmatch = 3\nmatch.a = 1\nmatch[1] = 2\n",
+"line": null
+},
+{
+"src": "case = 1\n_ = 2\n",
+"line": null
+},
+{
+"src": "def f(a, /, b, *, c, **d) -> int:\n    return a\n",
+"line": null
+},
+{
+"src": "x = a if b else c if d else e\n",
+"line": null
+},
+{
+"src": "print(*a, sep=\"\")\n",
+"line": null
+},
+{
+"src": "x = [i for i in range(3) if i if i > 0]\n",
+"line": null
+},
+{
+"src": "x = {k: v for k, v in d.items()}\n",
+"line": null
+},
+{
+"src": "x = {a for a in b}\n",
+"line": null
+},
+{
+"src": "f(a for a in b)\n",
+"line": null
+},
+{
+"src": "x = a[1:2:3, ...]\n",
+"line": null
+},
+{
+"src": "x = a[:]\n",
+"line": null
+},
+{
+"src": "x = a[::]\n",
+"line": null
+},
+{
+"src": "x = lambda *a, **k: 0\n",
+"line": null
+},
+{
+"src": "x = lambda: 0\n",
+"line": null
+},
+{
+"src": "while x:\n    break\nelse:\n    pass\n",
+"line": null
+},
+{
+"src": "for x in y:\n    continue\nelse:\n    pass\n",
+"line": null
+},
+{
+"src": "try:\n    pass\nexcept:\n    pass\nelse:\n    pass\nfinally:\n    pass\n",
+"line": null
+},
+{
+"src": "with a, b as (c, d): pass\n",
+"line": null
+},
+{
+"src": "x = yield\n",
+"line": null
+},
+{
+"src": "def g():\n    x = yield from y\n    await z\n",
+"line": null
+},
+{
+"src": "class A(object): x = 1; y = 2\n",
+"line": null
+},
+{
+"src": "if x: pass\nelse: pass\n",
+"line": null
+},
+{
+"src": "x = (yield)\n",
+"line": null
+},
+{
+"src": "x = \"a\" \"b\"\n",
+"line": null
+},
+{
+"src": "x = \"\"\"a\"\"\"\n",
+"line": null
+},
+{
+"src": "x = r'\\'\n",
+"line": 1
+},
+{
+"src": "x = b'\\x00'\n",
+"line": null
+},
+{
+"src": "x = 1.5e10\ny = .5\nz = 5.\nw = 0b1010\nv = 0XFF\n",
+"line": null
+},
+{
+"src": "x = 08\n",
+"line": 1
+},
+{
+"src": "x = 1abc\n",
+"line": 1
+},
+{
+"src": "import a, b.c as d\n",
+"line": null
+},
+{
+"src": "from .. import x\n",
+"line": null
+},
+{
+"src": "from ...a.b import c as d\n",
+"line": null
+},
+{
+"src": "x = (\n  1,\n  2\n)\n",
+"line": null
+},
+{
+"src": "def f(\n    a,\n    b,\n):\n    pass\n",
+"line": null
+},
+{
+"src": "if a and not b or c in d and e not in f and g is not h:\n    pass\n",
+"line": null
+},
+{
+"src": "x = -1 ** -2\n",
+"line": null
+},
+{
+"src": "x = ~a << 2 >> 3 & 4 | 5 ^ 6\n",
+"line": null
+},
+{
+"src": "x = a @ b // c % d\n",
+"line": null
+},
+{
+"src": "x @= 2\n",
+"line": null
+},
+{
+"src": "x **= 2\n",
+"line": null
+},
+{
+"src": "a.b += 1\n",
+"line": null
+},
+{
+"src": "a[0] -= 1\n",
+"line": null
+},
+{
+"src": "if x:\n    pass\n  else:\n    pass\n",
+"line": 3
+},
+{
+"src": "for x in 1 2:\n    pass\n",
+"line": 1
+},
+{
+"src": "x = [1, 2 3]\n",
+"line": 1
+},
+{
+"src": "f(a b)\n",
+"line": 1
+},
+{
+"src": "def f:\n    pass\n",
+"line": 1
+},
+{
+"src": "class:\n    pass\n",
+"line": 1
+},
+{
+"src": "import\n",
+"line": 1
+},
+{
+"src": "from x import\n",
+"line": 1
+},
+{
+"src": "x =\n",
+"line": 1
+},
+{
+"src": "= 1\n",
+"line": 1
+},
+{
+"src": "x = )\n",
+"line": 1
+},
+{
+"src": "x == = 1\n",
+"line": 1
+},
+{
+"src": "if x = 1:\n    pass\n",
+"line": 1
+},
+{
+"src": "while True\n    pass\n",
+"line": 1
+},
+{
+"src": "for x in y\n    pass\n",
+"line": 1
+},
+{
+"src": "try\n    pass\nexcept:\n    pass\n",
+"line": 1
+},
+{
+"src": "def f():\n    return\n  x\n",
+"line": 3
+},
+{
+"src": "x = 1\n\n\n    \n    y\n",
+"line": 5
+},
+{
+"src": "a = 1;\n",
+"line": null
+},
+{
+"src": "a = 1;; b = 2\n",
+"line": 1
+},
+{
+"src": "def f(a, a=1, *b, c, d=2): pass\n",
+"line": null
+},
+{
+"src": "f(*a, b, c=1, *d, **e)\n",
+"line": null
+},
+{
+"src": "f(a=1, *b)\n",
+"line": null
+},
+{
+"src": "f(**a, b=1)\n",
+"line": null
+},
+{
+"src": "f(a=1, a=2)\n",
+"line": null
+},
+{
+"src": "x = {**a, **b}\n",
+"line": null
+},
+{
+"src": "x = {1, 2, *a}\n",
+"line": null
+},
+{
+"src": "x = {*a: 1}\n",
+"line": 1
+},
+{
+"src": "x = (*a)\n",
+"line": 1
+},
+{
+"src": "x = (*a,)\n",
+"line": null
+},
+{
+"src": "[*a] = b\n",
+"line": null
+},
+{
+"src": "a, *b, c = d\n",
+"line": null
+},
+{
+"src": "(a, b) = c\n",
+"line": null
+},
+{
+"src": "[a, b] = c\n",
+"line": null
+},
+{
+"src": "a + 1 = 2\n",
+"line": 1
+},
+{
+"src": "1 = a\n",
+"line": 1
+},
+{
+"src": "None = 1\n",
+"line": 1
+},
+{
+"src": "a.b.c = 1\n",
+"line": null
+},
+{
+"src": "x = [i async for i in a]\n",
+"line": null
+},
+{
+"src": "x = 1 if 2 else\n",
+"line": 1
+},
+{
+"src": "lambda x=1, y: 0\n",
+"line": 1
+},
+{
+"src": "def f(*):\n    pass\n",
+"line": 1
+},
+{
+"src": "def f(*a, *b): pass\n",
+"line": 1
+},
+{
+"src": "def f(a, /, /): pass\n",
+"line": 1
+},
+{
+"src": "def f(/): pass\n",
+"line": 1
+},
+{
+"src": "@\ndef f(): pass\n",
+"line": 1
+},
+{
+"src": "@d\nx = 1\n",
+"line": 2
+},
+{
+"src": "async x\n",
+"line": 1
+},
+{
+"src": "del a, b[1], c.d\n",
+"line": null
+},
+{
+"src": "del (a, b)\n",
+"line": null
+},
+{
+"src": "del 1\n",
+"line": 1
+},
+{
+"src": "global\n",
+"line": 1
+},
+{
+"src": "raise\n",
+"line": null
+},
+{
+"src": "raise from x\n",
+"line": 1
+},
+{
+"src": "assert\n",
+"line": 1
+},
+{
+"src": "return 1, 2\n",
+"line": null
+},
+{
+"src": "x = 1, 2,\n",
+"line": null
+},
+{
+"src": "x, = y\n",
+"line": null
+},
+{
+"src": "match x:\n    case 1:\n        pass\n",
+"line": null
+},
+{
+"src": "match x:\npass\n",
+"line": 2
+},
+{
+"src": "match x, y:\n    case (1, 2) | [3, 4] as z:\n        pass\n",
+"line": null
+},
+{
+"src": "match x:\n    case A.B:\n        pass\n    case -1:\n        pass\n    case \"s\" | None:\n        pass\n",
+"line": null
+},
+{
+"src": "match x:\n    case a, *_:\n        pass\n",
+"line": null
+},
+{
+"src": "with open(f) as a, open(g) as b:\n    pass\n",
+"line": null
+},
+{
+"src": "with (open(f)) as a:\n    pass\n",
+"line": null
+},
+{
+"src": "with (a, b):\n    pass\n",
+"line": null
+},
+{
+"src": "if (a := 1):\n    pass\n",
+"line": null
+},
+{
+"src": "x = [y := 1, y**2]\n",
+"line": null
+},
+{
+"src": "f(x := 1)\n",
+"line": null
+},
+{
+"src": "a.b := 1\n",
+"line": 1
+},
+{
+"src": "x = f\"{a}\" f\"{b!s:>10}\"\n",
+"line": null
+},
+{
+"src": "x = u\"a\"\n",
+"line": null
+},
+{
+"src": "x = Rb\"\\d\"\n",
+"line": null
+},
+{
+"src": "x = br\"\" rb\"\"\n",
+"line": null
+},
+{
+"src": "\t\nif x:\n\tpass\n",
+"line": null
+},
+{
+"src": "if x:\n\tif y:\n\t\tpass\n\telse:\n\t\tpass\n",
+"line": null
+},
+{
+"src": "x = \"\"\"\n\"\"\"\n\"\"\"\n",
+"line": 3
+},
+{
+"src": "x = 1 # comment\n# only comment\n",
+"line": null
+},
+{
+"src": "\\\n",
+"line": 1
+},
+{
+"src": "x = \\\n",
+"line": 1
+},
+{
+"src": "x = 1 \\ 2\n",
+"line": 1
+},
+{
+"src": "x = \"\\\nb\"\n",
+"line": null
+},
+{
+"src": "s = 'abc\n",
+"line": 1
+},
+{
+"src": "y = 1\nz = (\n",
+"line": 2
+},
+{
+"src": "x = [\n",
+"line": 1
+},
+{
+"src": "x = ]\n",
+"line": 1
+},
+{
+"src": "a = (}\n",
+"line": 1
+},
+{
+"src": "名字 = 1\n",
+"line": null
+},
+{
+"src": "x = a，b\n",
+"line": 1
+},
+{
+"src": "x = 1\nif x:\n    y = (1,\n         2)\n    z = 3\n",
+"line": null
+},
+{
+"src": "def f():\n    pass\nx = 1\n  y = 2\n",
+"line": 4
+},
+{
+"src": "class A:\n    def f(self):\n        pass\n\n    def g(self):\n        pass\n",
+"line": null
+},
+{
+"src": "for x in range(10): print(x)\n",
+"line": null
+},
+{
+"src": "print(\"a\" \"b\")\n",
+"line": null
+},
+{
+"src": "print >>f, x\n",
+"line": null
+},
+{
+"src": "exec \"x\"\n",
+"line": 1
+},
+{
+"src": "x = 1 if True else 2 if False\n",
+"line": 1
+},
+{
+"src": "x = [i for i in]\n",
+"line": 1
+},
+{
+"src": "x = [for i in a]\n",
+"line": 1
+},
+{
+"src": "f(,)\n",
+"line": 1
+},
+{
+"src": "f(a,,b)\n",
+"line": 1
+},
+{
+"src": "x = a.\n",
+"line": 1
+},
+{
+"src": "x = a..b\n",
+"line": 1
+},
+{
+"src": "x = .a\n",
+"line": 1
+},
+{
+"src": "x = a[]\n",
+"line": 1
+},
+{
+"src": "x = a(1)(2)[3].b\n",
+"line": null
+},
+{
+"src": "not x\n",
+"line": null
+},
+{
+"src": "x = not not y\n",
+"line": null
+},
+{
+"src": "x = await\n",
+"line": 1
+},
+{
+"src": "x = 1 is not not 2\n",
+"line": 1
+}
+]

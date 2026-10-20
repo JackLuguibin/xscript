@@ -20,6 +20,13 @@ export function fmtSize(n?: number | null): string {
   return (n / 1024 / 1024).toFixed(1) + " MB";
 }
 
+/** 分 → "¥1,234.50" (negative keeps its sign). */
+export function fmtYuan(cents: number): string {
+  const sign = cents < 0 ? "-" : "";
+  const a = Math.abs(cents);
+  return `${sign}¥${Math.floor(a / 100).toLocaleString()}.${String(a % 100).padStart(2, "0")}`;
+}
+
 export function fmtDays(d: number): string {
   if (!d) return "永久";
   if (d < 1) return Math.round(d * 24 * 10) / 10 + " 小时";

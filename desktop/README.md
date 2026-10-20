@@ -1,9 +1,9 @@
 # XScript 桌面端（Windows 为目标平台）
 
-设计文档：[`docs/桌面端设计.md`](../docs/桌面端设计.md)。本目录实现其 §12.1 路线图：**P0**（验证与脚手架）已完成，**P1**（壳 + 设备 + 工程）大部分已实现，**P2**（流程编辑器）部分已实现，P3–P5 见下面的「没做」。
+设计文档：[`docs/桌面端设计.md`](../docs/桌面端设计.md)。本目录实现其 §12.1 路线图：**P0**（验证与脚手架）已完成，**P1**（壳 + 设备 + 工程）大部分已实现，**P2**（流程编辑器）部分已实现，**P4**（云控与管理）已实现（见下面「P4 云控」），P3、P5 见下面的「没做」。
 入口执行方式的实测结论：[`docs/桌面端-入口执行实测.md`](../docs/桌面端-入口执行实测.md)。
 
-> **状态：P0 完成，P1 大部分、P2 部分。只在 macOS 上开发和验证。** 所有 Windows 专属行为（`adb.exe` 定位、`CREATE_NO_WINDOW`、凭据管理器、
+> **状态：P0 完成，P1 大部分、P2 部分，P4 完成。只在 macOS 上开发和验证。** 所有 Windows 专属行为（`adb.exe` 定位、`CREATE_NO_WINDOW`、凭据管理器、
 > 打包、安装器、高 DPI、杀软/SmartScreen……）**均未验证**，代码和文档里用「⚠ Windows 未验证」标注。
 > v0.4.0 起 macOS arm64 的 dmg（ad-hoc 签名、未公证）随 App 一起附在 GitHub Release；Windows 包还没有。桌面端版本号跟随 App（`pyproject.toml` / `package.json` 都是 0.4.0），见设计 §13-14。
 
@@ -41,7 +41,7 @@
 
 调试的限制：每台设备一个会话；多线程切换还没做。测试用的是 `app/tests/fake_debug_device.py` 里脚本化的 debugpy（`scripts/mock_device.py` 不支持 `/debug/*`）；设备上的真实 debugpy 用上面的脚本验证过；桌面窗口里的完整点击流程只在 fake 设备上做了 e2e。
 
-**没做**：trace 节流的真机预算核对（设计 §14.7；编译器已按 200 行突发 / 每秒 500 行生成 `__xf_trace`，还没在真机上测）；流程编辑器的剩余部分：状态机回退（有回边或汇合的图）仍不能整体降级 retry / try / parallel / match / wait_until 这类多出口容器，也不能降级循环体跳到外面的循环（会报错并指出节点）（React Flow 在 Qt 里的验证见 [`docs/桌面端-ReactFlow验证.md`](../docs/桌面端-ReactFlow验证.md)；语义 JSON 的 schema 在 `desktop/schema/`）、云控与后台（P4）、打包与安装器（P5）、`pyside6-deploy` 与 PyInstaller 对比。镜像流的方案 A（scheme 直接吐 multipart）没做，方案 B 已实现；本轮没有对真机开流。Windows 凭据管理器只按 `keyring` 的接口接上，没有在 Windows 上读写过。设计和 Mac 上能做的验证不等 Windows。
+**没做**：trace 节流的真机预算核对（设计 §14.7；编译器已按 200 行突发 / 每秒 500 行生成 `__xf_trace`，还没在真机上测）；流程编辑器的剩余部分：状态机回退（有回边或汇合的图）里，被整体内联的容器（match / sequence / try / parallel / wait_until / retry 和封闭的循环）分支不能跳出容器，也不能 `break` / `continue` 外层被拆成状态的循环（会报错并指出节点）（React Flow 在 Qt 里的验证见 [`docs/桌面端-ReactFlow验证.md`](../docs/桌面端-ReactFlow验证.md)；语义 JSON 的 schema 在 `desktop/schema/`）、打包与安装器（P5）、`pyside6-deploy` 与 PyInstaller 对比。镜像流的方案 A（scheme 直接吐 multipart）没做，方案 B 已实现；本轮没有对真机开流。Windows 凭据管理器只按 `keyring` 的接口接上，没有在 Windows 上读写过。设计和 Mac 上能做的验证不等 Windows。
 
 **设备页美化前 → 后**（macOS 真实外壳，经 adb forward 连接 5554 模拟器；设计细节见设计文档 §14.15）：
 
@@ -54,6 +54,46 @@
 | ![美化后深色](../docs/images/desktop-after-dark.png) | ![窄窗口](../docs/images/desktop-after-narrow-dark.png) |
 
 重新生成：`python -m xscript_desktop --screenshot out.png --connect-adb emulator-5554 --click-screenshot --theme dark --size 1180x760`（`--theme` 会真的去按侧栏的主题按钮）。
+
+## P4 云控（已实现）
+
+侧栏「云控」（Ctrl+6）连接自托管管理后台 `backend/xscript_server`，在桌面端管理云控设备。所有请求都经 Python 发出，页面本身不联网。
+
+| 分区 | 做什么 | 角色 |
+| --- | --- | --- |
+| 连接 | 填后台地址和 **API 令牌**（后台「账号 → API 令牌」新建，`xsk_` 开头）。令牌只存系统凭据库（`backend/<地址>`），不进日志、数据库或 RPC 应答；换后台时删掉旧令牌。只接受 https，或本机 `http://localhost` / `127.0.0.1`。令牌失效、连不上分别提示；代理账号不能用 | 全部 |
+| 设备 | 后台设备表：搜索 ID / 型号 / 备注，按分组、应用、在线状态筛选，分页；多选跨页、跨筛选保留。上方「批量命令」对勾选设备运行工程 / 停止，结果逐台列出（离线的标出来） | 查看：全部；命令：操作员+ |
+| 画面 | 在线设备实时缩略图（和设备墙同样的卡片，可暂停）。图片走 `xsapp://app/_cloudshot/<id>.jpg`，由 Python 经后台转发设备的 `/screen` | 操作员+（后台只允许他们转发屏幕） |
+| 日志 | 按设备检索后台保存的运行日志（文字、日志流筛选，往前翻页；设备离线也能查） | 全部 |
+| 任务 | 服务端定时任务：启用 / 停用、立即运行、删除，新建运行 / 停止任务（每天定时或间隔） | 查看：全部；编辑：操作员+ |
+| 部署 | 把流程编辑器当前打开的流程作为后台小程序的新版本上传（第一次自动建小程序；不发布、不影响热更新），装到选定分组的在线设备并运行；「历史版本」可回滚 | 管理员 |
+| 打包 | 后台 APK 打包任务：状态、日志、取消、「保存 APK…」 | 查看 / 保存：全部；取消：操作员+ |
+| 后台网页 | 在系统浏览器打开后台各页（设备、设备墙、定时任务、小程序、打包、审计）。**不内嵌**：网页用自己的登录，桌面端令牌不进网址或网页 | 全部 |
+
+按钮按角色灰显并说明原因；后台对每个请求还会再检查一次权限。
+
+| 设备与批量命令 | 只读账号（灰显） |
+| --- | --- |
+| ![云控设备](../docs/images/desktop-cloud-devices.png) | ![只读账号](../docs/images/desktop-cloud-viewer.png) |
+
+| 部署与回滚 | 画面 |
+| --- | --- |
+| ![部署](../docs/images/desktop-cloud-deploy.png) | ![画面](../docs/images/desktop-cloud-wall.png) |
+
+| 日志 | 后台网页 |
+| --- | --- |
+| ![日志](../docs/images/desktop-cloud-logs.png) | ![后台网页](../docs/images/desktop-cloud-console.png) |
+
+其余截图：[连接](../docs/images/desktop-cloud-connect.png)、[任务](../docs/images/desktop-cloud-tasks.png)、[打包](../docs/images/desktop-cloud-pack.png)。截图来自本地后台（`scripts/desktop_cloud_e2e.py serve`，演示手机），真实桌面窗口。
+
+测试：`app/tests/test_cloud.py`（`tests/fake_backend.py` 假后台：错误码、令牌不外泄、参数校验、各角色）、`test_shell.py` 里的 `_cloudshot` 图片路径、前端 `tests/cloud.test.tsx`（演示后台 `src/cloud-demo.ts`）。端到端：
+
+```bash
+.venv/bin/python scripts/desktop_cloud_e2e.py serve /tmp/p4.json            # 本地后台 + 管理员 / 只读令牌（只写进 0600 文件）
+desktop/app/.venv/bin/python scripts/desktop_cloud_e2e.py check /tmp/p4.json emulator-5554 9860 com.xscript.app.perf
+```
+
+`check` 让模拟器上的 App 连上这个后台（分组 `p4-e2e`），再用桌面端自己的 `cloud.*` 接口走一遍：连接 → 设备表 → 部署两个版本 → 批量运行 → 检索日志 → 回滚 → 停止 → 任务 → 打包列表 → 缩略图；再用只读账号确认命令、部署和缩略图被后台拒绝。最后删掉设备上的测试工程，并让 App 断开云控（`cloud.close()`，会清掉 App 里保存的云控地址）。
 
 ## 目录
 

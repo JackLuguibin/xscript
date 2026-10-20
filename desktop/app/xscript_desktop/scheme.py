@@ -110,6 +110,9 @@ class XsAppHandler(QWebEngineUrlSchemeHandler):
         if path.startswith("/_shot/"):
             self._start_shot(job, path[len("/_shot/"):], parse_qs(url.query()))
             return
+        if path.startswith("/_cloudshot/"):
+            self._start_shot(job, path[len("/_cloudshot/"):], parse_qs(url.query()), cloud=True)
+            return
         if path.startswith("/_frame/"):
             # Latest JPEG only (design §14.4 scheme B). `seq` is a cache-buster; a stale seq still gets the newest frame.
             device_id = frame_device_id(path)
@@ -138,7 +141,7 @@ class XsAppHandler(QWebEngineUrlSchemeHandler):
         buf.open(QIODevice.OpenModeFlag.ReadOnly)
         job.reply(QByteArray(mime.encode()), buf)
 
-    def _start_shot(self, job: QWebEngineUrlRequestJob, name: str, query: dict[str, list[str]]) -> None:
+    def _start_shot(self, job: QWebEngineUrlRequestJob, name: str, query: dict[str, list[str]], cloud: bool = False) -> None:
         device_id = unquote(name)
         if device_id.endswith(".jpg"):
             device_id = device_id[:-4]
@@ -148,7 +151,13 @@ class XsAppHandler(QWebEngineUrlSchemeHandler):
             max_side = 480
         max_side = max(64, min(max_side, 2400))
 
+        if not device_id or "/" in device_id or "\\" in device_id:
+            job.fail(QWebEngineUrlRequestJob.Error.UrlNotFound)
+            return
+
         async def fetch() -> tuple[bytes, str]:
+            if cloud:
+                return await self._ctx.cloud_thumb(device_id, max_side)
             return await self._ctx.screen(device_id, max_side)
 
         fut = self._runtime.submit(fetch())
