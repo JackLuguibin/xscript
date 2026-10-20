@@ -18,7 +18,7 @@
 
 - 新脚本使用 `xscript.android.*`。用 `get_module_apis` / `search_api` 查询准确的函数签名。
 - AScript 项目使用 `ascript.android.*`。保持其导入不变。除非用户要求，不要把它们移植到 `xscript.*`。
-- 不支持的 AScript 功能（HID、NCNN 模型文件、AScript 的二进制 font.t 字库、WebSelector、sms、付费插件、`connect_to_as`、未内置的云端 GP 插件）会抛出 `NotImplementedError`。必须改用受支持的调用，不要重试。
+- 不支持的 AScript 功能（HID、NCNN 模型文件、AScript 的二进制 font.t 字库、sms、付费插件、`connect_to_as`、未内置的云端 GP 插件）会抛出 `NotImplementedError`。必须改用受支持的调用，不要重试。
 - YOLO 需要 ONNX 模型：`xscript.android.yolo.load(R.res("best.onnx"))`。编写循环前，必须先用 `vision_test(op="yolo", model="<project>:res/best.onnx")` 在静止帧上验证。对于难以识别的中文文本，或 ML Kit 无返回结果时（模拟器），使用 `screen.ocr(engine="paddle")` / `vision_test(op="ocr", engine="paddle")`。
 - 第三方包：列在项目的 `requirements.txt` 中，首次运行前会自动安装。不要把 wheel 打包进项目，也不要把 site-packages 复制到项目里。`pip_install` 用于在 `eval_python` 中试用某个包。
 - 响应按键、通知和 toast 时，使用 `xscript.android.event`（或 AScript 的 `ascript.android.event`），不要轮询。处理函数运行在守护线程上，所以脚本必须保持运行。

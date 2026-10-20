@@ -348,6 +348,19 @@ export interface Overview {
   last_backup: { time: number; name?: string; ok: boolean; error?: string } | null;
 }
 
+export type TrendKey = "activations" | "expirations" | "new_devices" | "online_devices";
+
+/** GET /api/stats/daily: per server-local day, oldest first. */
+export interface DailyStats {
+  days: string[];
+  series: Record<TrendKey, number[]>;
+  totals: { activations: number; expirations: number; new_devices: number; online_peak: number };
+  expiring_7d: number;
+  by_app: { name: string; count: number }[];
+  by_batch: { name: string; count: number }[];
+  timezone: string;
+}
+
 export interface ScriptVersion {
   id: number;
   version: string;

@@ -364,16 +364,160 @@ class Selector:
         return self
 
 
+def _web_matcher(val):
+    """AScript convention: "/pattern/flags" is a JS regex, anything else matches exactly."""
+    val = "" if val is None else str(val)
+    if len(val) >= 2 and val.startswith("/"):
+        cut = val.rfind("/")
+        if cut > 0 and all(c in "dgimsuy" for c in val[cut + 1:]):
+            return {"re": val[1:cut], "flags": val[cut + 1:].replace("g", "")}
+    return {"s": val}
+
+
+def _web_index_args(args):
+    for a in args:
+        if isinstance(a, bool) or not isinstance(a, (int, float)) or a == 0:
+            raise ValueError("relation indexes are nonzero numbers like 1, -1, 1.3 or 0.1")
+    return list(args)
+
+
+def _web_page(window):
+    """The xscript.android.ui.Window behind an AScript WebWindow (or a Window itself)."""
+    win = window._ensure() if hasattr(window, "_ensure") else window
+    if not hasattr(win, "js"):
+        raise TypeError("WebSelector needs an ascript.android.ui.WebWindow")
+    return win
+
+
+def _web_run(window, spec, timeout=5):
+    import json
+    from ascript.android._websel_js import JS
+    win = _web_page(window)
+    raw = win.js("%s;window.__xsWeb.query(%s)" % (JS, json.dumps(spec, ensure_ascii=False)), timeout)
+    if raw in (None, "", "null"):
+        return []
+    try:
+        rows = json.loads(raw)
+    except ValueError:
+        return []
+    if not isinstance(rows, list):
+        return []
+    return [WebNode(window, row) for row in rows if isinstance(row, dict)]
+
+
 class WebSelector:
-    """WebView DOM selection inside an AScript WebWindow is not supported."""
+    """DOM selector for a shown WebWindow (AScript node.web.WebSelector).
 
-    def __init__(self, web_window=None):
-        warn_once("websel", "WebSelector is not supported by XScript")
+        node = WebSelector(window).tag("a").text("/AScript/").find()
+        WebSelector(window).attr("id", "user").input("tom").find()
 
-    def __getattr__(self, name):
-        def _unsupported(*a, **k):
-            raise NotImplementedError("WebSelector.%s is not supported by XScript" % name)
-        return _unsupported
+    Matches run in the page via WebView JavaScript. Strings match exactly;
+    "/regex/flags" is a JS regex. text() keeps the innermost matching elements.
+    Actions (click/long_click/input) are applied to the results of find/find_all.
+    Bounds are device pixels relative to the window's WebView.
+    """
+
+    def __init__(self, web_window, timeout=5):
+        if web_window is None:
+            raise TypeError("WebSelector needs a WebWindow")
+        self._window = web_window
+        self._timeout = timeout
+        self._steps, self._actions, self._base = [], [], None
+
+    def _add(self, step):
+        self._steps.append(step)
+        return self
+
+    def tag(self, val):
+        return self._add({"k": "tag", "m": _web_matcher(str(val).lower() if not str(val).startswith("/") else val)})
+
+    def text(self, val):
+        return self._add({"k": "text", "m": _web_matcher(val)})
+
+    def value(self, val):
+        return self._add({"k": "value", "m": _web_matcher(val)})
+
+    def attr(self, key, val):
+        if not key:
+            raise ValueError("attr needs a name")
+        return self._add({"k": "attr", "key": str(key), "m": _web_matcher(val)})
+
+    def child(self, *val):
+        return self._add({"k": "child", "args": _web_index_args(val)})
+
+    def brother(self, *val):
+        return self._add({"k": "brother", "args": _web_index_args(val)})
+
+    def parent(self, *val):
+        return self._add({"k": "parent", "args": _web_index_args(val)})
+
+    def click(self):
+        self._actions.append({"k": "click"})
+        return self
+
+    def long_click(self):
+        self._actions.append({"k": "long_click"})
+        return self
+
+    def input(self, val):
+        self._actions.append({"k": "input", "arg": "" if val is None else str(val)})
+        return self
+
+    def _spec(self, limit):
+        return {"base": self._base, "steps": self._steps, "actions": self._actions, "limit": int(limit)}
+
+    def find(self):
+        found = _web_run(self._window, self._spec(1), self._timeout)
+        return found[0] if found else None
+
+    def find_all(self, find_num=0):
+        if isinstance(find_num, bool) or int(find_num) != find_num or find_num < 0:
+            raise ValueError("find_num must be a nonnegative integer")
+        return _web_run(self._window, self._spec(find_num), self._timeout)
 
 
-WebNode = WebSelector
+class WebNode:
+    """One DOM element found by WebSelector: tag_name, bounds, text, value, attributes."""
+
+    def __init__(self, window, row):
+        self._window = window
+        self._id = row.get("id")
+        self.tag_name = row.get("tag", "")
+        self.text = row.get("text", "")
+        self.value = row.get("value", "")
+        self.attributes = dict(row.get("attrs") or {})
+        b = row.get("bounds") or [0, 0, 0, 0]
+        self.bounds = Rect(*b)
+        self.center_x, self.center_y = (b[0] + b[2]) // 2, (b[1] + b[3]) // 2
+
+    def __repr__(self):
+        return "WebNode(<%s> text=%r value=%r)" % (self.tag_name, self.text[:40], self.value[:40])
+
+    def _sel(self):
+        sel = WebSelector(self._window)
+        sel._base = [self._id]
+        return sel
+
+    @staticmethod
+    def _one_or_list(found):
+        if not found:
+            return None
+        return found[0] if len(found) == 1 else found
+
+    def child(self, *val):
+        return self._one_or_list(self._sel().child(*val).find_all())
+
+    def brother(self, *val):
+        return self._one_or_list(self._sel().brother(*val).find_all())
+
+    def parent(self, *val):
+        return self._one_or_list(self._sel().parent(*val).find_all())
+
+    def click(self):
+        return bool(self._sel().click().find_all())
+
+    def long_click(self):
+        return bool(self._sel().long_click().find_all())
+
+    def input(self, val):
+        return bool(self._sel().input(val).find_all())
