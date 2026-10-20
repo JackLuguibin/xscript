@@ -192,11 +192,79 @@ class Selector:
         ...
 
 class WebSelector:
-    """WebView DOM selection inside an AScript WebWindow is not supported."""
+    """DOM selector for a shown WebWindow (AScript node.web.WebSelector).
 
-    def __init__(self, web_window=None):
+        node = WebSelector(window).tag("a").text("/AScript/").find()
+        WebSelector(window).attr("id", "user").input("tom").find()
+
+    Matches run in the page via WebView JavaScript. Strings match exactly;
+    "/regex/flags" is a JS regex. text() keeps the innermost matching elements.
+    Actions (click/long_click/input) are applied to the results of find/find_all.
+    Bounds are device pixels relative to the window's WebView.
+    """
+
+    def __init__(self, web_window, timeout=5):
         ...
 
-    def __getattr__(self, name):
+    def tag(self, val):
         ...
-WebNode = ...
+
+    def text(self, val):
+        ...
+
+    def value(self, val):
+        ...
+
+    def attr(self, key, val):
+        ...
+
+    def child(self, *val):
+        ...
+
+    def brother(self, *val):
+        ...
+
+    def parent(self, *val):
+        ...
+
+    def click(self):
+        ...
+
+    def long_click(self):
+        ...
+
+    def input(self, val):
+        ...
+
+    def find(self):
+        ...
+
+    def find_all(self, find_num=0):
+        ...
+
+class WebNode:
+    """One DOM element found by WebSelector: tag_name, bounds, text, value, attributes."""
+
+    def __init__(self, window, row):
+        ...
+
+    def __repr__(self):
+        ...
+
+    def child(self, *val):
+        ...
+
+    def brother(self, *val):
+        ...
+
+    def parent(self, *val):
+        ...
+
+    def click(self):
+        ...
+
+    def long_click(self):
+        ...
+
+    def input(self, val):
+        ...
