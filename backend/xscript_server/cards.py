@@ -319,3 +319,15 @@ def stats(s: Session, owner_id: int | None = None) -> dict[str, int]:
     out = {st: int(n) for st, n in zip(STATUSES, row[1:])}
     out["total"] = int(row[0])
     return out
+
+
+def batches(s: Session, owner_id: int | None = None, limit: int = 500) -> list[dict[str, Any]]:
+    """Batches, newest first. app / days / note are the same for every card of a batch; they are read
+    through max() because PostgreSQL requires every selected column to be grouped or aggregated."""
+    stmt = select(Card.batch, func.max(Card.app), func.max(Card.days), func.max(Card.note), func.count(),
+                  func.min(Card.created_at), func.count(Card.device), func.max(Card.kind), func.max(Card.max_devices))
+    if owner_id is not None:
+        stmt = stmt.where(Card.owner_id == owner_id)
+    rows = s.execute(stmt.group_by(Card.batch).order_by(func.min(Card.created_at).desc()).limit(limit)).all()
+    return [{"batch": r[0], "app": r[1], "days": r[2], "note": r[3], "count": r[4], "created_at": r[5],
+             "bound": r[6], "kind": r[7] or "normal", "max_devices": r[8] or 1} for r in rows]

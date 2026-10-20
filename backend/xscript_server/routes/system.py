@@ -91,7 +91,7 @@ def audit_log(p: Principal = Depends(admin), s: Session = Depends(db_session), a
     if action:
         stmt = stmt.where(AuditLog.action.like(like_escape(action.rstrip("*")) + "%", escape="\\"))
     if q:
-        stmt = stmt.where(AuditLog.target.like(like_contains(q), escape="\\"))
+        stmt = stmt.where(AuditLog.target.ilike(like_contains(q), escape="\\"))
     if since:
         stmt = stmt.where(AuditLog.time >= since)
     if until:
@@ -114,7 +114,8 @@ def read_settings(request: Request, p: Principal = Depends(viewer), s: Session =
     out["login_ip_allowlist_on"] = bool(out.get("login_ip_allowlist"))
     if not p.at_least("admin"):
         out["login_ip_allowlist"] = []  # network layout is for admins
-    out.update(version=__version__, license_public_key=c.pubkey, release_signing=c.config.release_signing,
+    out.update(database=c.db.dialect,  # sqlite | postgresql (never the URL: it holds a password)
+               version=__version__, license_public_key=c.pubkey, release_signing=c.config.release_signing,
                alert_events=ALERT_EVENTS, your_ip=client_ip(request))
     return out
 
@@ -227,7 +228,7 @@ def recent_alerts(request: Request, p: Principal = Depends(viewer)):
 @router.get("/maintenance")
 def maintenance_info(request: Request, p: Principal = Depends(admin)):
     c = ctx(request)
-    return {"usage": maintenance.disk_usage(c.config), "backups": maintenance.list_backups(c.config),
+    return {"usage": maintenance.disk_usage(c.config, c.db), "backups": maintenance.list_backups(c.config),
             "last_backup": c.maint.last_backup, "last_retention": c.maint.last_retention}
 
 

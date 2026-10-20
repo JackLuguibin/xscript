@@ -23,6 +23,8 @@ dependencies = [
 
 [project.optional-dependencies]
 test = ["httpx==0.28.1", "coverage>=7.6"]
+# PostgreSQL instead of the default SQLite file (XSCRIPT_DATABASE_URL); see backend/README.md.
+postgres = ["psycopg[binary]==3.3.6"]
 
 [project.scripts]
 xscript-server = "xscript_server.__main__:main"

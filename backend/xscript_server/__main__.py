@@ -32,7 +32,7 @@ from .security import check_password_policy, hash_password, new_secret, token_ha
 
 def _db(cfg: Config) -> Database:
     cfg.ensure_dirs()
-    db = Database(cfg.db_path)
+    db = Database(cfg.db_url)
     db.create_all()
     return db
 

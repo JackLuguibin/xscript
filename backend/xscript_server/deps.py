@@ -168,7 +168,9 @@ def apk_limit(request: Request) -> None:
 
 
 def like_escape(text: str) -> str:
-    """Escape LIKE wildcards so user input matches literally; use with ``.like(..., escape="\\")``."""
+    """Escape LIKE wildcards so user input matches literally; use with ``.like(..., escape="\\")``.
+
+    Substring searches use ``.ilike``: SQLite's LIKE ignores ASCII case, PostgreSQL's does not."""
     return text.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
 
 

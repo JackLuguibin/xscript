@@ -16,7 +16,7 @@ from sqlalchemy import delete, func, or_, select
 from sqlalchemy.orm import Session
 from starlette.concurrency import run_in_threadpool
 
-from ..db import values_in
+from ..db import in_values
 from ..deps import Principal, admin, ctx, db_session, like_contains, operator, paginate, record, viewer
 from ..hub import Conn
 from ..models import Device, DeviceKey, DeviceLog
@@ -68,14 +68,14 @@ def list_devices(request: Request, p: Principal = Depends(viewer), s: Session = 
     stmt = select(Device)
     if q:
         like = like_contains(q)
-        stmt = stmt.where(or_(Device.id.like(like, escape="\\"), Device.model.like(like, escape="\\"),
-                              Device.brand.like(like, escape="\\"), Device.note.like(like, escape="\\")))
+        stmt = stmt.where(or_(Device.id.ilike(like, escape="\\"), Device.model.ilike(like, escape="\\"),
+                              Device.brand.ilike(like, escape="\\"), Device.note.ilike(like, escape="\\")))
     if app:
         stmt = stmt.where(Device.app == app)
     if online is True:
-        stmt = stmt.where(Device.id.in_(values_in(live)))
+        stmt = stmt.where(in_values(Device.id, live, s.get_bind().dialect.name))
     elif online is False:
-        stmt = stmt.where(Device.id.not_in(values_in(live)))
+        stmt = stmt.where(~in_values(Device.id, live, s.get_bind().dialect.name))
     if group:
         stmt = stmt.where(or_(Device.group_override == group,
                               (Device.group_override == "") & (Device.reported_group == group)))
@@ -128,7 +128,7 @@ def _log_query(dev_id: str, since_ts: int, until_ts: int, q: str, stream: str):
     if stream:
         stmt = stmt.where(DeviceLog.stream == stream)
     if q:
-        stmt = stmt.where(DeviceLog.line.like(like_contains(q), escape="\\"))
+        stmt = stmt.where(DeviceLog.line.ilike(like_contains(q), escape="\\"))
     return stmt
 
 

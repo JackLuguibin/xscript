@@ -26,7 +26,7 @@ WORKDIR /app
 # Dependencies first so code edits don't reinstall them.
 COPY backend/pyproject.toml backend/pyproject.toml
 RUN mkdir -p backend/xscript_server && touch backend/xscript_server/__init__.py \
-    && pip install -e backend && rm -rf backend/xscript_server
+    && pip install -e "backend[postgres]" && rm -rf backend/xscript_server
 COPY backend/xscript_server backend/xscript_server
 COPY backend/xscript_pack.py backend/xscript_pack.py
 COPY --from=web /web/dist backend/web/dist
