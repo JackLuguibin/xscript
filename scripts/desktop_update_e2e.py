@@ -44,8 +44,7 @@ def version_of(app_dir: Path) -> str:
     return re.search(r'^version = "(.*)"', (app_dir / "pyproject.toml").read_text(), re.M).group(1)
 
 
-def build(app_dir: Path) -> Path:
-    log = app_dir / "build-e2e.log"
+def build(app_dir: Path, log: Path) -> Path:
     with open(log, "w") as f:
         r = subprocess.run(["bash", str(app_dir / "packaging" / "build_macos_app.sh")], stdout=f, stderr=subprocess.STDOUT)
         if r.returncode == 0:
@@ -104,8 +103,8 @@ def main() -> int:
     srv = None
     bundle = tmp / "Applications" / "XScript.app"
     try:
-        old_dmg = a.reuse_old or build(APP)
-        new_dmg = build(copy_tree(tmp / "src", new_v))
+        old_dmg = a.reuse_old or build(APP, tmp / "build-old.log")
+        new_dmg = build(copy_tree(tmp / "src", new_v), tmp / "build-new.log")
         for dmg, v in ((old_dmg, old_v), (new_dmg, new_v)):
             sh(["bash", APP / "packaging" / "check_macos_dmg.sh", dmg, v], stdout=subprocess.DEVNULL)
         checks.append("both dmgs open (direct + LaunchServices selftest): %s, %s" % (old_v, new_v))
