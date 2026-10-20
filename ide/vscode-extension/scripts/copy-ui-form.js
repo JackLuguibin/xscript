@@ -1,14 +1,23 @@
-// Copies the UI designer core shared with the Web IDE (android/app/src/main/assets/tools/ui-form.js) to
-// out/ui-form-core.js, where src/uiForm.ts requires it. One source, so the two designers generate the same files.
+// Copies the UI designer files shared with the Web IDE (android/app/src/main/assets/tools/) into the build:
+// ui-form.js (generator) -> out/ui-form-core.js, where src/uiForm.ts requires it, and ui-form.js + ui-designer.js
+// (designer view) -> media/, which the webview loads. One source, so both designers behave and generate the same.
 const fs = require("fs");
 const path = require("path");
 
-const src = path.resolve(__dirname, "..", "..", "..", "android", "app", "src", "main", "assets", "tools", "ui-form.js");
-const dest = path.resolve(__dirname, "..", "out", "ui-form-core.js");
-if (!fs.existsSync(src)) {
-  console.error("missing UI designer core: " + src);
-  process.exit(1);
+const tools = path.resolve(__dirname, "..", "..", "..", "android", "app", "src", "main", "assets", "tools");
+const ext = path.resolve(__dirname, "..");
+const copies = [
+  ["ui-form.js", path.join(ext, "out", "ui-form-core.js")],
+  ["ui-form.js", path.join(ext, "media", "ui-form.js")],
+  ["ui-designer.js", path.join(ext, "media", "ui-designer.js")],
+];
+for (const [name, dest] of copies) {
+  const src = path.join(tools, name);
+  if (!fs.existsSync(src)) {
+    console.error("missing shared UI designer file: " + src);
+    process.exit(1);
+  }
+  fs.mkdirSync(path.dirname(dest), { recursive: true });
+  fs.copyFileSync(src, dest);
 }
-fs.mkdirSync(path.dirname(dest), { recursive: true });
-fs.copyFileSync(src, dest);
-console.log("ui-form core copied to " + path.relative(process.cwd(), dest));
+console.log("UI designer files copied (out/ui-form-core.js, media/ui-form.js, media/ui-designer.js)");

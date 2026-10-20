@@ -122,4 +122,8 @@ test("the core is the Web IDE's ui-form.js, copied unchanged into the build", ()
   const shared = path.resolve(__dirname, "..", "..", "..", "..", "android", "app", "src", "main", "assets", "tools", "ui-form.js");
   const built = path.resolve(__dirname, "..", "ui-form-core.js");
   assert.equal(fs.readFileSync(built, "utf8"), fs.readFileSync(shared, "utf8"), "out/ui-form-core.js is stale: run npm run compile");
+  for (const name of ["ui-form.js", "ui-designer.js"]) {
+    const media = path.resolve(__dirname, "..", "..", "media", name);
+    assert.equal(fs.readFileSync(media, "utf8"), fs.readFileSync(path.join(path.dirname(shared), name), "utf8"), "media/" + name + " is stale");
+  }
 });
