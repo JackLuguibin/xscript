@@ -32,13 +32,15 @@ jobs:
       android: ${{ steps.areas.outputs.android }}
       desktop: ${{ steps.areas.outputs.desktop }}
       postgres: ${{ steps.areas.outputs.postgres }}
+      runtime: ${{ steps.areas.outputs.runtime }}
+      python: ${{ steps.areas.outputs.python }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
           fetch-depth: 2  # a pull_request checkout is the test merge commit: parent 1 is the base branch
-      - name: Self-test of the rules (and the device scripts' pairing helper)
-        run: python3 -m unittest scripts/tests/test_ci_changes.py scripts/tests/test_devauth.py
+      - name: Self-test of the rules, the device scripts' pairing helper and the phone pins
+        run: python3 -m unittest scripts/tests/test_ci_changes.py scripts/tests/test_devauth.py scripts/tests/test_phone_pins.py
       - id: areas
         name: Decide
         env:
@@ -53,6 +55,8 @@ jobs:
 
   python:
     name: backend + MCP (Python ${{ matrix.python }})
+    needs: changes
+    if: needs.changes.outputs.python == 'true'
     runs-on: ubuntu-24.04
     timeout-minutes: 20
     strategy:
@@ -72,8 +76,14 @@ jobs:
             ide/mcp-server/pyproject.toml
       - name: Install backend and MCP server
         run: python -m pip install -e "backend[test]" -e "ide/mcp-server[test]"
-      - name: Backend tests
-        run: PYTHONPATH=backend python -m unittest discover -s backend/tests
+      - name: Backend tests (3.12 with a coverage floor, see [tool.coverage] in backend/pyproject.toml)
+        run: |
+          if [ "${{ matrix.python }}" = "3.12" ]; then
+            PYTHONPATH=backend python -m coverage run --rcfile=backend/pyproject.toml -m unittest discover -s backend/tests
+            python -m coverage report --rcfile=backend/pyproject.toml
+          else
+            PYTHONPATH=backend python -m unittest discover -s backend/tests
+          fi
       - name: MCP tests
         run: PYTHONPATH=ide/mcp-server python -m unittest discover -s ide/mcp-server/tests
       - name: Generated files are up to date (stubs, Web IDE completion index, node specs)
@@ -119,8 +129,13 @@ jobs:
           XSCRIPT_TEST_DATABASE_URL: postgresql://xs:xs-ci-only@127.0.0.1:5432/postgres
         run: PYTHONPATH=backend python -m unittest discover -s backend/tests
 
+  # The phone's library versions (android/app/build.gradle.kts) wherever PyPI has a CPython 3.10 Linux wheel, so the
+  # runtime tests exercise what ships; scripts/tests/test_phone_pins.py fails if the two lists drift.
+  # opencv: the phone has 4.5.1.48 (wheels only up to cp39), CI uses 4.5.4.60, the nearest 4.5 release with one.
   runtime:
-    name: on-device Python runtime tests (3.10)
+    name: on-device Python runtime tests (3.10, phone library versions)
+    needs: changes
+    if: needs.changes.outputs.runtime == 'true'
     runs-on: ubuntu-24.04
     timeout-minutes: 20
     steps:
@@ -132,10 +147,18 @@ jobs:
           python-version: "3.10"
           cache: pip
           cache-dependency-path: .github/workflows/ci.yml  # the pinned versions live in the install step below
-      - name: Install the libraries the tests exercise (same versions as the local .venv-rt)
-        run: python -m pip install numpy==1.26.4 opencv-python-headless==4.10.0.84 pillow==10.4.0 packaging==24.2 onnxruntime==1.22.1
-      - name: Runtime tests
-        run: PYTHONPATH=android/python-runtime:android/python-runtime/tests python -m unittest discover -s android/python-runtime/tests
+      - name: Install the phone's library versions
+        # phone-pins
+        run: python -m pip install numpy==1.23.3 opencv-python-headless==4.5.4.60 pillow==11.0.0 pyyaml==6.0.3 requests==2.33.1 packaging==24.2 onnxruntime==1.22.1 coverage==7.10.7
+      - name: Runtime tests with a coverage floor (see android/python-runtime/.coveragerc)
+        # test_find_colors_fast is ~37 s of pure-Python pixel loops that the tracer slows ~4x; it runs untraced (the
+        # coverage it would add is already there), keeping this job as fast as it was without coverage.
+        run: |
+          export PYTHONPATH=android/python-runtime:android/python-runtime/tests
+          traced=$(cd android/python-runtime/tests && ls test_*.py | sed 's/\.py$//' | grep -vx test_find_colors_fast)
+          python -m coverage run --rcfile=android/python-runtime/.coveragerc -m unittest $traced
+          python -m unittest test_find_colors_fast
+          python -m coverage report --rcfile=android/python-runtime/.coveragerc
 
   web-ide:
     name: Web IDE (node + headless Chrome)
