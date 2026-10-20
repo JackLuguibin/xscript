@@ -257,6 +257,12 @@
       if (top + t.offsetHeight > hostBox.height - 4 && c.top - t.offsetHeight - 2 >= 0) top = c.top - t.offsetHeight - 2;
       t.style.left = Math.max(0, left) + "px"; t.style.top = Math.max(0, top) + "px";
     }
+    /** F12 on a library symbol: its stub signature and docs (XSDocs) in the hover tip, right away. */
+    showDoc(key, from) {
+      const d = this.complete.docs[key]; if (!d || !this.hoverTip) return false;
+      this.hideHover(); this.showHover({from, to: from, key, label: key.split(".").pop(), sig: d[0], doc: d[1]}); this.hoverKey = key + "@" + from;
+      return true;
+    }
     hideHover() {
       clearTimeout(this.hoverTimer); this.hoverKey = "";
       if (this.hoverTip && !this.hoverTip.hidden) { this.hoverTip.hidden = true; this.hoverTip.replaceChildren(); }

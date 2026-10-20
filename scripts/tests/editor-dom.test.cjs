@@ -461,6 +461,55 @@ test('Web IDE explorer, editor and create/delete flows in a real browser', {skip
       await b.waitFor(() => document.getElementById('message').textContent.includes('已保存 search/b.py'));
     });
 
+    await t.test('go to definition (F12, Ctrl+click), library docs, find references (Shift+F12)', async () => {
+      await api('PUT', '/projects/dom/files', {files: [
+        {path: 'nav_lib.py', content: 'def helper(x):\n    return x * 2\n\nclass Tool:\n    def run(self):\n        return helper(1)\n'},
+        {path: 'nav_main.py', content: 'from nav_lib import helper, Tool\nfrom xscript.android import action\n\nt = Tool()\nprint(helper(2), t.run())\naction.click(1, 2)\n'}]});
+      await b.eval(click, '#refresh'); await b.waitFor(idle);
+      await b.eval(click, row('nav_main.py'));
+      await b.waitFor(() => document.getElementById('editor').value.startsWith('from nav_lib'));
+      const caret = (needle, nth = 0) => b.eval((w, k) => { const e = document.getElementById('editor'); let i = -1; for (let j = 0; j <= k; j++) i = e.value.indexOf(w, i + 1); e.focus(); e.setSelectionRange(i + 1, i + 1); return i; }, needle, nth);
+      const where = () => b.eval(() => { const e = document.getElementById('editor'); return [e.value.slice(0, 12), e.value.slice(e.selectionStart, e.selectionEnd), e.value.slice(0, e.selectionStart).split('\n').length]; });
+      const msg = () => b.eval(() => document.getElementById('message').textContent);
+      // F12 on a call of an imported function opens the other file at the def
+      await caret('helper(2)'); await b.key('F12', 'F12', 123);
+      await b.waitFor(() => document.getElementById('editor').value.startsWith('def helper'));
+      assert.deepEqual(await where(), ['def helper(x', 'helper', 1]); assert.match(await msg(), /定义 · nav_lib\.py:1/);
+      // Ctrl/Cmd+click on a method through an instance
+      await b.eval(click, row('nav_main.py')); await b.waitFor(() => document.getElementById('editor').value.startsWith('from nav_lib'));
+      await caret('run()');
+      await b.eval(() => document.getElementById('editor').dispatchEvent(new MouseEvent('click', {bubbles: true, ctrlKey: true})));
+      await b.waitFor(() => document.getElementById('editor').value.startsWith('def helper') && document.getElementById('editor').selectionStart > 0);
+      assert.deepEqual(await where(), ['def helper(x', 'run', 5]);
+      // library symbol: stub signature and docs in the tip, the file stays put
+      await b.eval(click, row('nav_main.py')); await b.waitFor(() => document.getElementById('editor').value.startsWith('from nav_lib'));
+      await caret('click('); await b.key('F12', 'F12', 123);
+      await b.waitFor(() => !document.getElementById('hover-doc').hidden);
+      assert.equal(await b.eval(() => document.querySelector('#hover-doc .tip-sig').textContent), 'def click(x, y=None, dur=20)');
+      assert.match(await msg(), /库符号 · xscript\.android\.action\.click/);
+      await b.key('Escape', 'Escape', 27);
+      // builtins have no project definition
+      await caret('print('); await b.key('F12', 'F12', 123);
+      await b.waitFor(() => /没有找到定义/.test(document.getElementById('message').textContent));
+      // Shift+F12: references across files in the sidebar list; a row jumps there; Esc returns to the files
+      await caret('helper(2)');
+      await b.eval(() => document.getElementById('editor').dispatchEvent(new KeyboardEvent('keydown', {key: 'F12', shiftKey: true, bubbles: true})));
+      await b.waitFor(() => !document.getElementById('refs-panel').hidden);
+      const panel = await b.eval(() => ({title: document.getElementById('refs-title').textContent, summary: document.getElementById('refs-summary').textContent,
+        files: getComputedStyle(document.getElementById('files')).display, sidebar: document.querySelector('.ide').classList.contains('refs'),
+        rows: [...document.querySelectorAll('#refs-results .sr-match')].map(r => r.title + ' ' + r.querySelector('mark').textContent)}));
+      assert.deepEqual(panel, {title: '引用：helper', summary: '4 处，2 个文件', files: 'none', sidebar: true,
+        rows: ['nav_lib.py:1（定义） helper', 'nav_lib.py:6 helper', 'nav_main.py:1 helper', 'nav_main.py:5 helper']});
+      await b.eval(() => document.querySelectorAll('#refs-results .sr-match')[1].click());
+      await b.waitFor(() => document.getElementById('editor').value.startsWith('def helper') && document.getElementById('editor').selectionEnd > document.getElementById('editor').selectionStart);
+      assert.deepEqual(await where(), ['def helper(x', 'helper', 6]);
+      await b.eval(() => document.querySelector('#refs-results .sr-match').focus());
+      await b.key('Escape', 'Escape', 27);
+      assert.deepEqual(await b.eval(() => [document.getElementById('refs-panel').hidden, getComputedStyle(document.getElementById('files')).display !== 'none']), [true, true]);
+      for (const p of ['nav_lib.py', 'nav_main.py']) await fetch(base + '/projects/dom/file?path=' + p, {method: 'DELETE'});
+      await b.eval(click, '#refresh'); await b.waitFor(idle);
+    });
+
     await t.test('replace undo: restores written files, skips files edited since', async () => {
       const undo = () => b.eval(() => { const n = document.getElementById('replace-undo'); return {disabled: n.disabled, title: n.title}; });
       assert.equal((await undo()).disabled, false, 'enabled after the replace above');

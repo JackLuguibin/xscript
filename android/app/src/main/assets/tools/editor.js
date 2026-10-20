@@ -542,12 +542,54 @@
   for (const name of ["click", "keyup"]) el("editor").addEventListener(name, cursor);
   el("editor").addEventListener("scroll", () => { syncScroll(); assist.onScroll(); });
   el("editor").addEventListener("keydown", e => {
+    if (e.key === "F12" && !e.ctrlKey && !e.metaKey && !e.altKey) { e.preventDefault(); (e.shiftKey ? findReferences : goToDefinition)(e.target.selectionStart); return; }
     if (assist.onKey(e)) return;
     if (e.key === "Tab" && !e.shiftKey) {
       e.preventDefault(); const box = e.target;
       box.setRangeText("    ", box.selectionStart, box.selectionEnd, "end"); box.dispatchEvent(new Event("input"));
     }
   });
+  // Go to definition (F12, Ctrl/Cmd+click) and find references (Shift+F12) over the project's symbol table (editor-symbols.js).
+  el("editor").addEventListener("click", e => { if ((e.ctrlKey || e.metaKey) && !e.shiftKey && !e.altKey) goToDefinition(e.target.selectionStart); });
+  let symbolToken = 0;
+  async function symbolsAt(pos) {
+    if (!current || current.binary || !/\.py$/.test(current.path) || !model.project) { message("跳转到定义只支持 Python 文件", true); return null; }
+    const token = ++symbolToken, path = current.path, text = el("editor").value, before = text.slice(0, pos);
+    const line = before.split("\n").length, col = pos - before.lastIndexOf("\n") - 1;
+    let files;
+    try { files = await model.pythonSources(); } catch (e) { message(e.message, true); return null; }
+    if (token !== symbolToken || !current || current.path !== path) return null;
+    const own = files.find(f => f.path === path); if (own) own.content = text; else files.push({path, content: text});
+    return {index: EditorSymbols.build(files, window.XSDocs || null), path, line, col, pos};
+  }
+  async function revealAt(path, line, col, length) {
+    if (!current || current.path !== path) await load(path);
+    if (!current || current.path !== path) return;
+    const box = el("editor"), lines = box.value.split("\n");
+    let at = 0; for (let i = 0; i < line - 1 && i < lines.length; i++) at += lines[i].length + 1;
+    at += Math.min(col, (lines[line - 1] || "").length);
+    box.focus(); box.setSelectionRange(at, at + length); box.scrollTop = Math.max(0, (line - 6) * 21); syncScroll(); cursor();
+  }
+  async function goToDefinition(pos) {
+    const s = await symbolsAt(pos); if (!s) return;
+    const r = s.index.definitionAt(s.path, s.line, s.col);
+    if (!r) { message("没有找到定义（内置函数、未知类型的参数或拼写有误）", true); return; }
+    if (r.library) {
+      const text = el("editor").value; let from = s.pos; while (from > 0 && /[\p{L}\p{N}_]/u.test(text[from - 1])) from--;
+      if (!assist.showDoc(r.library, from)) { message("库符号 " + r.library + " 没有文档", true); return; }
+      message("库符号 · " + r.library); return;
+    }
+    await revealAt(r.path, r.line, r.col, r.kind === "module" ? 0 : r.name.length);
+    message("定义 · " + r.path + ":" + r.line);
+  }
+  async function findReferences(pos) {
+    const s = await symbolsAt(pos); if (!s) return;
+    const r = s.index.referencesAt(s.path, s.line, s.col);
+    if (!r || !r.refs.length) { message("光标处没有可查找引用的名字", true); return; }
+    refs.show(r.name, r.refs);
+    message(r.name + " · " + r.refs.length + " 处引用");
+  }
+  const refs = EditorPanels.initRefs({open: (path, line, col, length) => revealAt(path, line, col, length)});
   // Search / replace and screenshot panels (editor-panels.js).
   const selectionText = () => { const box = el("editor"), t = box.value.slice(box.selectionStart, box.selectionEnd); return t && !/\n/.test(t) && t.length <= 200 ? t : ""; };
   function syncCurrent() {                      // a replace changed documents behind the editor's back

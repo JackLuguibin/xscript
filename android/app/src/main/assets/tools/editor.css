@@ -117,7 +117,9 @@
 
 /* Project search / replace (sidebar mode) */
 .ide.searching { grid-template-columns:min(360px, 46vw) minmax(0,1fr); }
-.ide.searching #files, .ide.searching #files-heading { display:none; }
+.ide.searching #files, .ide.searching #files-heading, .ide.refs #files, .ide.refs #files-heading { display:none; }
+.refs-panel .sr-file { padding:0 10px; height:24px; }
+.ref-def { margin-left:auto; flex:0 0 auto; padding:0 5px; border-radius:9px; background:var(--accent-soft); font-family:var(--sans, inherit); font-size:10px; }
 .search-panel { display:flex; flex-direction:column; gap:6px; min-height:0; flex:1; }
 .search-panel[hidden] { display:none; }
 .search-panel input[type="text"] { width:100%; box-sizing:border-box; }

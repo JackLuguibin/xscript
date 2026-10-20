@@ -70,7 +70,7 @@ test('Web IDE native HTTP contract and packaged asset routes', {timeout:15000}, 
     assert(!hello.content.includes('{{name}}'));
     await assert.rejects(api('POST','/projects/tpl_bad',{template:'nope'}),/模板/);
     assert.equal((await model.listProjects()).includes('tpl_bad'),false);
-    for(const url of ['/tools/ui/editor.html','/tools/ui/editor.js','/tools/ui/editor-model.js','/tools/ui/editor-syntax.js','/tools/ui/editor-api.js','/tools/ui/editor-docs.js','/tools/ui/editor-complete.js','/tools/ui/editor-parse.js','/tools/ui/editor-check.js','/tools/ui/editor-assist.js','/tools/ui/editor-search.js','/tools/ui/editor-panels.js','/tools/ui/editor.css','/website/src/editor.html']){
+    for(const url of ['/tools/ui/editor.html','/tools/ui/editor.js','/tools/ui/editor-model.js','/tools/ui/editor-syntax.js','/tools/ui/editor-api.js','/tools/ui/editor-docs.js','/tools/ui/editor-complete.js','/tools/ui/editor-parse.js','/tools/ui/editor-check.js','/tools/ui/editor-symbols.js','/tools/ui/editor-assist.js','/tools/ui/editor-search.js','/tools/ui/editor-panels.js','/tools/ui/editor.css','/website/src/editor.html']){
       const r=await fetch(base+url);assert.equal(r.status,200,url);assert((await r.text()).length>0);
     }
   } finally {

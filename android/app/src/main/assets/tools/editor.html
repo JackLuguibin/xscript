@@ -23,6 +23,11 @@
    <div id="search-summary" class="search-summary" role="status" aria-live="polite"></div>
    <div id="search-results" class="search-results" aria-label="搜索结果"></div>
   </section>
+  <section id="refs-panel" class="search-panel refs-panel" aria-label="查找引用" hidden>
+   <div class="ide-heading"><strong id="refs-title">引用</strong><button id="refs-close" type="button" title="返回文件（Esc）">返回文件</button></div>
+   <div id="refs-summary" class="search-summary" role="status" aria-live="polite"></div>
+   <div id="refs-results" class="search-results" aria-label="引用列表"></div>
+  </section>
   <div id="tree-menu" class="tree-menu" role="menu" hidden><button type="button" role="menuitem" data-act="rename">重命名… <kbd>F2</kbd></button><button type="button" role="menuitem" data-act="delete">删除</button></div>
   <div id="tab-menu" class="tree-menu" role="menu" hidden><button type="button" role="menuitem" data-act="one">关闭</button><button type="button" role="menuitem" data-act="others">关闭其他</button><button type="button" role="menuitem" data-act="right">关闭右侧</button><button type="button" role="menuitem" data-act="saved">关闭已保存</button><button type="button" role="menuitem" data-act="all">全部关闭</button></div>
   <div class="ide-sidebar-foot"><a href="/tools/ui/color.html">图色工具</a><a href="/tools/ui/mirror.html">查看手机</a></div>
@@ -54,5 +59,5 @@
   <section class="ide-console" aria-label="运行日志"><div class="ide-heading"><strong>运行日志</strong><span id="run-state">等待设备</span><span class="spacer"></span><label><input type="checkbox" id="follow" checked> 跟随</label><button type="button" id="clear-logs">清空视图</button></div><pre id="logs" tabindex="0" aria-label="日志输出"></pre></section>
  </section>
 </main>
-<script src="/tools/ui/common.js"></script><script src="/tools/ui/editor-model.js"></script><script src="/tools/ui/editor-syntax.js"></script><script src="/tools/ui/editor-debug.js"></script><script src="/tools/ui/editor-api.js"></script><script src="/tools/ui/editor-docs.js"></script><script src="/tools/ui/editor-complete.js"></script><script src="/tools/ui/editor-parse.js"></script><script src="/tools/ui/editor-check.js"></script><script src="/tools/ui/editor-assist.js"></script><script src="/tools/ui/editor-search.js"></script><script src="/tools/ui/editor-panels.js"></script><script src="/tools/ui/ui-form.js"></script><script src="/tools/ui/ui-designer.js"></script><script src="/tools/ui/editor.js"></script>
+<script src="/tools/ui/common.js"></script><script src="/tools/ui/editor-model.js"></script><script src="/tools/ui/editor-syntax.js"></script><script src="/tools/ui/editor-debug.js"></script><script src="/tools/ui/editor-api.js"></script><script src="/tools/ui/editor-docs.js"></script><script src="/tools/ui/editor-complete.js"></script><script src="/tools/ui/editor-parse.js"></script><script src="/tools/ui/editor-check.js"></script><script src="/tools/ui/editor-symbols.js"></script><script src="/tools/ui/editor-assist.js"></script><script src="/tools/ui/editor-search.js"></script><script src="/tools/ui/editor-panels.js"></script><script src="/tools/ui/ui-form.js"></script><script src="/tools/ui/ui-designer.js"></script><script src="/tools/ui/editor.js"></script>
 </body></html>
