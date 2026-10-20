@@ -178,13 +178,15 @@ def hex_to_rgb(value):
 
 
 def parse_color_points(colors):
-    """'x,y,#RRGGBB[-#DDDDDD]|x2,y2,#RRGGBB|...' -> [(x, y, (r,g,b), (dr,dg,db)|None)]."""
+    """'x,y,#RRGGBB[-#DDDDDD]|x2,y2,#RRGGBB|...' -> [(x, y, (r,g,b), (dr,dg,db)|None)]. A bare '#RRGGBB' is 0,0."""
     out = []
     for part in str(colors).split("|"):
         part = part.strip()
         if not part:
             continue
         fields = [f.strip() for f in part.split(",")]
+        if len(fields) == 1 and fields[0].startswith("#"):
+            fields = ["0", "0", fields[0]]  # a bare "#rrggbb" is a point at offset 0,0 (docs/API.md)
         if len(fields) < 3:
             raise ValueError("bad color point %r" % part)
         color = fields[2]
@@ -208,6 +210,91 @@ def diff_from_similarity(sim):
     return t, t, t
 
 
+COLOR_SPACES = ("rgb", "hsv", "lab")
+
+
+def color_tolerance(color_space="rgb", sim=0.9, tolerance=None):
+    """Tolerance for a colour space, from an explicit `tolerance` or derived from AScript's `sim` (0..1).
+
+    rgb: (dr, dg, db) per channel, 0..255 (an int applies to all three); sim 0.9 -> 25.
+    hsv: (dh, ds, dv): hue in degrees (0..180, wraps around), saturation / value 0..255; sim 0.9 -> (10, 60, 80).
+         Brightness changes move V and keep H, so HSV survives night mode and dimming.
+    lab: CIE76 delta E (perceptual distance; ~2.3 = just noticeable); sim 0.9 -> 12.
+    """
+    if color_space not in COLOR_SPACES:
+        raise ValueError("color_space must be one of %s, got %r" % (", ".join(COLOR_SPACES), color_space))
+    if tolerance is not None:
+        if color_space == "lab":
+            return float(tolerance)
+        if isinstance(tolerance, (int, float)):
+            return (tolerance,) * 3
+        t = tuple(tolerance)
+        if len(t) != 3:
+            raise ValueError("%s tolerance needs 3 values, got %r" % (color_space, tolerance))
+        return t
+    if color_space == "rgb":
+        return diff_from_similarity(sim)
+    t = 1.0 - min(1.0, max(0.0, float(sim)))
+    if color_space == "hsv":
+        return (max(2.0, round(t * 100, 1)), min(255, int(round(t * 600))), min(255, int(round(t * 800))))
+    return max(1.0, round(t * 120, 1))
+
+
+_HSV_GRAY_SAT = 30  # below this saturation the hue of a target is noise: match any hue
+
+
+def _target(rgb, color_space):
+    """The target colour converted like the image (OpenCV 8-bit HSV / Lab)."""
+    px = np.uint8([[[rgb[2], rgb[1], rgb[0]]]])
+    code = cv2.COLOR_BGR2HSV if color_space == "hsv" else cv2.COLOR_BGR2LAB
+    return [int(v) for v in cv2.cvtColor(px, code)[0, 0]]
+
+
+def _convert(region, color_space):
+    if color_space == "rgb":
+        return np.ascontiguousarray(region[:, :, :3])
+    if cv2 is None:
+        raise RuntimeError("OpenCV (cv2) is needed for color_space=%r" % color_space)
+    code = cv2.COLOR_BGR2HSV if color_space == "hsv" else cv2.COLOR_BGR2LAB
+    return cv2.cvtColor(np.ascontiguousarray(region[:, :, :3]), code)
+
+
+def _space_mask(conv, rgb, tol, color_space):
+    """uint8 mask (non-zero = match) of an image already converted with `_convert`."""
+    if color_space == "rgb":
+        return _channel_mask(conv, rgb, tol)
+    t = _target(rgb, color_space)
+    if color_space == "hsv":
+        dh = int(round(float(tol[0]) / 2.0))  # OpenCV hue is 0..179 (degrees / 2)
+        s_lo, s_hi = max(0, t[1] - int(tol[1])), min(255, t[1] + int(tol[1]))
+        v_lo, v_hi = max(0, t[2] - int(tol[2])), min(255, t[2] + int(tol[2]))
+        if t[1] < _HSV_GRAY_SAT or dh >= 90:
+            return cv2.inRange(conv, (0, s_lo, v_lo), (179, s_hi, v_hi))
+        lo, hi = t[0] - dh, t[0] + dh
+        mask = cv2.inRange(conv, (max(0, lo), s_lo, v_lo), (min(179, hi), s_hi, v_hi))
+        if lo < 0:
+            mask |= cv2.inRange(conv, (180 + lo, s_lo, v_lo), (179, s_hi, v_hi))
+        if hi > 179:
+            mask |= cv2.inRange(conv, (0, s_lo, v_lo), (hi - 180, s_hi, v_hi))
+        return mask
+    # lab: OpenCV 8-bit Lab stores L * 255 / 100 and a + 128, b + 128. A box test (cheap, inRange) first, the
+    # exact delta E only on the pixels inside the box.
+    de = float(tol)
+    dl8 = int(math.ceil(de * 2.55))
+    di = int(math.ceil(de))
+    mask = cv2.inRange(conv, (max(0, t[0] - dl8), max(0, t[1] - di), max(0, t[2] - di)),
+                       (min(255, t[0] + dl8), min(255, t[1] + di), min(255, t[2] + di)))
+    ys, xs = np.nonzero(mask)
+    if len(ys):
+        px = conv[ys, xs].astype(np.float32)
+        dl = (px[:, 0] - t[0]) * (100.0 / 255.0)
+        da = px[:, 1] - t[1]
+        db = px[:, 2] - t[2]
+        far = dl * dl + da * da + db * db > de * de
+        mask[ys[far], xs[far]] = 0
+    return mask
+
+
 def _channel_ok(bgr, rgb, tol):
     b = bgr[..., 0].astype(np.int16)
     g = bgr[..., 1].astype(np.int16)
@@ -228,17 +315,26 @@ def get_pixel(x, y, image=None):
     return int(px[2]), int(px[1]), int(px[0])
 
 
-def compare_colors(colors, sim=0.9, image=None, count_sim=1.0):
-    """True if the color points match at their absolute positions."""
+def compare_colors(colors, sim=0.9, image=None, count_sim=1.0, color_space="rgb", tolerance=None):
+    """True if the color points match at their absolute positions.
+
+    `color_space` / `tolerance`: see `color_tolerance` (a point's own "-rrggbb" diff applies to rgb only).
+    """
     img = to_bgr(image)
     if img is None:
         return False
     pts = parse_color_points(colors)
-    tol = diff_from_similarity(sim)
+    tol = color_tolerance(color_space, sim, tolerance)
     h, w = img.shape[:2]
     hits = 0
     for x, y, rgb, pdiff in pts:
-        if 0 <= x < w and 0 <= y < h and bool(_channel_ok(img[y, x], rgb, pdiff or tol)):
+        if not (0 <= x < w and 0 <= y < h):
+            continue
+        if color_space == "rgb":
+            ok = bool(_channel_ok(img[y, x], rgb, pdiff or tol))
+        else:
+            ok = bool(_space_mask(_convert(img[y:y + 1, x:x + 1], color_space), rgb, tol, color_space).any())
+        if ok:
             hits += 1
     need = max(1, int(round(len(pts) * float(count_sim))))
     return hits >= need
@@ -329,8 +425,13 @@ def _greedy_points(mask, ori, space, max_num):
     return pts
 
 
-def find_colors(colors, rect=None, sim=0.9, space=5, ori=2, max_num=0, image=None):
-    """Multi-point color search. Returns Points of the first color point (screen coords)."""
+def find_colors(colors, rect=None, sim=0.9, space=5, ori=2, max_num=0, image=None, color_space="rgb",
+                tolerance=None):
+    """Multi-point color search. Returns Points of the first color point (screen coords).
+
+    `space` is the minimum distance between results (AScript); the colour space is `color_space`
+    ("rgb" default, "hsv", "lab") with `tolerance` (see `color_tolerance`; default derived from `sim`).
+    """
     _need_numpy()
     rect = _norm_rect(rect)
     offx = offy = 0
@@ -345,9 +446,9 @@ def find_colors(colors, rect=None, sim=0.9, space=5, ori=2, max_num=0, image=Non
         return []
     H, W = img.shape[:2]
     pts = parse_color_points(colors)
-    tol = diff_from_similarity(sim)
+    tol = color_tolerance(color_space, sim, tolerance)
     x0, y0 = pts[0][0], pts[0][1]
-    rel = [(x - x0, y - y0, rgb, d or tol) for x, y, rgb, d in pts]
+    rel = [(x - x0, y - y0, rgb, (d or tol) if color_space == "rgb" else tol) for x, y, rgb, d in pts]
     l, t, r, b = rect or (0, 0, W, H)
     r, b = min(r, W), min(b, H)
     if r <= l or b <= t:
@@ -363,9 +464,15 @@ def find_colors(colors, rect=None, sim=0.9, space=5, ori=2, max_num=0, image=Non
     oy1 = min(b, H - max_dy)
     if ox1 <= ox0 or oy1 <= oy0:
         return []
+    if color_space == "rgb":
+        conv, cx0, cy0 = img, 0, 0
+    else:  # convert the window every offset reads from once
+        cx0, cy0 = ox0 + min_dx, oy0 + min_dy
+        conv = _convert(img[cy0:oy1 + max_dy, cx0:ox1 + max_dx], color_space)
     mask = None
     for dx, dy, rgb, d in rel:
-        ok = _channel_mask(img[oy0 + dy:oy1 + dy, ox0 + dx:ox1 + dx], rgb, d)
+        ys, xs = oy0 + dy - cy0, ox0 + dx - cx0
+        ok = _space_mask(conv[ys:ys + (oy1 - oy0), xs:xs + (ox1 - ox0)], rgb, d, color_space)
         mask = ok if mask is None else (cv2.bitwise_and(mask, ok) if cv2 is not None else mask & ok)
         if not mask.any():
             return []
@@ -373,17 +480,127 @@ def find_colors(colors, rect=None, sim=0.9, space=5, ori=2, max_num=0, image=Non
     return [Point(x + ox0 + offx, y + oy0 + offy) for x, y in found]
 
 
-def count_color(color, rect=None, sim=0.9, image=None):
+def _region(rect, image):
+    """(bgr, ox, oy): the search region and its offset in screen coordinates."""
     rect = _norm_rect(rect)
     img = to_bgr(image) if image is not None else capture_bgr(rect)
     if img is None:
-        return 0
-    if image is not None and rect:
+        return None, 0, 0
+    if rect and image is not None:
         l, t, r, b = rect
-        img = img[t:b, l:r]
-    rgb = hex_to_rgb(color.split("-")[0])
-    tol = diff_from_similarity(sim)
-    return int(_channel_ok(img, rgb, tol).sum())
+        return img[t:b, l:r], l, t
+    return img, (rect[0] if rect else 0), (rect[1] if rect else 0)
+
+
+def _colors_mask(color, img, sim, color_space, tolerance):
+    """Mask of pixels matching any of '#rrggbb|#rrggbb-101010|...' (a colour's own diff applies to rgb only)."""
+    conv = _convert(img, color_space)
+    mask = None
+    for part in str(color).split("|"):
+        part = part.strip()
+        if not part:
+            continue
+        hexc, diff = (part.split("-", 1) + [None])[:2]
+        rgb = hex_to_rgb(hexc)
+        tol = color_tolerance(color_space, sim, tolerance)
+        if color_space == "rgb" and diff and tolerance is None:
+            tol = hex_to_rgb(diff)
+        m = _space_mask(conv, rgb, tol, color_space)
+        mask = m if mask is None else (mask | m)
+    if mask is None:
+        raise ValueError("empty color string")
+    return mask
+
+
+def count_color(color, rect=None, sim=0.9, image=None, color_space="rgb", tolerance=None):
+    """Number of pixels in `rect` matching `color` ('#rrggbb', or several joined by '|')."""
+    _need_numpy()
+    img, _, _ = _region(rect, image)
+    if img is None:
+        return 0
+    if color_space == "rgb" and cv2 is None:
+        rgb = hex_to_rgb(str(color).split("|")[0].split("-")[0])
+        return int(_channel_ok(img, rgb, color_tolerance("rgb", sim, tolerance)).sum())
+    return int(np.count_nonzero(_colors_mask(color, img, sim, color_space, tolerance)))
+
+
+def find_color_blobs(color, rect=None, sim=0.9, color_space="hsv", tolerance=None, min_area=50, max_num=0,
+                     image=None):
+    """Connected regions of `color` → [{rect, center_x, center_y, area, fill, ...}], largest first.
+
+    `fill` is area / bounding-box area (1.0 = solid rectangle). Default color space is HSV so a button
+    is found whole even with a gradient or a dimmed screen.
+    """
+    _need_numpy()
+    if cv2 is None:
+        raise RuntimeError("OpenCV (cv2) is not available in this runtime")
+    img, ox, oy = _region(rect, image)
+    if img is None:
+        return []
+    mask = _colors_mask(color, img, sim, color_space, tolerance)
+    n, _, stats, cents = cv2.connectedComponentsWithStats(mask, connectivity=8)
+    out = []
+    for i in range(1, n):
+        x, y, w, h, area = [int(v) for v in stats[i]]
+        if area < max(1, int(min_area)):
+            continue
+        cx, cy = float(cents[i][0]) + ox, float(cents[i][1]) + oy
+        out.append({
+            "rect": [x + ox, y + oy, x + ox + w, y + oy + h],
+            "center_x": int(round(cx)),
+            "center_y": int(round(cy)),
+            "result": (cx, cy),
+            "area": area,
+            "fill": round(area / float(w * h), 4),
+        })
+    out.sort(key=lambda d: -d["area"])
+    return out[:max_num] if max_num else out
+
+
+_DOMINANT_MAX_PIXELS = 20000
+
+
+def dominant_colors(rect=None, k=3, image=None, color_space="lab"):
+    """Main colours of a region by k-means → [{color: '#rrggbb', rgb: (r, g, b), ratio}], most common first.
+
+    Clusters in Lab by default (perceptual distances); the region is subsampled to ~20k pixels and the
+    k-means seed is fixed, so the same image always gives the same answer.
+    """
+    _need_numpy()
+    if cv2 is None:
+        raise RuntimeError("OpenCV (cv2) is not available in this runtime")
+    k = int(k)
+    if k < 1:
+        raise ValueError("k must be >= 1")
+    img, _, _ = _region(rect, image)
+    if img is None or img.size == 0:
+        return []
+    img = np.ascontiguousarray(img[:, :, :3])
+    h, w = img.shape[:2]
+    step = max(1, int(math.ceil(math.sqrt(h * w / float(_DOMINANT_MAX_PIXELS)))))
+    sample = img[::step, ::step].reshape(-1, 3)
+    uniq, inverse = np.unique(sample, axis=0, return_inverse=True)
+    if len(uniq) <= k:
+        # No more distinct colours than clusters: count them exactly (k-means++ can seed two centres on
+        # the same colour when there are only a few distinct ones, and then merge two real colours).
+        labels = inverse.reshape(-1)
+        k = len(uniq)
+    else:
+        conv = sample if color_space == "rgb" else _convert(sample.reshape(-1, 1, 3), color_space).reshape(-1, 3)
+        cv2.setRNGSeed(12345)
+        crit = (cv2.TERM_CRITERIA_EPS + cv2.TERM_CRITERIA_MAX_ITER, 20, 0.5)
+        _, labels, _ = cv2.kmeans(conv.astype(np.float32), k, None, crit, 5, cv2.KMEANS_PP_CENTERS)
+        labels = labels.reshape(-1)
+    out = []
+    for i in range(k):
+        sel = labels == i
+        n = int(sel.sum())
+        if not n:
+            continue
+        b, g, r = [int(round(v)) for v in sample[sel].astype(np.float32).mean(axis=0)]
+        out.append({"color": "#%02x%02x%02x" % (r, g, b), "rgb": (r, g, b), "ratio": round(n / float(len(labels)), 4)})
+    out.sort(key=lambda d: -d["ratio"])
+    return out
 
 
 # ---------------------------------------------------------------- templates

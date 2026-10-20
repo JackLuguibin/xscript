@@ -6,8 +6,8 @@
     "en": "image.parse_color_points"
   },
   "doc": {
-    "zh": "'x,y,#RRGGBB[-#DDDDDD]|x2,y2,#RRGGBB|...' -> [(x, y, (r,g,b), (dr,dg,db)|None)].",
-    "en": "'x,y,#RRGGBB[-#DDDDDD]|x2,y2,#RRGGBB|...' -> [(x, y, (r,g,b), (dr,dg,db)|None)]."
+    "zh": "'x,y,#RRGGBB[-#DDDDDD]|x2,y2,#RRGGBB|...' -> [(x, y, (r,g,b), (dr,dg,db)|None)]. A bare '#RRGGBB' is 0,0.",
+    "en": "'x,y,#RRGGBB[-#DDDDDD]|x2,y2,#RRGGBB|...' -> [(x, y, (r,g,b), (dr,dg,db)|None)]. A bare '#RRGGBB' is 0,0."
   },
   "exec": {
     "in": [

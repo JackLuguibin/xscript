@@ -51,6 +51,16 @@
       "name": "image",
       "type": "any",
       "default": null
+    },
+    {
+      "name": "color_space",
+      "type": "any",
+      "default": "rgb"
+    },
+    {
+      "name": "tolerance",
+      "type": "any",
+      "default": null
     }
   ],
   "outputs": [
@@ -63,7 +73,7 @@
     "imports": [
       "from xscript.android import screen"
     ],
-    "stmt": "{id} = screen.find_all_colors({colors}, rect={rect}, sim={sim}, space={space}, ori={ori}, max_num={max_num}, image={image})"
+    "stmt": "{id} = screen.find_all_colors({colors}, rect={rect}, sim={sim}, space={space}, ori={ori}, max_num={max_num}, image={image}, color_space={color_space}, tolerance={tolerance})"
   },
   "dsl": {
     "alias": "screen.find_all_colors"

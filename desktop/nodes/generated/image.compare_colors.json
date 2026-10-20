@@ -36,6 +36,16 @@
       "name": "count_sim",
       "type": "any",
       "default": 1.0
+    },
+    {
+      "name": "color_space",
+      "type": "any",
+      "default": "rgb"
+    },
+    {
+      "name": "tolerance",
+      "type": "any",
+      "default": null
     }
   ],
   "outputs": [
@@ -48,7 +58,7 @@
     "imports": [
       "from xscript.android import image"
     ],
-    "stmt": "{id} = image.compare_colors({colors}, sim={sim}, image={image}, count_sim={count_sim})"
+    "stmt": "{id} = image.compare_colors({colors}, sim={sim}, image={image}, count_sim={count_sim}, color_space={color_space}, tolerance={tolerance})"
   },
   "dsl": {
     "alias": "image.compare_colors"
