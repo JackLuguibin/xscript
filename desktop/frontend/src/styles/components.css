@@ -600,3 +600,9 @@ pre.logs.debug-console { min-height: 4rem; max-height: 10rem; }
 .cloud-batch .row { align-items: center; gap: var(--sp-2); flex-wrap: wrap; }
 .cloud-batch .ui-input { max-width: 16rem; }
 .cloud-results { max-height: 12rem; }
+.cloud-log { margin: 0; padding: var(--sp-2) var(--sp-3); max-height: 28rem; overflow: auto; font-family: var(--font-mono); font-size: var(--fs-xs); line-height: var(--lh); background: var(--surface); border: 1px solid var(--border); border-radius: var(--r-sm); }
+.cloud-log .stderr { color: var(--danger-fg); }
+.cloud-log .system { color: var(--text-muted); }
+.cloud-log time { color: var(--text-muted); margin-inline-end: var(--sp-2); }
+.cloud-form { display: grid; grid-template-columns: repeat(auto-fill, minmax(12rem, 1fr)); gap: var(--sp-2) var(--sp-3); align-items: end; }
+.cloud-form .stack { display: flex; flex-direction: column; gap: var(--sp-1); }

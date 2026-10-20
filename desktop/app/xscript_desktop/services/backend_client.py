@@ -284,3 +284,87 @@ async def batch_command(c: BackendClient, ids: list[str], action: str, project: 
         raise BackendError("backend.bad_request", "未知操作：%s" % action)
     r = await c.post("/command", {"target": target, "command": cmd, "timeout": 20})
     return summarize(target.split(","), r)
+
+
+# ---- P4.4 logs and server tasks ----------------------------------------------------------------------------------
+from urllib.parse import quote as _quote  # noqa: E402
+
+STREAMS = ("", "stdout", "stderr", "system")
+TASK_PATHS = ("app_run", "app_stop")  # deploy tasks are P4.5 / admin-only and stay in the web console
+
+
+def _dev_path(dev_id: str) -> str:
+    dev_id = (dev_id or "").strip()
+    if not dev_id or len(dev_id) > 200:
+        raise BackendError("backend.bad_request", "选择一台设备")
+    return "/devices/" + _quote(dev_id, safe="")
+
+
+async def device_logs(c: BackendClient, dev_id: str, *, q: str = "", stream: str = "", before: int = 0, limit: int = 300) -> dict[str, Any]:
+    if stream not in STREAMS:
+        raise BackendError("backend.bad_request", "未知日志流：%s" % stream)
+    r = await c.get(_dev_path(dev_id) + "/logs", q=q.strip()[:200], stream=stream, before=before or None, limit=max(1, min(limit, 2000)))
+    items = [{"id": int(x.get("id") or 0), "ts": int(x.get("ts") or 0), "stream": str(x.get("stream") or ""), "line": str(x.get("line") or "")}
+             for x in (r or {}).get("items", []) if isinstance(x, dict)]
+    return {"items": items, "more": bool((r or {}).get("more"))}
+
+
+def task_view(x: dict[str, Any]) -> dict[str, Any]:
+    cmd = x.get("command") if isinstance(x.get("command"), dict) else {}
+    return {"id": int(x.get("id") or 0), "name": str(x.get("name") or ""), "target": str(x.get("target") or ""),
+            "path": str(cmd.get("path") or ""), "project": str(cmd.get("id") or "") if cmd.get("path") == "app_run" else "",
+            "daily": x.get("daily"), "every": x.get("every"), "enabled": bool(x.get("enabled")),
+            "lastRun": x.get("last_run"), "nextRun": x.get("next_run"), "lastResult": x.get("last_result"),
+            "createdBy": str(x.get("created_by") or "")}
+
+
+def _task_target(target: str) -> str:
+    target = (target or "").strip()
+    if target == "all" or (target.startswith("group:") and 6 < len(target) <= 70):
+        return target
+    ids = [i.strip() for i in target.split(",") if i.strip()]
+    if ids and all(":" not in i for i in ids):
+        return _targets(ids)
+    raise BackendError("backend.bad_request", "目标只能是 all、group:<分组> 或设备 ID 列表")
+
+
+async def list_tasks(c: BackendClient) -> list[dict[str, Any]]:
+    r = await c.get("/tasks")
+    return [task_view(x) for x in (r or {}).get("items", []) if isinstance(x, dict)]
+
+
+async def create_task(c: BackendClient, *, name: str, target: str, path: str, project: str = "", daily: str = "",
+                      every: float | None = None, enabled: bool = True) -> dict[str, Any]:
+    if path not in TASK_PATHS:
+        raise BackendError("backend.bad_request", "桌面端只能建运行 / 停止任务")
+    cmd: dict[str, Any] = {"path": path}
+    if path == "app_run":
+        if not _PROJECT_RE.match(project.strip()):
+            raise BackendError("backend.bad_request", "填写要运行的工程名")
+        cmd.update(id=project.strip(), param={})
+    if bool(daily) == (every is not None):
+        raise BackendError("backend.bad_request", "每天定时和间隔二选一")
+    body: dict[str, Any] = {"name": name.strip()[:64], "target": _task_target(target), "command": cmd, "enabled": enabled}
+    if daily:
+        body["daily"] = daily
+    else:
+        body["every"] = every
+    return task_view(await c.post("/tasks", body))
+
+
+async def update_task(c: BackendClient, task_id: int, *, enabled: bool | None = None, name: str | None = None) -> dict[str, Any]:
+    body = {k: v for k, v in (("enabled", enabled), ("name", None if name is None else name.strip()[:64])) if v is not None}
+    if not body:
+        raise BackendError("backend.bad_request", "没有要改的内容")
+    return task_view(await c.patch("/tasks/%d" % task_id, body))
+
+
+async def run_task(c: BackendClient, task_id: int) -> dict[str, Any]:
+    r = await c.post("/tasks/%d/run" % task_id)
+    r = r if isinstance(r, dict) else {}
+    return {"devices": int(r.get("devices") or 0), "ok": int(r.get("ok") or 0)}
+
+
+async def delete_task(c: BackendClient, task_id: int) -> dict[str, Any]:
+    await c.delete("/tasks/%d" % task_id)
+    return {"ok": True}

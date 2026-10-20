@@ -915,6 +915,46 @@ class AppContext:
                 await self.cloud.client(), ids, param(params, "action", str), param(params, "project", str, default=""),
                 param(params, "param", dict, default=None))
 
+        @d.method("cloud.logs")
+        @_map_errors
+        async def cloud_logs(params: dict[str, Any]) -> dict[str, Any]:
+            return await backend_client.device_logs(
+                await self.cloud.client(), param(params, "id", str), q=param(params, "q", str, default=""),
+                stream=param(params, "stream", str, default=""), before=param(params, "before", int, default=0),
+                limit=param(params, "limit", int, default=300))
+
+        @d.method("cloud.tasks")
+        @_map_errors
+        async def cloud_tasks(params: dict[str, Any]) -> dict[str, Any]:
+            return {"tasks": await backend_client.list_tasks(await self.cloud.client())}
+
+        @d.method("cloud.taskCreate")
+        @_map_errors
+        async def cloud_task_create(params: dict[str, Any]) -> dict[str, Any]:
+            every = param(params, "every", (int, float), default=None)
+            return await backend_client.create_task(
+                await self.cloud.client(), name=param(params, "name", str, default=""), target=param(params, "target", str),
+                path=param(params, "path", str), project=param(params, "project", str, default=""),
+                daily=param(params, "daily", str, default=""), every=None if every is None else float(every),
+                enabled=param(params, "enabled", bool, default=True))
+
+        @d.method("cloud.taskUpdate")
+        @_map_errors
+        async def cloud_task_update(params: dict[str, Any]) -> dict[str, Any]:
+            return await backend_client.update_task(await self.cloud.client(), param(params, "id", int),
+                                                    enabled=param(params, "enabled", bool, default=None),
+                                                    name=param(params, "name", str, default=None))
+
+        @d.method("cloud.taskRun")
+        @_map_errors
+        async def cloud_task_run(params: dict[str, Any]) -> dict[str, Any]:
+            return await backend_client.run_task(await self.cloud.client(), param(params, "id", int))
+
+        @d.method("cloud.taskDelete")
+        @_map_errors
+        async def cloud_task_delete(params: dict[str, Any]) -> dict[str, Any]:
+            return await backend_client.delete_task(await self.cloud.client(), param(params, "id", int))
+
         @d.method("cloud.disconnect")
         @_map_errors
         async def cloud_disconnect(params: dict[str, Any]) -> dict[str, Any]:

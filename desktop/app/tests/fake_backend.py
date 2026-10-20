@@ -40,6 +40,18 @@ class FakeBackend:
              "online": sum(d["group"] == g and d["online"] for d in self.devices)} for g in sorted({d["group"] for d in self.devices})]})
         self.route("GET", r"/apps", "viewer", lambda req, user, m: {"items": sorted({d["app"] for d in self.devices})})
         self.route("POST", r"/command", "operator", self._command)
+        self.logs = {"dev-a1": [{"id": i + 1, "seq": i, "ts": 1760990000000 + i, "stream": "stderr" if i % 4 == 3 else "stdout",
+                                 "line": "step %d %s" % (i, "error" if i % 4 == 3 else "ok")} for i in range(10)]}
+        self.tasks: dict[int, dict[str, Any]] = {1: {"id": 1, "name": "morning", "target": "group:farm-1",
+                                                     "command": {"path": "app_run", "id": "daily", "param": {}}, "daily": "08:30",
+                                                     "every": None, "enabled": True, "last_run": None, "next_run": 1761049800,
+                                                     "last_result": None, "created_by": "alice", "created_at": 1}}
+        self.route("GET", r"/devices/(?P<id>[^/]+)/logs", "viewer", self._logs)
+        self.route("GET", r"/tasks", "viewer", lambda req, user, m: {"items": list(self.tasks.values())})
+        self.route("POST", r"/tasks", "operator", self._task_create)
+        self.route("PATCH", r"/tasks/(?P<id>\d+)", "operator", self._task_patch)
+        self.route("DELETE", r"/tasks/(?P<id>\d+)", "operator", lambda req, user, m: (200, {"ok": True}) if self.tasks.pop(int(m["id"]), None) else (404, {"detail": "任务不存在"}))
+        self.route("POST", r"/tasks/(?P<id>\d+)/run", "operator", lambda req, user, m: {"results": {}, "devices": 2, "ok": 2} if int(m["id"]) in self.tasks else (404, {"detail": "任务不存在"}))
         self.route("GET", r"/auth/me", "viewer", lambda req, user, m: {"id": 1, "username": user[0], "role": user[1], "disabled": False})
 
     def _devices(self, req: httpx.Request, user: Any, m: Any) -> dict[str, Any]:
@@ -62,6 +74,31 @@ class FakeBackend:
                 res[i] = {"code": 1 if ok else -1, "msg": "ok" if ok else "工程不存在"}
         return {"results": res, "devices": len(res), "ok": sum(r["code"] == 1 for r in res.values())}
 
+    def _logs(self, req: httpx.Request, user: Any, m: Any) -> dict[str, Any]:
+        from urllib.parse import unquote
+        qp = req.url.params
+        rows = [x for x in self.logs.get(unquote(m["id"]), []) if (not qp.get("q") or qp["q"] in x["line"])
+                and (not qp.get("stream") or x["stream"] == qp["stream"]) and (not qp.get("before") or x["id"] < int(qp["before"]))]
+        limit = int(qp.get("limit", 500))
+        return {"items": rows[-limit:], "more": len(rows) > limit}
+
+    def _task_create(self, req: httpx.Request, user: Any, m: Any) -> Any:
+        b = json.loads(req.content)
+        if bool(b.get("daily")) == bool(b.get("every")):
+            return 422, {"detail": [{"msg": "Value error, daily 和 every 二选一"}]}
+        tid = max(self.tasks, default=0) + 1
+        self.tasks[tid] = {"id": tid, "name": b["name"], "target": b["target"], "command": b["command"], "daily": b.get("daily"),
+                           "every": b.get("every"), "enabled": b["enabled"], "last_run": None, "next_run": None,
+                           "last_result": None, "created_by": user[0], "created_at": 2}
+        return self.tasks[tid]
+
+    def _task_patch(self, req: httpx.Request, user: Any, m: Any) -> Any:
+        t = self.tasks.get(int(m["id"]))
+        if t is None:
+            return 404, {"detail": "任务不存在"}
+        t.update(json.loads(req.content))
+        return t
+
     def route(self, method: str, pattern: str, role: str, fn: Callable[..., Any]) -> None:
         """fn(request, (username, role), match) -> JSON body, or (status, body)."""
         self.routes.append((method, re.compile("^/api" + pattern + "$"), role, fn))
@@ -73,7 +110,7 @@ class FakeBackend:
         if self.down:
             raise httpx.ConnectError("connection refused", request=request)
         body = json.loads(request.content) if request.content else None
-        self.calls.append((request.method, request.url.path, body))
+        self.calls.append((request.method, request.url.raw_path.decode().split("?")[0], body))
         auth = request.headers.get("authorization", "")
         token = auth[7:] if auth.lower().startswith("bearer ") else ""
         user = self.tokens.get(token)

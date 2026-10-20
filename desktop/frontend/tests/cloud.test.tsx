@@ -141,3 +141,64 @@ describe("CloudPage batch commands (P4.3)", () => {
     expect((screen.getByLabelText(t.cloud.batch.project) as HTMLInputElement).disabled).toBe(true);
   });
 });
+
+async function openTab(token: string, user: string, role: "admin" | "operator" | "viewer", tab: string) {
+  const m = mount();
+  await connect("https://cloud.example.com", token);
+  await screen.findByText(t.cloud.signedIn(user, t.cloud.roles[role]));
+  fireEvent.click(screen.getByRole("tab", { name: tab }));
+  return m;
+}
+
+describe("CloudPage logs and tasks (P4.4)", () => {
+  it("searches a device's stored logs and pages back", async () => {
+    const { transport } = await openTab("xsk_view_demo", "victor", "viewer", t.cloud.tabs.logs);
+    fireEvent.change(screen.getByLabelText(t.cloud.logs.device), { target: { value: "farm-01" } });
+    fireEvent.change(screen.getByLabelText(t.cloud.logs.stream), { target: { value: "stderr" } });
+    fireEvent.click(screen.getByRole("button", { name: t.cloud.logs.find }));
+    const log = await screen.findByLabelText(t.cloud.tabs.logs);
+    expect(log.querySelectorAll(".stderr").length).toBe(40);
+    expect(transport.sent.find((m) => m.method === "cloud.logs")?.params).toMatchObject({ id: "farm-01", stream: "stderr" });
+    fireEvent.change(screen.getByLabelText(t.cloud.logs.stream), { target: { value: "" } });
+    fireEvent.click(screen.getByRole("button", { name: t.cloud.logs.find }));
+    fireEvent.click(await screen.findByRole("button", { name: t.cloud.logs.older }));
+    await waitFor(() => expect(screen.getByLabelText(t.cloud.tabs.logs).children.length).toBe(360));
+  });
+
+  it("fills the device from a single selection", async () => {
+    await openTab("xsk_admin", "alice", "admin", t.cloud.tabs.devices);
+    fireEvent.click(await screen.findByLabelText(t.cloud.dev.selectRow("farm-03")));
+    fireEvent.click(screen.getByRole("tab", { name: t.cloud.tabs.logs }));
+    expect((screen.getByLabelText(t.cloud.logs.device) as HTMLInputElement).value).toBe("farm-03");
+  });
+
+  it("operators toggle, run, create and delete tasks", async () => {
+    const { transport } = await openTab("xsk_op_demo", "olga", "operator", t.cloud.tabs.tasks);
+    const toggle = (await screen.findByLabelText(t.cloud.tasks.enable("夜间停止"))) as HTMLInputElement;
+    expect(toggle.checked).toBe(false);
+    fireEvent.click(toggle);
+    await waitFor(() => expect((screen.getByLabelText(t.cloud.tasks.enable("夜间停止")) as HTMLInputElement).checked).toBe(true));
+    fireEvent.click(screen.getAllByRole("button", { name: t.cloud.tasks.run })[0]);
+    expect(await screen.findByText(t.cloud.tasks.ran(5, 5))).toBeTruthy();
+    fireEvent.change(screen.getByLabelText(t.cloud.tasks.name), { target: { value: "lab ping" } });
+    fireEvent.change(screen.getByLabelText(t.cloud.tasks.target), { target: { value: "group:lab" } });
+    fireEvent.change(screen.getByLabelText(t.cloud.tasks.project), { target: { value: "ping" } });
+    fireEvent.change(screen.getByLabelText(t.cloud.tasks.mode), { target: { value: "every" } });
+    fireEvent.change(screen.getByLabelText(t.cloud.tasks.minutes), { target: { value: "15" } });
+    fireEvent.click(screen.getByRole("button", { name: t.cloud.tasks.create }));
+    expect(await screen.findByText(t.cloud.tasks.every(15))).toBeTruthy();
+    expect(transport.sent.find((m) => m.method === "cloud.taskCreate")?.params).toMatchObject({ name: "lab ping", target: "group:lab", path: "app_run", project: "ping", every: 15 });
+    fireEvent.click(screen.getAllByRole("button", { name: t.cloud.tasks.del }).at(-1)!);
+    await screen.findByRole("alertdialog");
+    fireEvent.click(screen.getAllByRole("button", { name: t.cloud.tasks.del }).at(-1)!);
+    await waitFor(() => expect(screen.queryByText("lab ping")).toBeNull());
+  });
+
+  it("viewers see tasks read-only", async () => {
+    await openTab("xsk_view_demo", "victor", "viewer", t.cloud.tabs.tasks);
+    expect(((await screen.findByLabelText(t.cloud.tasks.enable("早班签到"))) as HTMLInputElement).disabled).toBe(true);
+    for (const b of screen.getAllByRole("button", { name: t.cloud.tasks.run })) expect((b as HTMLButtonElement).disabled).toBe(true);
+    expect(screen.queryByRole("button", { name: t.cloud.tasks.create })).toBeNull();
+    expect(screen.getByText(t.cloud.tasks.viewerOnly)).toBeTruthy();
+  });
+});

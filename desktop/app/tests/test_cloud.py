@@ -203,3 +203,55 @@ async def test_batch_rejects_bad_requests_before_calling_the_backend(ctx, fb, id
     n = len(fb.calls)
     r, _ = await rpc(ctx, "cloud.command", ids=ids, action=action, project=project)
     assert r["error"]["code"] == "backend.bad_request" and len(fb.calls) == n
+
+
+# ---- P4.4 logs and server tasks -----------------------------------------------------------------------------------
+
+async def test_log_search_filters_and_escapes_the_device_id(ctx, fb):
+    await connected(ctx)
+    r, _ = await rpc(ctx, "cloud.logs", id="dev-a1", q="error", stream="stderr")
+    assert [x["line"] for x in r["result"]["items"]] == ["step 3 error", "step 7 error"] and r["result"]["more"] is False
+    assert set(r["result"]["items"][0]) == {"id", "ts", "stream", "line"}
+    r, _ = await rpc(ctx, "cloud.logs", id="dev-a1", limit=3)
+    assert [x["id"] for x in r["result"]["items"]] == [8, 9, 10] and r["result"]["more"] is True
+    r, _ = await rpc(ctx, "cloud.logs", id="dev-a1", limit=3, before=8)
+    assert [x["id"] for x in r["result"]["items"]] == [5, 6, 7]
+    await rpc(ctx, "cloud.logs", id="../tasks")
+    assert fb.calls[-1][1] == "/api/devices/..%2Ftasks/logs"
+    r, _ = await rpc(ctx, "cloud.logs", id="dev-a1", stream="kernel")
+    assert r["error"]["code"] == "backend.bad_request"
+
+
+async def test_task_list_create_toggle_run_delete(ctx, fb):
+    await connected(ctx, "xsk_op")
+    r, _ = await rpc(ctx, "cloud.tasks")
+    t1 = r["result"]["tasks"][0]
+    assert t1["name"] == "morning" and t1["path"] == "app_run" and t1["project"] == "daily" and t1["daily"] == "08:30"
+    r, _ = await rpc(ctx, "cloud.taskCreate", name="night stop", target="group:farm-2", path="app_stop", every=60)
+    assert r["result"]["id"] == 2 and r["result"]["every"] == 60 and r["result"]["createdBy"] == "olga"
+    assert fb.calls[-1][2] == {"name": "night stop", "target": "group:farm-2", "command": {"path": "app_stop"}, "enabled": True, "every": 60.0}
+    r, _ = await rpc(ctx, "cloud.taskUpdate", id=2, enabled=False)
+    assert r["result"]["enabled"] is False and fb.calls[-1][2] == {"enabled": False}
+    r, _ = await rpc(ctx, "cloud.taskRun", id=1)
+    assert r["result"] == {"devices": 2, "ok": 2}
+    r, _ = await rpc(ctx, "cloud.taskDelete", id=2)
+    assert r["result"] == {"ok": True} and list(fb.tasks) == [1]
+    r, _ = await rpc(ctx, "cloud.taskRun", id=9)
+    assert r["error"]["code"] == "backend.not_found"
+
+
+@pytest.mark.parametrize("kw", [dict(path="script_deploy", every=5), dict(path="app_run", project="", every=5),
+                                dict(path="app_stop"), dict(path="app_stop", daily="08:00", every=5),
+                                dict(path="app_stop", every=5, target="app:com.x"), dict(path="app_stop", every=5, target="")])
+async def test_task_create_rejects_bad_input_locally(ctx, fb, kw):
+    await connected(ctx, "xsk_op")
+    n = len(fb.calls)
+    r, _ = await rpc(ctx, "cloud.taskCreate", **{"target": "all", **kw})
+    assert r["error"]["code"] == "backend.bad_request" and len(fb.calls) == n
+
+
+async def test_viewer_can_list_but_not_edit_tasks(ctx):
+    await connected(ctx, "xsk_view")
+    assert (await rpc(ctx, "cloud.tasks"))[0]["ok"]
+    r, _ = await rpc(ctx, "cloud.taskUpdate", id=1, enabled=False)
+    assert r["error"]["code"] == "backend.forbidden"

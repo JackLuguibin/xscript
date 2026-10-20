@@ -291,6 +291,13 @@ export function createApi(rpc: RpcClient) {
     cloudDevices: (f: CloudDeviceFilter = {}) => rpc.call<CloudDevicePage>("cloud.devices", { ...f }, { timeoutMs: 20_000 }),
     cloudCommand: (ids: string[], action: "run" | "stop", project = "", param?: Record<string, unknown>) =>
       rpc.call<CloudBatchResult>("cloud.command", { ids, action, project, ...(param ? { param } : {}) }, { timeoutMs: 60_000 }),
+    cloudLogs: (id: string, f: { q?: string; stream?: CloudLogStream; before?: number; limit?: number } = {}) =>
+      rpc.call<{ items: CloudLogLine[]; more: boolean }>("cloud.logs", { id, ...f }, { timeoutMs: 20_000 }),
+    cloudTasks: () => rpc.call<{ tasks: CloudTask[] }>("cloud.tasks", {}, { timeoutMs: 20_000 }),
+    cloudTaskCreate: (task: CloudTaskInput) => rpc.call<CloudTask>("cloud.taskCreate", { ...task }, { timeoutMs: 20_000 }),
+    cloudTaskUpdate: (id: number, patch: { enabled?: boolean; name?: string }) => rpc.call<CloudTask>("cloud.taskUpdate", { id, ...patch }, { timeoutMs: 20_000 }),
+    cloudTaskRun: (id: number) => rpc.call<{ devices: number; ok: number }>("cloud.taskRun", { id }, { timeoutMs: 120_000 }),
+    cloudTaskDelete: (id: number) => rpc.call<{ ok: boolean }>("cloud.taskDelete", { id }, { timeoutMs: 20_000 }),
     cloudGroups: () => rpc.call<{ groups: CloudGroup[]; apps: string[] }>("cloud.groups", {}, { timeoutMs: 20_000 }),
     copyText: (text: string) => rpc.call<{ ok: boolean }>("app.copyText", { text }),
     toolsOpen: (id: string, page: string) => rpc.call<{ url: string; page: string; warning: string }>("tools.open", { id, page }),
@@ -333,3 +340,20 @@ export interface CloudDevicePage { items: CloudDevice[]; total: number; page: nu
 export interface CloudGroup { name: string; total: number; online: number }
 export interface CloudBatchRow { id: string; ok: boolean; offline: boolean; msg: string }
 export interface CloudBatchResult { rows: CloudBatchRow[]; ok: number; total: number }
+export type CloudLogStream = "" | "stdout" | "stderr" | "system";
+export interface CloudLogLine { id: number; ts: number; stream: string; line: string }
+export interface CloudTask {
+  id: number;
+  name: string;
+  target: string;
+  path: string;
+  project: string;
+  daily: string | null;
+  every: number | null;
+  enabled: boolean;
+  lastRun: number | null;
+  nextRun: number | null;
+  lastResult: unknown;
+  createdBy: string;
+}
+export interface CloudTaskInput { name: string; target: string; path: "app_run" | "app_stop"; project?: string; daily?: string; every?: number; enabled?: boolean }

@@ -1,4 +1,4 @@
-import type { CloudDevice, CloudRole, CloudStatus } from "./api";
+import type { CloudDevice, CloudLogLine, CloudRole, CloudStatus, CloudTask } from "./api";
 
 // Demo admin backend for plain-browser mode (`npm run dev`, screenshots). Same shapes as the Python cloud.* RPCs.
 // Any `xsk_…` token works: one containing "view" signs in as a viewer, "op" as an operator, anything else as admin.
@@ -31,10 +31,20 @@ export function demoCloudDevices(): CloudDevice[] {
   });
 }
 
+export function demoLogs(id: string): CloudLogLine[] {
+  if (!id) return [];
+  return Array.from({ length: 360 }, (_, i) => ({
+    id: i + 1,
+    ts: 1_792_000_000_000 + i * 1500,
+    stream: i % 9 === 8 ? "stderr" : i % 10 === 0 ? "system" : "stdout",
+    line: i % 9 === 8 ? `[${id}] 找不到「签到」按钮，重试 ${(i + 1) / 9}` : i % 10 === 0 ? `[${id}] 工程 daily-signin 启动` : `[${id}] 第 ${i} 步 ok`,
+  }));
+}
+
 export function cloudDemoHandlers(): Record<string, Handler> {
   let origin = "";
   let role: CloudRole | null = null;
-  const fail = (code: string, message: string) => {
+  const fail = (code: string, message: string): never => {
     throw { code, message };
   };
   const status = (): CloudStatus =>
@@ -42,6 +52,10 @@ export function cloudDemoHandlers(): Record<string, Handler> {
       ? { state: "not_configured", origin: "" }
       : { state: "connected", origin, account: { username: role === "admin" ? "alice" : role === "operator" ? "olga" : "victor", role, canOperate: role !== "viewer", isAdmin: role === "admin" } };
   const devices = demoCloudDevices();
+  const tasks: CloudTask[] = [
+    { id: 1, name: "早班签到", target: "group:farm-1", path: "app_run", project: "daily-signin", daily: "08:30", every: null, enabled: true, lastRun: 1_791_990_000, nextRun: 1_792_076_400, lastResult: null, createdBy: "alice" },
+    { id: 2, name: "夜间停止", target: "all", path: "app_stop", project: "", daily: "23:00", every: null, enabled: false, lastRun: null, nextRun: null, lastResult: null, createdBy: "alice" },
+  ];
   const needConn = () => {
     if (!role) fail("backend.not_configured", "还没有连接后台");
   };
@@ -75,6 +89,51 @@ export function cloudDemoHandlers(): Record<string, Handler> {
         return { id, ok: true, offline: false, msg: p.action === "run" ? "已启动" : "已停止" };
       });
       return { rows, ok: rows.filter((r) => r.ok).length, total: rows.length };
+    },
+    "cloud.logs": (p) => {
+      needConn();
+      const q = String(p.q ?? "");
+      const rows = demoLogs(String(p.id ?? "")).filter((l) => (!q || l.line.includes(q)) && (!p.stream || l.stream === p.stream) && (!p.before || l.id < Number(p.before)));
+      const limit = Number(p.limit ?? 300);
+      return { items: rows.slice(-limit), more: rows.length > limit };
+    },
+    "cloud.tasks": () => (needConn(), { tasks }),
+    "cloud.taskCreate": (p) => {
+      needConn();
+      if (role === "viewer") fail("backend.forbidden", "当前账号没有权限：权限不足");
+      const task: CloudTask = {
+        id: Math.max(0, ...tasks.map((x) => x.id)) + 1,
+        name: String(p.name ?? ""),
+        target: String(p.target ?? "all"),
+        path: String(p.path),
+        project: p.path === "app_run" ? String(p.project ?? "") : "",
+        daily: (p.daily as string) || null,
+        every: (p.every as number) ?? null,
+        enabled: true,
+        lastRun: null,
+        nextRun: null,
+        lastResult: null,
+        createdBy: "alice",
+      };
+      tasks.push(task);
+      return task;
+    },
+    "cloud.taskUpdate": (p) => {
+      if (role === "viewer") fail("backend.forbidden", "当前账号没有权限：权限不足");
+      const task = tasks.find((x) => x.id === p.id) ?? fail("backend.not_found", "任务不存在");
+      if (typeof p.enabled === "boolean") task.enabled = p.enabled;
+      return task;
+    },
+    "cloud.taskRun": (p) => {
+      const task = tasks.find((x) => x.id === p.id) ?? fail("backend.not_found", "任务不存在");
+      const hit = devices.filter((d) => d.online && (task.target === "all" || task.target === `group:${d.group}` || task.target.split(",").includes(d.id)));
+      return { devices: hit.length, ok: hit.length };
+    },
+    "cloud.taskDelete": (p) => {
+      const i = tasks.findIndex((x) => x.id === p.id);
+      if (i < 0) fail("backend.not_found", "任务不存在");
+      tasks.splice(i, 1);
+      return { ok: true };
     },
     "cloud.groups": () => {
       needConn();

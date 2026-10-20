@@ -5,6 +5,8 @@ import { errorLine } from "../errors";
 import { t } from "../strings";
 import { CloudBatch } from "./CloudBatch";
 import { CloudDevices } from "./CloudDevices";
+import { CloudLogs } from "./CloudLogs";
+import { CloudTasks } from "./CloudTasks";
 import { useConfirm } from "./ConfirmDialog";
 import { EmptyState } from "./EmptyState";
 import { IconCloud } from "./icons";
@@ -13,8 +15,8 @@ import { Badge, type BadgeTone } from "./ui/badge";
 import { Button } from "./ui/button";
 import { Input } from "./ui/input";
 
-export type CloudTab = "connect" | "devices";
-const TABS: CloudTab[] = ["connect", "devices"];
+export type CloudTab = "connect" | "devices" | "logs" | "tasks";
+const TABS: CloudTab[] = ["connect", "devices", "logs", "tasks"];
 const TONE: Record<CloudStatus["state"], BadgeTone> = { connected: "ok", expired: "warn", unreachable: "bad", error: "bad", not_configured: "neutral" };
 
 /** Backend address + API token. The token is sent once (to the OS keyring) and the field is cleared. */
@@ -96,6 +98,10 @@ export function CloudPage() {
   let body: ReactNode = null;
   if (tab !== "connect" && !connected) {
     body = <p className="muted">{t.cloud.dev.needConnect}</p>;
+  } else if (tab === "logs") {
+    body = <CloudLogs initialDevice={selected.size === 1 ? [...selected][0] : ""} />;
+  } else if (tab === "tasks" && account) {
+    body = <CloudTasks account={account} selected={[...selected]} reloadKey={reloadKey} />;
   } else if (tab === "devices") {
     body = (
       <>
