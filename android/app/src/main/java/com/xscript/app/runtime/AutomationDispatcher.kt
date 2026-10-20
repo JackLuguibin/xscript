@@ -63,6 +63,7 @@ object AutomationDispatcher {
     /** Raw frame (see [FrameCodec]) cropped to [l,t,r,b]; empty array when capture is unavailable. */
     fun captureRaw(l: Int, t: Int, r: Int, b: Int): ByteArray {
         if (local) {
+            CaptureEngine.encodeFrame(l, t, r, b)?.let { return it }
             val full = CaptureEngine.captureBitmap() ?: return ByteArray(0)
             val cropped = FrameCodec.crop(full, l, t, r, b)
             val bytes = FrameCodec.encode(cropped)
@@ -71,7 +72,7 @@ object AutomationDispatcher {
             return bytes
         }
         val pfd = rpc()?.captureFrame(l, t, r, b) ?: return ByteArray(0)
-        return Pipes.receive(pfd)
+        return Pipes.receiveFrame(pfd)
     }
 
     fun captureBitmap(l: Int, t: Int, r: Int, b: Int): Bitmap? {

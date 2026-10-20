@@ -16,6 +16,7 @@ import android.os.Looper
 import android.os.SystemClock
 import com.xscript.app.a11y.AccessibilityEngine
 import com.xscript.app.root.RootShell
+import com.xscript.app.runtime.FrameCodec
 import com.xscript.app.settings.Settings
 import java.io.File
 import java.io.FileOutputStream
@@ -50,8 +51,11 @@ object CaptureEngine {
         private set
 
     // MediaProjection only delivers a new Image when the screen changes. Keep the last
-    // frame so a static screen still yields a bitmap.
+    // frame so a static screen still yields a bitmap. The bitmap (and the row-packing buffer
+    // used when the ImageReader pads its rows) is reused across frames: allocating ~10 MB
+    // per frame made capture latency spike whenever the screen was changing.
     private var lastProjectionFrame: Bitmap? = null
+    private var packBuffer: ByteBuffer? = null
     private val lock = Any()
 
     private var lastA11yShotAt = 0L
@@ -179,47 +183,78 @@ object CaptureEngine {
     }
 
     private fun projectionFrame(): Bitmap? {
-        val imgReader = reader ?: return null
         synchronized(lock) {
-            val image = try {
-                imgReader.acquireLatestImage()
-            } catch (_: Exception) {
-                null
-            }
-            if (image == null) {
-                if (lastProjectionFrame == null) {
-                    // First call right after the grant: give the virtual display a moment.
-                    SystemClock.sleep(120)
-                    val retry = try {
-                        imgReader.acquireLatestImage()
-                    } catch (_: Exception) {
-                        null
-                    } ?: return null
-                    lastProjectionFrame = imageToBitmap(retry)
-                }
-                return lastProjectionFrame?.copy(Bitmap.Config.ARGB_8888, false)
-            }
-            lastProjectionFrame = imageToBitmap(image)
-            return lastProjectionFrame?.copy(Bitmap.Config.ARGB_8888, false)
+            return latestProjectionFrameLocked()?.copy(Bitmap.Config.ARGB_8888, false)
         }
     }
 
-    private fun imageToBitmap(image: android.media.Image): Bitmap {
+    /** Newest projection frame (owned by this object; never recycle it). Caller holds [lock]. */
+    private fun latestProjectionFrameLocked(): Bitmap? {
+        val imgReader = reader ?: return null
+        val image = try {
+            imgReader.acquireLatestImage()
+        } catch (_: Exception) {
+            null
+        }
+        if (image == null) {
+            if (lastProjectionFrame == null) {
+                // First call right after the grant: give the virtual display a moment.
+                SystemClock.sleep(120)
+                val retry = try {
+                    imgReader.acquireLatestImage()
+                } catch (_: Exception) {
+                    null
+                } ?: return null
+                storeImage(retry)
+            }
+            return lastProjectionFrame
+        }
+        storeImage(image)
+        return lastProjectionFrame
+    }
+
+    /**
+     * Encoded frame ([FrameCodec] layout) straight from the projection frame, cropped to
+     * [l,t,r,b]; null when MediaProjection is not the active source (callers fall back to
+     * [captureBitmap]). Skips the defensive bitmap copy that [captureBitmap] makes.
+     */
+    fun encodeFrame(l: Int, t: Int, r: Int, b: Int): ByteArray? {
+        if (!granted) return null
+        synchronized(lock) {
+            val frame = latestProjectionFrameLocked() ?: return null
+            lastSource = SOURCE_PROJECTION
+            val cropped = FrameCodec.crop(frame, l, t, r, b)
+            return try {
+                FrameCodec.encode(cropped)
+            } finally {
+                if (cropped !== frame) cropped.recycle()
+            }
+        }
+    }
+
+    private fun storeImage(image: android.media.Image) {
         image.use { img ->
             val plane = img.planes[0]
-            val pixelStride = plane.pixelStride
-            val rowStride = plane.rowStride
-            val rowPadding = rowStride - pixelStride * img.width
-            val bitmap = Bitmap.createBitmap(
-                img.width + rowPadding / pixelStride,
-                img.height,
-                Bitmap.Config.ARGB_8888,
-            )
-            bitmap.copyPixelsFromBuffer(plane.buffer)
-            return if (rowPadding == 0) {
-                bitmap
+            val w = img.width
+            val h = img.height
+            val rowBytes = w * plane.pixelStride
+            var bmp = lastProjectionFrame
+            if (bmp == null || bmp.width != w || bmp.height != h || !bmp.isMutable) {
+                bmp = Bitmap.createBitmap(w, h, Bitmap.Config.ARGB_8888)
+                lastProjectionFrame = bmp
+            }
+            val src = plane.buffer
+            if (plane.rowStride == rowBytes) {
+                src.rewind()
+                bmp.copyPixelsFromBuffer(src)
             } else {
-                Bitmap.createBitmap(bitmap, 0, 0, img.width, img.height).also { bitmap.recycle() }
+                var packed = packBuffer
+                if (packed == null || packed.capacity() != rowBytes * h) {
+                    packed = ByteBuffer.allocateDirect(rowBytes * h)
+                    packBuffer = packed
+                }
+                FrameRows.pack(src, plane.rowStride, rowBytes, h, packed!!)
+                bmp.copyPixelsFromBuffer(packed)
             }
         }
     }
