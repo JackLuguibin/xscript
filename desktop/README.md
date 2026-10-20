@@ -5,7 +5,7 @@
 
 > **状态：P0。只在 macOS 上开发和验证。** 所有 Windows 专属行为（`adb.exe` 定位、`CREATE_NO_WINDOW`、凭据管理器、
 > 打包、安装器、高 DPI、杀软/SmartScreen……）**均未验证**，代码和文档里用「⚠ Windows 未验证」标注。
-> 本阶段没有打 tag、没有发布；桌面端版本号跟随 App（`pyproject.toml` / `package.json` 都是 0.2.6），见设计 §13-14。
+> 本阶段没有打 tag、没有发布；桌面端版本号跟随 App（`pyproject.toml` / `package.json` 都是 0.4.0），见设计 §13-14。
 
 ## P0 里有什么
 

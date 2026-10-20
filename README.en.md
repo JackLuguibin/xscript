@@ -69,7 +69,7 @@ See the [changelog](CHANGELOG.md) (Chinese) for the full list of changes.
 
 If you would rather not build it yourself, use the published packages. All you need is an Android 8.0+ phone or emulator and a computer.
 
-**1. Install the app**: download `xscript-v0.3.0-release.apk` from [GitHub Release v0.3.0](https://github.com/JackLuguibin/xscript/releases/tag/v0.3.0), then `adb install` it or copy it to the phone and tap to install. Official builds v0.2.1–v0.2.3 can be upgraded in place; a device that has a Debug build installed must uninstall it first (this clears the app data).
+**1. Install the app**: download `xscript-v0.4.0-release.apk` from [GitHub Release v0.4.0](https://github.com/JackLuguibin/xscript/releases/tag/v0.4.0), then `adb install` it or copy it to the phone and tap to install. Official builds v0.2.1–v0.2.3 can be upgraded in place; a device that has a Debug build installed must uninstall it first (this clears the app data).
 
 **2. Grant permissions**: on first launch allow **Notifications** first (otherwise the development service does not start), then enable, as needed, **Accessibility** (required for taps and UI node operations), the **overlay (floating window) permission**, and the **screen capture permission** (for screenshots).
 
