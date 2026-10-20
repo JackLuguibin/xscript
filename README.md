@@ -15,7 +15,7 @@ XScript 将设备端 Python 运行时、自动化 API、浏览器开发工具和
 ## 主要功能
 
 - **Android 自动化**：无障碍与 Root 操作通道，支持点击、滑动、多点手势、按键、文字输入、控件选择器和 XPath 查询，以及 WebWindow 网页控件选择器（`WebSelector`）。
-- **图像与视觉识别**：截图、取色、找色（RGB / HSV / Lab 色彩空间、色块、主色）、模板匹配（含多尺度，以及 `method="auto"` / `"feature"` 的 ORB/SIFT 特征点找图，可找缩放、旋转后的目标）、OCR、图片字库与点阵字库（`Ocr.matrix`）、AI 识屏（`screen.ai_find` / `ai_ask`，接任意 OpenAI 兼容视觉模型）与 AI 智能体（`agent.run("目标")`，自动看屏幕操作直到完成）、OpenCV 图像处理、GP 图色流水线（含工程自带图色插件），以及基于 ONNX Runtime 的 YOLO 和 PaddleOCR 推理。
+- **图像与视觉识别**：截图、取色、找色（RGB / HSV / Lab 色彩空间、色块、主色）、模板匹配（含多尺度，以及 `method="auto"` / `"feature"` 的 ORB/SIFT 特征点找图，可找缩放、旋转后的目标）、OCR、图片字库与点阵字库（`Ocr.matrix`）、AI 识屏（`screen.ai_find` / `ai_ask`，接任意 OpenAI 兼容视觉模型）与 AI 智能体（`agent.run("目标")`，自动看屏幕操作直到完成）、OpenCV 图像处理、GP 图色流水线（含工程自带图色插件），以及基于 ONNX Runtime 的 YOLO 和 PaddleOCR 推理（PP-OCRv4 / v5 / v6，`screen.ocr(engine="paddle_v6t")` 或 `"auto"`）。
 - **脚本开发与调试**：浏览器多文件编辑、保存运行、日志、断点（桌面端支持条件断点、命中次数、日志点和监视表达式）、单步、调用栈和变量查看；提供 VS Code / Cursor 扩展、MCP 服务和 Python 类型存根。
 - **设备服务**：权限申请、短信只读查询、定位、传感器、事件监听、通知、剪贴板、KeyValue 存储和 HTML/悬浮界面。
 - **工程与运行管理**：工程导入导出、运行时安装 Python 依赖、开机运行、定时任务、异常重启控制，以及链接启动（`xscript://`，兼容 AScript 的 `ascript://run?local=…`）。

@@ -68,6 +68,10 @@ class PaddleOcr(object):
     def ocr(self, image=None, rect=None, confidence=0.5, use_cls=None):
         """Text lines as [OcrResult] (same type ML Kit OCR returns), in screen coordinates."""
         ...
+VERSION_DEFAULTS = {'v6t': {'thresh': 0.2, 'box_thresh': 0.4, 'unclip_ratio': 1.4}, 'v6s': {'thresh': 0.2, 'box_thresh': 0.4, 'unclip_ratio': 1.4}}
+ENGINES = {'paddle': 'v5', 'paddle_v4': 'v4', 'paddle_v6t': 'v6t', 'paddle_v6s': 'v6s'}
+AUTO = 'auto'
+AUTO_VERSION = 'v6t'
 
 def engine(version='v5', **kwargs):
     """The default PaddleOcr, built from the managed models (downloaded on first use)."""

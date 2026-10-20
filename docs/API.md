@@ -146,14 +146,27 @@ screen.ocr_click("同意")
 OCR 引擎：
 
 - `mlkit`（默认）：Google ML Kit（中文和拉丁文），内置。首次调用会加载模型，约 1 秒。
-- `paddle`：基于 ONNX Runtime 的 PP-OCRv5。识别小号中文更准，并且能在 ML Kit 无法工作的模拟器上运行。模型（约 22 MB）在首次使用时下载，来源为 ModelScope，Hugging Face 作为备用，并会校验固定的 SHA-256 哈希值。首次调用之后，在 MuMu 上识别整个 1080×1920 屏幕约需 1 秒。`paddle_v4` 使用 PP-OCRv4。
+- `paddle`：基于 ONNX Runtime 的 PP-OCRv5。识别小号中文更准，并且能在 ML Kit 无法工作的模拟器上运行。模型（约 22 MB）在首次使用时下载，来源为 ModelScope，Hugging Face 作为备用，并会校验固定的 SHA-256 哈希值。`paddle_v4` 使用 PP-OCRv4。
+- `paddle_v6t` / `paddle_v6s`：PP-OCRv6 tiny（约 6 MB）/ small（约 31 MB），官方 ONNX 导出，同样首次使用时下载并校验 SHA-256。字典来自识别模型的 `inference.yml`，下载后另存为 `keys.txt`。检测后处理用 v6 自己的参数（thresh 0.2、box_thresh 0.4、unclip 1.4），可以用 `paddle.engine("v6t", thresh=...)` 覆盖。v6 没有方向分类模型，倒置 180° 的文字行请用 `paddle`。
+- `auto`：用 PP-OCRv6 tiny。模型下载或加载失败（离线、没有 onnxruntime）时退回 ML Kit，只提示一次。
+
+合成手机界面测试集上的结果（32 屏、614 行、5614 字，中英文混排，含深色、彩色卡片和低对比度；“退化”指 JPEG q35 加 0.6 倍缩小、模糊或噪声）。耗时是 Apple Silicon Mac 上的 arm64-v8a 模拟器（4 核，4 线程）识别整屏 1080×2400 的中位数：
+
+| 引擎 | 字准确率 | 整行全对 | 退化后字准确率 | 退化后整行全对 | 中位耗时 |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| `mlkit` | 96.1% | 72.2% | — | — | 47 ms |
+| `paddle`（v5） | 99.6% | 97.7% | 98.2% | 91.0% | 347 ms |
+| `paddle_v6t` | 99.9% | 99.2% | 99.8% | 98.1% | 138 ms |
+| `paddle_v6s` | 99.95% | 99.5% | 99.9% | 99.4% | 378 ms |
+
+建议：需要 PaddleOCR 时用 `paddle_v6t`（比 v5 快约 2.5 倍、错字更少）；小字、模糊画面要求更高时用 `paddle_v6s`。为了兼容，`paddle` 仍指 PP-OCRv5，默认引擎仍是 `mlkit`。
 
 ```python
-screen.set_ocr_engine("paddle")              # 所有 ocr* 调用的默认引擎
-screen.ocr(engine="paddle", confidence=0.6)  # 或按次指定
+screen.set_ocr_engine("paddle_v6t")              # 所有 ocr* 调用的默认引擎
+screen.ocr(engine="auto", confidence=0.6)        # 或按次指定
 ```
 
-离线设备：把文件放到 `models.directory()/paddle/v5/`（例如用 `adb push`，或 `PUT /models/paddle/v5/<file>`）。
+离线设备：把文件放到 `models.directory()/paddle/<版本>/`（例如用 `adb push`，或 `PUT /models/paddle/v5/<file>`）。v5 用原文件名；v6（`v6t` / `v6s`）是 `det.onnx`、`rec.onnx`、`rec.yml`，见 `models.PADDLE`。
 
 ### AI 识屏（`screen.ai_find` / `screen.ai_ask`）
 

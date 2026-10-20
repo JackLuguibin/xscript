@@ -242,7 +242,8 @@ class DeviceClient:
     def vision(self, request: dict[str, Any]) -> dict[str, Any]:
         """POST /tools/vision. 400/408 carry a JSON error body, returned as-is."""
         # YOLO / PaddleOCR load models (and may download them) on the first call.
-        heavy = request.get("op") == "yolo" or str(request.get("engine", "")).startswith("paddle")
+        engine = str(request.get("engine", ""))
+        heavy = request.get("op") == "yolo" or engine == "auto" or engine.startswith("paddle")
         with self._client(timeout=max(self.timeout, 130 if heavy else 25)) as client:
             r = client.post(self._url("/tools/vision"), json=request)
             if r.status_code in (400, 404, 408):

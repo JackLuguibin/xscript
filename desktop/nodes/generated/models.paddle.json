@@ -6,8 +6,8 @@
     "en": "models.paddle"
   },
   "doc": {
-    "zh": "PaddleOCR files for `version` (\"v5\" or \"v4\"): {\"det\", \"rec\", \"cls\"?} absolute paths.",
-    "en": "PaddleOCR files for `version` (\"v5\" or \"v4\"): {\"det\", \"rec\", \"cls\"?} absolute paths."
+    "zh": "PaddleOCR files for `version` (\"v5\", \"v4\", \"v6t\" or \"v6s\"): {\"det\", \"rec\", \"cls\"?, \"keys\"?} paths.",
+    "en": "PaddleOCR files for `version` (\"v5\", \"v4\", \"v6t\" or \"v6s\"): {\"det\", \"rec\", \"cls\"?, \"keys\"?} paths."
   },
   "exec": {
     "in": [
