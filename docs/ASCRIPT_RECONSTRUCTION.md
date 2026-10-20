@@ -105,7 +105,7 @@ print(asai.ask("当前页面的标题是什么？"))
 - Android：42 项 JVM 测试通过，debug APK 构建成功。
 - 早期 Web IDE 浏览器连接超时；2026-10-14 已完成真实浏览器的断点、变量、单步及断开操作验证。
 - 2026-10-14 已连接 ARM64 Android 17/API 37 模拟器，验证 DAP、合成短信查询和加速度传感器；尚未覆盖其他真机/ROM 与真实模型结果。
-- 基本 DAP 调试现已补齐；HID 硬件、自带 IME、V4 密文运行、云端推理/计费/市场等模块仍未补齐，不能称为完整 AScript 复刻。
+- 基本 DAP 调试现已补齐；HID 硬件、V4 密文运行、云端推理/计费/市场等模块仍未补齐，不能称为完整 AScript 复刻。
 
 上次报告称默认 Java Runtime 不可用；本轮找到并成功使用 Android Studio 内置 JBR。后续于 2026-10-14 安装并验证 JADX MCP 0.7.1、Apktool 3.0.3 与 Frida；REA 已实际完成 Java 方法及 V4 原生库反编译。新增证据和兼容差异见 `ascript_analysis/analysis/deep-20261014/findings.md`。
 
