@@ -1,0 +1,70 @@
+{
+  "type": "feature.match",
+  "category": "feature",
+  "title": {
+    "zh": "feature.match",
+    "en": "feature.match"
+  },
+  "doc": {
+    "zh": "Find one instance of `template` in `source` (BGR/BGRA/gray ndarrays) → hit dict or None.",
+    "en": "Find one instance of `template` in `source` (BGR/BGRA/gray ndarrays) → hit dict or None."
+  },
+  "exec": {
+    "in": [
+      "exec"
+    ],
+    "out": [
+      "then"
+    ]
+  },
+  "inputs": [
+    {
+      "name": "source",
+      "type": "any"
+    },
+    {
+      "name": "template",
+      "type": "any"
+    },
+    {
+      "name": "detector",
+      "type": "any",
+      "default": "orb"
+    },
+    {
+      "name": "confidence",
+      "type": "any",
+      "default": 0.8
+    },
+    {
+      "name": "rect_offset",
+      "type": "any"
+    },
+    {
+      "name": "ratio",
+      "type": "any"
+    },
+    {
+      "name": "min_inliers",
+      "type": "any"
+    }
+  ],
+  "outputs": [
+    {
+      "name": "result",
+      "type": "any"
+    }
+  ],
+  "py": {
+    "imports": [
+      "from xscript.android import feature"
+    ],
+    "stmt": "{id} = feature.match({source}, template={template}, detector={detector}, confidence={confidence}, rect_offset={rect_offset}, ratio={ratio}, min_inliers={min_inliers})"
+  },
+  "dsl": {
+    "alias": "feature.match"
+  },
+  "since": "0.2.6",
+  "origin": "xscript.android.feature.match",
+  "availability": "ok"
+}

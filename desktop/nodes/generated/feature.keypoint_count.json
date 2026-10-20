@@ -1,0 +1,49 @@
+{
+  "type": "feature.keypoint_count",
+  "category": "feature",
+  "title": {
+    "zh": "feature.keypoint_count",
+    "en": "feature.keypoint_count"
+  },
+  "doc": {
+    "zh": "Keypoints the detector finds on a template (BGR/BGRA/gray ndarray); < MIN_KEYPOINTS means \"use templates\".",
+    "en": "Keypoints the detector finds on a template (BGR/BGRA/gray ndarray); < MIN_KEYPOINTS means \"use templates\"."
+  },
+  "exec": {
+    "in": [
+      "exec"
+    ],
+    "out": [
+      "then"
+    ]
+  },
+  "inputs": [
+    {
+      "name": "template",
+      "type": "any"
+    },
+    {
+      "name": "kind",
+      "type": "any",
+      "default": "orb"
+    }
+  ],
+  "outputs": [
+    {
+      "name": "result",
+      "type": "any"
+    }
+  ],
+  "py": {
+    "imports": [
+      "from xscript.android import feature"
+    ],
+    "stmt": "{id} = feature.keypoint_count({template}, kind={kind})"
+  },
+  "dsl": {
+    "alias": "feature.keypoint_count"
+  },
+  "since": "0.2.6",
+  "origin": "xscript.android.feature.keypoint_count",
+  "availability": "ok"
+}

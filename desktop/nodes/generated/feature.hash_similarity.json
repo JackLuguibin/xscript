@@ -1,0 +1,53 @@
+{
+  "type": "feature.hash_similarity",
+  "category": "feature",
+  "title": {
+    "zh": "feature.hash_similarity",
+    "en": "feature.hash_similarity"
+  },
+  "doc": {
+    "zh": "1.0 for identical-looking images, ~0.5 for unrelated ones (dHash Hamming similarity).",
+    "en": "1.0 for identical-looking images, ~0.5 for unrelated ones (dHash Hamming similarity)."
+  },
+  "exec": {
+    "in": [
+      "exec"
+    ],
+    "out": [
+      "then"
+    ]
+  },
+  "inputs": [
+    {
+      "name": "a",
+      "type": "any"
+    },
+    {
+      "name": "b",
+      "type": "any"
+    },
+    {
+      "name": "size",
+      "type": "any",
+      "default": 8
+    }
+  ],
+  "outputs": [
+    {
+      "name": "result",
+      "type": "any"
+    }
+  ],
+  "py": {
+    "imports": [
+      "from xscript.android import feature"
+    ],
+    "stmt": "{id} = feature.hash_similarity({a}, b={b}, size={size})"
+  },
+  "dsl": {
+    "alias": "feature.hash_similarity"
+  },
+  "since": "0.2.6",
+  "origin": "xscript.android.feature.hash_similarity",
+  "availability": "ok"
+}

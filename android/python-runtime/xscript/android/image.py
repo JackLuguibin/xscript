@@ -837,7 +837,7 @@ def _match_prepared(src, tpl, threshold, maxcnt, scale_range, fast, src_half=Non
     return _single(src, tpl, threshold, maxcnt, src_half)
 
 
-def _to_dicts(hits, ox, oy, index):
+def _to_dicts(hits, ox, oy, index, tpl_w=None):
     out = []
     for conf, x, y, w, h in hits:
         x, y = int(x + ox), int(y + oy)
@@ -850,6 +850,11 @@ def _to_dicts(hits, ox, oy, index):
             "center_y": int(cy),
             "confidence": conf,
             "index": index,
+            # Same keys as feature hits (`feature.match`): corners clockwise from top-left, angle, scale.
+            "quad": [[float(x), float(y)], [float(x + w), float(y)], [float(x + w), float(y + h)], [float(x), float(y + h)]],
+            "angle": 0.0,
+            "scale": round(w / float(tpl_w), 4) if tpl_w else 1.0,
+            "method": "template",
         })
     return out
 
@@ -901,7 +906,7 @@ def _match_many(source, parts, rect, confidence, rgb, maxcnt, scale_range, offse
         raw = [run(t) for t in tpls]
     out = []
     for i, hits in enumerate(raw):
-        out.extend(_to_dicts(hits, ox, oy, first_index + i))
+        out.extend(_to_dicts(hits, ox, oy, first_index + i, tpls[i].w))
     return out
 
 
@@ -921,13 +926,68 @@ def sort_by_ori(items, ori):
     return sorted(items, key=k) if k and len(items) > 1 else items
 
 
+FIND_METHODS = ("auto", "template", "multiscale", "feature", "hash")
+DEFAULT_MULTISCALE = (0.5, 2.0)
+
+
+def _raw_template(part):
+    """Template as a BGR/BGRA ndarray (features need the original pixels, not the match-space image)."""
+    if np is not None and isinstance(part, np.ndarray):
+        return part
+    path = str(part)
+    if not os.path.isfile(path):
+        raise FileNotFoundError("template not found: %s" % path)
+    raw = imread(path)
+    if raw is None:
+        raise ValueError("cannot decode template %s" % path)
+    return raw
+
+
+def _feature_hits(src, items, confidence, offset, detectors, first_index=0):
+    from xscript.android import feature
+
+    out = []
+    for i, part in enumerate(items):
+        tpl = _raw_template(part)
+        for det in detectors:
+            hit = feature.match(src, tpl, det, confidence, offset)
+            if hit is not None:
+                hit["index"] = first_index + i
+                out.append(hit)
+                break
+    return out
+
+
+def _hash_hits(src, items, confidence, offset):
+    """method="hash": does the whole search region look like the template? (dHash; rect picks the region)."""
+    from xscript.android import feature
+
+    h, w = src.shape[:2]
+    ox, oy = offset
+    out = []
+    for i, part in enumerate(items):
+        sim = feature.hash_similarity(src, _raw_template(part))
+        if sim >= confidence:
+            out.extend(_to_dicts([(sim, 0, 0, w, h)], ox, oy, i))
+            out[-1]["method"] = "hash"
+            out[-1]["scale"] = 1.0
+    return out
+
+
 def find_templates(parts, rect=None, confidence=0.9, rgb=False, maxcnt=0, scale_range=None, image=None,
-                   ori=None, fast=True):
+                   ori=None, fast=True, method=None):
     """parts: path or list of paths. Captures once and searches every template.
 
     `ori=None` (XScript): best confidence first, `maxcnt` caps the combined list.
     `ori=1..8` (AScript): `maxcnt` applies per template, results ordered by scan direction.
+
+    `method`: None / "template" (default: template matching, multi-scale when `scale_range` is given),
+    "multiscale" (template matching over `scale_range`, default 0.5-2.0), "feature" (ORB then SIFT keypoints +
+    homography: any scale and rotation, at most one hit per template), "auto" (template first, features for
+    templates it did not find) or "hash" (is the `rect` region the same picture as the template, by dHash).
     """
+    if method is not None and method not in FIND_METHODS:
+        raise ValueError("method must be one of %s, got %r" % (", ".join(FIND_METHODS), method))
     rect = _norm_rect(rect)
     offset = (0, 0)
     if image is None and rect:
@@ -939,7 +999,32 @@ def find_templates(parts, rect=None, confidence=0.9, rgb=False, maxcnt=0, scale_
     if src is None:
         return []
     items = list(parts) if isinstance(parts, (list, tuple)) else [parts]
-    out = _match_many(src, items, rect, confidence, rgb, maxcnt, scale_range, offset, fast)
+    if method in ("feature", "hash"):
+        if cv2 is None:
+            raise RuntimeError("OpenCV (cv2) is not available in this runtime")
+        confidence = _clamp_confidence(confidence)
+        if rect:
+            l, t, r, b = rect
+            src = src[t:b, l:r]
+            offset = (offset[0] + l, offset[1] + t)
+        if method == "hash":
+            out = _hash_hits(src, items, confidence, offset)
+        else:
+            out = _feature_hits(src, items, confidence, offset, ("orb", "sift"))
+    else:
+        if method == "multiscale" and not scale_range:
+            scale_range = DEFAULT_MULTISCALE
+        out = _match_many(src, items, rect, confidence, rgb, maxcnt, scale_range, offset, fast)
+        if method == "auto":
+            found = set(d["index"] for d in out)
+            missing = [i for i in range(len(items)) if i not in found]
+            if missing:
+                region, roff = src, offset
+                if rect:
+                    l, t, r, b = rect
+                    region, roff = src[t:b, l:r], (offset[0] + l, offset[1] + t)
+                for i in missing:
+                    out.extend(_feature_hits(region, [items[i]], _clamp_confidence(confidence), roff, ("orb", "sift"), i))
     if ori:
         return sort_by_ori(out, ori)
     if len(items) > 1:

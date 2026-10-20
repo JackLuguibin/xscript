@@ -6,8 +6,8 @@
     "en": "screen.find_image"
   },
   "doc": {
-    "zh": "Best template match → dict {center_x, center_y, rect, confidence, ...} or None.",
-    "en": "Best template match → dict {center_x, center_y, rect, confidence, ...} or None."
+    "zh": "Best match → dict {center_x, center_y, rect, confidence, quad, angle, scale, method, ...} or None.",
+    "en": "Best match → dict {center_x, center_y, rect, confidence, quad, angle, scale, method, ...} or None."
   },
   "exec": {
     "in": [
@@ -46,6 +46,11 @@
       "name": "image",
       "type": "any",
       "default": null
+    },
+    {
+      "name": "method",
+      "type": "any",
+      "default": null
     }
   ],
   "outputs": [
@@ -58,7 +63,7 @@
     "imports": [
       "from xscript.android import screen"
     ],
-    "stmt": "{id} = screen.find_image({template}, rect={rect}, confidence={confidence}, rgb={rgb}, scale_range={scale_range}, image={image})"
+    "stmt": "{id} = screen.find_image({template}, rect={rect}, confidence={confidence}, rgb={rgb}, scale_range={scale_range}, image={image}, method={method})"
   },
   "dsl": {
     "alias": "screen.find_image"

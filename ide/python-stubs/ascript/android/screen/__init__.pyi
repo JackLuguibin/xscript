@@ -237,6 +237,7 @@ class FindImages(GPTask):
 
     @staticmethod
     def find_sift(part_img, rect=None, confidence=0.9, rgb=False, source_img=None, ori=2, scale_range=None, fast=True):
+        """Keypoint (ORB / SIFT) matching: finds scaled and rotated targets; flat templates use template matching."""
         ...
 
     @staticmethod
