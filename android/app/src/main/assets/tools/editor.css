@@ -105,6 +105,15 @@
 .ide-complete .cdoc[hidden] { display:none; }
 :root[data-theme="dark"] .ide-complete .ck-f { color:#dcdcaa; } :root[data-theme="dark"] .ide-complete .ck-c { color:#4ec9b0; }
 :root[data-theme="dark"] .ide-complete .ck-m { color:#c586c0; } :root[data-theme="dark"] .ide-complete .ck-k { color:#569cd6; }
+/* Hover docs and signature help (generated from ide/python-stubs) */
+.ide-tip { position:absolute; z-index:16; max-width:min(520px, 92%); max-height:260px; overflow:auto; padding:6px 9px; background:var(--bar, #f3f3f3); color:var(--text); border:1px solid var(--border, #ccc); border-radius:6px; box-shadow:0 4px 14px rgba(0,0,0,.2); font-size:12px; line-height:18px; }
+.ide-tip[hidden] { display:none; }
+.ide-tip { pointer-events:none; }
+.ide-hover { z-index:17; }
+.ide-tip .tip-sig { font-family:var(--mono); white-space:pre-wrap; overflow-wrap:anywhere; color:var(--text-strong); }
+.ide-tip .tip-active { color:var(--accent, #0b65c2); text-decoration:underline; }
+.ide-tip .tip-where { font-family:var(--mono); color:var(--muted); font-size:11px; }
+.ide-tip .tip-doc { margin-top:4px; padding-top:4px; border-top:1px solid var(--divider); white-space:pre-wrap; color:var(--muted); }
 
 /* Project search / replace (sidebar mode) */
 .ide.searching { grid-template-columns:min(360px, 46vw) minmax(0,1fr); }

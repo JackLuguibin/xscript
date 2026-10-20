@@ -323,6 +323,48 @@ test('Web IDE explorer, editor and create/delete flows in a real browser', {skip
       await b.eval(() => { const c = document.getElementById('auto-complete'); c.checked = true; c.dispatchEvent(new Event('change')); });
     });
 
+    await t.test('signature help while typing a call, hover docs on the mouse, Esc / Ctrl+Shift+Space', async () => {
+      await b.eval(click, row('__init__.py'));
+      await b.waitFor(() => document.getElementById('editor').value.length > 0 && !document.getElementById('editor').disabled);
+      const setup = text => b.eval(txt => { const e = document.getElementById('editor'); e.focus(); e.value = txt; e.setSelectionRange(txt.length, txt.length); e.dispatchEvent(new Event('input')); }, text);
+      const tip = id => b.eval(i => { const t = document.getElementById(i), a = t.querySelector('.tip-active'), h = document.querySelector('.ide-code').getBoundingClientRect(), r = t.getBoundingClientRect();
+        return {shown: !t.hidden, sig: (t.querySelector('.tip-sig') || {}).textContent || '', active: a ? a.textContent : '', doc: (t.querySelector('.tip-doc') || {}).textContent || '',
+          inside: r.left >= h.left - 1 && r.right <= h.right + 1 && r.top >= h.top - 1 && r.bottom <= h.bottom + 1}; }, id);
+      await setup('from xscript.android import action\n\n\n');
+      await b.insertText('action.click(');
+      await b.waitFor(() => !document.getElementById('sig-help').hidden);
+      let s = await tip('sig-help');
+      assert.equal(s.sig, 'click(x, y=None, dur=20)'); assert.equal(s.active, 'x'); assert.match(s.doc, /^Tap/); assert.ok(s.inside, 'inside the editor');
+      await b.insertText('1, ');
+      assert.equal((await tip('sig-help')).active, 'y=None');
+      await b.insertText('dur=');
+      assert.equal((await tip('sig-help')).active, 'dur=20');
+      await b.insertText('5)');
+      assert.equal((await tip('sig-help')).shown, false, 'closed after the call');
+      await b.key('ArrowLeft', 'ArrowLeft', 37);
+      await b.waitFor(() => !document.getElementById('sig-help').hidden);
+      await b.key('Escape', 'Escape', 27);
+      assert.equal((await tip('sig-help')).shown, false, 'Esc closes it');
+      await b.eval(() => document.getElementById('editor').dispatchEvent(new KeyboardEvent('keydown', {key: ' ', code: 'Space', ctrlKey: true, shiftKey: true, bubbles: true, cancelable: true})));
+      assert.equal((await tip('sig-help')).shown, true, 'Ctrl+Shift+Space reopens it');
+      assert.equal((await b.eval(() => document.getElementById('complete').hidden)), true, 'and not the completion popup');
+      // hover: point at "click" on line 4 (synthetic mousemove at its coordinates)
+      await setup('from xscript.android import action\n\n\naction.click(1, 2)\n');
+      await b.eval(() => {
+        const e = document.getElementById('editor'), host = document.querySelector('.ide-code').getBoundingClientRect();
+        const probe = document.createElement('span'), cs = getComputedStyle(e);
+        probe.style.cssText = 'position:absolute;visibility:hidden;white-space:pre'; probe.style.fontFamily = cs.fontFamily; probe.style.fontSize = cs.fontSize; probe.style.fontWeight = cs.fontWeight; probe.textContent = 'action.cl';
+        document.body.append(probe); const w = probe.getBoundingClientRect().width; probe.remove();
+        e.dispatchEvent(new MouseEvent('mousemove', {bubbles: true, clientX: host.left + 12 + w - e.scrollLeft, clientY: host.top + 16 + 3 * 21 + 10 - e.scrollTop}));
+      });
+      await b.waitFor(() => !document.getElementById('hover-doc').hidden, 3000);
+      const h = await tip('hover-doc');
+      assert.equal(h.sig, 'def click(x, y=None, dur=20)'); assert.match(h.doc, /^Tap/); assert.ok(h.inside, 'hover inside the editor');
+      assert.match(await b.eval(() => document.querySelector('#hover-doc .tip-where').textContent), /^xscript\.android\.action\.click$/);
+      await b.eval(() => document.getElementById('editor').dispatchEvent(new MouseEvent('mouseleave')));
+      assert.equal((await tip('hover-doc')).shown, false, 'mouse leaving hides it');
+    });
+
     await t.test('syntax diagnostics: wavy underlines, gutter marks, problems button; cleared while typing; Python files only', async () => {
       await b.eval(click, row('__init__.py'));
       await b.waitFor(() => document.getElementById('editor').value.length > 0 && !document.getElementById('editor').disabled);

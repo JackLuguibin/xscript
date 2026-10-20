@@ -70,6 +70,8 @@ echo "== desktop: generated node specs up to date =="
 "$PY" "$ROOT/scripts/gen_nodespecs.py" --check
 echo "== android: Web IDE completion index up to date =="
 "$PY" "$ROOT/scripts/gen_completions.py" --check
+echo "== android: Web IDE hover / signature-help index up to date =="
+"$PY" "$ROOT/scripts/gen_editor_docs.py" --check
 echo "== android: Web IDE state + HTTP contract + browser UI (headless Chrome if found) =="
 if command -v node >/dev/null 2>&1; then
   node --test scripts/tests/*.test.cjs

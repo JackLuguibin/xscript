@@ -15,6 +15,7 @@
 - 发布流程：release 工作流在 macOS 运行器上构建并校验桌面端 dmg，与 APK 一起附到 Release 并写入 `SHA256SUMS`。
 - MCP / 后台 AI 写脚本的 API 目录改由 `scripts/gen_api_catalog.py` 从 stub 生成（签名不再手抄），CI 检查两份副本和运行时是否一致；顺带修正了 `yolo.decode`、`pip.install_requirements`、`cloud.on_message` 等过时签名，补上 `system.open_app_setting`、`ui.float_add_menu`、`onnx.available`、`cloud.connected` / `cloud.off`。
 - 定位：`xscript.android.location` 新增坐标转换 `to_wgs84`、`from_wgs84`、`convert`，以及 WGS84 / GCJ-02（高德、腾讯）/ BD-09（百度）两两转换函数，与 `ascript.android.location` 同名同实现（新模块 `xscript.android.coords`）。
+- **网页 IDE：参数提示和悬停文档**：输入 `xscript.*` / `ascript.*` 函数调用的 `(` 后显示签名并标出当前参数（Ctrl/Cmd+Shift+空格 手动打开，Esc 关闭）；鼠标停在模块、函数、类或方法名上显示签名和完整文档。数据由新脚本 `scripts/gen_editor_docs.py` 从 `ide/python-stubs` 生成（`editor-docs.js`，离线可用），CI 和 `verify.sh` 检查是否过期。见[使用手册](docs/使用手册.md)。
 
 ## v0.4.0（2026-10-20）
 

@@ -270,6 +270,7 @@ After changing the public Python API, regenerate the type stubs:
 ```bash
 python3 scripts/gen_stubs.py
 python3 scripts/gen_completions.py   # completion index of the web IDE
+python3 scripts/gen_editor_docs.py   # hover docs and signature help of the web IDE (from ide/python-stubs; run gen_stubs first)
 ```
 
 The device debugging regression test creates and cleans up its own temporary project; make sure no other script is running before you start it:
