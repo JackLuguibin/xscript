@@ -19,4 +19,11 @@ PLIST=dist/XScript.app/Contents/Info.plist
 /usr/libexec/PlistBuddy -c "Set :CFBundleShortVersionString $VERSION" "$PLIST"
 /usr/libexec/PlistBuddy -c "Add :CFBundleDisplayName string XScript" "$PLIST" 2>/dev/null || true
 /usr/libexec/PlistBuddy -c "Add :NSHighResolutionCapable bool true" "$PLIST" 2>/dev/null || true
+# Editing Info.plist breaks the ad-hoc signature PyInstaller applied, and macOS then reports the quarantined
+# app as "damaged". Re-seal the bundle as the very last step: nested binaries keep PyInstaller's ad-hoc
+# signatures, the outer seal is redone over the final Info.plist/resources. Nothing may touch the bundle after this.
+APP=dist/XScript.app
+xattr -cr "$APP"
+codesign --force --sign - --timestamp=none "$APP"
+bash "$APP_DIR/packaging/verify_macos_app.sh" "$APP"
 echo "built $APP_DIR/dist/XScript.app"

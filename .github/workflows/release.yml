@@ -5,7 +5,12 @@
 #      the universal xscript-vX.Y.Z-release.apk and the phone-only xscript-vX.Y.Z-release-arm64-v8a.apk; builds the vsix,
 #      writes SHA256SUMS,
 #   4. verifies both APKs: valid signature, signer certificate == the known release certificate, versionName, 16 KB readiness,
-#   5. creates the GitHub Release (notes = CHANGELOG section) with the APKs, the vsix and SHA256SUMS.
+#   5. builds the macOS arm64 desktop dmg on a macOS runner (job "desktop"; ad-hoc signed, not notarized) and fails unless
+#      the bundle's signature verifies deep+strict inside the finished dmg (a broken seal shows "XScript is damaged"),
+#   6. creates the GitHub Release (notes = CHANGELOG section + the desktop first-open notes) with the APKs, the vsix,
+#      the dmg and SHA256SUMS (covering all of them).
+# Dry run: a pull request touching this workflow or desktop/app/packaging, or a manual run (workflow_dispatch), runs only
+# the "desktop" job: it builds and verifies the dmg and uploads it as an artifact; it never creates a Release or a tag.
 # Secrets (repository secrets, names only): RELEASE_KEYSTORE_BASE64 (base64 of the .p12 / .jks keystore),
 # RELEASE_STORE_PASSWORD, RELEASE_KEY_ALIAS, RELEASE_KEY_PASSWORD. They are only exposed to the "release" job.
 name: release
@@ -13,6 +18,9 @@ name: release
 on:
   push:
     tags: ["v[0-9]+.[0-9]+.[0-9]+"]
+  pull_request:
+    paths: [".github/workflows/release.yml", "desktop/app/packaging/**"]
+  workflow_dispatch:
 
 permissions:
   contents: read
@@ -24,13 +32,49 @@ concurrency:
 jobs:
   verify:
     name: verify (ci.yml)
+    if: github.event_name == 'push'
     uses: ./.github/workflows/ci.yml
     permissions:
       contents: read
 
+  desktop:
+    name: desktop dmg (macOS arm64)
+    runs-on: macos-14
+    timeout-minutes: 45
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: "22"
+      - uses: astral-sh/setup-uv@1c37ad07a6a961277cf70c0d37d6f313000f5884 # v10.3.0
+      - name: Version matches the tag
+        if: github.event_name == 'push'
+        run: |
+          V="$(sed -n 's/^version = "\(.*\)"/\1/p' desktop/app/pyproject.toml)"
+          [ "v$V" = "$GITHUB_REF_NAME" ] || { echo "::error::desktop/app/pyproject.toml version $V does not match $GITHUB_REF_NAME"; exit 1; }
+      - name: Build XScript.app (re-sealed ad-hoc signature, verified)
+        run: |
+          (cd desktop/frontend && npm ci)
+          bash desktop/app/packaging/build_macos_app.sh
+      - name: Self-test the bundle
+        run: desktop/app/dist/XScript.app/Contents/MacOS/XScript --selftest
+      - name: Build the dmg and verify the signature inside it
+        run: bash desktop/app/packaging/build_macos_dmg.sh
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: desktop-dmg
+          path: desktop/app/dist/*.dmg
+          if-no-files-found: error
+          retention-days: 14
+
   release:
     name: build, verify and publish
-    needs: verify
+    if: github.event_name == 'push'
+    needs: [verify, desktop]
     runs-on: ubuntu-24.04
     timeout-minutes: 90
     permissions:
@@ -114,6 +158,18 @@ jobs:
         if: always()
         run: rm -rf "$RUNNER_TEMP/keys"
 
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: desktop-dmg
+          path: dist/release
+
+      - name: Add the dmg to SHA256SUMS
+        working-directory: dist/release
+        run: |
+          DMG="xscript-desktop-${TAG}-macos-arm64.dmg"
+          [ -f "$DMG" ] || { echo "::error::missing $DMG"; exit 1; }
+          sha256sum "$DMG" >> SHA256SUMS
+
       - name: Re-verify the files that will be published
         working-directory: dist/release
         run: |
@@ -129,8 +185,10 @@ jobs:
         run: |
           bash scripts/release.sh notes "$TAG" > "$RUNNER_TEMP/notes.md"
           [ -s "$RUNNER_TEMP/notes.md" ] || { echo "::error::empty CHANGELOG section for $TAG"; exit 1; }
+          { echo; sed "s/{VERSION}/${TAG#v}/g" desktop/app/packaging/release-notes-macos.md; } >> "$RUNNER_TEMP/notes.md"
           gh release create "$TAG" --verify-tag --title "XScript $TAG" --notes-file "$RUNNER_TEMP/notes.md" \
             "dist/release/xscript-${TAG}-release.apk" \
             "dist/release/xscript-${TAG}-release-arm64-v8a.apk" \
             "dist/release/xscript-vscode-${TAG#v}.vsix" \
+            "dist/release/xscript-desktop-${TAG}-macos-arm64.dmg" \
             dist/release/SHA256SUMS
