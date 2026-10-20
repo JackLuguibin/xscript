@@ -20,7 +20,7 @@ from sqlalchemy import func, or_, select, update
 from sqlalchemy.orm import Session
 
 from .. import cards as cardsvc
-from .. import stats
+from .. import settlement, stats
 from ..deps import Principal, admin, db_session, like_contains, like_escape, paginate, record, reseller_only
 from ..models import AuditLog, Card, Reseller, User
 from .cards import APP_PATTERN, _filtered
@@ -201,6 +201,11 @@ def my_create_batch(body: MyBatchIn, request: Request, p: Principal = Depends(re
     r = _mine(p, s)
     days = body.hours / 24 if body.hours else body.days
     _check(r, body, days)
+    unit = settlement.price_for(s, p.id, body.app, body.kind, days)
+    if unit is None:
+        if (r.unpriced or "free") == "deny":
+            raise HTTPException(403, "这种卡密还没有设置批发价，请联系管理员")
+        unit = 0
     # Atomic: two concurrent requests cannot both spend the last of the quota.
     took = s.execute(update(Reseller).where(Reseller.user_id == p.id, Reseller.used + body.count <= Reseller.quota)
                      .values(used=Reseller.used + body.count)).rowcount
@@ -215,13 +220,17 @@ def my_create_batch(body: MyBatchIn, request: Request, p: Principal = Depends(re
     except ValueError as e:
         s.rollback()
         raise HTTPException(400, str(e)) from None
+    # The charge is written in the same transaction as the cards: both land or neither does.
+    settlement.charge(s, p.id, batch, body.count, unit, body.app, body.kind, days, p.username)
     record(request, s, p, "card.create", batch, {"count": body.count, "days": days, "app": body.app,
                                                  "kind": body.kind, "max_devices": body.max_devices,
                                                  "uses": body.uses if body.kind == "count" else 0,
-                                                 "reseller": True})
+                                                 "reseller": True, "unit_cents": unit,
+                                                 "charge_cents": unit * body.count})
     s.commit()
     s.refresh(r)
-    return {"batch": batch, "cards": codes, "left": max(0, r.quota - r.used)}
+    return {"batch": batch, "cards": codes, "left": max(0, r.quota - r.used), "unit_cents": unit,
+            "charge_cents": unit * body.count}
 
 
 class MyAction(BaseModel):
