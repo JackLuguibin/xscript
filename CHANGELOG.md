@@ -4,6 +4,7 @@
 
 ## 未发布
 
+- **桌面端安装包与更新**：新增 Windows x64 安装包（Inno Setup，按用户安装，未签名）；macOS dmg 仍为 ad-hoc 签名，发布前会在 Mac 上实际打开验证。侧栏「设置与更新」可以检查、下载并安装新版本（更新清单用 Ed25519 签名，文件核对 sha256，用户确认后才替换并重启），可选启动时每天检查一次；还能导出去掉了令牌和密码的诊断包。正式启用自动更新还需要配置更新签名密钥，之前会提示手动下载。见 [desktop/README.md](desktop/README.md)「P5 安装包与更新」。
 - **桌面端云控**：侧栏新增「云控」，用后台的 API 令牌（存系统凭据库）连接自托管管理后台：设备表（筛选、多选）、批量运行 / 停止、在线设备实时画面、运行日志检索、服务端定时任务、把流程编辑器里的流程作为新版本部署到分组并可回滚、APK 打包任务（看日志、保存 APK）、在浏览器打开后台各页。按后台角色灰显（只读 / 操作员 / 管理员）。端到端脚本 `scripts/desktop_cloud_e2e.py`（本地后台 + 模拟器）。见 [desktop/README.md](desktop/README.md)「P4 云控」。
 - 找图：多尺度找图（`scale_range`）在两个尺度之间的目标（例如 0.8 倍、置信度 0.8）以前可能找不到，现在会在最接近的几个候选附近细化尺度再判断（#109）。
 - 找图：`find_image` / `find_all_images` / `image.find_templates` 新增 `method=`：`"template"`、`"multiscale"`、`"feature"`（ORB，不行再 SIFT，MAGSAC 拟合）、`"hash"` 和推荐的 `"auto"`（先模板匹配，找不到再用特征点），能找到被缩放、旋转的目标；结果多了 `quad`、`angle`、`scale`、`method`。不传 `method` 时行为不变。AScript 的 `find_all_sift` / `find_surf` / `FindImages.find_sift` 现在真正使用特征点匹配（#110）。

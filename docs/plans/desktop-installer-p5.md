@@ -23,13 +23,16 @@
 - [x] **P5.3 Windows 签名**：没有证书，不签名；文档写明 SmartScreen / Defender 的提示和放行方式（W-13），以及以后有证书时接 signtool 的位置
 - [x] **P5.4 自动更新**：更新清单 `desktop-update.json`（版本、各平台文件 sha256 / 大小）+ Ed25519 签名；客户端检查 → 提示 → 用户确认后下载、校验、替换并重启；`scripts/desktop_update_feed.py` 起本地更新源（临时密钥），端到端从旧版更新到新版
 - [x] **P5.5 诊断包**：一键导出日志、版本、环境（去掉令牌和密钥）
-- [ ] **P5.6 release.yml 与文档**：workflow_dispatch / PR 演练产出全部桌面产物和更新清单（临时密钥签名，不发布）；正式发布时清单用 Secrets 里的更新密钥签名（没有就不出清单）；中英文档、截图
+- [x] **P5.6 release.yml 与文档**：workflow_dispatch / PR 演练产出全部桌面产物和更新清单（临时密钥签名，不发布）；正式发布时清单用 Secrets 里的更新密钥签名（没有就不出清单）；中英文档、截图
 
 ## 进度记录
 
 - P5.1：`packaging/build_windows.sh` + `xscript.iss` + `check_windows_install.sh`；`release.yml` 新作业「desktop setup.exe (Windows x64)」在 windows-latest 上构建、静默安装到临时目录、安装目录里 `XScript.exe --selftest --report` 通过（版本 0.4.0）、静默卸载干净。安装后约 573 MB（QtWebEngine 占大头）。
 - P5.2：`packaging/check_macos_dmg.sh`：签名校验 → 复制出 App → 直接启动自检、经 LaunchServices（`open -n -W`）自检；`--gui` 再正常开窗启动 8 秒确认没退出。本机 Mac 上对 0.4.0 dmg（208 MB）三项都通过；全程用临时 `--data-dir`，不碰 `/Applications/XScript.app` 和用户数据。
 - P5.3：没有证书，不签名；首次运行说明写在 `packaging/release-notes-windows.md`，signtool 的接入位置写在 `build_windows.sh` 末尾注释。
+- P5.4：`services/updater.py`（签名清单、Ed25519 校验、下载核对大小 / sha256、macOS 暂存 + 换包脚本、Windows 静默安装脚本）、`packaging/make_update_feed.py`、`update.*` RPC、`--update-now`、设置里的「关于与更新」。`scripts/desktop_update_e2e.py` 在本机 Mac 上通过（0.4.0 → 0.4.1-dev1：别的公钥被拒绝；下载、校验、替换、带原 `--data-dir` 重新打开，新版自检报告 0.4.1-dev1）。Windows 上的更新只测了脚本文本。
+- P5.5：`services/diagnostics.py`（脱敏 zip + 轮转日志文件）、`app.diagnostics`、设置里的「导出诊断包…」。
+- P5.6：`release.yml` 新作业「desktop update feed (dry run, throwaway key)」；正式发布带 setup.exe，更新清单只在 Secrets 有 `DESKTOP_UPDATE_KEY` 且客户端有公钥时签发（现在都没有，需要仓库管理员操作）；中英文档和截图。
 - 顺带修了一个 Windows 偶发失败：测试用假设备的 HTTP 服务器监听队列只有 5，Windows 上 50 个并发连接会被直接拒绝（main 上也出现过）。
 
 ## 测试计划
