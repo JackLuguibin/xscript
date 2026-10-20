@@ -401,7 +401,8 @@ _PYRAMID_MIN_TPL_SHORT = 48
 _CF_MIN_SRC_SHORT = 256
 _CF_DOWNSCALE = 4
 _CF_TOP_K = 5
-_CF_REFINE_STEPS = (0.94, 1.0, 1.06)
+_CF_PEAKS_PER_SCALE = 2
+_CF_REFINE_SLACK = 0.5      # a candidate at the wrong scale can score this far below its true score
 
 
 class _Tpl(object):
@@ -498,6 +499,44 @@ def _scales(scale_range):
     return sorted(set(round(s, 4) for s in out))
 
 
+_SCALE_REFINE_SPAN = 0.06     # half the ~1.12 coarse step: the true scale lies within +-6% of the best coarse one
+_SCALE_REFINE_MIN = 0.004
+_SCALE_REFINE_SLACK = 0.2     # coarse winners this far below the threshold are still refined
+
+
+def _refine_scale(src, tpl, hit, span=_SCALE_REFINE_SPAN):
+    """Local log-scale search around a coarse hit ``(score, x, y, w, h)``.
+
+    Coarse scales are ~12% apart; for a 500px template a 3% scale error already misaligns the edges by
+    ~15px and drops TM_CCOEFF_NORMED well below 0.9. Each round tries ``s*(1-d)`` and ``s*(1+d)`` in a
+    small window around the current best centre and halves ``d`` until a step moves the template's
+    long side by less than a pixel.
+    """
+    sh, sw = src.shape[:2]
+    best = hit
+    d = span
+    while True:
+        bs = best[3] / float(tpl.w)
+        if d < max(_SCALE_REFINE_MIN, 1.0 / max(1.0, max(tpl.w, tpl.h) * bs)):
+            return best
+        cx, cy = best[1] + best[3] / 2.0, best[2] + best[4] / 2.0
+        for s in (bs * (1 - d), bs * (1 + d)):
+            w, h = max(4, int(round(tpl.w * s))), max(4, int(round(tpl.h * s)))
+            if w >= sw or h >= sh or (w, h) == (best[3], best[4]):
+                continue
+            pad = max(6, int(max(w, h) * d) + 4)
+            x0, y0 = max(0, int(cx - w / 2.0) - pad), max(0, int(cy - h / 2.0) - pad)
+            x1, y1 = min(sw, int(cx + w / 2.0) + pad + 1), min(sh, int(cy + h / 2.0) + pad + 1)
+            if x1 - x0 <= w or y1 - y0 <= h:
+                continue
+            mask = _resize(tpl.mask, w, h) if tpl.mask is not None else None
+            r = _do_match(src[y0:y1, x0:x1], _resize(tpl.img, w, h), mask)
+            _, mv, _, ml = cv2.minMaxLoc(r)
+            if mv > best[0]:
+                best = (float(mv), x0 + ml[0], y0 + ml[1], w, h)
+        d /= 2.0
+
+
 _MIN_CONFIDENCE = 0.01
 
 
@@ -578,7 +617,13 @@ def _single(src, tpl, threshold, maxcnt, src_half=None):
 
 
 def _multi_cf(src, tpl, threshold, scale_range):
-    """Coarse scan over every scale, refine the top-K scales. Single best hit only."""
+    """Coarse scan over every scale, then a fine scale search around the best few candidates.
+
+    Single best hit only. Each scale keeps its top ``_CF_PEAKS_PER_SCALE`` 1/4-resolution peaks: when the
+    true scale falls between two coarse steps every coarse score is mediocre, and a look-alike elsewhere
+    on screen (a repeated card) can out-score the real target there. Refining the top candidates at full
+    resolution separates them.
+    """
     sh, sw = src.shape[:2]
     ds = _CF_DOWNSCALE
     cw, ch = sw // ds, sh // ds
@@ -592,26 +637,34 @@ def _multi_cf(src, tpl, threshold, scale_range):
         if fw >= sw or fh >= sh or tw >= cw or th >= ch:
             continue
         r = _do_match(small, _resize(tpl.img, tw, th), None)
-        _, mv, _, ml = cv2.minMaxLoc(r)
-        cands.append((mv, ml, s))
+        rx, ry = max(1, tw // 2), max(1, th // 2)
+        for _ in range(_CF_PEAKS_PER_SCALE):
+            _, mv, _, ml = cv2.minMaxLoc(r)
+            if mv <= 0:
+                break
+            cands.append((mv, ml, s))
+            r[max(0, ml[1] - ry):ml[1] + ry + 1, max(0, ml[0] - rx):ml[0] + rx + 1] = -1.0
     cands.sort(key=lambda c: -c[0])
     best = None
-    for _, (cx, cy), s0 in cands[:_CF_TOP_K]:
+    for _, (cx, cy), s in cands[:_CF_TOP_K]:
         ax, ay = cx * ds, cy * ds
-        for ratio in _CF_REFINE_STEPS:
-            s = s0 * ratio
-            w, h = max(4, int(round(tpl.w * s))), max(4, int(round(tpl.h * s)))
-            if w >= sw or h >= sh:
-                continue
-            pad = max(ds * 2, w // 6, h // 6)
-            x0, y0 = max(0, ax - pad), max(0, ay - pad)
-            x1, y1 = min(sw, ax + w + pad), min(sh, ay + h + pad)
-            if x1 - x0 <= w or y1 - y0 <= h:
-                continue
-            r = _do_match(src[y0:y1, x0:x1], _resize(tpl.img, w, h), None)
-            _, mv, _, ml = cv2.minMaxLoc(r)
-            if best is None or mv > best[0]:
-                best = (float(mv), x0 + ml[0], y0 + ml[1], w, h)
+        w, h = max(4, int(round(tpl.w * s))), max(4, int(round(tpl.h * s)))
+        if w >= sw or h >= sh:
+            continue
+        pad = max(ds * 2, w // 6, h // 6)
+        x0, y0 = max(0, ax - pad), max(0, ay - pad)
+        x1, y1 = min(sw, ax + w + pad), min(sh, ay + h + pad)
+        if x1 - x0 <= w or y1 - y0 <= h:
+            continue
+        r = _do_match(src[y0:y1, x0:x1], _resize(tpl.img, w, h), None)
+        _, mv, _, ml = cv2.minMaxLoc(r)
+        hit = (float(mv), x0 + ml[0], y0 + ml[1], w, h)
+        if hit[0] < threshold and hit[0] >= threshold - _CF_REFINE_SLACK:
+            hit = _refine_scale(src, tpl, hit)
+        if best is None or hit[0] > best[0]:
+            best = hit
+        if best[0] >= max(threshold, 0.98):
+            break
     return [best] if best is not None and best[0] >= threshold else []
 
 
@@ -698,7 +751,7 @@ def _mask_rank(src, tpl, sizes, src_half):
     return [wh for _, wh in scored[:_MASK_REFINE_TOP]]
 
 
-def _multi(src, tpl, threshold, maxcnt, scale_range, src_half=None):
+def _multi(src, tpl, threshold, maxcnt, scale_range, src_half=None, cf_tried=False):
     """Matches are extracted at the best-scoring scale only (AScript semantics).
 
     Scales are ranked coarse-to-fine: a 1/4 pass rejects absent templates, a 1/2 pass
@@ -744,7 +797,26 @@ def _multi(src, tpl, threshold, maxcnt, scale_range, src_half=None):
         mv = cv2.minMaxLoc(r)[1]
         if best is None or mv > best[0]:
             best = (mv, r, w, h)
-    if best is None or best[0] < threshold:
+    if best is None:
+        return []
+    if best[0] < threshold:
+        # The true scale fell between two coarse steps: search scales finely around the best candidates,
+        # then re-scan the whole frame at the refined size so find_all keeps every hit.
+        fine = None
+        if _cf_eligible(tpl, src):
+            if not cf_tried:  # the caller already ran the candidate search and it found nothing
+                hits = _multi_cf(src, tpl, threshold, scale_range)
+                fine = hits[0] if hits else None
+        elif best[0] >= threshold - _SCALE_REFINE_SLACK:
+            _, mv, _, ml = cv2.minMaxLoc(best[1])
+            fine = _refine_scale(src, tpl, (float(mv), ml[0], ml[1], best[2], best[3]))
+        if fine is not None and fine[0] >= threshold:
+            if maxcnt == 1:
+                return [fine]
+            w, h = fine[3], fine[4]
+            mask = _resize(tpl.mask, w, h) if tpl.mask is not None else None
+            best = (fine[0], _do_match(src, _resize(tpl.img, w, h), mask), w, h)
+    if best[0] < threshold:
         return []
     return _extract(best[1], best[2], best[3], threshold, maxcnt)
 
@@ -752,11 +824,12 @@ def _multi(src, tpl, threshold, maxcnt, scale_range, src_half=None):
 def _match_prepared(src, tpl, threshold, maxcnt, scale_range, fast, src_half=None):
     multi = bool(scale_range) and len(scale_range) == 2 and float(scale_range[0]) != float(scale_range[1])
     if multi:
-        if maxcnt == 1 and _cf_eligible(tpl, src):
+        cf_tried = maxcnt == 1 and _cf_eligible(tpl, src)
+        if cf_tried:
             hits = _multi_cf(src, tpl, threshold, scale_range)
             if hits:
                 return hits
-        return _multi(src, tpl, threshold, maxcnt, scale_range, src_half)
+        return _multi(src, tpl, threshold, maxcnt, scale_range, src_half, cf_tried)
     if fast and _cf_eligible(tpl, src):
         hits = _single_cf(src, tpl, threshold, maxcnt)
         if hits:
