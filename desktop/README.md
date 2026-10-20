@@ -1,11 +1,11 @@
 # XScript 桌面端（Windows 为目标平台）
 
-设计文档：[`docs/桌面端设计.md`](../docs/桌面端设计.md)。本目录实现其 §12.1 路线图的 **P0 阶段**（验证与脚手架）。
+设计文档：[`docs/桌面端设计.md`](../docs/桌面端设计.md)。本目录实现其 §12.1 路线图：**P0**（验证与脚手架）已完成，**P1**（壳 + 设备 + 工程）大部分已实现，**P2**（流程编辑器）部分已实现，P3–P5 见下面的「没做」。
 入口执行方式的实测结论：[`docs/桌面端-入口执行实测.md`](../docs/桌面端-入口执行实测.md)。
 
-> **状态：P0。只在 macOS 上开发和验证。** 所有 Windows 专属行为（`adb.exe` 定位、`CREATE_NO_WINDOW`、凭据管理器、
+> **状态：P0 完成，P1 大部分、P2 部分。只在 macOS 上开发和验证。** 所有 Windows 专属行为（`adb.exe` 定位、`CREATE_NO_WINDOW`、凭据管理器、
 > 打包、安装器、高 DPI、杀软/SmartScreen……）**均未验证**，代码和文档里用「⚠ Windows 未验证」标注。
-> 本阶段没有打 tag、没有发布；桌面端版本号跟随 App（`pyproject.toml` / `package.json` 都是 0.4.0），见设计 §13-14。
+> v0.4.0 起 macOS arm64 的 dmg（ad-hoc 签名、未公证）随 App 一起附在 GitHub Release；Windows 包还没有。桌面端版本号跟随 App（`pyproject.toml` / `package.json` 都是 0.4.0），见设计 §13-14。
 
 ## P0 里有什么
 
