@@ -59,10 +59,10 @@ def overview(request: Request, p: Principal = Depends(viewer), s: Session = Depe
 
 @router.get("/stats/daily")
 def stats_daily(days: int = Query(30, ge=7, le=365), app: str = Query("", max_length=128),
-                batch: str = Query("", max_length=32), p: Principal = Depends(viewer),
-                s: Session = Depends(db_session)):
-    """按天趋势: 激活、到期、新设备、在线设备 for the last `days` server-local days."""
-    return stats.daily(s, days, app, batch)
+                batch: str = Query("", max_length=32), owner: int = Query(0, ge=0),
+                p: Principal = Depends(viewer), s: Session = Depends(db_session)):
+    """按天趋势: 激活、到期、新设备、在线设备 for the last `days` server-local days (owner: one 代理's cards)."""
+    return stats.daily(s, days, app, batch, owner_id=owner or None)
 
 
 def _recent_crashes(s: Session, since: int) -> list[dict[str, Any]]:

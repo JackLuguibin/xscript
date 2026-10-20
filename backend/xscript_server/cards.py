@@ -68,7 +68,7 @@ def to_dict(c: Card, now: float | None = None) -> dict[str, Any]:
         "activated_at": c.activated_at, "expires_at": c.expires_at, "revoked": c.revoked,
         "last_verified_at": c.last_verified_at, "status": status_of(c, now),
         "kind": c.kind or "normal", "max_devices": c.max_devices or 1, "stack": bool(c.stack),
-        "uses_total": c.uses_total or 0, "uses_left": c.uses_left or 0,
+        "uses_total": c.uses_total or 0, "uses_left": c.uses_left or 0, "owner_id": c.owner_id,
         "devices": [{"device": d, "model": m} for d, m in devices.items()],
     }
 
@@ -83,7 +83,7 @@ def new_batch_id() -> str:
 
 def create_batch(s: Session, count: int, days: float, app: str, note: str = "", prefix: str = "XS",
                  batch: str | None = None, kind: str = "normal", max_devices: int = 1,
-                 stack: bool = True, uses: int = 0) -> tuple[str, list[str]]:
+                 stack: bool = True, uses: int = 0, owner_id: int | None = None) -> tuple[str, list[str]]:
     if kind not in KINDS:
         raise ValueError("未知卡类型")
     if kind == "count":  # a per-use card is limited by uses, not by stacking validity
@@ -105,7 +105,7 @@ def create_batch(s: Session, count: int, days: float, app: str, note: str = "", 
             with s.begin_nested():
                 s.add(Card(card=code, batch=batch, days=float(days), app=app or "*", note=note, created_at=now,
                            kind=kind, max_devices=max(1, int(max_devices)), stack=bool(stack),
-                           uses_total=int(uses), uses_left=int(uses)))
+                           uses_total=int(uses), uses_left=int(uses), owner_id=owner_id))
             codes.append(code)
         except IntegrityError:  # astronomically unlikely collision
             continue
@@ -308,11 +308,14 @@ def issue_offline(s: Session, key, device: str, days: float, app: str, note: str
     return token, payload
 
 
-def stats(s: Session) -> dict[str, int]:
-    """Card count per status plus the total, in one pass over the table."""
+def stats(s: Session, owner_id: int | None = None) -> dict[str, int]:
+    """Card count per status plus the total, in one pass over the table (one reseller's cards if owner_id)."""
     now = int(time.time())
     cols = [func.coalesce(func.sum(case((status_filter(st, now), 1), else_=0)), 0) for st in STATUSES]
-    row = s.execute(select(func.count(), *cols).select_from(Card)).one()
+    stmt = select(func.count(), *cols).select_from(Card)
+    if owner_id is not None:
+        stmt = stmt.where(Card.owner_id == owner_id)
+    row = s.execute(stmt).one()
     out = {st: int(n) for st, n in zip(STATUSES, row[1:])}
     out["total"] = int(row[0])
     return out
