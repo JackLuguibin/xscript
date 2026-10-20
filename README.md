@@ -58,6 +58,7 @@ XScript 将设备端 Python 运行时、自动化 API、浏览器开发工具和
 - Web 控制台有 vitest + Testing Library 单元测试，CI 和 `scripts/verify.sh` 都会运行；几个大页面拆分成独立组件。
 - `verify.sh` 也会检查桌面端；桌面端排版测试使用固定的测试字体，结果不随机器上安装的字体变化。开发需要 Node 22+。
 - CI 缓存 npm / pip 依赖；Dependabot 每周提交 GitHub Actions、npm 和 pip 依赖的更新 PR。
+- 修掉了三个偶发失败的测试，都找到了原因，不靠重跑：桌面端测试偶发段错误（QtWebEngine 的原生线程打日志时撞上 pytest-qt 正在替换的 Python 日志回调，现已关闭 pytest-qt 的 Qt 日志捕获）；投屏测试偶发除零（换帧时图片尺寸短暂为 0，测试改为一次读取已解码的帧）；Chrome 启动重试测试在机器繁忙时误报（改为在启动时计数）。
 
 完整变化见[更新记录](CHANGELOG.md)。
 

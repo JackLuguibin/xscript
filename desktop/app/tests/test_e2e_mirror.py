@@ -20,10 +20,14 @@ def test_e2e_m01_mirror_fits_window_and_wheel_rightclick_keyboard(shell, qtbot):
     sh.wait_text(qtbot, "在线")
     click_js(sh, qtbot, btn_starting("屏幕"))
     img = "document.querySelector('img[alt=\"设备屏幕\"]')"
-    sh.wait_js(qtbot, "%s && %s.complete && %s.naturalWidth > 0" % (img, img, img), timeout=15000)
-    sh.wait_js(qtbot, "(() => { const r = %s.getBoundingClientRect(); return r.height > 50 && r.bottom <= window.innerHeight + 1; })()" % img, timeout=8000)
-    geo = sh.js(qtbot, "(() => { const i = %s; const r = i.getBoundingClientRect(); return [r.width, r.height, i.naturalWidth, i.naturalHeight, window.innerHeight, document.scrollingElement.scrollHeight]; })()" % img)
-    w, h, nw, nh, inner, _ = geo
+    # Read the geometry in one evaluation, from a fully decoded frame. The page streams frames by swapping the <img> src,
+    # and while the next frame loads Chromium reports naturalWidth/naturalHeight 0 (complete false) for that element, so
+    # a separate "wait, then read" can land mid-swap (that was the ZeroDivisionError flake).
+    geo = sh.js(qtbot, """new Promise(res => { const tick = () => { const i = %s;
+        if (i && i.complete && i.naturalWidth > 0 && i.naturalHeight > 0) { const r = i.getBoundingClientRect();
+          if (r.height > 50 && r.bottom <= window.innerHeight + 1) return res([r.width, r.height, i.naturalWidth, i.naturalHeight, window.innerHeight]); }
+        requestAnimationFrame(tick); }; tick(); })""" % img, timeout=15000)
+    w, h, nw, nh, inner = geo
     assert abs(w / h - nw / nh) < 0.02, geo  # aspect ratio kept
     assert h <= inner, geo
 
