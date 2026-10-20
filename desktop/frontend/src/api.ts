@@ -284,6 +284,37 @@ export function createApi(rpc: RpcClient) {
     secretSet: (kind: string, name: string, value: string) => rpc.call<{ ok: boolean; kind: string; name: string }>("secret.set", { kind, name, value }),
     secretDelete: (kind: string, name: string) => rpc.call<{ deleted: boolean }>("secret.delete", { kind, name }),
     secretHas: (kind: string, name: string) => rpc.call<{ present: boolean }>("secret.has", { kind, name }),
+    cloudStatus: () => rpc.call<CloudStatus>("cloud.status", {}, { timeoutMs: 20_000 }),
+    /** The token goes to the OS keyring; it is never sent back. */
+    cloudConnect: (origin: string, token: string) => rpc.call<CloudStatus>("cloud.connect", { origin, token }, { timeoutMs: 20_000 }),
+    cloudDisconnect: () => rpc.call<CloudStatus>("cloud.disconnect"),
+    cloudDevices: (f: CloudDeviceFilter = {}) => rpc.call<CloudDevicePage>("cloud.devices", { ...f }, { timeoutMs: 20_000 }),
+    cloudCommand: (ids: string[], action: "run" | "stop", project = "", param?: Record<string, unknown>) =>
+      rpc.call<CloudBatchResult>("cloud.command", { ids, action, project, ...(param ? { param } : {}) }, { timeoutMs: 60_000 }),
+    cloudLogs: (id: string, f: { q?: string; stream?: CloudLogStream; before?: number; limit?: number } = {}) =>
+      rpc.call<{ items: CloudLogLine[]; more: boolean }>("cloud.logs", { id, ...f }, { timeoutMs: 20_000 }),
+    cloudTasks: () => rpc.call<{ tasks: CloudTask[] }>("cloud.tasks", {}, { timeoutMs: 20_000 }),
+    cloudTaskCreate: (task: CloudTaskInput) => rpc.call<CloudTask>("cloud.taskCreate", { ...task }, { timeoutMs: 20_000 }),
+    cloudTaskUpdate: (id: number, patch: { enabled?: boolean; name?: string }) => rpc.call<CloudTask>("cloud.taskUpdate", { id, ...patch }, { timeoutMs: 20_000 }),
+    cloudTaskRun: (id: number) => rpc.call<{ devices: number; ok: number }>("cloud.taskRun", { id }, { timeoutMs: 120_000 }),
+    cloudTaskDelete: (id: number) => rpc.call<{ ok: boolean }>("cloud.taskDelete", { id }, { timeoutMs: 20_000 }),
+    cloudFlowVersions: (project: string) => rpc.call<{ scriptId: number | null; versions: CloudVersion[] }>("cloud.flowVersions", { project }, { timeoutMs: 20_000 }),
+    cloudFlowDeploy: (d: { project: string; files: Array<{ path: string; content: string }>; group: string; version?: string; notes?: string; run?: boolean }) =>
+      rpc.call<CloudDeployResult>("cloud.flowDeploy", { ...d }, { timeoutMs: 180_000 }),
+    cloudFlowRollback: (scriptId: number, versionId: number, group: string, run = true) =>
+      rpc.call<CloudDeployResult>("cloud.flowRollback", { scriptId, versionId, group, run }, { timeoutMs: 180_000 }),
+    cloudConsole: () => rpc.call<{ links: Array<{ page: string; url: string }> }>("cloud.console"),
+    cloudPackJobs: (page = 1) => rpc.call<{ available: boolean; reason: string; items: CloudPackJob[]; total: number }>("cloud.packJobs", { page }, { timeoutMs: 20_000 }),
+    cloudPackLog: (id: number, offset = 0) => rpc.call<{ text: string; next: number }>("cloud.packLog", { id, offset }, { timeoutMs: 20_000 }),
+    cloudPackCancel: (id: number) => rpc.call<{ ok: boolean }>("cloud.packCancel", { id }, { timeoutMs: 20_000 }),
+    cloudPackSave: (id: number, name: string) => rpc.call<{ saved: boolean; path?: string; bytes?: number }>("cloud.packSave", { id, name }, { timeoutMs: 600_000 }),
+    cloudGroups: () => rpc.call<{ groups: CloudGroup[]; apps: string[] }>("cloud.groups", {}, { timeoutMs: 20_000 }),
+    diagnostics: () => rpc.call<{ saved: boolean; path?: string; bytes?: number; files?: string[] }>("app.diagnostics", {}, { timeoutMs: 600_000 }),
+    updateInfo: () => rpc.call<UpdateInfo>("update.info"),
+    updateStatus: () => rpc.call<UpdateStatus>("update.status"),
+    updateCheck: () => rpc.call<UpdateStatus>("update.check", {}, { timeoutMs: 60_000 }),
+    updateDownload: () => rpc.call<UpdateStatus>("update.download", {}, { timeoutMs: 1_800_000 }),
+    updateInstall: () => rpc.call<UpdateStatus & { helperLog: string }>("update.install", {}, { timeoutMs: 180_000 }),
     copyText: (text: string) => rpc.call<{ ok: boolean }>("app.copyText", { text }),
     toolsOpen: (id: string, page: string) => rpc.call<{ url: string; page: string; warning: string }>("tools.open", { id, page }),
     uiTree: (id: string, mode = 0) => rpc.call<UiTreeResult>("device.uiTree", { id, mode }),
@@ -293,3 +324,91 @@ export function createApi(rpc: RpcClient) {
 }
 
 export type Api = ReturnType<typeof createApi>;
+
+// ---- cloud control (admin backend, P4) ----
+export type CloudRole = "viewer" | "operator" | "admin";
+export interface CloudAccount { username: string; role: CloudRole; canOperate: boolean; isAdmin: boolean }
+export type UpdateState = "idle" | "checking" | "none" | "available" | "downloading" | "ready" | "installing" | "error";
+export interface UpdateStatus {
+  state: UpdateState;
+  update: { version: string; published: string; notes: { zh?: string; en?: string }; newer: boolean; asset: { name: string; size: number; sha256: string } } | null;
+  error: { kind: string; message: string } | null;
+  progress: { done: number; total: number };
+}
+export interface UpdateInfo extends UpdateStatus {
+  version: string;
+  platform: string | null;
+  configured: boolean;
+  feed: string;
+  configError: string;
+  canInstall: boolean;
+}
+
+export interface CloudStatus {
+  state: "not_configured" | "connected" | "expired" | "unreachable" | "error";
+  origin: string;
+  account?: CloudAccount;
+  code?: string;
+  message?: string;
+}
+export interface CloudDevice {
+  id: string;
+  model: string | null;
+  brand: string | null;
+  app: string | null;
+  group: string | null;
+  note: string | null;
+  online: boolean;
+  running: boolean;
+  project: string | null;
+  version: string | null;
+  release: string | null;
+  width: number | null;
+  height: number | null;
+  last_seen: number | null;
+}
+export interface CloudDeviceFilter { q?: string; group?: string; app?: string; online?: boolean; page?: number; pageSize?: number }
+export interface CloudDevicePage { items: CloudDevice[]; total: number; page: number; pageSize: number }
+export interface CloudGroup { name: string; total: number; online: number }
+export interface CloudBatchRow { id: string; ok: boolean; offline: boolean; msg: string }
+export interface CloudBatchResult { rows: CloudBatchRow[]; ok: number; total: number }
+export type CloudLogStream = "" | "stdout" | "stderr" | "system";
+export interface CloudLogLine { id: number; ts: number; stream: string; line: string }
+export interface CloudTask {
+  id: number;
+  name: string;
+  target: string;
+  path: string;
+  project: string;
+  daily: string | null;
+  every: number | null;
+  enabled: boolean;
+  lastRun: number | null;
+  nextRun: number | null;
+  lastResult: unknown;
+  createdBy: string;
+}
+export interface CloudTaskInput { name: string; target: string; path: "app_run" | "app_stop"; project?: string; daily?: string; every?: number; enabled?: boolean }
+export interface CloudVersion { id: number; version: string; code: number; notes: string; createdBy: string; createdAt: number | null; current: boolean }
+export interface CloudDeployResult extends CloudBatchResult { scriptId: number; versionId: number; version: string }
+export interface CloudPackJob {
+  id: number;
+  status: string;
+  app_id: string;
+  app_name: string;
+  version: string;
+  version_code: number;
+  project_name: string;
+  created_by: string;
+  created_at: number;
+  finished_at: number | null;
+  apk_size: number | null;
+  error: string;
+  has_apk: boolean;
+  queue_position: number | null;
+}
+
+/** xsapp:// URL of a cloud device's screenshot (fetched by Python over the backend relay). */
+export function cloudThumbUrl(deviceId: string, tick: number): string {
+  return `/_cloudshot/${encodeURIComponent(deviceId)}.jpg?max=320&t=${tick}`;
+}

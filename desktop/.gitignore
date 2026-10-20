@@ -8,3 +8,5 @@ coverage.xml
 htmlcov/
 frontend/coverage/
 app/tests/_visual_out/
+# packaging venv of build_macos_app.sh / build_windows.sh
+app/.venv-build/

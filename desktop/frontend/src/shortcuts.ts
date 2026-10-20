@@ -1,10 +1,10 @@
 // Global shortcuts (design §14.13). On macOS the table's Ctrl is ⌘; elsewhere it is Ctrl.
 // Single-key "?" can be turned off (WCAG 2.1.4). Chords still work while typing; "?" does not.
 
-export type ShellPage = "devices" | "mirror" | "projects" | "wall" | "flows";
+export type ShellPage = "devices" | "mirror" | "projects" | "wall" | "flows" | "cloud";
 
-/** Nav order for Ctrl/⌘+1…9. Index 4 is Flows. 5–8 have no item. */
-export const NAV_PAGES: readonly ShellPage[] = ["devices", "mirror", "projects", "wall", "flows"];
+/** Nav order for Ctrl/⌘+1…9. Index 4 is Flows, 5 is Cloud. 6–8 have no item. */
+export const NAV_PAGES: readonly ShellPage[] = ["devices", "mirror", "projects", "wall", "flows", "cloud"];
 
 export type OverlayName = "palette" | "settings" | "help";
 

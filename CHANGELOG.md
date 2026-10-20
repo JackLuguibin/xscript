@@ -4,6 +4,8 @@
 
 ## 未发布
 
+- **桌面端安装包与更新**：新增 Windows x64 安装包（Inno Setup，按用户安装，未签名）；macOS dmg 仍为 ad-hoc 签名，发布前会在 Mac 上实际打开验证。侧栏「设置与更新」可以检查、下载并安装新版本（更新清单用 Ed25519 签名，文件核对 sha256，用户确认后才替换并重启），可选启动时每天检查一次；还能导出去掉了令牌和密码的诊断包。正式启用自动更新还需要配置更新签名密钥，之前会提示手动下载。见 [desktop/README.md](desktop/README.md)「P5 安装包与更新」。
+- **桌面端云控**：侧栏新增「云控」，用后台的 API 令牌（存系统凭据库）连接自托管管理后台：设备表（筛选、多选）、批量运行 / 停止、在线设备实时画面、运行日志检索、服务端定时任务、把流程编辑器里的流程作为新版本部署到分组并可回滚、APK 打包任务（看日志、保存 APK）、在浏览器打开后台各页。按后台角色灰显（只读 / 操作员 / 管理员）。端到端脚本 `scripts/desktop_cloud_e2e.py`（本地后台 + 模拟器）。见 [desktop/README.md](desktop/README.md)「P4 云控」。
 - 找图：多尺度找图（`scale_range`）在两个尺度之间的目标（例如 0.8 倍、置信度 0.8）以前可能找不到，现在会在最接近的几个候选附近细化尺度再判断（#109）。
 - 找图：`find_image` / `find_all_images` / `image.find_templates` 新增 `method=`：`"template"`、`"multiscale"`、`"feature"`（ORB，不行再 SIFT，MAGSAC 拟合）、`"hash"` 和推荐的 `"auto"`（先模板匹配，找不到再用特征点），能找到被缩放、旋转的目标；结果多了 `quad`、`angle`、`scale`、`method`。不传 `method` 时行为不变。AScript 的 `find_all_sift` / `find_surf` / `FindImages.find_sift` 现在真正使用特征点匹配（#110）。
 - 找色：`find_colors` / `compare_colors` 新增 `color_space="rgb" | "hsv" | "lab"` 和 `tolerance=`，HSV 在画面变暗时更稳；新增 `screen.count_color`、`screen.find_color_blobs`（连通色块）、`screen.dominant_colors`（主色）。不带 `#` 坐标的 `#rrggbb` 找色点现在按文档当作 (0, 0)（#111）。
@@ -16,6 +18,10 @@
 - MCP / 后台 AI 写脚本的 API 目录改由 `scripts/gen_api_catalog.py` 从 stub 生成（签名不再手抄），CI 检查两份副本和运行时是否一致；顺带修正了 `yolo.decode`、`pip.install_requirements`、`cloud.on_message` 等过时签名，补上 `system.open_app_setting`、`ui.float_add_menu`、`onnx.available`、`cloud.connected` / `cloud.off`。
 - 定位：`xscript.android.location` 新增坐标转换 `to_wgs84`、`from_wgs84`、`convert`，以及 WGS84 / GCJ-02（高德、腾讯）/ BD-09（百度）两两转换函数，与 `ascript.android.location` 同名同实现（新模块 `xscript.android.coords`）。
 - **网页 IDE：参数提示和悬停文档**：输入 `xscript.*` / `ascript.*` 函数调用的 `(` 后显示签名并标出当前参数（Ctrl/Cmd+Shift+空格 手动打开，Esc 关闭）；鼠标停在模块、函数、类或方法名上显示签名和完整文档。数据由新脚本 `scripts/gen_editor_docs.py` 从 `ide/python-stubs` 生成（`editor-docs.js`，离线可用），CI 和 `verify.sh` 检查是否过期。见[使用手册](docs/使用手册.md)。
+- **代理批发价与结算**：管理员可以给每个代理设批发价（应用 × 卡类型 × 有效期，金额按分记），代理生成卡密时在同一事务里记应付；没设价格的组合可选「记 0 元」或「禁止生成」。「代理」页新增「待结算」列和结算抽屉（账单、登记收款、调整、批发价），可按时间段导出对账单 CSV；代理在「我的概览」看到自己的账单和批发价。只记账，不接支付。数据库迁移第 9 步自动执行。见 [backend/README.md](backend/README.md#批发价与结算)（#130）。
+- 桌面端流程：有回边或非结构化汇合的流程（走状态机代码）现在也能编译 `match`、顺序、`try`、并行、`wait_until`、`retry`，以及循环体跳到循环外面的循环；以前会报「state machine cannot lower …」。仍不支持的写法（被整体内联的分支跳出容器）会报错并指出节点。
+- **UI 设计器**：手机网页 IDE 打开 `res/ui/<名称>.ui.json` 时显示表单设计器（与 VS Code 扩展共用同一份设计器和生成器），保存时生成 `res/ui/<名称>.html` 和 `ui_<名称>.py`。修复：生成的表单里「下拉选择」在手机上点了没反应（`ui.Window` 的悬浮窗里系统下拉框弹不出来），现在显示为页内的选项列表；已在模拟器上验证每种控件的填写、提交、取消和预填。见[使用手册](docs/使用手册.md)（#128）。
+- **网页 IDE：跳转到定义、查找引用、更准的语法检查**：F12 或 Ctrl/⌘+点击跳到函数、类、变量的定义（跨工程文件，认识 import、别名、相对导入、`self.` 和实例方法），库函数显示存根签名和文档；Shift+F12 在左侧列出工程里的所有引用。语法检查换成内置的 Python 3.10 解析器，报错行与 Python 一致，能发现给函数调用赋值、参数顺序错、少逗号等以前查不出的错误；和 Python 一样一次只报第一个错误。见[使用手册](docs/使用手册.md)。
 
 ## v0.4.0（2026-10-20）
 

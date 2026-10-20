@@ -21,14 +21,16 @@ import {
   DownOutlined,
   LineChartOutlined,
   PlusOutlined,
+  AccountBookOutlined,
   SafetyCertificateOutlined,
   WalletOutlined,
 } from "@ant-design/icons";
-import { api, type ResellerRow } from "../api";
+import { api, type ResellerBalance, type ResellerRow } from "../api";
 import { PageHeader } from "../components";
-import { fmtAgo, fmtDays } from "../format";
+import { fmtAgo, fmtDays, fmtYuan } from "../format";
 import TrendCard, { CARD_TREND_SERIES } from "./overview/TrendCard";
 import { KIND_LABELS, LimitsModal, NewResellerModal, QuotaModal, QuotaBar } from "./resellers/ResellerModals";
+import { SettlementDrawer } from "./resellers/Settlement";
 
 /** 代理管理 (admin): quota, limits and sales of every reseller account. */
 export default function ResellersPage() {
@@ -39,6 +41,12 @@ export default function ResellersPage() {
   const [quotaOf, setQuotaOf] = useState<ResellerRow | null>(null);
   const [limitsOf, setLimitsOf] = useState<ResellerRow | null>(null);
   const [trendOf, setTrendOf] = useState<ResellerRow | null>(null);
+  const [settleOf, setSettleOf] = useState<ResellerRow | null>(null);
+  const balances = useQuery({
+    queryKey: ["reseller-balances"],
+    queryFn: () => api.get<{ items: (ResellerBalance & { id: number })[] }>("/api/resellers/balances"),
+  });
+  const balanceOf = new Map((balances.data?.items ?? []).map((b) => [b.id, b]));
   const list = useQuery({
     queryKey: ["resellers"],
     queryFn: () => api.get<{ items: ResellerRow[] }>("/api/resellers"),
@@ -72,10 +80,11 @@ export default function ResellersPage() {
       hint: `已激活 ${sum((r) => r.cards.active).toLocaleString()} 张`,
     },
     {
-      label: "近 30 天激活",
-      value: sum((r) => r.activations_30d),
-      unit: "张",
-      hint: "代理卡密在 App 内激活",
+      label: "待结算",
+      value: (balances.data?.items ?? []).reduce((n, b) => n + b.balance, 0),
+      unit: "",
+      hint: `近 30 天激活 ${sum((r) => r.activations_30d).toLocaleString()} 张`,
+      money: true,
     },
   ];
 
@@ -83,7 +92,7 @@ export default function ResellersPage() {
     <>
       <PageHeader
         title="代理"
-        desc="给代理分配可生成的卡密额度和发卡限制；代理登录后只能看到和管理自己生成的卡。所有调整都记入操作日志。"
+        desc="给代理分配可生成的卡密额度、发卡限制和批发价，登记收款并导出对账单；代理登录后只能看到自己的卡和账单。所有调整都记入操作日志。"
         extra={
           <Button type="primary" icon={<PlusOutlined />} onClick={() => setCreating(true)}>
             新建代理
@@ -96,7 +105,7 @@ export default function ResellersPage() {
             <Card className="mini-stat static">
               <div className="label">{s.label}</div>
               <div className="value">
-                {s.value.toLocaleString()} <small>{s.unit}</small>
+                {"money" in s ? fmtYuan(s.value) : s.value.toLocaleString()} <small>{s.unit}</small>
               </div>
               <div className="hint">{s.hint}</div>
             </Card>
@@ -109,7 +118,7 @@ export default function ResellersPage() {
           size="middle"
           loading={list.isLoading}
           dataSource={rows}
-          scroll={{ x: 1100 }}
+          scroll={{ x: 1560 }}
           pagination={false}
           locale={{
             emptyText: (
@@ -172,8 +181,24 @@ export default function ResellersPage() {
               render: (n: number) => n.toLocaleString(),
             },
             {
+              title: "待结算",
+              key: "balance",
+              width: 120,
+              align: "right",
+              render: (_, r) => {
+                const b = balanceOf.get(r.id);
+                if (!b) return <span className="muted">—</span>;
+                return (
+                  <Tooltip title={`应付 ${fmtYuan(b.charged)}，已收 ${fmtYuan(b.paid)}，调整 ${fmtYuan(b.adjusted)}`}>
+                    <b className={b.balance > 0 ? "money-owed" : undefined}>{fmtYuan(b.balance)}</b>
+                  </Tooltip>
+                );
+              },
+            },
+            {
               title: "发卡限制",
               key: "limits",
+              width: 300,
               render: (_, r) => (
                 <Space size={[4, 4]} wrap>
                   {r.kinds.map((k) => (
@@ -199,11 +224,14 @@ export default function ResellersPage() {
               title: "操作",
               key: "ops",
               fixed: "right",
-              width: 230,
+              width: 290,
               render: (_, r) => (
                 <Space size={0}>
                   <Button type="link" size="small" icon={<WalletOutlined />} onClick={() => setQuotaOf(r)}>
                     额度
+                  </Button>
+                  <Button type="link" size="small" icon={<AccountBookOutlined />} onClick={() => setSettleOf(r)}>
+                    结算
                   </Button>
                   <Button type="link" size="small" icon={<LineChartOutlined />} onClick={() => setTrendOf(r)}>
                     销量
@@ -252,6 +280,7 @@ export default function ResellersPage() {
       />
       <QuotaModal row={quotaOf} onClose={() => setQuotaOf(null)} onDone={refresh} />
       <LimitsModal row={limitsOf} onClose={() => setLimitsOf(null)} onDone={refresh} />
+      <SettlementDrawer row={settleOf} onClose={() => setSettleOf(null)} />
       <Drawer
         open={!!trendOf}
         onClose={() => setTrendOf(null)}

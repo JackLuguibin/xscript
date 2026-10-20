@@ -197,3 +197,45 @@ test('createProject sends the template id; listTemplates tolerates older devices
   const ok=new EditorModel(async()=>({templates:[{id:'empty',label:'空'}],default:'empty'}));
   assert.equal((await ok.listTemplates()).templates[0].id,'empty');
 });
+
+test('saving res/ui/<name>.ui.json writes the generated page and module (shared generator)', async () => {
+  const {model, projects} = fixture();
+  const F = require('../../android/app/src/main/assets/tools/ui-form.js');
+  const spec = F.newSpec('设置'); spec.fields.push({kind: 'text', id: 'name', label: '名称', default: 'a'});
+  projects.demo['res/ui/main.ui.json'] = '';
+  const doc = await model.open('res/ui/main.ui.json'); model.edit(doc, F.serializeSpec(spec));
+  await model.save(doc);
+  assert.deepEqual(doc.generated, {files: ['res/ui/main.html', 'ui_main.py'], error: ''});
+  assert.equal(projects.demo['res/ui/main.html'], F.outputs(spec, 'main')['res/ui/main.html']);
+  assert.match(projects.demo['ui_main.py'], /def show\(/);
+  // an open, unedited tab of a generated file is refreshed; one with edits is never overwritten
+  const page = await model.open('res/ui/main.html'); const mod = await model.open('ui_main.py'); model.edit(mod, '# mine');
+  spec.title = '新标题'; model.edit(doc, F.serializeSpec(spec)); await model.save(doc);
+  assert.match(page.content, /新标题/); assert.equal(page.saved, page.content);
+  assert.equal(mod.content, '# mine'); assert.deepEqual(doc.generated.files, ['res/ui/main.html']);
+});
+
+test('an invalid or non-form spec generates nothing; nested projects keep their prefix', async () => {
+  const {model, projects} = fixture();
+  projects.demo['res/ui/bad.ui.json'] = '';
+  const bad = await model.open('res/ui/bad.ui.json');
+  model.edit(bad, '{"fields":[{"kind":"text","id":"class","label":"x"}]}'); await model.save(bad);
+  assert.equal(bad.generated.files.length, 0); assert.match(bad.generated.error, /Python identifier/);
+  model.edit(bad, '{oops'); await model.save(bad); assert.match(bad.generated.error, /JSON/);
+  assert.ok(!('res/ui/bad.html' in projects.demo));
+  projects.demo['sub/res/ui/f.ui.json'] = '';
+  const nested = await model.open('sub/res/ui/f.ui.json'); model.edit(nested, '{"title":"t","fields":[]}'); await model.save(nested);
+  assert.deepEqual(nested.generated.files, ['sub/res/ui/f.html', 'sub/ui_f.py']);
+  const plain = await model.open('utils.py'); model.edit(plain, 'x = 1'); await model.save(plain);
+  assert.equal(plain.generated, null);
+});
+test('pythonSources: every .py file for the symbol table, unsaved editor content wins, other files skipped', async () => {
+  const {model, projects, calls} = fixture();
+  projects.demo['pkg/a.py'] = 'A = 1\n'; projects.demo['readme.txt'] = 'x';
+  const doc = await model.open('utils.py'); model.edit(doc, 'def f(): pass\n');
+  calls.length = 0;
+  const files = await model.pythonSources();
+  assert.deepEqual(files, [{path: '__init__.py', content: 'print(1)'}, {path: 'pkg/a.py', content: 'A = 1\n'}, {path: 'utils.py', content: 'def f(): pass\n'}]);
+  assert.equal(calls.filter(c => c.url.includes('/file?')).length, 2, 'open documents are not fetched again');
+  assert.equal(model.documents.has(model.key('pkg/a.py', 'demo')), false, 'reading for the index does not open tabs');
+});

@@ -15,6 +15,8 @@ from typing import Any, Awaitable, Callable
 from . import __version__
 from .rpc import Dispatcher, RpcError, param
 from .services.adb import AdbError, AdbService
+from .services import backend_client
+from .services.backend_client import BackendError, CloudService, _Settings
 from .services.device_client import DeviceError, DeviceTarget, summarize_status
 from .services.device_manager import LAN_WARNING, DeviceManager, DeviceRecord, lan_hosts
 from .services import sync as syncmod
@@ -23,6 +25,8 @@ from .services.mirror import MirrorProxy, MirrorTimings
 from .services.secrets import MemoryBackend, NameIndex, SecretError, SecretStore
 from .services.store import AppStore, SavedDevice, StoreError, StoreSyncCache
 from .services.tool_pages import TITLES, paired_url, tool_url
+from .services.updater import UpdateError, UpdateService
+from .services import diagnostics
 
 ACTION_TYPES = ("click", "swipe", "input", "key")
 MAX_FILE_CHARS = 2 * 1024 * 1024  # stays under the bridge's 4 MiB request cap even after JSON escaping
@@ -81,8 +85,12 @@ def _map_errors(fn: Callable[..., Awaitable[Any]]) -> Callable[..., Awaitable[An
             raise RpcError(error_code(e), e.message) from e
         except SecretError as e:
             raise RpcError(e.code, e.message) from e
+        except BackendError as e:
+            raise RpcError(e.code, e.message, retryable=e.retryable, details={"status": e.status}) from e
         except KeyError as e:
             raise RpcError("device.not_found", "no such connected device: %s" % e.args[0]) from e
+        except UpdateError as e:
+            raise RpcError("update." + e.kind, str(e)) from e
         except ValueError as e:
             raise RpcError("rpc.bad_params", str(e)) from e
 
@@ -114,6 +122,16 @@ class AppContext:
         self.mirror = MirrorProxy(self._mirror_client, self.dispatcher.emit, timings=mirror_timings)
         # Memory backend until main() swaps in the OS keyring. --selftest never touches the login keychain.
         self.secrets = SecretStore(MemoryBackend(), NameIndex(data_dir / "slot-index.json" if data_dir else None))
+        # Admin backend for cloud control (P4): origin in settings, token in the keyring slot backend/<origin>.
+        self.cloud = CloudService(self.secrets, _Settings(
+            get=lambda k: self.store.aexec(self.store._get_setting, k),
+            set=lambda k, v: self.store.aexec(self.store._set_setting, k, v),
+            delete=lambda k: self.store.aexec(self.store._delete_setting, k)))
+        # Desktop auto-update (P5.4). Downloads go to <data dir>/updates (a temp folder without a data dir).
+        self._data_dir = data_dir
+        self.updates = UpdateService(__version__, self._update_dir)
+        # set by the Qt shell: quit the app from any thread (the update helper finishes once this process is gone)
+        self.quit_app: Callable[[], None] | None = None
         self.ui_ready = threading.Event()
         # Set by the page (app.setUnsaved), read by MainWindow.closeEvent on the GUI thread: plain attribute writes.
         self.unsaved = False
@@ -122,6 +140,53 @@ class AppContext:
         self._adb_ready: set[str] | None = None  # serials in state "device" at the last device.adb.list (None: no baseline yet)
         self._hotplug_tasks: set[asyncio.Task] = set()
         self._register()
+
+    def _update_dir(self) -> Path:
+        if self._data_dir is None:
+            import tempfile
+
+            self._data_dir_tmp = getattr(self, "_data_dir_tmp", None) or Path(tempfile.mkdtemp(prefix="xscript-updates-"))
+            return self._data_dir_tmp
+        return self._data_dir / "updates"
+
+    async def diagnostics_info(self) -> dict[str, Any]:
+        """What a bug report needs, without identifiers or secrets: versions, platform, counts and states."""
+        try:
+            from PySide6 import __version__ as pyside, QtCore
+            qt = QtCore.qVersion()
+        except Exception:  # noqa: BLE001 - pure-Python test runs
+            pyside, qt = None, None
+        devices = self.devices.list()
+        states: dict[str, int] = {}
+        for rec in devices:
+            states[rec.state] = states.get(rec.state, 0) + 1
+        try:
+            saved = len(await self.store.aexec(self.store.list_devices))
+        except Exception:  # noqa: BLE001
+            saved = None
+        origin = await self.cloud.origin() if self.cloud else None
+        upd = self.updates.info()
+        return {
+            "app": {"version": __version__, "frozen": bool(getattr(sys, "frozen", False)), "install": str(self.updates.install_path or "")},
+            "platform": {"os": sys.platform, "release": platform.release(), "machine": platform.machine(),
+                         "python": platform.python_version(), "pyside6": pyside, "qt": qt},
+            "adb": {"path": self.adb.path()},
+            "devices": {"connected": len(devices), "states": states, "saved": saved},
+            "cloud": {"configured": bool(origin)},
+            "update": {k: upd.get(k) for k in ("platform", "configured", "feed", "state", "error", "canInstall")},
+            "ui": {"lang": self.ui_lang, "unsaved": self.unsaved},
+            "dataDir": str(self._data_dir) if self._data_dir else None,
+            "generated": time.strftime("%Y-%m-%dT%H:%M:%S%z"),
+        }
+
+    async def install_update(self) -> dict[str, Any]:
+        """Stage the verified download, start the helper, then quit so it can swap/upgrade and relaunch."""
+        if self.unsaved:
+            raise RpcError("update.unsaved", "save or discard the open edits before installing the update")
+        r = await asyncio.to_thread(self.updates.prepare_install)
+        if self.quit_app:
+            self.quit_app()
+        return r
 
     def _mirror_client(self, device_id: str):
         return self.devices.get(device_id).client
@@ -135,6 +200,10 @@ class AppContext:
             return await rec.client.screen("jpg", quality, max_side)
         except DeviceError as e:
             raise e
+
+    async def cloud_thumb(self, device_id: str, max_side: int = 480) -> tuple[bytes, str]:
+        """Cloud device screenshot for xsapp://app/_cloudshot/<id>.jpg (the wall's binary path; never JSON over the bridge)."""
+        return await backend_client.thumb(await self.cloud.client(), device_id, max_side)
 
     def _client(self, params: dict[str, Any]) -> Any:
         rec = self.devices.get(param(params, "id", str))
@@ -868,6 +937,192 @@ class AppContext:
         @_map_errors
         async def secret_has(params: dict[str, Any]) -> dict[str, Any]:
             return await asyncio.to_thread(self.secrets.has, param(params, "kind", str), param(params, "name", str))
+
+        # ---- cloud control: the admin backend (P4). The token goes in once and never comes back out. -----------------------
+
+        @d.method("cloud.status")
+        @_map_errors
+        async def cloud_status(params: dict[str, Any]) -> dict[str, Any]:
+            return await self.cloud.status()
+
+        @d.method("cloud.connect")
+        @_map_errors
+        async def cloud_connect(params: dict[str, Any]) -> dict[str, Any]:
+            return await self.cloud.connect(param(params, "origin", str), param(params, "token", str))
+
+        @d.method("cloud.devices")
+        @_map_errors
+        async def cloud_devices(params: dict[str, Any]) -> dict[str, Any]:
+            online = params.get("online")
+            if online is not None and not isinstance(online, bool):
+                raise RpcError("rpc.bad_params", "parameter online has the wrong type")
+            return await backend_client.list_devices(
+                await self.cloud.client(), q=param(params, "q", str, default=""), group=param(params, "group", str, default=""),
+                app=param(params, "app", str, default=""), online=online, page=param(params, "page", int, default=1),
+                page_size=param(params, "pageSize", int, default=50))
+
+        @d.method("cloud.groups")
+        @_map_errors
+        async def cloud_groups(params: dict[str, Any]) -> dict[str, Any]:
+            c = await self.cloud.client()
+            return {"groups": await backend_client.list_groups(c), "apps": await backend_client.list_apps(c)}
+
+        @d.method("cloud.command")
+        @_map_errors
+        async def cloud_command(params: dict[str, Any]) -> dict[str, Any]:
+            ids = param(params, "ids", list)
+            return await backend_client.batch_command(
+                await self.cloud.client(), ids, param(params, "action", str), param(params, "project", str, default=""),
+                param(params, "param", dict, default=None))
+
+        @d.method("cloud.logs")
+        @_map_errors
+        async def cloud_logs(params: dict[str, Any]) -> dict[str, Any]:
+            return await backend_client.device_logs(
+                await self.cloud.client(), param(params, "id", str), q=param(params, "q", str, default=""),
+                stream=param(params, "stream", str, default=""), before=param(params, "before", int, default=0),
+                limit=param(params, "limit", int, default=300))
+
+        @d.method("cloud.tasks")
+        @_map_errors
+        async def cloud_tasks(params: dict[str, Any]) -> dict[str, Any]:
+            return {"tasks": await backend_client.list_tasks(await self.cloud.client())}
+
+        @d.method("cloud.taskCreate")
+        @_map_errors
+        async def cloud_task_create(params: dict[str, Any]) -> dict[str, Any]:
+            every = param(params, "every", (int, float), default=None)
+            return await backend_client.create_task(
+                await self.cloud.client(), name=param(params, "name", str, default=""), target=param(params, "target", str),
+                path=param(params, "path", str), project=param(params, "project", str, default=""),
+                daily=param(params, "daily", str, default=""), every=None if every is None else float(every),
+                enabled=param(params, "enabled", bool, default=True))
+
+        @d.method("cloud.taskUpdate")
+        @_map_errors
+        async def cloud_task_update(params: dict[str, Any]) -> dict[str, Any]:
+            return await backend_client.update_task(await self.cloud.client(), param(params, "id", int),
+                                                    enabled=param(params, "enabled", bool, default=None),
+                                                    name=param(params, "name", str, default=None))
+
+        @d.method("cloud.taskRun")
+        @_map_errors
+        async def cloud_task_run(params: dict[str, Any]) -> dict[str, Any]:
+            return await backend_client.run_task(await self.cloud.client(), param(params, "id", int))
+
+        @d.method("cloud.taskDelete")
+        @_map_errors
+        async def cloud_task_delete(params: dict[str, Any]) -> dict[str, Any]:
+            return await backend_client.delete_task(await self.cloud.client(), param(params, "id", int))
+
+        @d.method("cloud.flowVersions")
+        @_map_errors
+        async def cloud_flow_versions(params: dict[str, Any]) -> dict[str, Any]:
+            return await backend_client.flow_versions(await self.cloud.client(), param(params, "project", str))
+
+        @d.method("cloud.flowDeploy")
+        @_map_errors
+        async def cloud_flow_deploy(params: dict[str, Any]) -> dict[str, Any]:
+            return await backend_client.deploy_flow(
+                await self.cloud.client(), project=param(params, "project", str), files=param(params, "files", list),
+                group=param(params, "group", str), version=param(params, "version", str, default=""),
+                notes=param(params, "notes", str, default=""), run=param(params, "run", bool, default=True))
+
+        @d.method("cloud.flowRollback")
+        @_map_errors
+        async def cloud_flow_rollback(params: dict[str, Any]) -> dict[str, Any]:
+            return await backend_client.rollback_flow(
+                await self.cloud.client(), script_id=param(params, "scriptId", int), version_id=param(params, "versionId", int),
+                group=param(params, "group", str), run=param(params, "run", bool, default=True))
+
+        @d.method("app.diagnostics")
+        @_map_errors
+        async def app_diagnostics(params: dict[str, Any]) -> dict[str, Any]:
+            """Ask where to save, then write a zip with redacted info.json + the app's logs (P5.5). Nothing is uploaded."""
+            if self.save_file is None:
+                raise RpcError("app.unavailable", "no save dialog in this mode")
+            name = "xscript-diagnostics-%s.zip" % time.strftime("%Y%m%d-%H%M")
+            chosen = await self.save_file("导出诊断包" if self.ui_lang == "zh" else "Export diagnostics", name, "Zip (*.zip)")
+            if not chosen:
+                return {"saved": False}
+            data, files = await asyncio.to_thread(diagnostics.build, await self.diagnostics_info(),
+                                                  diagnostics.log_files(self._data_dir))
+            dest = Path(chosen)
+            if dest.suffix.lower() != ".zip":
+                dest = dest.with_suffix(".zip")
+            await asyncio.to_thread(dest.write_bytes, data)
+            return {"saved": True, "path": str(dest), "bytes": len(data), "files": files}
+
+        @d.method("update.info")
+        def update_info(params: dict[str, Any]) -> dict[str, Any]:
+            """Version, platform, whether a trusted update key and feed are configured, and the current update state."""
+            return self.updates.info()
+
+        @d.method("update.status")
+        def update_status(params: dict[str, Any]) -> dict[str, Any]:
+            return self.updates.status()
+
+        @d.method("update.check")
+        @_map_errors
+        async def update_check(params: dict[str, Any]) -> dict[str, Any]:
+            return await self.updates.check()
+
+        @d.method("update.download")
+        @_map_errors
+        async def update_download(params: dict[str, Any]) -> dict[str, Any]:
+            return await self.updates.download()
+
+        @d.method("update.install")
+        @_map_errors
+        async def update_install(params: dict[str, Any]) -> dict[str, Any]:
+            """Only after the user confirmed in the UI: the app quits and restarts as the new version."""
+            return await self.install_update()
+
+        @d.method("cloud.console")
+        @_map_errors
+        async def cloud_console(params: dict[str, Any]) -> dict[str, Any]:
+            origin = await self.cloud.origin()
+            if not origin:
+                raise BackendError("backend.not_configured", "还没有连接后台")
+            return {"links": backend_client.console_links(origin)}
+
+        @d.method("cloud.packJobs")
+        @_map_errors
+        async def cloud_pack_jobs(params: dict[str, Any]) -> dict[str, Any]:
+            return await backend_client.pack_jobs(await self.cloud.client(), param(params, "page", int, default=1))
+
+        @d.method("cloud.packLog")
+        @_map_errors
+        async def cloud_pack_log(params: dict[str, Any]) -> dict[str, Any]:
+            return await backend_client.pack_log(await self.cloud.client(), param(params, "id", int), param(params, "offset", int, default=0))
+
+        @d.method("cloud.packCancel")
+        @_map_errors
+        async def cloud_pack_cancel(params: dict[str, Any]) -> dict[str, Any]:
+            return await backend_client.pack_cancel(await self.cloud.client(), param(params, "id", int))
+
+        @d.method("cloud.packSave")
+        @_map_errors
+        async def cloud_pack_save(params: dict[str, Any]) -> dict[str, Any]:
+            if self.save_file is None:
+                raise RpcError("app.unavailable", "no save dialog in this mode")
+            job_id = param(params, "id", int)
+            name = param(params, "name", str, default="") or "xscript-%d.apk" % job_id
+            name = "".join(ch for ch in name if ch.isalnum() or ch in "._-") or "xscript.apk"
+            chosen = await self.save_file("保存 APK", name if name.endswith(".apk") else name + ".apk", "APK (*.apk)")
+            if not chosen:
+                return {"saved": False}
+            data = await backend_client.pack_apk(await self.cloud.client(), job_id)
+            dest = Path(chosen)
+            if dest.suffix.lower() != ".apk":
+                dest = dest.with_suffix(".apk")
+            await asyncio.to_thread(dest.write_bytes, data)
+            return {"saved": True, "path": str(dest), "bytes": len(data)}
+
+        @d.method("cloud.disconnect")
+        @_map_errors
+        async def cloud_disconnect(params: dict[str, Any]) -> dict[str, Any]:
+            return await self.cloud.disconnect()
 
         @d.method("app.copyText")
         async def copy_text(params: dict[str, Any]) -> dict[str, Any]:
