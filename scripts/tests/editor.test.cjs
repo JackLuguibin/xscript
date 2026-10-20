@@ -229,3 +229,13 @@ test('an invalid or non-form spec generates nothing; nested projects keep their 
   const plain = await model.open('utils.py'); model.edit(plain, 'x = 1'); await model.save(plain);
   assert.equal(plain.generated, null);
 });
+test('pythonSources: every .py file for the symbol table, unsaved editor content wins, other files skipped', async () => {
+  const {model, projects, calls} = fixture();
+  projects.demo['pkg/a.py'] = 'A = 1\n'; projects.demo['readme.txt'] = 'x';
+  const doc = await model.open('utils.py'); model.edit(doc, 'def f(): pass\n');
+  calls.length = 0;
+  const files = await model.pythonSources();
+  assert.deepEqual(files, [{path: '__init__.py', content: 'print(1)'}, {path: 'pkg/a.py', content: 'A = 1\n'}, {path: 'utils.py', content: 'def f(): pass\n'}]);
+  assert.equal(calls.filter(c => c.url.includes('/file?')).length, 2, 'open documents are not fetched again');
+  assert.equal(model.documents.has(model.key('pkg/a.py', 'demo')), false, 'reading for the index does not open tabs');
+});

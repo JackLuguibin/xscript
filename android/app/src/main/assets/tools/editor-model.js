@@ -253,6 +253,24 @@
 
     // ---- project-wide search / replace ----
     static get MAX_UNDO_CHARS() { return 20 * 1024 * 1024; }
+    /** Every .py file of the project as {path, content} for the symbol table (unsaved editor content wins). */
+    async pythonSources(project = this.project) {
+      const tree = await this.listTree(project), list = tree.files.filter(f => /\.py$/.test(f.path) && !(f.size > 400000)), out = [];
+      let next = 0;
+      const worker = async () => {
+        for (;;) {
+          const f = list[next++]; if (!f) return;
+          const open = this.documents.get(this.key(f.path, project));
+          if (open) { if (!open.binary) out.push({path: f.path, content: open.content}); continue; }
+          try {
+            const file = await this.api("GET", this.projectUrl(project) + "/file?path=" + encodeURIComponent(f.path));
+            if (file.encoding !== "base64") out.push({path: f.path, content: file.content || ""});
+          } catch (e) { /* unreadable file: left out of the index */ }
+        }
+      };
+      await Promise.all([worker(), worker(), worker(), worker()]);
+      return out.sort((a, b) => a.path < b.path ? -1 : 1);
+    }
     static get search() { return root.EditorSearch || (typeof require === "function" ? require("./editor-search.js").EditorSearch : null); }
     /**
      * Search every text file of the project (unsaved editor content wins over the saved file).

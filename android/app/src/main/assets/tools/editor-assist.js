@@ -62,8 +62,8 @@
           const ds = byLine.get(i + 1); if (!ds) return esc(raw);
           let out = "", at = 0;
           for (const d of ds.sort((a, b) => a.col - b.col)) {
-            const from = Math.min(Math.max(d.col, at), raw.length), to = Math.min(Math.max(from + d.length, from + 1), raw.length);
-            if (to <= from) { out += esc(raw.slice(at)) + '<span class="sq"> </span>'; at = raw.length; continue; }
+            let from = Math.min(Math.max(d.col, at), raw.length), to = Math.min(Math.max(from + d.length, from + 1), raw.length);
+            if (to <= from) { if (at >= raw.length) continue; from = raw.length - 1; to = raw.length; }   // error at end of line: mark its last character
             out += esc(raw.slice(at, from)) + '<span class="sq">' + esc(raw.slice(from, to)) + "</span>"; at = to;
           }
           return out + esc(raw.slice(at));
@@ -256,6 +256,12 @@
       if (left + t.offsetWidth > hostBox.width - 4) left = Math.max(4, hostBox.width - t.offsetWidth - 4);
       if (top + t.offsetHeight > hostBox.height - 4 && c.top - t.offsetHeight - 2 >= 0) top = c.top - t.offsetHeight - 2;
       t.style.left = Math.max(0, left) + "px"; t.style.top = Math.max(0, top) + "px";
+    }
+    /** F12 on a library symbol: its stub signature and docs (XSDocs) in the hover tip, right away. */
+    showDoc(key, from) {
+      const d = this.complete.docs[key]; if (!d || !this.hoverTip) return false;
+      this.hideHover(); this.showHover({from, to: from, key, label: key.split(".").pop(), sig: d[0], doc: d[1]}); this.hoverKey = key + "@" + from;
+      return true;
     }
     hideHover() {
       clearTimeout(this.hoverTimer); this.hoverKey = "";
