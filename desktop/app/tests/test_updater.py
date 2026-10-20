@@ -237,7 +237,9 @@ def test_feed_builder_cli(tmp_path, capsys):
     kf = tmp_path / "key"
     assert F.main(["--new-key", str(kf)]) == 0
     pub = base64.b64decode(capsys.readouterr().out.strip())
-    assert len(pub) == 32 and stat.S_IMODE(kf.stat().st_mode) == 0o600
+    assert len(pub) == 32
+    if sys.platform != "win32":  # Windows has no POSIX mode bits
+        assert stat.S_IMODE(kf.stat().st_mode) == 0o600
     d = tmp_path / ("xscript-desktop-v0.5.0-macos-arm64.dmg")
     w = tmp_path / ("xscript-desktop-v0.5.0-windows-x64-setup.exe")
     d.write_bytes(b"d")
