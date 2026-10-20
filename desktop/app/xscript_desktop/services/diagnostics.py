@@ -32,6 +32,8 @@ def redact(text: str, home: str | None = None) -> str:
         text = pat.sub(rep, text)
     home = home if home is not None else str(Path.home())
     if home and len(home) > 1:
+        if "\\" in home:  # Windows paths also appear JSON-escaped (C:\\Users\\x) in info.json
+            text = text.replace(home.replace("\\", "\\\\"), "~")
         text = text.replace(home, "~")
     return text
 

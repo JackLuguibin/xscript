@@ -33,6 +33,12 @@ def test_redact_keeps_normal_text_and_hides_home():
     assert D.redact("x", home="/") == "x"
 
 
+def test_redact_windows_home_plain_and_json_escaped():
+    home = "C:\\Users\\someone"
+    assert D.redact("log C:\\Users\\someone\\a.txt", home=home) == "log ~\\a.txt"
+    assert D.redact(json.dumps({"h": home + "\\x"}), home=home) == '{"h": "~\\\\x"}'
+
+
 def test_build_zip(tmp_path):
     logs = tmp_path / "logs"
     logs.mkdir()
