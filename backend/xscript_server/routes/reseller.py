@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import csv
 import io
+import re
 import time
 from typing import Literal
 
@@ -20,9 +21,9 @@ from sqlalchemy import func, or_, select, update
 from sqlalchemy.orm import Session
 
 from .. import cards as cardsvc
-from .. import stats
+from .. import settlement, stats
 from ..deps import Principal, admin, db_session, like_contains, like_escape, paginate, record, reseller_only
-from ..models import AuditLog, Card, Reseller, User
+from ..models import AuditLog, Card, Reseller, ResellerLedger, ResellerPrice, User
 from .cards import APP_PATTERN, _filtered
 
 router = APIRouter(prefix="/api/resellers", tags=["resellers"])
@@ -128,6 +129,134 @@ def reseller_daily(user_id: int, days: int = Query(30, ge=7, le=365), p: Princip
     return stats.daily(s, days, owner_id=user_id, cards_only=True)
 
 
+# ---------------------------------------------------------------- admin: 批发价与结算
+
+MAX_CENTS = 10**12  # 一百亿元: far above any real amount, keeps sums inside BIGINT
+
+
+class PriceIn(BaseModel):
+    app: str = Field(default="*", max_length=128)
+    kind: Literal["normal", "trial", "count"] = "normal"
+    days: float | None = Field(default=None, gt=0, le=36500)
+    price_cents: int = Field(ge=0, le=MAX_CENTS)
+
+    @field_validator("app")
+    @classmethod
+    def _app(cls, v: str) -> str:
+        v = v.strip() or "*"
+        if v != "*" and not re.match(APP_PATTERN, v):
+            raise ValueError("应用包名格式不正确")
+        return v
+
+
+class PricesIn(BaseModel):
+    unpriced: Literal["free", "deny"] = "free"
+    items: list[PriceIn] = Field(default_factory=list, max_length=500)
+
+
+def _prices(s: Session, r: Reseller) -> dict:
+    rows = s.scalars(select(ResellerPrice).where(ResellerPrice.reseller_id == r.user_id)
+                     .order_by(ResellerPrice.app, ResellerPrice.kind, ResellerPrice.days))
+    return {"unpriced": r.unpriced or "free", "items": [settlement.price_dict(x) for x in rows]}
+
+
+def _name(s: Session, user_id: int) -> str:
+    u = s.get(User, user_id)
+    return u.username if u else str(user_id)
+
+
+@router.get("/balances")
+def balances(p: Principal = Depends(admin), s: Session = Depends(db_session)):
+    """应付 / 已付 / 余额 for every reseller (balance > 0: the reseller owes that much)."""
+    out = []
+    for r, u in s.execute(select(Reseller, User).join(User, User.id == Reseller.user_id).order_by(User.username)):
+        out.append({"id": r.user_id, "username": u.username, **settlement.balance(s, r.user_id)})
+    return {"items": out}
+
+
+@router.get("/{user_id}/prices")
+def get_prices(user_id: int, p: Principal = Depends(admin), s: Session = Depends(db_session)):
+    return _prices(s, _row(s, user_id))
+
+
+@router.put("/{user_id}/prices")
+def put_prices(user_id: int, body: PricesIn, request: Request, p: Principal = Depends(admin),
+               s: Session = Depends(db_session)):
+    """Replaces the whole price table (the console edits it as one list). Past charges are not repriced."""
+    r = _row(s, user_id)
+    seen = set()
+    for it in body.items:
+        key = (it.app, it.kind, None if it.days is None else round(it.days, 3))
+        if key in seen:
+            raise HTTPException(400, "价格重复：%s / %s / %s" % (it.app, it.kind, "任意天数" if it.days is None else it.days))
+        seen.add(key)
+    before = _prices(s, r)
+    s.query(ResellerPrice).filter(ResellerPrice.reseller_id == user_id).delete()
+    for it in body.items:
+        s.add(ResellerPrice(reseller_id=user_id, app=it.app, kind=it.kind, days=it.days, price_cents=it.price_cents))
+    r.unpriced = body.unpriced
+    record(request, s, p, "reseller.prices", _name(s, user_id),
+           {"unpriced": body.unpriced, "count": len(body.items), "before": len(before["items"])})
+    s.commit()
+    return _prices(s, r)
+
+
+class LedgerIn(BaseModel):
+    kind: Literal["payment", "adjust"]
+    amount_cents: int = Field(ge=-MAX_CENTS, le=MAX_CENTS)  # payment > 0; adjust signed (+ 加应付 / - 减应付)
+    note: str = Field(default="", max_length=200)
+
+
+@router.post("/{user_id}/ledger")
+def add_ledger(user_id: int, body: LedgerIn, request: Request, p: Principal = Depends(admin),
+               s: Session = Depends(db_session)):
+    _row(s, user_id)
+    if body.kind == "payment" and body.amount_cents <= 0:
+        raise HTTPException(400, "收款金额必须大于 0")
+    if body.amount_cents == 0:
+        raise HTTPException(400, "调整金额不能为 0")
+    row = ResellerLedger(reseller_id=user_id, kind=body.kind, amount_cents=body.amount_cents, note=body.note,
+                         actor=p.username)
+    s.add(row)
+    record(request, s, p, "reseller." + body.kind, _name(s, user_id),
+           {"amount_cents": body.amount_cents, "note": body.note})
+    s.commit()
+    return {"row": settlement.row_dict(row), **settlement.balance(s, user_id)}
+
+
+def _ledger_page(s: Session, user_id: int, since: int, until: int, kind: str, page: int, page_size: int) -> dict:
+    stmt = settlement.ledger_stmt(user_id, since, until, kind)
+    total = s.scalar(select(func.count()).select_from(stmt.subquery())) or 0
+    off, size = paginate(page, page_size)
+    rows = s.scalars(stmt.order_by(ResellerLedger.time.desc(), ResellerLedger.id.desc()).offset(off).limit(size))
+    return {"items": [settlement.row_dict(r) for r in rows], "total": total, **settlement.balance(s, user_id)}
+
+
+def _statement(s: Session, user_id: int, username: str, since: int, until: int) -> StreamingResponse:
+    body = settlement.statement_csv(s, user_id, username, since, until)
+    name = "statement-%s-%s.csv" % (re.sub(r"[^A-Za-z0-9_.-]", "_", username), time.strftime("%Y%m%d-%H%M%S"))
+    return StreamingResponse(iter([body]), media_type="text/csv; charset=utf-8",
+                             headers={"Content-Disposition": 'attachment; filename="%s"' % name})
+
+
+@router.get("/{user_id}/ledger")
+def get_ledger(user_id: int, p: Principal = Depends(admin), s: Session = Depends(db_session),
+               since: int = 0, until: int = 0, kind: Literal["", "charge", "payment", "adjust"] = "",
+               page: int = 1, page_size: int = 50):
+    _row(s, user_id)
+    return _ledger_page(s, user_id, since, until, kind, page, page_size)
+
+
+@router.get("/{user_id}/statement")
+def get_statement(user_id: int, request: Request, p: Principal = Depends(admin), s: Session = Depends(db_session),
+                  since: int = 0, until: int = 0):
+    _row(s, user_id)
+    name = _name(s, user_id)
+    record(request, s, p, "reseller.statement", name, {"since": since, "until": until})
+    s.commit()
+    return _statement(s, user_id, name, since, until)
+
+
 # ---------------------------------------------------------------- 代理 console (own data only)
 
 def _mine(p: Principal, s: Session) -> Reseller:
@@ -201,6 +330,11 @@ def my_create_batch(body: MyBatchIn, request: Request, p: Principal = Depends(re
     r = _mine(p, s)
     days = body.hours / 24 if body.hours else body.days
     _check(r, body, days)
+    unit = settlement.price_for(s, p.id, body.app, body.kind, days)
+    if unit is None:
+        if (r.unpriced or "free") == "deny":
+            raise HTTPException(403, "这种卡密还没有设置批发价，请联系管理员")
+        unit = 0
     # Atomic: two concurrent requests cannot both spend the last of the quota.
     took = s.execute(update(Reseller).where(Reseller.user_id == p.id, Reseller.used + body.count <= Reseller.quota)
                      .values(used=Reseller.used + body.count)).rowcount
@@ -215,13 +349,17 @@ def my_create_batch(body: MyBatchIn, request: Request, p: Principal = Depends(re
     except ValueError as e:
         s.rollback()
         raise HTTPException(400, str(e)) from None
+    # The charge is written in the same transaction as the cards: both land or neither does.
+    settlement.charge(s, p.id, batch, body.count, unit, body.app, body.kind, days, p.username)
     record(request, s, p, "card.create", batch, {"count": body.count, "days": days, "app": body.app,
                                                  "kind": body.kind, "max_devices": body.max_devices,
                                                  "uses": body.uses if body.kind == "count" else 0,
-                                                 "reseller": True})
+                                                 "reseller": True, "unit_cents": unit,
+                                                 "charge_cents": unit * body.count})
     s.commit()
     s.refresh(r)
-    return {"batch": batch, "cards": codes, "left": max(0, r.quota - r.used)}
+    return {"batch": batch, "cards": codes, "left": max(0, r.quota - r.used), "unit_cents": unit,
+            "charge_cents": unit * body.count}
 
 
 class MyAction(BaseModel):
@@ -276,6 +414,30 @@ def my_export(request: Request, p: Principal = Depends(reseller_only), s: Sessio
                              headers={"Content-Disposition": 'attachment; filename="%s"' % name})
 
 
+@me.get("/balance")
+def my_balance(p: Principal = Depends(reseller_only), s: Session = Depends(db_session)):
+    """Own 应付 / 已付 / 余额 and the price list that applies to this account."""
+    r = _mine(p, s)
+    return {**settlement.balance(s, p.id), "prices": _prices(s, r)}
+
+
+@me.get("/ledger")
+def my_ledger(p: Principal = Depends(reseller_only), s: Session = Depends(db_session), since: int = 0,
+              until: int = 0, kind: Literal["", "charge", "payment", "adjust"] = "", page: int = 1,
+              page_size: int = 50):
+    _mine(p, s)
+    return _ledger_page(s, p.id, since, until, kind, page, page_size)
+
+
+@me.get("/statement")
+def my_statement(request: Request, p: Principal = Depends(reseller_only), s: Session = Depends(db_session),
+                 since: int = 0, until: int = 0):
+    _mine(p, s)
+    record(request, s, p, "reseller.statement", p.username, {"since": since, "until": until, "reseller": True})
+    s.commit()
+    return _statement(s, p.id, p.username, since, until)
+
+
 @me.get("/stats/daily")
 def my_daily(days: int = Query(30, ge=7, le=365), app: str = Query("", max_length=128),
              p: Principal = Depends(reseller_only), s: Session = Depends(db_session)):
@@ -288,7 +450,8 @@ def my_audit(p: Principal = Depends(reseller_only), s: Session = Depends(db_sess
              q: str = "", since: int = 0, until: int = 0, page: int = 1, page_size: int = 50):
     """The reseller's own actions, plus admin quota / limit changes made to this account."""
     stmt = select(AuditLog).where(or_(AuditLog.actor == p.username,
-                                      (AuditLog.action.in_(("reseller.quota", "reseller.limits")))
+                                      (AuditLog.action.in_(("reseller.quota", "reseller.limits", "reseller.prices",
+                                                             "reseller.payment", "reseller.adjust")))
                                       & (AuditLog.target == p.username)))
     if action:  # same filters as the staff log: "card." is a category prefix
         stmt = stmt.where(AuditLog.action.like(like_escape(action.rstrip("*")) + "%", escape="\\"))

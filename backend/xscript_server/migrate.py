@@ -81,7 +81,14 @@ def _v8(conn: Connection) -> None:
     _add_column(conn, "pack_jobs", "cancel_requested", "BOOLEAN NOT NULL DEFAULT false")
 
 
-STEPS: list[Callable[[Connection], None]] = [_v1, _v2, _v3, _v4, _v5, _v6, _v7, _v8]
+def _v9(conn: Connection) -> None:
+    """0.11: 代理批发价 policy for unpriced batches (reseller_prices and reseller_ledger come from create_all)."""
+    if not inspect(conn).has_table("resellers"):
+        return  # create_all makes it whole
+    _add_column(conn, "resellers", "unpriced", "VARCHAR(8) NOT NULL DEFAULT 'free'")
+
+
+STEPS: list[Callable[[Connection], None]] = [_v1, _v2, _v3, _v4, _v5, _v6, _v7, _v8, _v9]
 LATEST = len(STEPS)
 
 
