@@ -1,0 +1,59 @@
+{
+  "type": "screen.ai_find",
+  "category": "screen",
+  "title": {
+    "zh": "screen.ai_find",
+    "en": "screen.ai_find"
+  },
+  "doc": {
+    "zh": "Locate an element described in words via ai.config()'s endpoint; dict or None.",
+    "en": "Locate an element described in words via ai.config()'s endpoint; dict or None."
+  },
+  "exec": {
+    "in": [
+      "exec"
+    ],
+    "out": [
+      "then"
+    ]
+  },
+  "inputs": [
+    {
+      "name": "target",
+      "type": "any"
+    },
+    {
+      "name": "rect",
+      "type": "any",
+      "default": null
+    },
+    {
+      "name": "image",
+      "type": "any",
+      "default": null
+    },
+    {
+      "name": "confidence",
+      "type": "any",
+      "default": 0.0
+    }
+  ],
+  "outputs": [
+    {
+      "name": "result",
+      "type": "any"
+    }
+  ],
+  "py": {
+    "imports": [
+      "from xscript.android import screen"
+    ],
+    "stmt": "{id} = screen.ai_find({target}, rect={rect}, image={image}, confidence={confidence})"
+  },
+  "dsl": {
+    "alias": "screen.ai_find"
+  },
+  "since": "0.2.6",
+  "origin": "xscript.android.screen.ai_find",
+  "availability": "ok"
+}

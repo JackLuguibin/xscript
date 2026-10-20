@@ -1,0 +1,39 @@
+{
+  "type": "ai.reset",
+  "category": "ai",
+  "title": {
+    "zh": "ai.reset",
+    "en": "ai.reset"
+  },
+  "doc": {
+    "zh": "reset",
+    "en": "reset"
+  },
+  "exec": {
+    "in": [
+      "exec"
+    ],
+    "out": [
+      "then"
+    ]
+  },
+  "inputs": [],
+  "outputs": [
+    {
+      "name": "result",
+      "type": "any"
+    }
+  ],
+  "py": {
+    "imports": [
+      "from xscript.android import ai"
+    ],
+    "stmt": "{id} = ai.reset()"
+  },
+  "dsl": {
+    "alias": "ai.reset"
+  },
+  "since": "0.2.6",
+  "origin": "xscript.android.ai.reset",
+  "availability": "ok"
+}

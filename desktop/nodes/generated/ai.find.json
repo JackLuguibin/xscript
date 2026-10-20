@@ -1,0 +1,59 @@
+{
+  "type": "ai.find",
+  "category": "ai",
+  "title": {
+    "zh": "ai.find",
+    "en": "ai.find"
+  },
+  "doc": {
+    "zh": "Best match or None.",
+    "en": "Best match or None."
+  },
+  "exec": {
+    "in": [
+      "exec"
+    ],
+    "out": [
+      "then"
+    ]
+  },
+  "inputs": [
+    {
+      "name": "target",
+      "type": "any"
+    },
+    {
+      "name": "rect",
+      "type": "any",
+      "default": null
+    },
+    {
+      "name": "image",
+      "type": "any",
+      "default": null
+    },
+    {
+      "name": "confidence",
+      "type": "any",
+      "default": 0.0
+    }
+  ],
+  "outputs": [
+    {
+      "name": "result",
+      "type": "any"
+    }
+  ],
+  "py": {
+    "imports": [
+      "from xscript.android import ai"
+    ],
+    "stmt": "{id} = ai.find({target}, rect={rect}, image={image}, confidence={confidence})"
+  },
+  "dsl": {
+    "alias": "ai.find"
+  },
+  "since": "0.2.6",
+  "origin": "xscript.android.ai.find",
+  "availability": "ok"
+}

@@ -1,0 +1,64 @@
+{
+  "type": "ai.find_all",
+  "category": "ai",
+  "title": {
+    "zh": "ai.find_all",
+    "en": "ai.find_all"
+  },
+  "doc": {
+    "zh": "Every match as dicts like OCR results: text, rect, center_x, center_y, confidence.",
+    "en": "Every match as dicts like OCR results: text, rect, center_x, center_y, confidence."
+  },
+  "exec": {
+    "in": [
+      "exec"
+    ],
+    "out": [
+      "then"
+    ]
+  },
+  "inputs": [
+    {
+      "name": "target",
+      "type": "any"
+    },
+    {
+      "name": "rect",
+      "type": "any",
+      "default": null
+    },
+    {
+      "name": "image",
+      "type": "any",
+      "default": null
+    },
+    {
+      "name": "limit",
+      "type": "any",
+      "default": 5
+    },
+    {
+      "name": "confidence",
+      "type": "any",
+      "default": 0.0
+    }
+  ],
+  "outputs": [
+    {
+      "name": "result",
+      "type": "any"
+    }
+  ],
+  "py": {
+    "imports": [
+      "from xscript.android import ai"
+    ],
+    "stmt": "{id} = ai.find_all({target}, rect={rect}, image={image}, limit={limit}, confidence={confidence})"
+  },
+  "dsl": {
+    "alias": "ai.find_all"
+  },
+  "since": "0.2.6",
+  "origin": "xscript.android.ai.find_all",
+  "availability": "ok"
+}
