@@ -125,4 +125,90 @@ describe("debugger UI", () => {
     expect(Object.keys(DICTS.en.debug).sort()).toEqual(Object.keys(DICTS.zh.debug).sort());
     expect(DICTS.en.debug.pausedAt("a.py", 3)).toBe("Paused at a.py:3");
   });
+
+  it("conditional breakpoints, hit counts and logpoints are edited in the list and sent as DAP options", async () => {
+    const { transport, editor } = await setup("a = 1\nb = 2\nc = 3\nd = 4\ne = 5\n");
+    f9(editor, 1);
+    f9(editor, 2);
+    f9(editor, 4);
+    // line 1: logpoint (prints, never pauses)
+    fireEvent.click(await screen.findByRole("button", { name: "编辑断点 __init__.py:1" }));
+    const form1 = screen.getByRole("form", { name: "编辑断点 __init__.py:1" });
+    fireEvent.change(within(form1).getByRole("combobox", { name: "断点类型" }), { target: { value: "logMessage" } });
+    fireEvent.change(within(form1).getByRole("textbox", { name: "日志消息" }), { target: { value: "at {line}" } });
+    fireEvent.click(within(form1).getByRole("button", { name: "保存" }));
+    const bpList = screen.getByRole("list", { name: "断点" });
+    expect(within(bpList).getByText("◆ __init__.py:1")).toBeTruthy();
+    expect(within(bpList).getByText("日志消息: at {line}")).toBeTruthy();
+    // line 2: condition that never holds; Esc cancels an edit without changes
+    fireEvent.click(screen.getByRole("button", { name: "编辑断点 __init__.py:2" }));
+    let form2 = screen.getByRole("form", { name: "编辑断点 __init__.py:2" });
+    fireEvent.change(within(form2).getByRole("textbox", { name: "条件" }), { target: { value: "nope" } });
+    fireEvent.keyDown(within(form2).getByRole("textbox", { name: "条件" }), { key: "Escape" });
+    expect(screen.queryByRole("form", { name: "编辑断点 __init__.py:2" })).toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: "编辑断点 __init__.py:2" }));
+    form2 = screen.getByRole("form", { name: "编辑断点 __init__.py:2" });
+    expect((within(form2).getByRole("textbox", { name: "条件" }) as HTMLInputElement).value).toBe("");
+    fireEvent.change(within(form2).getByRole("textbox", { name: "条件" }), { target: { value: "False" } });
+    fireEvent.submit(form2);
+    expect(within(bpList).getByText("条件: False")).toBeTruthy();
+
+    fireEvent.click(screen.getByRole("button", { name: "调试" }));
+    expect(await screen.findByText("暂停于 __init__.py:4")).toBeTruthy();
+    const start = transport.sent.find((m) => m.method === "debug.start")!;
+    expect(start.params!.breakpoints).toEqual({ "__init__.py": [{ line: 1, logMessage: "at {line}" }, { line: 2, condition: "False" }, 4] });
+    expect(screen.getByLabelText("调试控制台").textContent).toContain("at 1");
+
+    // editing mid-session re-sends the file's breakpoints; clearing the value turns it back into a plain breakpoint
+    fireEvent.click(screen.getByRole("button", { name: "编辑断点 __init__.py:4" }));
+    const form4 = screen.getByRole("form", { name: "编辑断点 __init__.py:4" });
+    fireEvent.change(within(form4).getByRole("combobox", { name: "断点类型" }), { target: { value: "hitCondition" } });
+    fireEvent.change(within(form4).getByRole("textbox", { name: "命中次数" }), { target: { value: "2" } });
+    fireEvent.submit(form4);
+    await waitFor(() => {
+      const last = transport.sent.filter((m) => m.method === "debug.setBreakpoints").at(-1);
+      expect(last?.params!.lines).toEqual([{ line: 1, logMessage: "at {line}" }, { line: 2, condition: "False" }, { line: 4, hitCondition: "2" }]);
+    });
+    // removing a breakpoint drops its options too
+    fireEvent.click(screen.getByRole("button", { name: "删除断点 __init__.py:1" }));
+    f9(editor, 1);
+    await waitFor(() => expect(within(bpList).getByText("● __init__.py:1")).toBeTruthy());
+    fireEvent.click(screen.getByRole("button", { name: "停止调试" }));
+  });
+
+  it("watch expressions are evaluated (context watch) on every pause and kept per project", async () => {
+    localStorage.removeItem("xscript.watch.demo");
+    const { transport, editor } = await setup();
+    expect(screen.getByText("添加表达式，每次暂停时在当前栈帧求值")).toBeTruthy();
+    fireEvent.change(screen.getByRole("textbox", { name: "添加监视" }), { target: { value: "a * 2" } });
+    fireEvent.click(screen.getByRole("button", { name: "添加监视" }));
+    fireEvent.change(screen.getByRole("textbox", { name: "添加监视" }), { target: { value: "a * 2" } });
+    fireEvent.click(screen.getByRole("button", { name: "添加监视" })); // duplicates are ignored
+    const list = screen.getByRole("list", { name: "监视" });
+    expect(within(list).getAllByText("a * 2")).toHaveLength(1);
+    expect(within(list).getByText("（暂停时求值）", { exact: false })).toBeTruthy();
+    expect(JSON.parse(localStorage.getItem("xscript.watch.demo")!)).toEqual(["a * 2"]);
+
+    transport.setHandler("debug.evaluate", (p) => {
+      if (p.expression === "boom") throw { code: "debug.failed", message: "NameError: boom" };
+      return { result: `v(${String(p.expression)})`, type: "int", ref: 0 };
+    });
+    f9(editor, 2);
+    f9(editor, 3);
+    fireEvent.click(screen.getByRole("button", { name: "调试" }));
+    expect(await within(list).findByText("= v(a * 2)")).toBeTruthy();
+    const ev = transport.sent.filter((m) => m.method === "debug.evaluate");
+    expect(ev.at(-1)!.params).toMatchObject({ expression: "a * 2", context: "watch", frameId: 1 });
+    fireEvent.change(screen.getByRole("textbox", { name: "添加监视" }), { target: { value: "boom" } });
+    fireEvent.click(screen.getByRole("button", { name: "添加监视" }));
+    expect(await within(list).findByText(/NameError: boom/)).toBeTruthy();
+    const before = transport.sent.filter((m) => m.method === "debug.evaluate").length;
+    fireEvent.click(screen.getByRole("button", { name: "继续" }));
+    await screen.findByText("暂停于 __init__.py:3");
+    await waitFor(() => expect(transport.sent.filter((m) => m.method === "debug.evaluate").length).toBeGreaterThanOrEqual(before + 2));
+    fireEvent.click(within(list).getByRole("button", { name: "删除监视 boom" }));
+    expect(JSON.parse(localStorage.getItem("xscript.watch.demo")!)).toEqual(["a * 2"]);
+    fireEvent.click(screen.getByRole("button", { name: "停止调试" }));
+    localStorage.removeItem("xscript.watch.demo");
+  });
 });

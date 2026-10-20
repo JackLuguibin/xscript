@@ -20,7 +20,9 @@ export function createDemoTransport(): MemoryTransport {
     return m;
   };
   // demo debugger: walks the entry point line by line, pausing at breakpoints (mirrors the debug.state/debug.output events)
-  let dbg: { id: string; project: string; state: string; line: number; bps: Map<string, number[]> } | null = null;
+  type DemoBp = { line: number; condition?: string; hitCondition?: string; logMessage?: string };
+  const specs = (raw: unknown): DemoBp[] => ((raw as Array<number | DemoBp>) ?? []).map((b) => (typeof b === "number" ? { line: b } : b));
+  let dbg: { id: string; project: string; state: string; line: number; bps: Map<string, DemoBp[]>; hits: Map<number, number> } | null = null;
   const emit = (topic: string, data: unknown) => setTimeout(() => transport.push({ event: true, topic, data }), 0);
   const snap = () => {
     const d = dbg!;
@@ -34,7 +36,19 @@ export function createDemoTransport(): MemoryTransport {
     const n = (projects.get(d.project)?.get("__init__.py") ?? "").split("\n").length;
     const bps = d.bps.get("__init__.py") ?? [];
     for (let ln = from; ln <= n; ln++) {
-      if (step || bps.includes(ln)) {
+      const bp = step ? undefined : bps.find((b) => b.line === ln);
+      if (bp) {
+        const hits = (d.hits.get(ln) ?? 0) + 1;
+        d.hits.set(ln, hits);
+        // the demo "evaluates" only the literals False / True; {line} is interpolated in logpoints
+        if (bp.logMessage) {
+          emit("debug.output", { id: d.id, category: "console", text: bp.logMessage.replace(/\{line\}/g, String(ln)) + "\n" });
+          continue;
+        }
+        if (bp.condition?.trim() === "False") continue;
+        if (bp.hitCondition && hits < Number(bp.hitCondition.replace(/[^0-9]/g, "") || 0)) continue;
+      }
+      if (step || bp) {
         d.state = "stopped";
         d.line = ln;
         emit("debug.state", snap());
@@ -177,7 +191,7 @@ export function createDemoTransport(): MemoryTransport {
       "debug.start": (p) => {
         if (dbg && dbg.state !== "ended") throw { code: "debug.already", message: "a debug session is already active on this device" };
         proj(p);
-        dbg = { id: String(p.id), project: String(p.project), state: "running", line: 0, bps: new Map(Object.entries((p.breakpoints ?? {}) as Record<string, number[]>)) };
+        dbg = { id: String(p.id), project: String(p.project), state: "running", line: 0, bps: new Map(Object.entries((p.breakpoints ?? {}) as Record<string, unknown>).map(([k, v]) => [k, specs(v)])), hits: new Map() };
         emit("debug.output", { id: dbg.id, category: "console", text: `[demo] debugging ${dbg.project}\n` });
         const s = snap();
         setTimeout(() => advance(1, false), 20);
@@ -185,9 +199,9 @@ export function createDemoTransport(): MemoryTransport {
       },
       "debug.status": (p) => (dbg && dbg.id === p.id ? snap() : { id: p.id, state: "idle", frames: [] }),
       "debug.setBreakpoints": (p) => {
-        const lines = (p.lines as number[]) ?? [];
+        const lines = specs(p.lines);
         if (dbg) dbg.bps.set(String(p.path), lines);
-        return { breakpoints: lines.map((line) => ({ line, verified: true })) };
+        return { breakpoints: lines.map((b) => ({ line: b.line, verified: true })) };
       },
       "debug.step": (p) => {
         const d = live(p);

@@ -37,7 +37,9 @@
 
 新增 RPC：`project.list|create|files|read|write|deleteFile|move|run|stop`、`device.logs`、`device.action`（仅 `click|swipe|input|key`）、`device.eval`（流程试跑：一段代码发到设备 `POST /eval`，64 KB 以内，超时 200–15000 ms）、`device.update|forget`、`device.uiTree`、`device.pixel`、`device.saveScreenshot`、`sync.preview|upload|pull`、`app.pickDirectory`、`app.copyText`、`app.setUnsaved`（页面报告编辑器是否有未保存修改；有则关窗前先确认）、`secret.list|set|delete|has`、`tools.open`、`debug.start|status|setBreakpoints|step|scopes|variables|evaluate|stop`、`mirror.subscribe|unsubscribe|retry`；事件 `sync.progress`、`debug.state`、`debug.output`、`mirror.frame`、`mirror.state`。`device.list` 含已保存但未连接的设备（状态「离线」）。所有路径参数按设备同样的规则校验（相对、无 `..` / `.` / 空段 / 反斜杠）。`secret.set` 的值不会出现在应答里。
 
-调试的限制：每台设备一个会话；条件断点、日志点、监视表达式和多线程切换还没做。测试用的是 `app/tests/fake_debug_device.py` 里脚本化的 debugpy（`scripts/mock_device.py` 不支持 `/debug/*`）；真机调试是按协议文档实现的，还没在真机上验证。
+断点列表里每个断点可点 ✎ 设置**条件**（为真才停）、**命中次数**（如 `3`、`>= 3`、`% 2`）或**日志消息**（日志点：不暂停，`{表达式}` 求值后打印到调试控制台）；编辑器行号旁条件断点是带环的红点，日志点是蓝色菱形。**监视**区添加的表达式按工程保存，每次暂停时在选中的栈帧求值（DAP `evaluate` 的 `watch` 上下文）。这几项已用 `scripts/device_desktop_debug_e2e.py`（直接驱动 `DebugSession`）在 arm64 模拟器的真实 debugpy 上验证（条件 `i == 3` 停在 i=3、会话中改成命中次数 2 停在 i=5、日志点逐次输出、监视求值）；实测发现 debugpy 的日志点输出是 `category: stdout` 加空的 `source: {}`，以前被当成脚本输出的重复而丢掉，已修复。
+
+调试的限制：每台设备一个会话；多线程切换还没做。测试用的是 `app/tests/fake_debug_device.py` 里脚本化的 debugpy（`scripts/mock_device.py` 不支持 `/debug/*`）；设备上的真实 debugpy 用上面的脚本验证过；桌面窗口里的完整点击流程只在 fake 设备上做了 e2e。
 
 **没做**：trace 节流的真机预算核对（设计 §14.7；编译器已按 200 行突发 / 每秒 500 行生成 `__xf_trace`，还没在真机上测）；流程编辑器的剩余部分：状态机回退（有回边或汇合的图）仍不能整体降级 retry / try / parallel / match / wait_until 这类多出口容器，也不能降级循环体跳到外面的循环（会报错并指出节点）（React Flow 在 Qt 里的验证见 [`docs/桌面端-ReactFlow验证.md`](../docs/桌面端-ReactFlow验证.md)；语义 JSON 的 schema 在 `desktop/schema/`）、云控与后台（P4）、打包与安装器（P5）、`pyside6-deploy` 与 PyInstaller 对比。镜像流的方案 A（scheme 直接吐 multipart）没做，方案 B 已实现；本轮没有对真机开流。Windows 凭据管理器只按 `keyring` 的接口接上，没有在 Windows 上读写过。设计和 Mac 上能做的验证不等 Windows。
 
