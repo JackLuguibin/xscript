@@ -1200,6 +1200,8 @@ function successors(g: FlowGraph, id: string): string[] {
             ? [...sequenceSteps(g, id), "next"]
             : node.type === "flow.wait_until"
               ? ["then", "timeout"]
+              : node.type === "flow.match"
+                ? [...regionPins(g, node), "completed"]
               : node.type === "flow.retry"
                 ? ["body", "ok", "failed"]
                 : node.type === "flow.for_range" || node.type === "flow.for_each" || node.type === "flow.while"
@@ -1875,8 +1877,9 @@ function compileState(g: FlowGraph, specs: Map<string, NodeSpec>, opts?: { trace
     "# generated from " + g.name + ".xflow.json by XScript Desktop; do not edit, edit the flow instead",
     "from xscript.android import action, node, system",
     ...extraImports(g, specs),
-    "",
   ];
+  if (g.nodes.some((n) => n.type === "flow.parallel")) lines.push("import threading");
+  lines.push("");
   if (opts?.trace) lines.push(...traceHeader());
   if (g.nodes.some((n) => n.type === "flow.merge")) lines.push(...mergeHeader());
   const map: Record<string, string> = {};
@@ -1893,6 +1896,22 @@ function compileState(g: FlowGraph, specs: Map<string, NodeSpec>, opts?: { trace
   emit("while True:", null, 0);
   const owned = new Set<string>();
   const trace = opts?.trace ?? false;
+  // Loops whose body jumps out get real states: an init state, a `<id>__head` state that advances the loop, and
+  // their body nodes as ordinary states. A body node with nowhere to go falls back to the head (the next pass).
+  const lowered = new Set(g.nodes.filter((n) => STATE_EXIT[n.type] && !loopBody(g, n.id)).map((n) => n.id));
+  const fall = new Map<string, string>();
+  for (const loop of [...lowered].sort((a, b) => fallBody(g, b).size - fallBody(g, a).size)) {
+    for (const member of fallBody(g, loop)) fall.set(member, loop);   // smaller (inner) bodies win: sorted last
+  }
+  const head = (loop: string) => pyRepr(loop + "__head");
+  /** The statement that leaves `from` along `target` (null: the pin is not wired). */
+  const jump = (from: string, target: { node: string; pin: string } | null): string => {
+    if (!target) return fall.has(from) ? "pc = " + head(fall.get(from) as string) : "break";
+    if (lowered.has(target.node) && target.pin === "break") return jump(target.node, outEdge(g, target.node, "completed"));
+    if (lowered.has(target.node) && target.pin === "continue") return "pc = " + head(target.node);
+    if (target.pin === "break" || target.pin === "continue" || target.pin === "fail") return "break";
+    return "pc = " + pyRepr(target.node);
+  };
   for (const id of stateOrder(g)) {
     const node = nodeMap(g).get(id);
     if (!node || node.type === "event.start" || node.type === "flow.def" || node.type === "flow.macro" || owned.has(id)) continue;
@@ -1904,39 +1923,177 @@ function compileState(g: FlowGraph, specs: Map<string, NodeSpec>, opts?: { trace
       const then = outEdge(g, id, "then");
       const els = outEdge(g, id, "else");
       emit("if " + condExpr(g, cond, specs) + ":", null, 2);
-      emit(then ? "pc = " + pyRepr(then.node) : "break", null, 3);
-      // A missing arm ends the flow, like falling off the structured `if`; staying on this pc would spin forever.
+      emit(jump(id, then), null, 3);
+      // A missing arm ends the flow (or, in a lowered loop's body, goes to the next pass), like falling off the
+      // structured `if`; staying on this pc would spin forever.
       emit("else:", null, 2);
-      emit(els ? "pc = " + pyRepr(els.node) : "break", null, 3);
+      emit(jump(id, els), null, 3);
       emit("continue", null, 2);
       continue;
     }
+    const fork = STATE_FORK[node.type];
+    if (fork) {
+      const inner = regionBody(g, id, fork.region);
+      if (!inner) throw new Error("state machine cannot lower " + node.type + " " + id + ": its body jumps out of it");
+      for (const member of inner) owned.add(member);
+      emit("if pc == " + pyRepr(id) + ":", null, 1);
+      // The structured code for the container without its two outcomes, then a jump on the flag it set.
+      const solo: FlowGraph = { ...g, edges: g.edges.filter((edge) => edge.from !== id + "." + fork.yes && edge.from !== id + "." + fork.no) };
+      const held: Array<[string, string | null, number]> = [];
+      compileBlock(solo, specs, id, (text, mark, indent) => held.push([text, mark, indent]), 2, trace, new Set());
+      const flag = pyIdent(id + "_ok");
+      const tail = held.slice(-2).map(([text]) => text);
+      if (tail[0] === "if " + flag + ":" && tail[1] === "pass") held.splice(-2);
+      for (const [text, mark, indent] of held) emit(text, mark, indent);
+      emit("if " + flag + ":", null, 2);
+      emit(jump(id, outEdge(g, id, fork.yes)), null, 3);
+      emit("else:", null, 2);
+      emit(jump(id, outEdge(g, id, fork.no)), null, 3);
+      emit("continue", null, 2);
+      continue;
+    }
+    if (lowered.has(id)) {
+      emitLoopStates(g, specs, node, emit, jump);
+      continue;
+    }
     const outs = specs.get(node.type)?.exec.out ?? [];
-    const exit = STATE_EXIT[node.type] ?? ((ALIAS_OF[node.type] || STATE_SOLO.has(node.type)) && outs.every((pin) => pin === "then") ? "then" : null);
+    const join = STATE_JOIN[node.type];
+    const exit = STATE_EXIT[node.type] ?? join ?? ((ALIAS_OF[node.type] || STATE_SOLO.has(node.type)) && outs.every((pin) => pin === "then") ? "then" : null);
     if (!exit) throw new Error("state machine cannot lower " + node.type);
-    if (exit === "completed") {
+    if (STATE_EXIT[node.type]) {
       const inner = loopBody(g, id);
       if (!inner) throw new Error("state machine cannot lower " + node.type + " " + id + ": its body jumps out of the loop");
+      for (const member of inner) owned.add(member);
+    } else if (join) {
+      const inner = regionBody(g, id, regionPins(g, node));
+      if (!inner) throw new Error("state machine cannot lower " + node.type + " " + id + ": a branch jumps out of it");
       for (const member of inner) owned.add(member);
     }
     emit("if pc == " + pyRepr(id) + ":", null, 1);
     // One state: this node (and, for a loop, its whole body) compiled the structured way, then a jump.
     const solo: FlowGraph = { ...g, edges: g.edges.filter((edge) => edge.from !== id + "." + exit) };
     compileBlock(solo, specs, id, emit, 2, trace, new Set());
-    const nxt = outEdge(g, id, exit);
-    if (nxt && nxt.pin !== "break" && nxt.pin !== "continue" && nxt.pin !== "fail") {
-      emit("pc = " + pyRepr(nxt.node), null, 2);
-      emit("continue", null, 2);
-    } else {
-      emit("break", null, 2);
-    }
+    const leave = jump(id, outEdge(g, id, exit));
+    emit(leave, null, 2);
+    if (leave !== "break") emit("continue", null, 2);
   }
   emit("break", null, 1);
   return { python: lines.join("\n") + "\n", lines: map };
 }
 
+/**
+ * States for a loop whose body jumps out: `<id>` sets the loop up, `<id>__head` runs one pass (or leaves on
+ * `completed`). The loop variable has the structured name (the node id), so body references read the same.
+ */
+function emitLoopStates(
+  g: FlowGraph,
+  specs: Map<string, NodeSpec>,
+  node: FlowNode,
+  emit: (text: string, mark: string | null, indent: number) => void,
+  jump: (from: string, target: { node: string; pin: string } | null) => string,
+): void {
+  const id = node.id;
+  const v = pyIdent(id);
+  const body = outEdge(g, id, "body");
+  const enter = body ? "pc = " + pyRepr(body.node) : "pc = " + pyRepr(id + "__head");
+  const done = jump(id, outEdge(g, id, "completed"));
+  const leave = (indent: number) => {
+    emit(done, null, indent);
+    if (done !== "break") emit("continue", null, indent);
+  };
+  emit("if pc == " + pyRepr(id) + ":", null, 1);
+  emitPures(g, specs, id, emit, 2, new Set());
+  if (node.type === "flow.for_range") emit(pyIdent(id + "_n") + " = " + node.inputs?.start, id, 2);
+  else if (node.type === "flow.for_each") {
+    const items = inEdge(g, id, "items");
+    emit(pyIdent(id + "_it") + " = iter(" + (items ? refExpr(g, items, specs) : pyIdent(String(node.config?.items ?? ""))) + ")", id, 2);
+  } else emit(pyIdent(id + "_i") + " = 0", id, 2);
+  emit("pc = " + pyRepr(id + "__head"), null, 2);
+  emit("continue", null, 2);
+  emit("if pc == " + pyRepr(id + "__head") + ":", null, 1);
+  if (node.type === "flow.for_range") {
+    const n = pyIdent(id + "_n");
+    emit("if " + n + " < " + node.inputs?.end + ":", id, 2);
+    emit(v + " = " + n, null, 3);
+    emit(n + " += 1", null, 3);
+    emit(enter, null, 3);
+    emit("continue", null, 3);
+  } else if (node.type === "flow.for_each") {
+    emit("try:", id, 2);
+    emit(v + " = next(" + pyIdent(id + "_it") + ")", null, 3);
+    emit("except StopIteration:", null, 2);
+    leave(3);
+    emit(enter, null, 2);
+    emit("continue", null, 2);
+    return;
+  } else {
+    const cond = inEdge(g, id, "cond");
+    if (!cond) throw new Error("while without condition");
+    const i = pyIdent(id + "_i");
+    emitPures(g, specs, id, emit, 2, new Set());
+    emit("if " + i + " < " + node.inputs?.max + " and " + condExpr(g, cond, specs) + ":", id, 2);
+    emit(i + " += 1", null, 3);
+    emit(enter, null, 3);
+    emit("continue", null, 3);
+  }
+  leave(2);
+}
+
+/**
+ * The nodes of a loop's body that only the body reaches (everything run through `body` before control rejoins an
+ * outer path). A missing exec exit on one of them means "this pass is over" in a lowered loop.
+ */
+function fallBody(g: FlowGraph, loop: string): Set<string> {
+  const entry = outEdge(g, loop, "body");
+  const inside = new Set<string>();
+  if (!entry) return inside;
+  const stack = [entry.node];
+  while (stack.length) {
+    const id = stack.pop() as string;
+    if (inside.has(id) || id === loop || id === "start") continue;
+    inside.add(id);
+    stack.push(...successors(g, id));
+  }
+  for (let changed = true; changed; ) {
+    changed = false;
+    for (const id of [...inside]) {
+      if (id === entry.node) continue;
+      const foreign = g.edges.some((edge) => pinNode(edge.to) === id && EXEC_IN.test(edge.to.slice(id.length + 1)) && !inside.has(pinNode(edge.from)));
+      if (foreign) {
+        inside.delete(id);
+        changed = true;
+      }
+    }
+  }
+  return inside;
+}
+
 /** Loops a state can hold whole, keyed by the pin that leaves them. */
 const STATE_EXIT: Record<string, string> = { "flow.for_range": "completed", "flow.for_each": "completed", "flow.while": "completed" };
+/**
+ * Containers a state can hold whole when every inner branch stays inside: the structured code for the container,
+ * then a jump along this pin. Keyed by node type.
+ */
+const STATE_JOIN: Record<string, string> = { "flow.match": "completed", "flow.sequence": "next", "flow.try": "completed", "flow.parallel": "joined" };
+
+/**
+ * Containers that end on one of two outcomes (the structured code sets `<id>_ok` and branches on it): the state
+ * holds the container (and its closed `region`) and then jumps to `yes` or `no`.
+ */
+const STATE_FORK: Record<string, { region: string[]; yes: string; no: string }> = {
+  "flow.wait_until": { region: [], yes: "then", no: "timeout" },
+  "flow.retry": { region: ["body"], yes: "ok", no: "failed" },
+};
+
+/** The exec pins that open a container's inner branches (each one compiled inside the container). */
+function regionPins(g: FlowGraph, node: FlowNode): string[] {
+  if (node.type === "flow.sequence") return sequenceSteps(g, node.id);
+  if (node.type === "flow.parallel") return parallelBranches(g, node.id);
+  if (node.type === "flow.try") return ["body", "handler"];
+  if (node.type === "flow.match") return g.edges.filter((edge) => pinNode(edge.from) === node.id && /^c\d+$/.test(edge.from.slice(node.id.length + 1))).map((edge) => edge.from.slice(node.id.length + 1));
+  return [];
+}
+
 /** Single-exit nodes without a DSL alias that the structured compiler already knows. */
 const STATE_SOLO = new Set(["flow.call", "code.python", "data.set", "flow.merge"]);
 
@@ -1945,14 +2102,21 @@ const STATE_SOLO = new Set(["flow.call", "code.python", "data.set", "flow.merge"
  * null when the body jumps out (a goto to an outer node) or is entered from elsewhere; that needs real states.
  */
 function loopBody(g: FlowGraph, loop: string): Set<string> | null {
-  const entry = outEdge(g, loop, "body");
+  return regionBody(g, loop, ["body"]);
+}
+
+/**
+ * Nodes run by the branches leaving `owner` on `pins`, when they are closed: every node they reach is entered only
+ * from inside them (or from one of those pins). null when a branch jumps back to the owner or out to an outer node.
+ */
+function regionBody(g: FlowGraph, owner: string, pins: string[]): Set<string> | null {
   const inner = new Set<string>();
-  if (!entry) return inner;
-  const stack = [entry.node];
+  const entries = new Set(pins.map((pin) => owner + "." + pin));
+  const stack = pins.map((pin) => outEdge(g, owner, pin)?.node).filter((id): id is string => !!id);
   while (stack.length) {
     const id = stack.pop() as string;
     if (inner.has(id)) continue;
-    if (id === loop || id === "start") return null;
+    if (id === owner || id === "start") return null;
     inner.add(id);
     stack.push(...successors(g, id));
   }
@@ -1960,7 +2124,13 @@ function loopBody(g: FlowGraph, loop: string): Set<string> | null {
     const to = pinNode(edge.to);
     if (!inner.has(to) || !EXEC_IN.test(edge.to.slice(to.length + 1))) continue;
     const from = pinNode(edge.from);
-    if (!inner.has(from) && edge.from !== loop + ".body") return null;
+    if (!inner.has(from) && !entries.has(edge.from)) return null;
+  }
+  // A `break` / `continue` aimed at a loop outside the region would leave the state machine's own `while True`.
+  for (const edge of g.edges) {
+    const target = pinNode(edge.to);
+    if (!inner.has(pinNode(edge.from)) || inner.has(target) || target === owner) continue;
+    if (/^(break|continue)$/.test(edge.to.slice(target.length + 1))) return null;
   }
   return inner;
 }
