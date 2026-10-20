@@ -103,8 +103,13 @@ function fieldHtml(f: Field, value: string | number | boolean | undefined): stri
     case "textarea":
       return `<div class="row">${lab}<textarea id="f_${esc(f.id)}" data-key="${esc(f.id)}" placeholder="${esc(f.placeholder)}"${req}>${esc(value)}</textarea></div>`;
     case "select":
-      return `<div class="row">${lab}<select id="f_${esc(f.id)}" data-key="${esc(f.id)}">` +
-        (f.options || []).map((o) => `<option${o === value ? " selected" : ""}>${esc(o)}</option>`).join("") + `</select></div>`;
+      // An in-page option list, not a native <select>: ui.Window shows the page in an overlay window, where the
+      // WebView cannot open the <select> pop-up (tapping only focuses it; Android ignores size= too). Found by
+      // scripts/device_ui_designer_e2e.py.
+      return `<div class="row"><span class="lab" id="l_${esc(f.id)}">${esc(f.label)}</span>` +
+        `<div class="choice" role="listbox" aria-labelledby="l_${esc(f.id)}" id="f_${esc(f.id)}" data-key="${esc(f.id)}" data-type="choice" data-value="${esc(value)}">` +
+        (f.options || []).map((o) => `<button type="button" role="option" class="opt${o === value ? " sel" : ""}" aria-selected="${o === value}" data-value="${esc(o)}">${esc(o)}</button>`).join("") +
+        `</div></div>`;
     case "radio":
       return `<div class="row"><span class="lab">${esc(f.label)}</span><div class="radios" data-key="${esc(f.id)}" data-type="radio">` +
         (f.options || []).map((o, i) => `<label><input type="radio" name="f_${esc(f.id)}" value="${esc(o)}"${o === value ? " checked" : ""}${i === 0 ? req : ""}>${esc(o)}</label>`).join("") +
@@ -134,6 +139,9 @@ export function renderHtml(spec: FormSpec): string {
   body{font-family:-apple-system,Roboto,"Noto Sans CJK SC",sans-serif;margin:0;padding:14px;font-size:15px;color:#222;background:#fff}
   h3{margin:0 0 12px}.row{margin:0 0 12px;display:flex;flex-direction:column;gap:4px}.row.check{flex-direction:row;align-items:center;gap:8px}
   input:not([type=checkbox]):not([type=radio]),select,textarea{font:inherit;padding:7px;border:1px solid #bbb;border-radius:6px}
+  .choice{display:flex;flex-direction:column;border:1px solid #bbb;border-radius:6px;overflow:hidden}
+  .choice .opt{background:#fff;color:#222;border-radius:0;text-align:left;padding:8px 10px;border-top:1px solid #eee}
+  .choice .opt:first-child{border-top:0}.choice .opt.sel{background:#2f6fed;color:#fff}
   textarea{min-height:64px}.radios{display:flex;flex-wrap:wrap;gap:12px}.note{color:#666;margin:0 0 12px}
   .bar{display:flex;gap:10px;justify-content:flex-end;margin-top:6px}button{font:inherit;padding:8px 18px;border-radius:6px;border:0;background:#2f6fed;color:#fff}
   button.sec{background:#ddd;color:#222}
@@ -155,16 +163,28 @@ export function renderHtml(spec: FormSpec): string {
       if (t === "bool") out[k] = el.checked;
       else if (t === "num") out[k] = el.value === "" ? null : Number(el.value);
       else if (t === "radio") { var c = el.querySelector("input:checked"); out[k] = c ? c.value : null; }
+      else if (t === "choice") out[k] = el.getAttribute("data-value");
       else out[k] = el.value;
     });
     return out;
   }
+  function pick(list, v) {   // select fields: highlight the chosen option and remember its value
+    var opts = list.querySelectorAll(".opt"), hit = false;
+    opts.forEach(function (o) { hit = hit || o.getAttribute("data-value") === v; });
+    if (!hit) return;
+    list.setAttribute("data-value", v);
+    opts.forEach(function (o) { var on = o.getAttribute("data-value") === v; o.classList.toggle("sel", on); o.setAttribute("aria-selected", String(on)); });
+  }
+  form.querySelectorAll(".choice").forEach(function (list) {
+    list.addEventListener("click", function (e) { var o = e.target.closest(".opt"); if (o) pick(list, o.getAttribute("data-value")); });
+  });
   window.xsInit = function (values) {   // called by the generated Python with the script's current values
     Object.keys(values || {}).forEach(function (k) {
       var el = form.querySelector('[data-key="' + k + '"]'), v = values[k];
       if (!el) return;
       if (el.getAttribute("data-type") === "bool") el.checked = !!v;
       else if (el.getAttribute("data-type") === "radio") el.querySelectorAll("input").forEach(function (r) { r.checked = r.value === String(v); });
+      else if (el.getAttribute("data-type") === "choice") pick(el, String(v));
       else el.value = v == null ? "" : v;
     });
   };

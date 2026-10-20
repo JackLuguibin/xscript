@@ -107,3 +107,13 @@ print(json.dumps({"r": r, "init": json.loads(init.replace("<\\\\/", "</")), "mar
   assert.equal(fl.r.number4, 2.5, "fractional numbers stay floats");
   assert.equal(run("cancel").r, null, "cancel returns None");
 });
+
+test("select renders as an in-page option list (no native pop-up in the overlay window)", () => {
+  const s = newSpec();
+  s.fields.push({ kind: "select", id: "mode", label: "Mode", options: ["easy", "hard"], default: "hard" });
+  const h = renderHtml(s);
+  assert.doesNotMatch(h, /<select/);
+  assert.match(h, /<div class="choice" role="listbox" aria-labelledby="l_mode" id="f_mode" data-key="mode" data-type="choice" data-value="hard">/);
+  assert.match(h, /<button type="button" role="option" class="opt" aria-selected="false" data-value="easy">easy<\/button>/);
+  assert.match(h, /class="opt sel" aria-selected="true" data-value="hard">hard</);
+});
