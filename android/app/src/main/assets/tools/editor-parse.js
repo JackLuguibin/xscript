@@ -369,7 +369,8 @@
     }
     // ---- statements ----
     function block(header) {
-      expect(":", "缺少 ':'（" + header.v + " 语句要以冒号结尾）");
+      if (!at(":")) { const k = peek(), m = "缺少 ':'（" + header.v + " 语句要以冒号结尾）"; if (k.t !== "ERR" && k.line === header.line && !unclosed) throw new SyntaxErr(header.line, header.col, header.v.length, m); fail(k, m); }
+      next();
       if (peek().t !== "NEWLINE") return simpleStmts();
       const nl = next();
       if (peek().t !== "INDENT") { const k = peek(); fail(k.t === "ERR" ? k : k.t === "END" || k.t === "DEDENT" && k.line === nl.line ? nl : k, "缺少缩进的代码块（第 " + header.line + " 行以 ':' 结尾）"); }

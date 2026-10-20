@@ -369,26 +369,34 @@ test('Web IDE explorer, editor and create/delete flows in a real browser', {skip
       await b.eval(click, row('__init__.py'));
       await b.waitFor(() => document.getElementById('editor').value.length > 0 && !document.getElementById('editor').disabled);
       await b.eval(() => { const e = document.getElementById('editor'); e.focus(); e.value = 'if x\n    pass\nprint "hi"\nok = (1,\n'; e.setSelectionRange(0, 0); e.dispatchEvent(new Event('input')); });
-      await b.waitFor(() => document.querySelectorAll('#diag .sq').length >= 3);
-      const d = await b.eval(() => ({
+      await b.waitFor(() => document.querySelectorAll('#diag .sq').length >= 1);
+      const state = () => b.eval(() => ({
         layer: document.getElementById('diag').textContent.replace(/\n$/, '') === document.getElementById('editor').value,
         marks: [...document.querySelectorAll('#line-numbers .diag-line')].map(n => n.textContent.trim()),
-        title: document.querySelector('#line-numbers .diag-line').title,
+        title: (document.querySelector('#line-numbers .diag-line') || {}).title || '',
         count: document.getElementById('problems').dataset.count, text: document.getElementById('problems').textContent, hidden: document.getElementById('problems').hidden,
         sq: getComputedStyle(document.querySelector('#diag .sq')).textDecorationLine,
       }));
+      // like CPython, the parser reports the first syntax error; fixing it reveals the next one
+      let d = await state();
       assert.equal(d.layer, true, 'diagnostic layer text matches the textarea (alignment)');
-      assert.deepEqual(d.marks, ['1', '3', '4']); assert.ok(d.title.length > 0);
-      assert.equal(d.count, '3'); assert.equal(d.hidden, false); assert.match(d.text, /第 1 行/); assert.match(d.sq, /underline/);
-      // problems button jumps to the next problem and moves the caret there
+      assert.deepEqual(d.marks, ['1']); assert.match(d.title, /冒号/);
+      assert.equal(d.count, '1'); assert.equal(d.hidden, false); assert.match(d.text, /第 1 行/); assert.match(d.sq, /underline/);
+      // problems button jumps to the problem and moves the caret there
+      await b.eval(() => document.getElementById('editor').setSelectionRange(30, 30));
       await b.eval(click, '#problems');
       assert.equal(await b.eval(() => document.getElementById('editor').value.slice(0, document.getElementById('editor').selectionStart).split('\n').length), 1);
-      await b.eval(click, '#problems');
-      assert.equal(await b.eval(() => document.getElementById('editor').value.slice(0, document.getElementById('editor').selectionStart).split('\n').length), 3);
       // typing clears stale squiggles immediately, then the check re-runs
       await b.insertText('x');
       assert.equal(await b.eval(() => document.querySelectorAll('#diag .sq').length), 0, 'stale marks dropped while typing');
-      await b.waitFor(() => document.querySelectorAll('#diag .sq').length >= 2);   // `xprint "hi"` is no longer a py2 print
+      await b.waitFor(() => document.querySelectorAll('#diag .sq').length >= 1);
+      const setText = (v) => b.eval((v) => { const e = document.getElementById('editor'); e.value = v; e.dispatchEvent(new Event('input')); }, v);
+      await setText('if x:\n    pass\nprint "hi"\nok = (1,\n');
+      await b.waitFor(() => [...document.querySelectorAll('#line-numbers .diag-line')].map(n => n.textContent.trim()).join() === '3');
+      assert.match((await state()).title, /print/);
+      await setText('if x:\n    pass\nprint("hi")\nok = (1,\n');
+      await b.waitFor(() => [...document.querySelectorAll('#line-numbers .diag-line')].map(n => n.textContent.trim()).join() === '4');
+      assert.match((await state()).title, /没有闭合/);
       // fix everything -> clean
       await b.eval(() => { const e = document.getElementById('editor'); e.value = 'if x:\n    pass\nprint("hi")\nok = (1,)\n'; e.dispatchEvent(new Event('input')); });
       await b.waitFor(() => document.getElementById('problems').dataset.count === '0');

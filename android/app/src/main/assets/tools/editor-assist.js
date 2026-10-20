@@ -62,8 +62,8 @@
           const ds = byLine.get(i + 1); if (!ds) return esc(raw);
           let out = "", at = 0;
           for (const d of ds.sort((a, b) => a.col - b.col)) {
-            const from = Math.min(Math.max(d.col, at), raw.length), to = Math.min(Math.max(from + d.length, from + 1), raw.length);
-            if (to <= from) { out += esc(raw.slice(at)) + '<span class="sq"> </span>'; at = raw.length; continue; }
+            let from = Math.min(Math.max(d.col, at), raw.length), to = Math.min(Math.max(from + d.length, from + 1), raw.length);
+            if (to <= from) { if (at >= raw.length) continue; from = raw.length - 1; to = raw.length; }   // error at end of line: mark its last character
             out += esc(raw.slice(at, from)) + '<span class="sq">' + esc(raw.slice(from, to)) + "</span>"; at = to;
           }
           return out + esc(raw.slice(at));
