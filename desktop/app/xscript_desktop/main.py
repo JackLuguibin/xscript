@@ -27,6 +27,8 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     p.add_argument("--size", metavar="WxH", help="initial window size, e.g. 1180x760 (verification aid; documentation screenshots)")
     p.add_argument("--theme", choices=["system", "light", "dark"], help="with --screenshot: press the sidebar theme button until this theme is active (verification aid)")
     p.add_argument("--timeout", type=float, default=30.0, help="selftest/screenshot timeout in seconds")
+    p.add_argument("--report", metavar="JSON",
+                   help="with --selftest: also write the result to this file (a windowed build has no stdout, e.g. XScript.exe)")
     p.add_argument("--data-dir", help="where to keep the web profile (default: per-user app data dir)")
     return p.parse_args(argv)
 
@@ -116,6 +118,14 @@ def main(argv: list[str] | None = None) -> int:
     poll.setInterval(100)
     elapsed = {"t": 0.0, "ready_at": None, "clicked": False, "theme_ok": False}
 
+    def report(payload: dict) -> None:
+        print(json.dumps(payload, ensure_ascii=False))
+        if args.report:
+            try:
+                Path(args.report).write_text(json.dumps(payload, ensure_ascii=False), encoding="utf-8")
+            except OSError as e:
+                print("cannot write --report %s: %s" % (args.report, e), file=sys.stderr)
+
     def finish(code: int) -> None:
         result["code"] = code
         poll.stop()
@@ -130,6 +140,8 @@ def main(argv: list[str] | None = None) -> int:
         elapsed["t"] += 0.1
         if elapsed["t"] > args.timeout and (args.selftest or args.screenshot):
             print("FAIL: timeout waiting for the page (ui_ready=%s)" % ctx.ui_ready.is_set(), file=sys.stderr)
+            if args.selftest:
+                report({"selftest": "timeout", "version": __version__, "uiReady": ctx.ui_ready.is_set()})
             finish(1)
             return
         if not ctx.ui_ready.is_set():
@@ -147,7 +159,7 @@ def main(argv: list[str] | None = None) -> int:
             win.page.runJavaScript(THEME_STEP_JS % json.dumps(args.theme), theme_step_done)
             return
         if args.selftest and not args.connect_adb:
-            print(json.dumps({"selftest": "ok", "version": __version__, "page": "loaded", "bridge": "roundtrip"}))
+            report({"selftest": "ok", "version": __version__, "page": "loaded", "bridge": "roundtrip"})
             finish(0)
         elif args.screenshot and args.click_screenshot and not elapsed["clicked"] and ctx.devices.list() and \
                 elapsed["t"] - elapsed["ready_at"] >= 1.0:
@@ -161,7 +173,7 @@ def main(argv: list[str] | None = None) -> int:
             finish(0 if ok else 1)
         elif args.selftest and args.connect_adb and ctx.devices.list():
             rec = ctx.devices.list()[0]
-            print(json.dumps({"selftest": "ok", "device": rec.to_dict()["info"], "state": rec.state}, ensure_ascii=False))
+            report({"selftest": "ok", "device": rec.to_dict()["info"], "state": rec.state})
             finish(0)
 
     poll.timeout.connect(tick)

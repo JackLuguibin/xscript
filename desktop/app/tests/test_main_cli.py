@@ -92,9 +92,27 @@ def test_selftest_passes_with_one_bridge_roundtrip():
 
 
 @needs_build
-def test_selftest_times_out_with_exit_1_when_the_page_never_says_hello():
-    r = run_app("--selftest", "--timeout", "0.05")  # too short for the page to boot
+def test_selftest_times_out_with_exit_1_when_the_page_never_says_hello(tmp_path):
+    rep = tmp_path / "r.json"
+    r = run_app("--selftest", "--timeout", "0.05", "--report", str(rep))  # too short for the page to boot
     assert r.returncode == 1 and "timeout" in r.stderr
+    assert json.loads(rep.read_text())["selftest"] == "timeout"
+
+
+@needs_build
+def test_selftest_report_file_for_windowed_builds(tmp_path):
+    # XScript.exe is a windowed build without stdout: the installer check reads --report instead
+    rep = tmp_path / "sub" / "r.json"
+    rep.parent.mkdir()
+    r = run_app("--selftest", "--timeout", "40", "--report", str(rep))
+    assert r.returncode == 0, r.stderr
+    assert json.loads(rep.read_text(encoding="utf-8")) == {"selftest": "ok", "version": __version__, "page": "loaded", "bridge": "roundtrip"}
+
+
+@needs_build
+def test_selftest_report_to_unwritable_path_still_passes(tmp_path):
+    r = run_app("--selftest", "--timeout", "40", "--report", str(tmp_path / "missing" / "r.json"))
+    assert r.returncode == 0 and "cannot write --report" in r.stderr
 
 
 @needs_build
