@@ -32,7 +32,14 @@ object ModelStore {
         return arr
     }
 
-    fun file(context: Context, rel: String): File = File(dir(context), ProjectStore.normalizeRel(rel))
+    fun file(context: Context, rel: String): File = resolve(dir(context), rel)
+
+    fun resolve(base: File, rel: String): File {
+        val target = File(base, ProjectStore.normalizeRel(rel))
+        // normalizeRel already refuses "..", this also stops a symlink inside the folder pointing out of it.
+        require(target.canonicalPath.startsWith(base.canonicalPath + File.separator)) { "路径须位于模型目录内" }
+        return target
+    }
 
     /** Stream an upload into place through a temp file, so a broken upload never leaves half a model. */
     fun write(context: Context, rel: String, input: InputStream): File {

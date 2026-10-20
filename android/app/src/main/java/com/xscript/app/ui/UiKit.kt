@@ -79,6 +79,8 @@ object UiKit {
 
     /** Typography roles, sp. Bold only for [TITLE], [HEADLINE], section headers and buttons. */
     object Type {
+        /** A code read off the screen and typed elsewhere (配对码). */
+        const val CODE = 28f
         const val TITLE = 20f
         const val HEADLINE = 18f
         const val BODY_LARGE = 16f

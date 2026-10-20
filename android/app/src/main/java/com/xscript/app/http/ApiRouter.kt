@@ -84,9 +84,15 @@ class ApiRouter(private val context: Context) {
         val body: Body,
         val client: String = "",
         val remote: String = "",
+        /** The HTTP Content-Type, or null on transports without one (cloud control WebSocket). */
+        val contentType: String? = null,
+        /** False only for an unpaired LAN request to a public route (see [HttpGuard.isPublic]). */
+        val authed: Boolean = true,
     ) {
         fun json(): JSONObject {
             if (body.isEmpty) return JSONObject()
+            // A browser can send text/plain or a form cross-site without a preflight; JSON never.
+            if (contentType != null && !HttpGuard.isJson(contentType)) throw UnsupportedMediaType()
             val text = String(body.bytes(), Charsets.UTF_8)
             return if (text.isBlank()) JSONObject() else JSONObject(text)
         }
@@ -112,7 +118,7 @@ class ApiRouter(private val context: Context) {
         if (tools.handles(p)) return tools.route(req, if (req.path == "/tools/") "/tools/" else p)
         when {
             m == "GET" && p == "/" -> return home()
-            m == "GET" && p == "/status" -> return Reply.json(MainControl.status(context))
+            m == "GET" && p == "/status" -> return Reply.json(status(req))
             m == "GET" && p == "/debug/status" -> return Reply.json(DapTransport.status())
             m == "POST" && p == "/debug/connect" -> return Reply.json(DapTransport.connect())
             m == "POST" && p == "/debug/request" -> return Reply.json(DapTransport.send(req.json()))
@@ -205,12 +211,27 @@ class ApiRouter(private val context: Context) {
 
     companion object {
         /** Exception type → HTTP status: 404 missing, 400 invalid input, 409 conflict, else 500. */
+        val PUBLIC_STATUS = listOf("name", "model", "brand", "version", "device_id", "app_id", "port")
+
         fun errorReply(e: Exception): Reply = when (e) {
+            is UnsupportedMediaType -> Reply.json(JSONObject().put("error", e.message), 415)
             is NoSuchElementException -> Reply.json(JSONObject().put("error", e.message ?: "not found"), 404)
             is IllegalArgumentException -> Reply.json(JSONObject().put("error", e.message ?: "bad request"), 400)
             is IllegalStateException -> Reply.json(JSONObject().put("error", e.message ?: "conflict"), 409)
             else -> Reply.json(JSONObject().put("error", e.message ?: e.toString()), 500)
         }
+    }
+
+    class UnsupportedMediaType : IllegalArgumentException("expected Content-Type: application/json")
+
+    /** Full status once paired; before that only what a scanner needs to recognise the device. */
+    private fun status(req: Request): JSONObject {
+        val full = MainControl.status(context)
+        val required = Pairing.required
+        if (req.authed) return full.put("pairing", required).put("paired", true)
+        val small = JSONObject()
+        for (k in PUBLIC_STATUS) if (full.has(k)) small.put(k, full.get(k))
+        return small.put("pairing", required).put("paired", false)
     }
 
     private fun home(): Reply {

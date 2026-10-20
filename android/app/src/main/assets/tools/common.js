@@ -68,6 +68,11 @@ const XS = {
       init.headers["Content-Type"] = "application/json";
     }
     const r = await fetch(path, init);
+    if (r.status === 401) {
+      // The pairing code changed on the phone (or was never entered): pair again, then come back here.
+      location.href = "/pair?next=" + encodeURIComponent(location.pathname + location.search + location.hash);
+      throw new Error("需要配对");
+    }
     if (opts.raw) {
       if (!r.ok) throw new Error(await r.text());
       return r;

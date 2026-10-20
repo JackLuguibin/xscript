@@ -1,0 +1,71 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>XScript 配对</title>
+<script>
+  (function () {
+    var m = localStorage.getItem("xs-theme");
+    var dark = m === "dark" || (m !== "light" && matchMedia("(prefers-color-scheme: dark)").matches);
+    document.documentElement.dataset.theme = dark ? "dark" : "light";
+  })();
+</script>
+<link rel="stylesheet" href="/tools/ui/tools.css">
+<style>
+  .pair { max-width: 420px; margin: 12vh auto 0; padding: 0 16px; }
+  .pair .card { display: block; cursor: default; }
+  .pair .card:hover { transform: none; }
+  .pair form { display: flex; gap: 8px; margin-top: 14px; }
+  .pair input { flex: 1; font: 600 18px/1.2 var(--mono, ui-monospace, monospace); letter-spacing: 2px; text-transform: uppercase; text-align: center; }
+  .pair .err { color: var(--bad); min-height: 1.4em; margin: 8px 0 0; }
+</style>
+</head>
+<body class="xs-shell xs-scroll">
+<main class="home pair">
+  <div class="home-head">
+    <h1>配对设备</h1>
+    <span class="muted" id="dev"></span>
+  </div>
+  <div class="card">
+    <p>输入手机上 XScript 首页「开发与连接 → 配对码」显示的 8 位配对码。配对后这个浏览器可以使用脚本 IDE、图色工具、标注工具与投屏。</p>
+    <form id="f" autocomplete="off">
+      <input id="code" maxlength="9" placeholder="ABCD-EFGH" aria-label="配对码" autofocus required>
+      <button class="primary" type="submit">配对</button>
+    </form>
+    <p class="err" id="err" role="alert"></p>
+  </div>
+  <p class="note">配对码只保存在本浏览器的 Cookie 中。手机上「重新生成」配对码后，所有已配对的电脑和浏览器都需要重新配对。</p>
+</main>
+<script>
+"use strict";
+const next = (function () {
+  const n = new URLSearchParams(location.search).get("next") || "/tools/";
+  return n.startsWith("/") && !n.startsWith("//") ? n : "/tools/";
+})();
+fetch("/status").then((r) => r.json()).then((s) => {
+  document.getElementById("dev").textContent = (s.model || s.name || "") + (s.version ? " · XScript " + s.version : "");
+  if (s.pairing === false || s.paired === true) location.replace(next);
+}).catch(() => {});
+const code = document.getElementById("code");
+code.addEventListener("input", () => {
+  const v = code.value.toUpperCase().replace(/[^A-Z0-9]/g, "").slice(0, 8);
+  code.value = v.length > 4 ? v.slice(0, 4) + "-" + v.slice(4) : v;
+});
+document.getElementById("f").addEventListener("submit", async (e) => {
+  e.preventDefault();
+  const err = document.getElementById("err");
+  err.textContent = "";
+  try {
+    const r = await fetch("/pair", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ code: code.value }) });
+    const d = await r.json().catch(() => ({}));
+    if (r.ok) return location.replace(next);
+    err.textContent = r.status === 429 ? "尝试次数过多，请一分钟后再试" : (d.error === "invalid code" ? "配对码不正确" : (d.error || "配对失败"));
+  } catch (x) {
+    err.textContent = "无法连接设备";
+  }
+  code.select();
+});
+</script>
+</body>
+</html>

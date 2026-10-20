@@ -180,9 +180,31 @@ def _templates():
         return json.load(f)["templates"]
 
 
+class UnsupportedMediaType(Exception):
+    """A JSON body sent without Content-Type: application/json (the device answers 415)."""
+
+
 class Handler(BaseHTTPRequestHandler):
     def log_message(self, fmt, *args):
         return
+
+    def _dispatch(self, handler):
+        try:
+            handler()
+        except UnsupportedMediaType:
+            self._json(415, {"error": "expected Content-Type: application/json"})
+
+    def do_GET(self):
+        self._dispatch(self._do_GET)
+
+    def do_PUT(self):
+        self._dispatch(self._do_PUT)
+
+    def do_POST(self):
+        self._dispatch(self._do_POST)
+
+    def do_DELETE(self):
+        self._dispatch(self._do_DELETE)
 
     def _send(self, code, mime, raw):
         self.send_response(code)
@@ -201,6 +223,78 @@ class Handler(BaseHTTPRequestHandler):
             return
         with open(path, "rb") as f:
             self._send(200, MIME.get(rel.rsplit(".", 1)[-1], "application/octet-stream"), f.read())
+
+    # ---- pairing (same rules as the device's HttpGuard; on only when serve(..., token=...) is given)
+
+    PUBLIC_STATUS = ("name", "model", "brand", "version", "device_id", "app_id", "port")
+
+    def _token(self):
+        return getattr(self.server, "pair_token", None)
+
+    @staticmethod
+    def _norm(code):
+        return "".join(c for c in (code or "") if c.isalnum()).upper()
+
+    def _presented(self):
+        auth = self.headers.get("Authorization", "")
+        if auth.lower().startswith("bearer "):
+            return auth[7:].strip()
+        if self.headers.get("X-XScript-Token"):
+            return self.headers["X-XScript-Token"].strip()
+        for part in (self.headers.get("Cookie") or "").split(";"):
+            k, _, v = part.strip().partition("=")
+            if k == "xs_pair":
+                return v.strip()
+        return ""
+
+    def _authed(self):
+        token = self._token()
+        return token is None or (self._norm(self._presented()) != "" and self._norm(self._presented()) == self._norm(token))
+
+    def _status_view(self, full):
+        required = self._token() is not None
+        if self._authed():
+            return dict(full, pairing=required, paired=True)
+        return dict({k: full[k] for k in self.PUBLIC_STATUS if k in full}, pairing=required, paired=False)
+
+    def _gate(self, method):
+        """False (and the reply already sent) when the request may not go on."""
+        path = urlparse(self.path).path.rstrip("/") or "/"
+        origin = self.headers.get("Origin")
+        host = self.headers.get("Host") or ""
+        if origin and origin.split("://", 1)[-1].rstrip("/").lower() != host.lower():
+            self._json(403, {"error": "cross-origin request refused"})
+            return False
+        if path == "/pair" and method == "POST":
+            if "json" not in (self.headers.get("Content-Type") or ""):
+                self._json(415, {"error": "expected application/json"})
+                return False
+            given = self._body().get("code", "")
+            token = self._token()
+            if token is None:
+                self._json(200, {"ok": True, "pairing": False})
+            elif self._norm(given) and self._norm(given) == self._norm(token):
+                self.send_response(200)
+                raw = json.dumps({"ok": True, "pairing": True}).encode()
+                self.send_header("Content-Type", "application/json; charset=utf-8")
+                self.send_header("Set-Cookie", "xs_pair=%s; Path=/; HttpOnly; SameSite=Strict" % self._norm(token))
+                self.send_header("Content-Length", str(len(raw)))
+                self.end_headers()
+                self.wfile.write(raw)
+            else:
+                self._json(401, {"error": "invalid code"})
+            return False
+        public = (method == "GET" and (path in ("/status", "/pair") or (path.startswith("/tools/ui/") and path.endswith((".js", ".css")))))
+        if public or self._authed():
+            return True
+        self.send_response(401)
+        raw = json.dumps({"error": "pairing required", "pairing": True}).encode()
+        self.send_header("Content-Type", "application/json; charset=utf-8")
+        self.send_header("WWW-Authenticate", 'Bearer realm="xscript"')
+        self.send_header("Content-Length", str(len(raw)))
+        self.end_headers()
+        self.wfile.write(raw)
+        return False
 
     def _json(self, code, payload):
         self._send(code, "application/json; charset=utf-8", json.dumps(payload).encode("utf-8"))
@@ -238,6 +332,8 @@ class Handler(BaseHTTPRequestHandler):
 
     def _body(self):
         raw = self._raw_body()
+        if raw.strip() and "json" not in (self.headers.get("Content-Type") or "").lower():
+            raise UnsupportedMediaType()
         return json.loads(raw.decode("utf-8")) if raw.strip() else {}
 
     def _project_route(self):
@@ -252,13 +348,17 @@ class Handler(BaseHTTPRequestHandler):
 
     # ------------------------------------------------------------------ GET
 
-    def do_GET(self):
+    def _do_GET(self):
+        if not self._gate("GET"):
+            return
         parsed = urlparse(self.path)
         q = self._query()
         if parsed.path == "/status":
-            self._json(200, {
+            self._json(200, self._status_view({
                 "name": "mock-device",
                 "model": "XScript Mock",
+                "device_id": "mock0000device01",
+                "app_id": "com.xscript.app.mock",
                 "sdk": 34,
                 "release": "14",
                 "width": 1080,
@@ -289,7 +389,7 @@ class Handler(BaseHTTPRequestHandler):
                     "menus": 0,
                     "insets": {"left": 0, "top": 0, "right": 0, "bottom": 0},
                 },
-            })
+            }))
             return
         if parsed.path == "/screen":
             self._send(200, "image/jpeg" if q.get("format") in ("jpg", "jpeg") else "image/png", PNG)
@@ -434,7 +534,9 @@ class Handler(BaseHTTPRequestHandler):
 
     # ------------------------------------------------------------------ PUT
 
-    def do_PUT(self):
+    def _do_PUT(self):
+        if not self._gate("PUT"):
+            return
         path = urlparse(self.path).path
         if path.startswith("/tools/datasets/"):
             parts = path.split("/")[3:]
@@ -533,7 +635,9 @@ class Handler(BaseHTTPRequestHandler):
 
     # ------------------------------------------------------------------ POST
 
-    def do_POST(self):
+    def _do_POST(self):
+        if not self._gate("POST"):
+            return
         path = urlparse(self.path).path
         if path == "/tools/snapshots":
             # Empty body: "capture" the 1x1 screen; a PNG body is an upload.
@@ -730,7 +834,9 @@ class Handler(BaseHTTPRequestHandler):
 
     # ------------------------------------------------------------------ DELETE
 
-    def do_DELETE(self):
+    def _do_DELETE(self):
+        if not self._gate("DELETE"):
+            return
         path = urlparse(self.path).path
         if path == "/logs":
             STATE["logs"].clear()
@@ -816,19 +922,21 @@ class Handler(BaseHTTPRequestHandler):
         self._json(404, {"error": "not found"})
 
 
-def serve(host="127.0.0.1", port=0):
+def serve(host="127.0.0.1", port=0, token=None):
+    """`token` turns pairing on (like the phone's default); None is the AScript-compatible open mode."""
     # Threaded so a held /screen/stream does not block /action and /status on the same device.
     httpd = ThreadingHTTPServer((host, port), Handler)
     httpd.daemon_threads = True
     httpd.stream_lock = threading.Lock()
     httpd.stream_viewers = 0
+    httpd.pair_token = token
     thread = threading.Thread(target=httpd.serve_forever, daemon=True)
     thread.start()
     return httpd
 
 
 if __name__ == "__main__":
-    server = serve("127.0.0.1", 9860)
+    server = serve("127.0.0.1", 9860, token=os.environ.get("XSCRIPT_MOCK_TOKEN") or None)
     print("mock device on http://127.0.0.1:%d (local testing only)" % server.server_address[1])
     try:
         threading.Event().wait()
