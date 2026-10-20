@@ -323,7 +323,7 @@ docs: improve setup instructions
 
 ## Security
 
-The device development HTTP service has no authentication: any client that can reach the port can upload and run code. Use a trusted network or USB/ADB forwarding, and do not expose the development port directly to the internet. Packaged apps have the development service off by default.
+The device development HTTP service requires a **pairing code** by default (app home → 开发与连接 → 配对码): the desktop client, VS Code extension, MCP server and browser tools ask for it once, and USB-connected desktops pair automatically. The device also refuses cross-site requests and non-IP Host headers (DNS rebinding). The code travels over plain HTTP, so use a trusted network or USB/ADB forwarding and do not expose the port to the internet. Pairing can be switched off in the app (open like AScript); then any client that can reach the port can upload and run code. Packaged apps have the development service off by default.
 
 A self-hosted backend exposed to the internet should use HTTPS/WSS and protect device keys, administrator credentials and signing private keys. The app sends its device key in an `Authorization` header, and status and settings endpoints show it only as `token=***`. Custom clients should use the header too rather than putting the key in the URL (see the [cloud protocol](docs/CLOUD.md), Chinese). See the [backend notes](backend/README.md) (Chinese) for deployment and backup requirements. Do not attach these credentials or personal device data when reporting problems.
 
