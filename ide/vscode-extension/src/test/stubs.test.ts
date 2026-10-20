@@ -23,13 +23,21 @@ test("ascript.android.location stubs: mock location and coordinate conversion", 
     "def stop(self):",
     "def status(self):",
     "mock: MockLocationApi",
+    "from xscript.android.coords import wgs84_to_gcj02, gcj02_to_wgs84, bd09_to_gcj02, gcj02_to_bd09, wgs84_to_bd09, bd09_to_wgs84, to_wgs84, from_wgs84, convert",
+  ]) assert.ok(s.includes(sig), sig);
+  assert.doesNotMatch(s, /unsupported/i);
+  const c = stub("xscript/android/coords.pyi");
+  for (const sig of [
     "def to_wgs84(lon, lat, coord_type='wgs84'):",
+    "def from_wgs84(lon, lat, coord_type='gcj02'):",
+    "def convert(lon, lat, from_type, to_type):",
     "def wgs84_to_gcj02(lon, lat):",
     "def gcj02_to_wgs84(lon, lat):",
     "def bd09_to_gcj02(lon, lat):",
     "def gcj02_to_bd09(lon, lat):",
-  ]) assert.ok(s.includes(sig), sig);
-  assert.doesNotMatch(s, /unsupported/i);
+    "def wgs84_to_bd09(lon, lat):",
+    "def bd09_to_wgs84(lon, lat):",
+  ]) assert.ok(c.includes(sig), sig);
 });
 
 test("ascript.android.plug stubs: APK / JAR plugins via DexClassLoader", () => {
