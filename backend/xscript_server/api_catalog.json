@@ -5,7 +5,7 @@
     "Coordinates are screen pixels in the current orientation.",
     "Channel: accessibility or root, chosen by the run mode (auto / accessibility / root).",
     "Device /eval runs in a separate :eval process that is killed on timeout; assign the answer to `_result`.",
-    "YOLO (v5/v8/v11 ONNX) and PaddleOCR (PP-OCRv5/v4 ONNX) run on-device through ONNX Runtime: xscript.android.yolo / paddle, or screen.detect / screen.ocr(engine='paddle'). AScript's YoLov5, plug.load('Yolov8Ncnn') and Ocr.paddleocr map onto them (ONNX files instead of NCNN).",
+    "YOLO (v5/v8/v11 ONNX) and PaddleOCR (PP-OCRv6 tiny/small, v5, v4 ONNX) run on-device through ONNX Runtime: xscript.android.yolo / paddle, or screen.detect / screen.ocr(engine='paddle_v6t' | 'auto' | 'paddle'). AScript's YoLov5, plug.load('Yolov8Ncnn') and Ocr.paddleocr map onto them (ONNX files instead of NCNN).",
     "云控: xscript.android.cloud (send / on_message / connect); AScript cloud_control and system.channel work. Launch parameters from 云控 app_run are system.params()."
   ],
   "modules": [
@@ -248,33 +248,43 @@
         },
         {
           "name": "compare_colors",
-          "signature": "compare_colors(colors, sim=0.9, image=None) -> bool",
-          "doc": "Multi-point check. colors: 'x,y,#rrggbb|x,y,#rrggbb-101010|...'."
+          "signature": "compare_colors(colors, sim=0.9, image=None, color_space='rgb', tolerance=None) -> bool",
+          "doc": "Multi-point check. colors: 'x,y,#rrggbb|x,y,#rrggbb-101010|...'. color_space: 'rgb' (default) | 'hsv' (robust to brightness changes) | 'lab' (perceptual, ΔE); tolerance overrides sim: rgb int, hsv (h, s, v), lab ΔE."
         },
         {
           "name": "find_colors",
-          "signature": "find_colors(colors, rect=None, sim=0.9, space=5, ori=2, image=None) -> Point | None",
-          "doc": "First point matching a colour pattern (first colour absolute, rest relative offsets)."
+          "signature": "find_colors(colors, rect=None, sim=0.9, space=5, ori=2, image=None, color_space='rgb', tolerance=None) -> Point | None",
+          "doc": "First point matching a colour pattern (first colour absolute, rest relative offsets). `space` is the minimum distance between results (not the colour space). color_space: 'rgb' (default) | 'hsv' (robust to brightness changes) | 'lab' (perceptual, ΔE); tolerance overrides sim: rgb int, hsv (h, s, v), lab ΔE."
         },
         {
           "name": "find_all_colors",
-          "signature": "find_all_colors(colors, rect=None, sim=0.9, space=5, ori=2, max_num=0, image=None) -> list[Point]",
+          "signature": "find_all_colors(colors, rect=None, sim=0.9, space=5, ori=2, max_num=0, image=None, color_space='rgb', tolerance=None) -> list[Point]",
           "doc": "All matches."
         },
         {
           "name": "find_image",
-          "signature": "find_image(template, rect=None, confidence=0.9, rgb=False, scale_range=None, image=None) -> dict | None",
-          "doc": "Template match. Template may be a path, ndarray or list. Returns {result:(cx,cy), rect:[l,t,r,b], center_x, center_y, confidence, index}. Transparent PNG pixels are masked."
+          "signature": "find_image(template, rect=None, confidence=0.9, rgb=False, scale_range=None, image=None, method=None) -> dict | None",
+          "doc": "Template match. Template may be a path, ndarray or list. Returns {result:(cx,cy), rect:[l,t,r,b], center_x, center_y, confidence, index}. Transparent PNG pixels are masked. method: None/'template' (default, unchanged) | 'multiscale' (scale_range defaults to (0.5, 2.0)) | 'feature' (ORB then SIFT keypoints + homography: scaled/rotated targets) | 'hash' (dHash of rect vs template: 'is this the screen?') | 'auto' (template first, then features; recommended when size or angle may change). Hits also carry quad (4 corners), angle, scale and method."
         },
         {
           "name": "find_all_images",
-          "signature": "find_all_images(template, rect=None, confidence=0.9, rgb=False, maxcnt=0, scale_range=None, image=None) -> list[dict]",
+          "signature": "find_all_images(template, rect=None, confidence=0.9, rgb=False, maxcnt=0, scale_range=None, image=None, method=None) -> list[dict]",
           "doc": "All template matches."
         },
         {
-          "name": "ocr_find / ocr_find_all",
-          "signature": "ocr_find(pattern, rect=None, image=None)",
-          "doc": "Regex filter over ocr()."
+          "name": "count_color",
+          "signature": "count_color(color, rect=None, sim=0.9, image=None, color_space='rgb', tolerance=None) -> int",
+          "doc": "Pixels in rect matching color ('#rrggbb', several joined by '|'). Same color_space / tolerance as find_colors."
+        },
+        {
+          "name": "find_color_blobs",
+          "signature": "find_color_blobs(color, rect=None, sim=0.9, color_space='hsv', tolerance=None, min_area=50, max_num=0, image=None) -> list[dict]",
+          "doc": "Connected regions of a colour → [{rect, center_x, center_y, area, fill}], largest first (e.g. a red badge, a health bar)."
+        },
+        {
+          "name": "dominant_colors",
+          "signature": "dominant_colors(rect=None, k=3, image=None) -> list[dict]",
+          "doc": "Main colours of a region (k-means in Lab) → [{color: '#rrggbb', rgb, ratio}], most common first."
         },
         {
           "name": "imread",
@@ -284,12 +294,12 @@
         {
           "name": "ocr",
           "signature": "ocr(rect=None, image=None, engine=None, confidence=None) -> list[OcrResult]",
-          "doc": "Text lines with rect / center / confidence. engine: 'mlkit' (default) | 'paddle' (PP-OCRv5, better on small Chinese text and emulators) | 'paddle_v4'."
+          "doc": "Text lines with rect / center / confidence. engine: 'mlkit' (default, built in) | 'auto' (PP-OCRv6 tiny, ML Kit if its models cannot load) | 'paddle_v6t' (PP-OCRv6 tiny, ~6 MB, fastest and most accurate on Chinese UI text) | 'paddle_v6s' (PP-OCRv6 small) | 'paddle' (PP-OCRv5) | 'paddle_v4'. Paddle models download on first use."
         },
         {
           "name": "set_ocr_engine",
           "signature": "set_ocr_engine(name)",
-          "doc": "Default engine for ocr* calls: mlkit / paddle / paddle_v4."
+          "doc": "Default engine for every ocr* call: 'mlkit' | 'auto' | 'paddle_v6t' | 'paddle_v6s' | 'paddle' | 'paddle_v4'."
         },
         {
           "name": "ocr_find",
@@ -715,7 +725,7 @@
         {
           "name": "ocr",
           "signature": "ocr(rect=None, image=None, confidence=0.5, version='v5') -> list[OcrResult]",
-          "doc": "Recognise text lines."
+          "doc": "Recognise text lines. version: 'v5' | 'v4' | 'v6t' | 'v6s'."
         },
         {
           "name": "ocr_find",
@@ -730,7 +740,7 @@
         {
           "name": "engine",
           "signature": "engine(version='v5', **kw) -> PaddleOcr",
-          "doc": "The shared engine (kw: limit_side_len, box_thresh, unclip_ratio, threads)."
+          "doc": "The shared engine (kw: limit_side_len, box_thresh, unclip_ratio, threads). version 'v6t' / 'v6s' (PP-OCRv6) use their own detection defaults (thresh 0.2, box_thresh 0.4, unclip_ratio 1.4); kwargs override."
         }
       ],
       "classes": [
@@ -772,13 +782,13 @@
         },
         {
           "name": "fetch",
-          "signature": "fetch(url, name, sha256=None, mirrors=None) -> str",
+          "signature": "fetch(url, name, sha256=None, mirrors=None, timeout=60, progress=None, urls=None) -> str",
           "doc": "Download once into the model directory (checksum verified)."
         },
         {
           "name": "paddle",
-          "signature": "paddle(version='v5', with_cls=True) -> dict",
-          "doc": "PaddleOCR files {det, rec, cls}, downloading if missing."
+          "signature": "paddle(version='v5', with_cls=True, progress=None) -> dict",
+          "doc": "PaddleOCR files {det, rec, cls}, downloading if missing. version: 'v5' | 'v4' | 'v6t' | 'v6s'; returns {det, rec, cls?, keys?} (v6 keys.txt comes from the rec model's inference.yml)."
         },
         {
           "name": "installed",
@@ -851,7 +861,7 @@
     },
     {
       "name": "ascript.android",
-      "description": "AScript compatibility package (modelled on ascript-tip 1.3.0). Existing AScript projects run unchanged; import with `from ascript.android import action, node, screen, system, ui, media`.",
+      "description": "AScript compatibility package (modelled on ascript-tip 1.3.0). Existing AScript projects run unchanged; import with `from ascript.android import action, node, screen, system, ui, media`. Also implemented: sms (read-only), location (incl. mock location), sensor, bluetooth, plug.load_apk (external APK/JAR via reflection), media.recode / send_email, and FindImages method='smart' / find_sift (keypoint matching, template fallback).",
       "functions": [
         {
           "name": "action.click / swipe / slide / input",
@@ -980,17 +990,13 @@
         }
       ],
       "unsupported": [
-        "action.Hid (hardware HID)",
-        "screen.YoLov5",
-        "screen.gp files from AScript's 图色工具",
-        "FindImages method='smart' (falls back to template)",
-        "sms",
-        "plug",
-        "bluetooth",
-        "location",
-        "sensor",
-        "system.Control (AScript cloud control)",
-        "media.recode / send_email / AliTts"
+        "action.Hid hardware (ESP32 / PC virtual mouse): falls back to normal gestures",
+        "Encrypted AScript V4 projects (run the source project instead)",
+        "NCNN models (.param/.bin): export the same weights to ONNX",
+        "plug.load of AScript cloud plugins other than the built-in YOLO ones; plug.inject; plug.load_module_dynamically",
+        "Cloud GP tasks with no local plugin (register one with gp.register_task)",
+        "cloud_control.connect_to_as (AScript's official cloud): use connect_to_ws with your own server",
+        "media.AliTts: use media.talk()"
       ]
     },
     {
