@@ -5,6 +5,8 @@ loopback forward (or LAN address). A URL supplied by the page is ignored.
 """
 from __future__ import annotations
 
+from urllib.parse import urlencode, urlsplit
+
 PAGES = {
     "home": "/tools/",
     "color": "/tools/ui/color.html",
@@ -34,6 +36,15 @@ def tool_url(host: str, port: int, page: str) -> str:
     if path is None:
         raise ValueError("unknown tool page: %s" % page)
     return http_origin(host, port) + path
+
+
+def paired_url(url: str, code: str) -> str:
+    """`url` behind the device's /pair page, which sets the pairing cookie and redirects there. Unchanged without a code."""
+    if not code:
+        return url
+    parts = urlsplit(url)
+    target = parts.path + ("?" + parts.query if parts.query else "")
+    return "%s://%s/pair?%s" % (parts.scheme, parts.netloc, urlencode({"code": code, "next": target}))
 
 
 def classify_navigation(scheme: str, host: str, port: int, link_click: bool, device_host: str, device_port: int) -> str:

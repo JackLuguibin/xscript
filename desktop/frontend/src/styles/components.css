@@ -151,6 +151,10 @@ input[type="checkbox"], input[type="radio"] { width: 1rem; height: 1rem; min-hei
 /* address + connect + scan: the buttons drop below the field in a narrow window instead of overflowing (CJK labels are wide) */
 .lan-form { flex-wrap: wrap; }
 .lan-form input.grow { min-width: 10rem; }
+.pair-box p { margin: var(--sp-1) 0 var(--sp-2); }
+.pair-form { flex-wrap: wrap; }
+.pair-form input.pair-code { width: 11rem; letter-spacing: 0.12em; text-transform: uppercase; text-align: center; font-weight: 600; }
+.pair-error { margin: var(--sp-2) 0 0; color: var(--danger-fg); font-size: var(--fs-sm); }
 .projects-grid { display: grid; grid-template-columns: minmax(14rem, 18rem) 1fr; gap: var(--sp-4); align-items: start; }
 @media (max-width: 760px) { .projects-grid { grid-template-columns: 1fr; } }
 .sub-head { font-size: var(--fs-sm); color: var(--text-muted); margin: var(--sp-4) 0 var(--sp-2); }

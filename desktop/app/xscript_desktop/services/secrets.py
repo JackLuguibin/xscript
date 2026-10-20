@@ -229,6 +229,16 @@ class SecretStore:
             raise SecretError("secret.unavailable", "无法记下凭据名称") from None
         return {"ok": True, "kind": slot.kind, "name": slot.name}
 
+    def reveal(self, kind: str, name: str) -> str | None:
+        """The stored value, for in-process use only (e.g. a device pairing code). Never returned over RPC."""
+        slot = normalize(kind, name)
+        try:
+            return self.backend.get(SERVICE, slot.user)
+        except SecretError:
+            raise
+        except Exception as e:
+            raise SecretError("secret.unavailable", redact(str(e), "")) from None
+
     def delete(self, kind: str, name: str) -> dict[str, object]:
         slot = normalize(kind, name)
         try:

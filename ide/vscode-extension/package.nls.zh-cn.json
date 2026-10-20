@@ -37,5 +37,6 @@
   "xscript.config.adbPath": "扫描设备和 ADB 终端用的 adb 路径。留空：先找 ANDROID_HOME 和常见 SDK 目录，再找 PATH。",
   "xscript.config.scanLan": "扫描设备时同时扫描局域网（私有网段 /24），而不只是 ADB。",
   "xscript.command.newUiForm": "新建界面（UI 设计器）",
-  "xscript.uiDesigner.displayName": "XScript UI 设计器"
+  "xscript.uiDesigner.displayName": "XScript UI 设计器",
+  "xscript.command.pair": "配对设备（输入配对码）"
 }

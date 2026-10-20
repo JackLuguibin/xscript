@@ -7,9 +7,21 @@ info:
     AScript's 9096); the app tries 9861..9869 if 9860 is taken.
     The cloud-control WebSocket relays the same requests through ApiRouter.
 
-    SECURITY: there is no authentication. Anyone who can reach the port can upload and run
-    code (/eval, /projects/{name}/run). Use only on trusted networks or via `adb forward`.
-    The server sends no CORS headers, so browser pages cannot read responses.
+    SECURITY: pairing is on by default. Every route except the public ones (GET /status, /pair,
+    page scripts/styles) needs the pairing code shown in the app (首页 → 开发与连接 → 配对码):
+      - native clients send `Authorization: Bearer <code>` (or `X-XScript-Token`);
+      - the device's own web tools carry it in the `xs_pair` cookie (HttpOnly, SameSite=Strict) set by /pair.
+    Without it: 401 (`{"error": "pairing required", "pairing": true}`); HTML pages redirect to /pair.
+    Ten wrong codes from one address within a minute give 429 for that minute.
+    Always enforced, also with pairing switched off (the AScript-compatible open mode):
+      - Host must be an IP literal or `localhost` (403 otherwise; stops DNS rebinding);
+      - a request with an Origin header must come from the device itself (403 otherwise);
+      - JSON request bodies need `Content-Type: application/json` (415 otherwise).
+    No CORS headers are sent. Over USB the desktop reads the code through
+    `adb forward tcp:0 localabstract:xscript-pair.<applicationId>`, which answers the adb daemon only.
+security:
+  - pairingCode: []
+  - pairingCookie: []
 servers:
   - url: http://{host}:{port}
     variables:
@@ -28,9 +40,40 @@ paths:
             text/html:
               schema:
                 type: string
+  /pair:
+    get:
+      summary: Pairing page for browsers (`?code=…&next=/tools/` pairs from a link)
+      security: []
+      parameters:
+        - { name: code, in: query, required: false, schema: { type: string } }
+        - { name: next, in: query, required: false, schema: { type: string, default: /tools/ } }
+      responses:
+        "200": { description: The pairing page (HTML) }
+        "303": { description: Paired (sets the xs_pair cookie) or pairing is off; redirects to `next` }
+    post:
+      summary: Pair this browser; sets the xs_pair cookie
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [code]
+              properties:
+                code: { type: string, example: ABCD-EFGH }
+      responses:
+        "200": { description: "{ok: true, pairing: true|false}" }
+        "401": { description: "{error: \"invalid code\"}" }
+        "415": { description: Not application/json }
+        "429": { description: Too many wrong codes from this address }
   /status:
     get:
       summary: Device and runtime status
+      description: |
+        Public, so scanners can recognise a device before pairing. Unpaired callers get only
+        name, model, brand, version, device_id, app_id and port, plus `pairing` / `paired`.
+      security: []
       responses:
         "200":
           description: OK
@@ -1056,6 +1099,15 @@ paths:
         "200": { description: Zip, content: { application/zip: { schema: { type: string, format: binary } } } }
         "400": { description: No classes or no labelled images }
 components:
+  securitySchemes:
+    pairingCode:
+      type: http
+      scheme: bearer
+      description: The 8-character pairing code from the app; dashes and case are ignored.
+    pairingCookie:
+      type: apiKey
+      in: cookie
+      name: xs_pair
   parameters:
     ProjectName:
       name: name
@@ -1066,8 +1118,11 @@ components:
   schemas:
     Status:
       type: object
-      required: [name, sdk, width, height, port, accessibility, capture, running]
+      required: [name, port, pairing, paired]
+      description: Unpaired callers get only the identity fields (see GET /status); paired ones get everything.
       properties:
+        pairing: { type: boolean, description: "pairing code required (false: AScript-compatible open mode)" }
+        paired: { type: boolean, description: "this request carried the right code (or pairing is off)" }
         name: { type: string }
         model: { type: string }
         brand: { type: string }

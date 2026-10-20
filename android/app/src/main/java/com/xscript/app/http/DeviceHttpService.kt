@@ -19,6 +19,7 @@ import fi.iki.elonen.NanoHTTPD
 
 class DeviceHttpService : Service() {
     private var server: DeviceHttpServer? = null
+    private var pairing: PairingSocket? = null
 
     override fun onBind(intent: Intent?): IBinder? = null
 
@@ -34,6 +35,7 @@ class DeviceHttpService : Service() {
         // Packaged apps keep the service (it holds the 图色 MediaProjection session) but only
         // open the LAN developer API when the pack or the user enabled it.
         server = if (com.xscript.app.settings.Settings.devServer) startServer() else null
+        if (server != null) pairing = PairingSocket(packageName).also { it.start() }
         if (server != null) {
             getSystemService(NotificationManager::class.java).notify(NOTIF_ID, notification())
         }
@@ -78,6 +80,8 @@ class DeviceHttpService : Service() {
         com.xscript.app.runtime.DapTransport.disconnect()
         server?.stop()
         server = null
+        pairing?.stop()
+        pairing = null
         super.onDestroy()
     }
 

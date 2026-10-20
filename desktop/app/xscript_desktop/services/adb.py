@@ -12,6 +12,7 @@ been run on Windows.
 from __future__ import annotations
 
 import asyncio
+import json
 import os
 import re
 import shutil
@@ -125,6 +126,19 @@ class Forward:
         return {"serial": self.serial, "localPort": self.local_port, "remotePort": self.remote_port}
 
 
+def parse_pairing_reply(line: str) -> str:
+    """The app's pairing socket answers one JSON line: {"required": true, "code": "ABCDEFGH"}. "" when pairing is off,
+    the peer was refused, or the line is not that."""
+    try:
+        data = json.loads(line or "")
+    except ValueError:
+        return ""
+    if not isinstance(data, dict) or not data.get("required"):
+        return ""
+    code = str(data.get("code") or "")
+    return code.upper() if re.fullmatch(r"[A-Za-z0-9]{8}", code) else ""
+
+
 class AdbService:
     def __init__(self, adb_path: str | None = None, runner: Any = None) -> None:
         self._configured = adb_path
@@ -192,6 +206,35 @@ class AdbService:
         fw = Forward(serial=serial, local_port=port, remote_port=remote_port)
         self._forwards[(serial, port)] = fw
         return fw
+
+    async def pairing_code(self, serial: str, app_id: str, timeout: float = 3.0) -> str:
+        """The app's pairing code over USB, through `adb forward tcp:0 localabstract:xscript-pair.<app id>`: the app
+        only answers the adb daemon's uid. "" when unavailable (older app, pairing off): the user types the code."""
+        if not serial or serial.startswith("-") or not re.fullmatch(r"[A-Za-z][A-Za-z0-9_]*(\.[A-Za-z0-9_]+)+", app_id or ""):
+            return ""
+        try:
+            out = await self._run(["-s", serial, "forward", "tcp:0", "localabstract:xscript-pair.%s" % app_id])
+        except AdbError:
+            return ""
+        m = re.search(r"\d+", out)
+        if not m:
+            return ""
+        port = int(m.group())
+        self._forwards[(serial, port)] = Forward(serial=serial, local_port=port, remote_port=0)
+        try:
+            reader, writer = await asyncio.wait_for(asyncio.open_connection("127.0.0.1", port), timeout)
+            try:
+                line = await asyncio.wait_for(reader.readline(), timeout)
+            finally:
+                writer.close()
+            return parse_pairing_reply(line.decode("utf-8", "replace"))
+        except (OSError, asyncio.TimeoutError):
+            return ""
+        finally:
+            try:
+                await self.remove_forward(serial, port)
+            except AdbError:
+                pass
 
     async def remove_forward(self, serial: str, local_port: int) -> bool:
         """Remove a forward this process created. Returns False (and does nothing) for a foreign forward."""

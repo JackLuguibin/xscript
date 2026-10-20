@@ -428,7 +428,7 @@ export function PackForm({
                       name="dev_server"
                       valuePropName="checked"
                       label={
-                        <Tooltip title="保留局域网调试接口，仅调试用，没有鉴权">
+                        <Tooltip title="保留局域网调试接口，仅调试用（电脑端需输入手机上的配对码）">
                           <span>调试接口</span>
                         </Tooltip>
                       }

@@ -38,4 +38,4 @@ code --install-extension xscript-vscode-<版本>.vsix   # 或：cursor --install
 
 项目根目录是当前文件之上、含有 `__init__.py` 的最顶层文件夹；该文件夹名就是设备上的项目名。
 
-设备 API 没有认证。扩展只应指向可信网络中的手机，或通过 `adb forward` 指向 `127.0.0.1`。
+设备 API 默认需要配对码（手机 XScript 首页「开发与连接 → 配对码」）。VS Code 扩展遇到 401 会提示输入并保存在系统钥匙串（SecretStorage），也可以运行命令「XScript: 配对设备」；MCP 用环境变量 `XSCRIPT_TOKEN`。只应指向可信网络中的手机，或通过 `adb forward` 指向 `127.0.0.1`。

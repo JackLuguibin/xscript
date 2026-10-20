@@ -1,6 +1,6 @@
 // vscode glue for the "xscript" debug type: an inline debug adapter (no child process) that proxies DAP to the device.
 import * as vscode from "vscode";
-import { DeviceClient, parseTarget } from "./client";
+import { DeviceClient, DeviceTarget, parseTarget } from "./client";
 import { XScriptDebugSession } from "./dap";
 import { collectFiles, findProjectRoot, isProjectDir } from "./project";
 
@@ -39,12 +39,17 @@ class InlineAdapter implements vscode.DebugAdapter {
   }
 }
 
-export function registerDebugger(context: vscode.ExtensionContext, output: vscode.OutputChannel, deviceSetting: () => string): void {
+export function registerDebugger(
+  context: vscode.ExtensionContext,
+  output: vscode.OutputChannel,
+  deviceSetting: () => string,
+  tokenFor: (target: DeviceTarget) => string = () => "",
+): void {
   context.subscriptions.push(
     vscode.debug.registerDebugAdapterDescriptorFactory(DEBUG_TYPE, {
       createDebugAdapterDescriptor(session) {
         const target = parseTarget(String(session.configuration.device || deviceSetting()));
-        return new vscode.DebugAdapterInlineImplementation(new InlineAdapter(new DeviceClient(target), output));
+        return new vscode.DebugAdapterInlineImplementation(new InlineAdapter(new DeviceClient(target, undefined, tokenFor(target)), output));
       },
     }),
     vscode.debug.registerDebugConfigurationProvider(DEBUG_TYPE, {

@@ -98,6 +98,14 @@ export function createDemoTransport(): MemoryTransport {
       },
       "device.list": () => ({ devices: [...devices.values()] }),
       "device.refresh": (p) => devices.get(String(p.id)),
+      "device.pair": (p) => {
+        const d = devices.get(String(p.id));
+        if (!d) throw { code: "device.not_found", message: "no such device" };
+        if (String(p.code).replace(/[^0-9a-z]/gi, "").length !== 8) throw { code: "device.unpaired", message: "配对码不正确" };
+        const paired: Device = { ...d, state: "online", error: "", errorCode: "" };
+        devices.set(paired.id, paired);
+        return paired;
+      },
       "device.disconnect": (p) => {
         const d = devices.get(String(p.id));
         if (!d || d.state !== "online") return { removed: false };

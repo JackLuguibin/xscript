@@ -37,5 +37,6 @@
   "xscript.config.adbPath": "Path to adb for device scanning and the ADB terminal. Empty: use ANDROID_HOME / the usual SDK folders, then PATH.",
   "xscript.config.scanLan": "Also scan the local network (private /24 ranges) for devices, not only ADB.",
   "xscript.command.newUiForm": "New UI Form (designer)",
-  "xscript.uiDesigner.displayName": "XScript UI Designer"
+  "xscript.uiDesigner.displayName": "XScript UI Designer",
+  "xscript.command.pair": "Pair with Device (Enter Pairing Code)"
 }

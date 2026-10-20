@@ -221,7 +221,9 @@ sequenceDiagram
 **HTTP 服务**（`DeviceHttpServer` / `DeviceHttpService`）：
 
 - 作为前台服务运行（`dataSync | mediaProjection`），监听 `0.0.0.0`，默认端口 9860，被占用时依次尝试到 9869。刻意避开 AScript 的 9096 及其备用端口，两个 App 可以同时安装、同时运行，`adb forward` 也不会转到错误的 App。
-- **无鉴权**：任何能访问端口的人都可以调用全部接口。
+- **配对码（默认开启）**：`HttpGuard` + `Pairing`。除 `GET /status`（未配对时只返回设备标识）、`/pair` 和页面的 js/css 外，所有接口都要求配对码：原生客户端发 `Authorization: Bearer <配对码>`，设备自带网页工具用 `/pair` 设置的 `xs_pair` Cookie（HttpOnly、SameSite=Strict）。同一地址一分钟内输错 10 次返回 429。配对码在首页「开发与连接 → 配对码」查看、复制、重新生成；可以关闭配对，与 AScript 一样开放（AScript 兼容，界面明确警告）。
+- **始终生效的检查**（关闭配对也一样）：Host 只接受 IP 字面量和 `localhost`（挡 DNS 重绑定）；带 Origin 的请求必须来自设备自己（挡跨站请求）；JSON 请求体必须是 `Content-Type: application/json`（否则 415，挡 `text/plain` 跨站表单）。
+- **USB 自动配对**：`PairingSocket` 监听抽象 Unix 套接字 `xscript-pair.<applicationId>`，只对 adb 守护进程（uid shell/root）返回配对码；桌面端用 `adb forward tcp:0 localabstract:…` 读取，不需要 `adb shell`。
 - **无 CORS 头**：不发送 `Access-Control-Allow-*`，其他网站的页面无法读取接口响应。设备自带的开发工具页面（`/tools/`）与接口同源，不受影响。
 - **请求体**：上限 200 MB，先校验 `Content-Length`。4 MB 以内放内存，更大的写入 `cacheDir/http-spool` 临时文件，交给路由时以流读取，请求结束后删除。仍然不用 NanoHTTPD 的 `parseBody`，避免破坏二进制上传。
 - 请求头 `X-XScript-Client` 用于 `ClientTracker` 在首页展示已连接客户端。
@@ -451,7 +453,7 @@ TypeScript 插件，用 Node 自带的 `fetch` 调设备 HTTP API，请求头 `X
 | --- | --- | --- |
 | 脚本独立进程，停止即杀进程 | 停止可靠；脚本崩溃不影响无障碍和截图 | 每次运行都要冷启动 Python 并重新加载 numpy / cv2；跨进程调用有 Binder 开销 |
 | eval 独立常驻进程，超时即杀 | eval 的死循环 / 崩溃不影响主进程；热调用快 | 多一个进程的常驻内存；超时后 eval 里的模块状态丢失 |
-| 无鉴权 + 无 CORS | PC 端无需任何配置即可连接；浏览器网页无法读取接口响应 | 同一网络内任何设备都能上传文件、执行任意 Python |
+| 配对码 + Host/Origin 检查 + 无 CORS | 同网段他人和恶意网页（跨站请求、DNS 重绑定）都不能调用接口；USB 连接自动配对 | 局域网首次连接要输入一次配对码；关闭配对（AScript 兼容）后回到开放状态 |
 | `ApiRouter` 与传输层解耦 | 局域网 HTTP 与云控接口完全一致 | 云控的 body 走 base64，大文件（截图、zip）体积增加约 33% |
 | Python 侧做节点匹配 | 选择器逻辑可以在 PC 上单测，Java 侧只负责 dump | 每次 `find` 都要序列化并传输整棵树，复杂页面开销较大 |
 | 原始 RGBA 帧 + Pipe | 截图不做 PNG 编解码，避开 Binder 限制 | 单帧体积大（1080×2400 约 10 MB），每次截图都要完整拷贝 |
@@ -466,7 +468,7 @@ TypeScript 插件，用 Node 自带的 `fetch` 调设备 HTTP API，请求头 `X
 
 以下问题已经处理：CORS、eval 隔离与超时、大请求 / 大文件的内存占用、root 命令延迟、日志轮询成本、OCR 识别输出的传输开销（见第 4、5 节）。仍然存在的风险与可做的改进：
 
-1. **局域网接口无鉴权**。同一网络内任何能访问端口的设备都可以上传文件、执行任意 Python（`/eval`、`/projects/<name>/run`）。只在可信网络中使用，或者通过 USB + `adb forward` 连接。打包出来的 App 默认不开这个端口。
+1. **局域网接口靠配对码保护**（默认开启，见第 4 节 HTTP 服务）。配对码 8 位（约 2^40 种）并限速，仍是明文 HTTP：同网段能抓包的人可以截获配对码。不可信网络请用 USB + `adb forward`。用户关闭配对后回到开放状态。打包出来的 App 默认不开这个端口。
 2. **云控依赖服务端鉴权**。设备侧只负责外连，安全性取决于服务端的 token 和 TLS。云控的大文件会整块读进内存再 base64（体积增加约 33%），可以考虑分片传输。
 3. **卡密是客户端校验**。能拦住普通的复制和分享，拦不住修改 APK 的人。价值高的逻辑应放在服务端。私钥泄露后所有令牌都可以伪造，只能换密钥重新打包。
 4. **APK 体积**。ONNX Runtime 每个 ABI 约 18–22 MB。开发版带 arm64 和 x86_64 两个 ABI，约 155 MB；打包时用 `--abis arm64-v8a` 约 77 MB。

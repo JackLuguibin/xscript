@@ -1,7 +1,10 @@
 from __future__ import annotations
 
 import importlib.util
+import json
+import socket
 import sys
+import threading
 from pathlib import Path
 
 import pytest
@@ -31,6 +34,37 @@ def mock_device():
         httpd.server_close()
 
 
+@pytest.fixture()
+def paired_mock_device():
+    """mock_device with pairing on (the phone's default), code ABCD-EFGH."""
+    mod = _load_mock_device()
+    httpd = mod.serve("127.0.0.1", 0, token="ABCDEFGH")
+    try:
+        yield httpd.server_address[1]
+    finally:
+        httpd.shutdown()
+        httpd.server_close()
+
+
+def _one_line_server(line: str) -> int:
+    """A loopback TCP server that answers every connection with `line` and closes; returns its port."""
+    srv = socket.socket()
+    srv.bind(("127.0.0.1", 0))
+    srv.listen()
+
+    def loop() -> None:
+        while True:
+            try:
+                conn, _ = srv.accept()
+            except OSError:
+                return
+            with conn:
+                conn.sendall((line + "\n").encode())
+
+    threading.Thread(target=loop, daemon=True).start()
+    return srv.getsockname()[1]
+
+
 class FakeAdb:
     """An `adb` stand-in: `devices -l` and `forward` against a list of (serial, state, port-of-a-local-server)."""
 
@@ -39,6 +73,8 @@ class FakeAdb:
         self.calls: list[list[str]] = []
         self.forwards: dict[int, tuple[str, int]] = {}
         self._next = 41000
+        # serial -> pairing code the app's provider answers with (`adb shell content query ...pairing/code`)
+        self.pairing: dict[str, str] = {}
 
     async def __call__(self, argv: list[str]):
         args = argv[1:]
@@ -48,6 +84,14 @@ class FakeAdb:
             for serial, state, _ in self.devices:
                 lines.append("%s          %s product:sdk model:Pixel_Fake device:generic transport_id:1" % (serial, state))
             return 0, "\n".join(lines) + "\n\n", ""
+        if args[0] == "-s" and args[2] == "forward" and args[4].startswith("localabstract:"):
+            # the app's pairing socket: answer like the phone does for the adb uid (no app -> adb errors out)
+            code = self.pairing.get(args[1])
+            if code is None:
+                return 1, "", "error: cannot bind listener: connection refused"
+            port = _one_line_server(json.dumps({"required": True, "code": code}))
+            self.forwards[port] = (args[1], 0)
+            return 0, "%d\n" % port, ""
         if args[0] == "-s" and args[2] == "forward" and args[3] == "--remove":
             port = int(args[4].split(":")[1])
             if port not in self.forwards:

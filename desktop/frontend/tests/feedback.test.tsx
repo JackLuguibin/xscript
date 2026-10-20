@@ -39,7 +39,7 @@ describe("error mapping (H6)", () => {
     expect(busy.hint).toMatch(/停止/);
     expect(busy.detail).toContain('"status":409');
     expect(describeCode("device.http", "device POST /x -> 409").title).toMatch(/已有脚本在运行/); // status parsed from the message
-    expect(describeCode("device.http", "x", { status: 401 }).hint).toMatch(/凭据/);
+    expect(describeCode("device.http", "x", { status: 401 }).hint).toMatch(/配对码/);
     expect(describeCode("device.http", "x", { status: 503 }).title).toBe("设备内部出错");
     const other = describeCode("device.http", "device GET /x -> 418 teapot", { status: 418 });
     expect(other.title).toBe("设备返回了错误");

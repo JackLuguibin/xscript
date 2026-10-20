@@ -29,6 +29,7 @@ import com.xscript.app.a11y.XscriptAccessibilityService
 import com.xscript.app.capture.CaptureEngine
 import com.xscript.app.cloud.CloudClient
 import com.xscript.app.http.ClientTracker
+import com.xscript.app.http.Pairing
 import com.xscript.app.http.DeviceHttpService
 import com.xscript.app.net.NetworkInfo
 import com.xscript.app.project.ProjectStore
@@ -55,6 +56,7 @@ class MainActivity : AppCompatActivity() {
 
     private lateinit var rowEndpoint: UiKit.Row
     private lateinit var rowAi: UiKit.Row
+    private lateinit var rowPair: UiKit.Row
     private lateinit var rowMode: UiKit.Row
     private lateinit var rowLink: UiKit.Row
     private lateinit var rowOverlay: UiKit.Row
@@ -108,6 +110,7 @@ class MainActivity : AppCompatActivity() {
         UiKit.section(col, "开发与连接")
         val dev = UiKit.card(col, UiKit.Space.S)
         rowEndpoint = UiKit.row(dev, R.drawable.ic_sym_code, "开发者地址") { copyEndpoint() }
+        rowPair = UiKit.row(dev, R.drawable.ic_sym_key, "配对码") { showPairing() }
         rowAi = UiKit.row(dev, R.drawable.ic_sym_smart_toy, "AI 编程连接") { showAiHelp() }
         rowCloud = UiKit.row(dev, R.drawable.ic_sym_cloud, "云端控制") { editCloud() }
         rowLink = UiKit.row(dev, R.drawable.ic_sym_link, "链接启动") { chooseLinkMode() }
@@ -137,7 +140,7 @@ class MainActivity : AppCompatActivity() {
             startActivity(Intent(AndroidSettings.ACTION_APPLICATION_DEVELOPMENT_SETTINGS))
         }
 
-        UiKit.note(col, "USB 调试：adb forward tcp:<端口> tcp:<端口>（端口见“开发者地址”，默认 9860，与 AScript 的 9096 互不冲突），然后在电脑上连接 127.0.0.1:<端口>。")
+        UiKit.note(col, "USB 调试：adb forward tcp:<端口> tcp:<端口>（端口见“开发者地址”，默认 9860，与 AScript 的 9096 互不冲突），然后在电脑上连接 127.0.0.1:<端口>。首次连接需要输入“配对码”。")
     }
 
     override fun onResume() {
@@ -154,6 +157,7 @@ class MainActivity : AppCompatActivity() {
     private fun refresh() {
         val ip = NetworkInfo.localIp(this)
         rowEndpoint.value("http://$ip:${NetworkInfo.PORT}/")
+        if (Pairing.required) rowPair.value(Pairing.display()) else rowPair.value("已关闭（任何人可连接）", ui.danger)
         val ai = ClientTracker.active()
         if (ai != null) rowAi.value("已连接", ui.success) else rowAi.value("未连接")
         rowMode.value(Settings.runModeLabel())
@@ -224,6 +228,70 @@ class MainActivity : AppCompatActivity() {
         UiKit.toast(this, "已复制 $url")
     }
 
+    private fun showPairing() {
+        val ctx = this
+        val code = TextView(ctx).apply {
+            text = if (Pairing.required) Pairing.display() else "——"
+            textSize = UiKit.Type.CODE
+            typeface = android.graphics.Typeface.MONOSPACE
+            letterSpacing = 0.12f
+            gravity = android.view.Gravity.CENTER
+            setTextIsSelectable(true)
+            setPadding(0, UiKit.dp(ctx, UiKit.Space.S), 0, UiKit.dp(ctx, UiKit.Space.S))
+        }
+        val toggle = com.google.android.material.materialswitch.MaterialSwitch(ctx).apply {
+            text = "需要配对码"
+            isChecked = Pairing.required
+        }
+        val box = UiKit.dialogField(ctx, code, toggle)
+        val ip = NetworkInfo.localIp(ctx)
+        val dialog = MaterialAlertDialogBuilder(ctx)
+            .setTitle("配对码")
+            .setMessage(
+                "电脑端（桌面客户端、VS Code、MCP、浏览器开发工具）首次连接时输入此配对码。" +
+                    "USB 连接的桌面客户端会自动配对。\n\n浏览器打开 http://$ip:${NetworkInfo.PORT}/ 后按提示输入。",
+            )
+            .setView(box)
+            .setPositiveButton("复制配对码") { _, _ ->
+                (getSystemService(CLIPBOARD_SERVICE) as ClipboardManager).setPrimaryClip(ClipData.newPlainText("xscript", Pairing.display()))
+                UiKit.toast(ctx, "已复制配对码")
+            }
+            .setNeutralButton("重新生成") { _, _ ->
+                MaterialAlertDialogBuilder(ctx)
+                    .setTitle("重新生成配对码？")
+                    .setMessage("所有已配对的电脑和浏览器都需要用新配对码重新配对。")
+                    .setPositiveButton("重新生成") { _, _ ->
+                        Pairing.regenerate()
+                        refresh()
+                        showPairing()
+                    }
+                    .setNegativeButton("取消", null)
+                    .show()
+            }
+            .setNegativeButton("关闭", null)
+            .show()
+        toggle.setOnCheckedChangeListener { sw, on ->
+            if (on) {
+                Pairing.required = true
+                code.text = Pairing.display()
+                refresh()
+                return@setOnCheckedChangeListener
+            }
+            MaterialAlertDialogBuilder(ctx)
+                .setTitle("关闭配对？")
+                .setMessage("关闭后与 AScript 一样不需要配对码：同一网络中的任何设备或网页都能在手机上运行代码、读写文件。只在可信网络中关闭。")
+                .setPositiveButton("仍然关闭") { _, _ ->
+                    Pairing.required = false
+                    code.text = "——"
+                    refresh()
+                }
+                .setNegativeButton("取消") { _, _ -> sw.isChecked = true }
+                .setOnCancelListener { sw.isChecked = true }
+                .show()
+        }
+        dialog.setOnDismissListener { refresh() }
+    }
+
     private fun showAiHelp() {
         val ip = NetworkInfo.localIp(this)
         val who = ClientTracker.active()
@@ -231,7 +299,8 @@ class MainActivity : AppCompatActivity() {
             .setTitle("AI 编程连接")
             .setMessage(
                 (if (who != null) "当前连接：$who\n\n" else "") +
-                    "在 Cursor 中配置 xscript-mcp，设置：\nXSCRIPT_DEVICE=$ip:${NetworkInfo.PORT}\n\n" +
+                    "在 Cursor 中配置 xscript-mcp，设置：\nXSCRIPT_DEVICE=$ip:${NetworkInfo.PORT}\n" +
+                    (if (Pairing.required) "XSCRIPT_TOKEN=${Pairing.display()}\n\n" else "\n") +
                     "USB 连接时执行 adb forward tcp:${NetworkInfo.PORT} tcp:${NetworkInfo.PORT}，并使用 127.0.0.1:${NetworkInfo.PORT}。",
             )
             .setPositiveButton("好", null)

@@ -39,6 +39,11 @@
         "category": "XScript"
       },
       {
+        "command": "xscript.pair",
+        "title": "%xscript.command.pair%",
+        "category": "XScript"
+      },
+      {
         "command": "xscript.selectDevice",
         "title": "%xscript.command.selectDevice%",
         "category": "XScript",

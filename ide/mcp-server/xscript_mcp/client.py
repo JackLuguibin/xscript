@@ -29,6 +29,9 @@ class DeviceError(httpx.HTTPStatusError):
         except ValueError:
             detail = response.text[:200]
         self.status_code = response.status_code
+        if response.status_code == 401:
+            detail = ("需要配对码：在手机 XScript 首页「开发与连接 → 配对码」查看，"
+                      "设置环境变量 XSCRIPT_TOKEN，或调用 connect_device(ip, port, token)")
         self.detail = detail
         msg = "device %s %s -> %d" % (response.request.method, response.request.url.path, response.status_code)
         super().__init__(msg + (": " + detail if detail else ""), request=response.request, response=response)
@@ -86,20 +89,30 @@ def zip_directory(path: str | os.PathLike) -> bytes:
     return buf.getvalue()
 
 
+def auth_headers(token: str | None) -> dict[str, str]:
+    """Client header plus the pairing code (phone: 开发与连接 → 配对码) as a bearer token."""
+    code = "".join(c for c in (token or "") if c.isalnum()).upper()
+    return dict(CLIENT_HEADER, **({"Authorization": "Bearer " + code} if code else {}))
+
+
 class DeviceClient:
-    def __init__(self, target: DeviceTarget | None = None, timeout: float = 15.0):
+    def __init__(self, target: DeviceTarget | None = None, timeout: float = 15.0, token: str | None = None):
         self.target = target or DeviceTarget()
         self.timeout = timeout
+        self.token = token if token is not None else os.environ.get("XSCRIPT_TOKEN", "")
 
-    def set_target(self, host: str, port: int = DEFAULT_PORT) -> DeviceTarget:
+    def set_target(self, host: str, port: int = DEFAULT_PORT, token: str | None = None) -> DeviceTarget:
         self.target = DeviceTarget(host=host, port=port)
+        if token is not None:
+            self.token = token
         return self.target
 
     def _url(self, path: str) -> str:
         return self.target.base_url + path
 
     def _client(self, timeout: float | None = None) -> httpx.Client:
-        return httpx.Client(timeout=timeout or self.timeout, headers=CLIENT_HEADER)
+        # trust_env=False: device traffic never goes through a system proxy (macOS proxies answer 502).
+        return httpx.Client(timeout=timeout or self.timeout, headers=auth_headers(self.token), trust_env=False)
 
     @staticmethod
     def _p(project: str) -> str:

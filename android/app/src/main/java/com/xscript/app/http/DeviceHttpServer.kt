@@ -12,10 +12,11 @@ import java.io.InputStream
 
 /**
  * LAN HTTP server on :9860. All logic lives in [ApiRouter]; this class handles transport
- * concerns: body spooling and streaming file replies. There is no authentication.
+ * concerns: request checks ([HttpGuard] + [Pairing]), body spooling and streaming file replies.
  *
- * No CORS headers are sent. Only native clients (MCP, curl, scripts) are expected, and
- * leaving CORS off stops web pages in a developer's browser from reading responses.
+ * No CORS headers are sent. Native clients (desktop, VS Code, MCP, curl) present the pairing
+ * code as a bearer token; the device's own web tools carry it in a SameSite=Strict cookie set by
+ * `/pair`. Cross-origin browser requests and foreign Host headers (DNS rebinding) are refused.
  */
 class DeviceHttpServer(
     context: Context,
@@ -29,6 +30,22 @@ class DeviceHttpServer(
         val headers = session.headers ?: emptyMap()
         val method = session.method?.name ?: "GET"
         val path = session.uri ?: "/"
+        val remote = headers["remote-addr"].orEmpty()
+        val required = Pairing.required
+        val code = if (required) Pairing.code else ""
+        val verdict = HttpGuard.verdict(HttpGuard.Check(method, path, headers, code, required))
+        // A locked-out address gets nothing but public routes, so it cannot keep guessing (a right guess included).
+        if (required && verdict != HttpGuard.Verdict.BAD_HOST && verdict != HttpGuard.Verdict.BAD_ORIGIN &&
+            !HttpGuard.isPublic(method, path) && Pairing.Throttle.blocked(remote, System.currentTimeMillis())
+        ) return error(Response.Status.TOO_MANY_REQUESTS, "too many wrong pairing codes, retry in a minute")
+        when (verdict) {
+            HttpGuard.Verdict.BAD_HOST -> return error(Response.Status.FORBIDDEN, "host not allowed")
+            HttpGuard.Verdict.BAD_ORIGIN -> return error(Response.Status.FORBIDDEN, "cross-origin request refused")
+            HttpGuard.Verdict.UNAUTHORIZED -> return unauthorized(method, path, headers, remote)
+            HttpGuard.Verdict.OK -> Unit
+        }
+        val authed = !required || HttpGuard.matches(HttpGuard.presented(headers), code)
+        if (path.trimEnd('/') == "/pair") return pair(session, method, headers, remote, required, code)
         if (method == "GET" && path.trimEnd('/') == "/screen/stream") return stream(session)
         val len = headers["content-length"]?.toLongOrNull() ?: 0L
         if (len > MAX_BODY) return error(Response.Status.PAYLOAD_TOO_LARGE, "body too large")
@@ -44,7 +61,9 @@ class DeviceHttpServer(
                 query = session.parms ?: emptyMap(),
                 body = body,
                 client = headers["x-xscript-client"].orEmpty(),
-                remote = headers["remote-addr"].orEmpty(),
+                remote = remote,
+                contentType = headers["content-type"].orEmpty(),
+                authed = authed,
             )
             val reply = router.handle(req)
             val status = Response.Status.lookup(reply.status) ?: Response.Status.INTERNAL_ERROR
@@ -105,10 +124,69 @@ class DeviceHttpServer(
         }
     }
 
+    private fun unauthorized(method: String, path: String, headers: Map<String, String>, remote: String): Response {
+        val now = System.currentTimeMillis()
+        if (Pairing.Throttle.blocked(remote, now)) return error(Response.Status.TOO_MANY_REQUESTS, "too many wrong pairing codes, retry in a minute")
+        if (HttpGuard.presented(headers).isNotEmpty()) Pairing.Throttle.fail(remote, now)
+        if (HttpGuard.isPage(method, path)) return redirect("/pair?next=" + java.net.URLEncoder.encode(path, "UTF-8"))
+        return newFixedLengthResponse(
+            Response.Status.UNAUTHORIZED, JSON,
+            JSONObject().put("error", "pairing required").put("pairing", true)
+                .put("hint", "enter the pairing code shown on the phone (XScript → 开发与连接 → 配对码)").toString(),
+        ).apply { addHeader("WWW-Authenticate", "Bearer realm=\"xscript\"") }
+    }
+
+    /**
+     * `GET /pair` the pairing page (or `?code=…` to pair from a link), `POST /pair {"code": …}`.
+     * Success sets the `xs_pair` cookie for the device's own web tools.
+     */
+    private fun pair(session: IHTTPSession, method: String, headers: Map<String, String>, remote: String, required: Boolean, code: String): Response {
+        val parms = session.parms ?: emptyMap()
+        val next = parms["next"]?.takeIf { it.startsWith("/") && !it.startsWith("//") && !it.startsWith("/\\") } ?: "/tools/"
+        val given = when (method) {
+            "POST" -> {
+                if (!HttpGuard.isJson(headers["content-type"])) return error(Response.Status.UNSUPPORTED_MEDIA_TYPE, "expected application/json")
+                val len = headers["content-length"]?.toLongOrNull() ?: 0L
+                if (len > 4096) return error(Response.Status.PAYLOAD_TOO_LARGE, "body too large")
+                val text = String(readBody(session.inputStream, len).bytes(), Charsets.UTF_8)
+                try { JSONObject(text.ifBlank { "{}" }).optString("code") } catch (_: Exception) { return error(Response.Status.BAD_REQUEST, "invalid json") }
+            }
+            else -> parms["code"]
+        }
+        if (!required) {
+            return if (method == "POST") json(Response.Status.OK, JSONObject().put("ok", true).put("pairing", false)) else redirect(next)
+        }
+        if (given == null) {
+            if (HttpGuard.matches(HttpGuard.presented(headers), code)) return redirect(next)
+            return router.handle(ApiRouter.Request("GET", "/tools/ui/pair.html", emptyMap(), ApiRouter.Body.EMPTY)).let {
+                newFixedLengthResponse(Response.Status.OK, it.mime, it.body.inputStream(), it.body.size.toLong())
+                    .apply { addHeader("Cache-Control", "no-store") }
+            }
+        }
+        val now = System.currentTimeMillis()
+        if (Pairing.Throttle.blocked(remote, now)) return error(Response.Status.TOO_MANY_REQUESTS, "too many wrong pairing codes, retry in a minute")
+        if (!HttpGuard.matches(given, code)) {
+            Pairing.Throttle.fail(remote, now)
+            return if (method == "POST") error(Response.Status.UNAUTHORIZED, "invalid code") else redirect("/pair?next=" + java.net.URLEncoder.encode(next, "UTF-8"))
+        }
+        val reply = if (method == "POST") json(Response.Status.OK, JSONObject().put("ok", true).put("pairing", true)) else redirect(next)
+        reply.addHeader("Set-Cookie", "${HttpGuard.COOKIE}=$code; Path=/; HttpOnly; SameSite=Strict; Max-Age=31536000")
+        return reply
+    }
+
+    private fun redirect(to: String): Response =
+        newFixedLengthResponse(Response.Status.REDIRECT_SEE_OTHER, "text/plain", "").apply {
+            addHeader("Location", to)
+            addHeader("Cache-Control", "no-store")
+        }
+
+    private fun json(status: Response.Status, body: JSONObject): Response = newFixedLengthResponse(status, JSON, body.toString())
+
     private fun error(status: Response.Status, message: String): Response =
-        newFixedLengthResponse(status, "application/json; charset=utf-8", JSONObject().put("error", message).toString())
+        newFixedLengthResponse(status, JSON, JSONObject().put("error", message).toString())
 
     companion object {
+        private const val JSON = "application/json; charset=utf-8"
         private const val MAX_BODY = 200L * 1024 * 1024
         private const val MEMORY_LIMIT = 4L * 1024 * 1024
     }
