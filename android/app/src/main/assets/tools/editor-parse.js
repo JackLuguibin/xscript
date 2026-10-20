@@ -130,7 +130,7 @@
       const bad = (m) => { throw new SyntaxErr(e.line, e.col, 1, m); };
       switch (e.type) {
         case "Name": e.ctx = "store"; return;
-        case "Attribute": case "Subscript": return;
+        case "Attribute": case "Subscript": e.ctx = "store"; return;
         case "Starred": if (how === "aug" || how === "ann") bad("这里不能用 *"); return setStore(e.value, how);
         case "Tuple": case "List":
           if (how === "aug") bad("增强赋值（如 +=）的左边不能是" + (e.type === "Tuple" ? "元组" : "列表"));

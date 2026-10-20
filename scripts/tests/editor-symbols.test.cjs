@@ -1,0 +1,130 @@
+const {test} = require('node:test');
+const assert = require('node:assert/strict');
+const {EditorSymbols} = require('../../android/app/src/main/assets/tools/editor-symbols.js');
+const {XSDocs} = require('../../android/app/src/main/assets/tools/editor-docs.js');
+
+const FILES = {
+  '__init__.py': [
+    'from xscript.android import action',          // 1
+    'from xscript.android.action import click as tap',
+    'import util',                                  // 3
+    'from pkg.shapes import Square, area',
+    'from pkg import shapes as sh',                 // 5
+    'COUNT = 0',
+    '',
+    'def main(n):',                                 // 8
+    '    global COUNT',
+    '    COUNT += 1',                               // 10
+    '    sq = Square(2)',
+    '    total = sq.area() + area(sq) + sh.area(sq)',  // 12
+    '    util.log(total, n)',
+    '    action.click(1, 2)',                       // 14
+    '    tap(3, 4)',
+    '    names = [n for n in range(3)]',            // 16
+    '    return sq.side + len(names)',
+    '',
+    'main(1)',                                      // 19
+  ].join('\n') + '\n',
+  'util.py': 'def log(*parts, sep=" "):\n    print(*parts, sep=sep)\n\nclass Base:\n    def hello(self):\n        return "hi"\n',
+  'demo.py': 'from pkg.shapes import Square\nSquare(1).hello()\nb = Square(2)\nb.hello()\n',
+  'pkg/__init__.py': '',
+  'pkg/shapes.py': [
+    'from ..util import Base',                      // 1 (relative to package; invalid at top -> unresolved)
+    'from util import Base, log',                   // 2
+    '',
+    'class Square(Base):',                          // 4
+    '    def __init__(self, side):',
+    '        self.side = side',                     // 6
+    '    def area(self):',
+    '        log(self.side)',                       // 8
+    '        return self.side * self.side',
+    '',
+    'def area(s):',                                 // 11
+    '    def inner():',
+    '        return s.area()',                      // 13
+    '    return inner() + s.hello()',
+  ].join('\n') + '\n',
+};
+const project = () => EditorSymbols.build(Object.entries(FILES).map(([path, content]) => ({path, content})), XSDocs);
+const def = (p, path, line, word, nth = 0) => {
+  const lines = FILES[path].split('\n'); let col = -1; for (let i = 0; i <= nth; i++) col = lines[line - 1].indexOf(word, col + 1);
+  assert.ok(col >= 0, `${word} not on ${path}:${line}`);
+  const r = p.definitionAt(path, line, col + 1);
+  return r && (r.library ? 'lib ' + r.library : `${r.path}:${r.line}:${r.col} ${r.kind}`);
+};
+
+test('module names from project paths', () => {
+  assert.equal(EditorSymbols.moduleName('main.py'), 'main');
+  assert.equal(EditorSymbols.moduleName('pkg/sub/mod.py'), 'pkg.sub.mod');
+  assert.equal(EditorSymbols.moduleName('pkg/__init__.py'), 'pkg');
+  assert.equal(EditorSymbols.moduleName('readme.txt'), null);
+});
+
+test('go to definition across project files', () => {
+  const p = project();
+  assert.equal(def(p, '__init__.py', 11, 'Square'), 'pkg/shapes.py:4:6 class');            // through from-import
+  assert.equal(def(p, '__init__.py', 12, 'area'), 'pkg/shapes.py:7:8 function');           // sq = Square() -> method
+  assert.equal(def(p, '__init__.py', 12, 'area', 1), 'pkg/shapes.py:11:4 function');        // imported function
+  assert.equal(def(p, '__init__.py', 12, 'area', 2), 'pkg/shapes.py:11:4 function');        // module alias attribute
+  assert.equal(def(p, '__init__.py', 12, 'sh'), 'pkg/shapes.py:1:0 module');
+  assert.equal(def(p, '__init__.py', 13, 'log'), 'util.py:1:4 function');
+  assert.equal(def(p, '__init__.py', 13, 'util'), 'util.py:1:0 module');
+  assert.equal(def(p, '__init__.py', 3, 'util'), 'util.py:1:0 module');                     // the import line itself
+  assert.equal(def(p, '__init__.py', 4, 'area'), 'pkg/shapes.py:11:4 function');
+  assert.equal(def(p, '__init__.py', 17, 'side'), 'pkg/shapes.py:6:13 attribute');          // self.side = ...
+  assert.equal(def(p, '__init__.py', 10, 'COUNT'), '__init__.py:6:0 variable');             // global
+  assert.equal(def(p, '__init__.py', 19, 'main'), '__init__.py:8:4 function');
+  assert.equal(def(p, '__init__.py', 13, 'n'), '__init__.py:8:9 parameter');                // not the comprehension n
+  assert.equal(def(p, '__init__.py', 16, 'n', 1), '__init__.py:16:19 variable');            // comprehension target
+  assert.equal(def(p, 'pkg/shapes.py', 8, 'log'), 'util.py:1:4 function');
+  assert.equal(def(p, 'pkg/shapes.py', 13, 's'), 'pkg/shapes.py:11:9 parameter');           // enclosing function
+  assert.equal(def(p, 'pkg/shapes.py', 14, 'hello'), null);                                 // untyped parameter: not guessed
+  assert.equal(def(p, 'demo.py', 2, 'hello'), 'util.py:5:8 function');                     // inherited from a project base
+  assert.equal(def(p, 'demo.py', 4, 'hello'), 'util.py:5:8 function');
+  assert.equal(def(p, '__init__.py', 12, 'sq', 1), '__init__.py:11:4 variable');
+});
+
+test('library symbols resolve to their XSDocs key', () => {
+  const p = project();
+  assert.equal(def(p, '__init__.py', 14, 'click'), 'lib xscript.android.action.click');
+  assert.equal(def(p, '__init__.py', 14, 'action'), 'lib xscript.android.action');
+  assert.equal(def(p, '__init__.py', 15, 'tap'), 'lib xscript.android.action.click');
+  assert.equal(def(p, '__init__.py', 13, 'total'), '__init__.py:12:4 variable');
+  assert.equal(p.definitionAt('__init__.py', 17, 22), null);   // builtin len
+});
+
+test('find references across files, grouped on one symbol', () => {
+  const p = project();
+  const r = p.referencesAt('pkg/shapes.py', 11, 5);   // def area(s)
+  assert.equal(r.name, 'area');
+  assert.deepEqual(r.refs.map(x => `${x.path}:${x.line}:${x.col}${x.def ? ' def' : ''}`),
+    ['__init__.py:4:31', '__init__.py:12:24', '__init__.py:12:38', 'pkg/shapes.py:11:4 def']);
+  const m = p.referencesAt('pkg/shapes.py', 7, 9);    // method area
+  assert.deepEqual(m.refs.map(x => `${x.path}:${x.line}:${x.col}`), ['__init__.py:12:15', 'pkg/shapes.py:7:8']);
+  assert.match(m.refs[0].text, /^total = sq\.area\(\)/);
+  const side = p.referencesAt('pkg/shapes.py', 6, 14);
+  assert.deepEqual(side.refs.map(x => `${x.path}:${x.line}`), ['__init__.py:17', 'pkg/shapes.py:6', 'pkg/shapes.py:8', 'pkg/shapes.py:9', 'pkg/shapes.py:9']);
+  const lib = p.referencesAt('__init__.py', 15, 5);   // tap -> action.click (library) everywhere
+  assert.deepEqual(lib.refs.map(x => `${x.line}:${x.col}`), ['2:35', '2:44', '14:11', '15:4']);
+});
+
+test('broken files still index up to the error; non-Python files are ignored', () => {
+  const p = EditorSymbols.build([{path: 'a.py', content: 'def ok():\n    pass\nx = (\n'}, {path: 'b.py', content: 'from a import ok\nok()\n'}, {path: 'n.txt', content: 'x'}]);
+  assert.deepEqual(p.definitionAt('b.py', 2, 0), {path: 'a.py', line: 1, col: 4, name: 'ok', kind: 'function'});
+  assert.equal(p.files.has('n.txt'), false);
+  assert.equal(p.definitionAt('b.py', 9, 0), null);
+});
+
+test('a real package (backend/xscript_server): every occurrence resolves without throwing, references stay fast', () => {
+  const fs = require('node:fs'), path = require('node:path');
+  const base = path.join(__dirname, '../../backend'), files = [];
+  const walk = d => { for (const e of fs.readdirSync(d, {withFileTypes: true})) { const f = path.join(d, e.name); if (e.isDirectory()) walk(f); else if (e.name.endsWith('.py')) files.push({path: path.relative(base, f), content: fs.readFileSync(f, 'utf8')}); } };
+  walk(path.join(base, 'xscript_server'));
+  const t0 = Date.now(), p = EditorSymbols.build(files, XSDocs);
+  let n = 0, resolved = 0;
+  for (const f of p.files.values()) for (const o of f.occ) { n++; if (p.resolveOcc(o)) resolved++; }
+  assert.ok(n > 5000 && resolved / n > 0.4, `${resolved}/${n}`);
+  const t1 = Date.now(), r = p.referencesAt('xscript_server/settlement.py', ...(() => { const ls = files.find(f => f.path === 'xscript_server/settlement.py').content.split('\n'); const i = ls.findIndex(l => /^def /.test(l)); return [i + 1, 5]; })());
+  assert.ok(r && r.refs.some(x => x.def), JSON.stringify(r));
+  assert.ok(Date.now() - t1 < (process.env.CI ? 3000 : 1000), `references took ${Date.now() - t1} ms (index ${t1 - t0} ms)`);
+});
