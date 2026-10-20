@@ -347,16 +347,29 @@ class Ocr(GPTask):
 
     @staticmethod
     def matrix(font_lib, rect=None, region=0.9, image=None):
-        ...
-    matrix_detail = ...
-
-class OcrX(GPTask):
-
-    def __init__(self, *a, **k):
+        """点阵字库: text recognised in ``rect`` with the font library file ``font_lib`` (e.g. ``R.res("font.t")``),
+        or None. ``region`` is the match similarity (0-1). The library is XScript's JSON format, built with
+        ``MatrixFont`` (AScript's binary font.t cannot be read). Lines are read top to bottom, left to right."""
         ...
 
     @staticmethod
-    def find_all(*a, **k):
+    def matrix_detail(font_lib, rect=None, region=0.9, image=None):
+        """Like ``matrix`` but returns ``{"text", "chars": [{text, rect, center_x, center_y, confidence}], "lines"}``."""
+        ...
+
+class OcrX(GPTask):
+    """点阵字库 as a GP task: ``Result.data`` is ``Ocr.matrix_detail``'s dict (or None)."""
+    name = '点阵字库'
+
+    def __init__(self, font_lib, rect=None, region=0.9):
+        ...
+
+    def run(self, cv_image, offset_x=0, offset_y=0, data=None):
+        ...
+
+    @staticmethod
+    def find_all(font_lib, rect=None, region=0.9, image=None):
+        """The recognised characters ([{text, rect, center_x, center_y, confidence}]) or None."""
         ...
 
 class Eraser(GPTask):
@@ -370,3 +383,6 @@ class Eraser(GPTask):
     @staticmethod
     def wipe(rect, img_file=None, cv_img=None, new_color=None):
         ...
+
+def __getattr__(name):
+    ...

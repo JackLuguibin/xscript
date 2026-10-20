@@ -17,8 +17,8 @@ The project provides a native `xscript.android.*` API and an `ascript.android.*`
 ## Features
 
 - **Android automation**: accessibility and Root operation channels; tap, swipe, multi-touch gestures, key events, text input, UI node selectors and XPath queries.
-- **Image and visual recognition**: screenshots, color picking and color finding, template matching, OCR, OpenCV image processing, the GP image/color pipeline, and YOLO and PaddleOCR inference on ONNX Runtime.
-- **Script development and debugging**: multi-file editing in the browser, save-and-run, logs, breakpoints, step execution, call stack and variable inspection; a VS Code / Cursor extension, an MCP server and Python type stubs.
+- **Image and visual recognition**: screenshots, color picking and color finding, template matching, OCR, image and dot-matrix font libraries (`Ocr.matrix`), AI screen vision (`screen.ai_find` / `ai_ask` on any OpenAI-compatible vision model), OpenCV image processing, the GP image/color pipeline, and YOLO and PaddleOCR inference on ONNX Runtime.
+- **Script development and debugging**: multi-file editing in the browser, save-and-run, logs, breakpoints (conditional, hit-count and logpoints plus watch expressions in the desktop client), step execution, call stack and variable inspection; a VS Code / Cursor extension, an MCP server and Python type stubs.
 - **Device services**: permission requests, read-only SMS queries, location, sensors, event listeners, notifications, clipboard, KeyValue storage, and HTML / floating UI.
 - **Project and run management**: project import/export, installing Python dependencies at runtime, run on boot, scheduled tasks, restart-on-error control, and launch links (`xscript://`, also AScript's `ascript://run?local=…`).
 - **Self-hosted admin backend**: device groups, batch tasks, remote operation, screen wall, logs, alerts, account roles and operation audit.

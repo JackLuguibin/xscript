@@ -117,6 +117,9 @@ class FakeDebugDevice:
         self.logs: list[dict] = [{"seq": 1, "ts": 0, "stream": "stdout", "line": "old run\n"}]
         self.requests: list[tuple] = []
         self.bps: dict[str, list[int]] = {}
+        self.bp_specs: dict[str, list[dict]] = {}  # full DAP SourceBreakpoints (condition / hitCondition / logMessage)
+        self.hits: dict[int, int] = {}
+        self.eval_contexts: list[str] = []
         self.line = 0
         self.attach_seq: int | None = None
         self.stopped_project = False
@@ -149,6 +152,17 @@ class FakeDebugDevice:
         main = self.bps.get(REMOTE_ROOT + "/__init__.py", [])
         for ln in range(start, self.n_lines + 1):
             self.logs.append({"seq": len(self.logs) + 1, "ts": 0, "stream": "stdout", "line": "line %d\n" % ln})
+            spec = next((b for b in self.bp_specs.get(REMOTE_ROOT + "/__init__.py", []) if b["line"] == ln), {})
+            if ln in main and not step:
+                self.hits[ln] = self.hits.get(ln, 0) + 1
+                if spec.get("logMessage"):  # logpoint: print, never pause
+                    # what debugpy really sends for a logpoint (checked on the device): stdout with an empty source
+                    self._event("output", {"category": "stdout", "output": spec["logMessage"] + "\n", "source": {}})
+                    continue
+                if spec.get("condition") == "False":  # a condition the fake "evaluates" as false
+                    continue
+                if spec.get("hitCondition") and self.hits[ln] < int(spec["hitCondition"]):
+                    continue
             if (step and ln >= start) or ln in main:
                 self.line = ln
                 self._event("stopped", {"reason": "step" if step else "breakpoint", "threadId": 1, "allThreadsStopped": True})
@@ -168,6 +182,7 @@ class FakeDebugDevice:
         elif cmd == "setBreakpoints":
             path = args["source"]["path"]
             self.bps[path] = [b["line"] for b in args.get("breakpoints", [])]
+            self.bp_specs[path] = list(args.get("breakpoints", []))
             self._resp(req, {"breakpoints": [{"line": b["line"], "verified": b["line"] <= self.n_lines} for b in args.get("breakpoints", [])]})
         elif cmd == "setExceptionBreakpoints":
             self._resp(req)
@@ -201,6 +216,7 @@ class FakeDebugDevice:
                 self._resp(req, {"variables": []})
         elif cmd == "evaluate":
             expr = args.get("expression", "")
+            self.eval_contexts.append(args.get("context", ""))
             if expr == "boom":
                 self._resp(req, success=False, message="NameError: name 'boom' is not defined")
             else:

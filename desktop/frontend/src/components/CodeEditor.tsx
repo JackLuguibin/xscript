@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import type { EditorHandle } from "../editor/monaco";
+import type { BpKind, EditorHandle } from "../editor/monaco";
 
 type MonacoModule = Pick<typeof import("../editor/monaco"), "createEditor" | "languageFor">;
 
@@ -21,11 +21,14 @@ interface Props {
   onChange: (v: string) => void;
   onKeyDown: (e: KeyboardEvent) => void;
   breakpoints?: number[];
+  /** conditional / log points among `breakpoints` (gutter glyph shape) */
+  breakpointKinds?: Record<number, BpKind>;
   currentLine?: number | null;
   onToggleBreakpoint?: (line: number) => void;
 }
 
 const NO_LINES: number[] = [];
+const NO_KINDS: Record<number, BpKind> = {};
 
 /** 1-based line of the caret in a textarea */
 export function caretLine(el: HTMLTextAreaElement): number {
@@ -33,14 +36,14 @@ export function caretLine(el: HTMLTextAreaElement): number {
 }
 
 /** Monaco with Python completion from ide/python-stubs; a plain textarea until (or unless) Monaco has loaded. Remount per file (key=path). */
-export function CodeEditor({ path, value, label, onChange, onKeyDown, breakpoints = NO_LINES, currentLine = null, onToggleBreakpoint }: Props) {
+export function CodeEditor({ path, value, label, onChange, onKeyDown, breakpoints = NO_LINES, breakpointKinds = NO_KINDS, currentLine = null, onToggleBreakpoint }: Props) {
   const host = useRef<HTMLDivElement>(null);
   const handle = useRef<EditorHandle | null>(null);
   const cb = useRef({ onChange, onKeyDown, onToggleBreakpoint });
   cb.current = { onChange, onKeyDown, onToggleBreakpoint };
   const initial = useRef(value);
-  const dbg = useRef({ breakpoints, currentLine });
-  dbg.current = { breakpoints, currentLine };
+  const dbg = useRef({ breakpoints, breakpointKinds, currentLine });
+  dbg.current = { breakpoints, breakpointKinds, currentLine };
   const [ready, setReady] = useState(false);
 
   useEffect(() => {
@@ -57,6 +60,7 @@ export function CodeEditor({ path, value, label, onChange, onKeyDown, breakpoint
           onChange: (v) => cb.current.onChange(v),
           onKey: (e) => cb.current.onKeyDown(e),
           breakpoints: dbg.current.breakpoints,
+          breakpointKinds: dbg.current.breakpointKinds,
           currentLine: dbg.current.currentLine,
           onToggleBreakpoint: (ln) => cb.current.onToggleBreakpoint?.(ln),
         });
@@ -80,8 +84,8 @@ export function CodeEditor({ path, value, label, onChange, onKeyDown, breakpoint
   }, [value]);
 
   useEffect(() => {
-    handle.current?.setBreakpoints(breakpoints);
-  }, [breakpoints, ready]);
+    handle.current?.setBreakpoints(breakpoints, breakpointKinds);
+  }, [breakpoints, breakpointKinds, ready]);
   useEffect(() => {
     handle.current?.setCurrentLine(currentLine);
   }, [currentLine, ready]);
