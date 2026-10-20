@@ -68,7 +68,7 @@
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
         </activity>
-        <!-- xscript://run?name=… and xscript://stop (packaged apps: <application id>://…). Gated by Settings.schemeMode. -->
+        <!-- xscript:// and AScript's ascript:// (run / open / stop; packaged apps: <application id>:// and <last segment>://). Gated by Settings.schemeMode. -->
         <activity
             android:name=".link.SchemeActivity"
             android:exported="true"
@@ -79,6 +79,7 @@
                 <category android:name="android.intent.category.DEFAULT" />
                 <category android:name="android.intent.category.BROWSABLE" />
                 <data android:scheme="${linkScheme}" />
+                <data android:scheme="${linkScheme2}" />
             </intent-filter>
         </activity>
         <activity

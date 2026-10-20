@@ -12,10 +12,12 @@ import com.xscript.app.runtime.DapTransport
 import com.xscript.app.runtime.ScriptService
 import com.xscript.app.runtime.ScriptSupervisor
 import com.xscript.app.settings.Settings
+import com.xscript.app.ui.ProjectActivity
 import com.xscript.app.ui.UiKit
 
 /**
- * Entry for `xscript://run?name=…` / `xscript://stop` (packaged apps: `<application id>://…`).
+ * Entry for `xscript://run?name=…` / `open` / `stop` and the AScript aliases (`ascript://run?local=…`);
+ * packaged apps: `<application id>://…` and `<last id segment>://…`.
  * Transparent: it either toasts, asks for confirmation or starts the script, then finishes.
  */
 class SchemeActivity : Activity() {
@@ -30,7 +32,7 @@ class SchemeActivity : Activity() {
     }
 
     private fun handle(intent: Intent) {
-        val link = SchemeLink.parse(intent.dataString, scheme(), if (BuildConfig.PACKAGED) BuildConfig.PACK_PROJECT else "")
+        val link = SchemeLink.parse(intent.dataString, schemes(), if (BuildConfig.PACKAGED) BuildConfig.PACK_PROJECT else "")
         when (SchemeLink.decide(link, Settings.schemeMode)) {
             "refuse" -> done(if (link is SchemeLink.Invalid) link.reason else "链接启动已关闭，可在首页「链接启动」里开启")
             "run" -> execute(link)
@@ -65,6 +67,15 @@ class SchemeActivity : Activity() {
                 val refusal = ScriptService.run(this, link.project, params = link.params)
                 done(refusal ?: "已启动 ${link.project}")
             }
+            is SchemeLink.Open -> {
+                if (BuildConfig.PACKAGED) {
+                    packageManager.getLaunchIntentForPackage(packageName)?.let { startActivity(it) }
+                } else {
+                    if (!ProjectStore(this).exists(link.project)) return done("工程不存在: ${link.project}")
+                    startActivity(Intent(this, ProjectActivity::class.java).putExtra(ProjectActivity.EXTRA_NAME, link.project))
+                }
+                finish()
+            }
             is SchemeLink.Invalid -> done(link.reason)
         }
     }
@@ -74,5 +85,6 @@ class SchemeActivity : Activity() {
         finish()
     }
 
-    private fun scheme() = if (BuildConfig.PACKAGED) BuildConfig.APPLICATION_ID.lowercase() else "xscript"
+    private fun schemes() =
+        if (BuildConfig.PACKAGED) SchemeLink.packedSchemes(BuildConfig.APPLICATION_ID) else SchemeLink.MAIN_SCHEMES
 }
