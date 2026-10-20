@@ -8,9 +8,10 @@ import { ProjectsPage } from "./components/ProjectsPage";
 import { Alert } from "./components/ui/alert";
 import { Select } from "./components/ui/select";
 import { Button } from "./components/ui/button";
+import { CloudPage } from "./components/CloudPage";
 import { WallPage } from "./components/WallPage";
 import { DeviceProvider, useCurrentDevice } from "./device-context";
-import { IconFlow, IconFolder, IconGrid, IconMark, IconMonitor, IconMoon, IconPhone, IconSun } from "./components/icons";
+import { IconCloud, IconFlow, IconFolder, IconGrid, IconMark, IconMonitor, IconMoon, IconPhone, IconSun } from "./components/icons";
 import { onCanvasPick } from "./flow/inbox";
 import { useLanguage } from "./i18n";
 import type { ShellPage } from "./shortcuts";
@@ -123,6 +124,10 @@ function Shell() {
               <IconFlow />
               <span className="label">{t.nav.flows}</span>
             </Button>
+            <Button variant="nav" aria-current={page === "cloud" ? "page" : undefined} onClick={() => setPage("cloud")}>
+              <IconCloud />
+              <span className="label">{t.nav.cloud}</span>
+            </Button>
           </nav>
           <div className="sidebar-foot">
             <ThemeToggle />
@@ -133,7 +138,7 @@ function Shell() {
           <header className="topbar">
             <div>
               <h1>{t.nav[page]}</h1>
-              <p className="sub">{page === "devices" ? t.subtitle : page === "mirror" ? t.mirror.subtitle : page === "wall" ? t.wall.subtitle : page === "flows" ? t.flow.subtitle : t.projects.subtitle}</p>
+              <p className="sub">{page === "devices" ? t.subtitle : page === "mirror" ? t.mirror.subtitle : page === "wall" ? t.wall.subtitle : page === "flows" ? t.flow.subtitle : page === "cloud" ? t.cloud.subtitle : t.projects.subtitle}</p>
             </div>
             <span className="grow" />
             <DeviceSwitcher />
@@ -152,6 +157,8 @@ function Shell() {
               <WallPage />
             ) : page === "flows" ? (
               <FlowPage />
+            ) : page === "cloud" ? (
+              <CloudPage />
             ) : null}
             {(projectsOpened || page === "projects") && (
               <div className="keep-alive" hidden={page !== "projects"}>

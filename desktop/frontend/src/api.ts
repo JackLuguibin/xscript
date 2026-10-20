@@ -284,6 +284,10 @@ export function createApi(rpc: RpcClient) {
     secretSet: (kind: string, name: string, value: string) => rpc.call<{ ok: boolean; kind: string; name: string }>("secret.set", { kind, name, value }),
     secretDelete: (kind: string, name: string) => rpc.call<{ deleted: boolean }>("secret.delete", { kind, name }),
     secretHas: (kind: string, name: string) => rpc.call<{ present: boolean }>("secret.has", { kind, name }),
+    cloudStatus: () => rpc.call<CloudStatus>("cloud.status", {}, { timeoutMs: 20_000 }),
+    /** The token goes to the OS keyring; it is never sent back. */
+    cloudConnect: (origin: string, token: string) => rpc.call<CloudStatus>("cloud.connect", { origin, token }, { timeoutMs: 20_000 }),
+    cloudDisconnect: () => rpc.call<CloudStatus>("cloud.disconnect"),
     copyText: (text: string) => rpc.call<{ ok: boolean }>("app.copyText", { text }),
     toolsOpen: (id: string, page: string) => rpc.call<{ url: string; page: string; warning: string }>("tools.open", { id, page }),
     uiTree: (id: string, mode = 0) => rpc.call<UiTreeResult>("device.uiTree", { id, mode }),
@@ -293,3 +297,14 @@ export function createApi(rpc: RpcClient) {
 }
 
 export type Api = ReturnType<typeof createApi>;
+
+// ---- cloud control (admin backend, P4) ----
+export type CloudRole = "viewer" | "operator" | "admin";
+export interface CloudAccount { username: string; role: CloudRole; canOperate: boolean; isAdmin: boolean }
+export interface CloudStatus {
+  state: "not_configured" | "connected" | "expired" | "unreachable" | "error";
+  origin: string;
+  account?: CloudAccount;
+  code?: string;
+  message?: string;
+}

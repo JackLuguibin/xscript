@@ -573,3 +573,13 @@ pre.logs.debug-console { min-height: 4rem; max-height: 10rem; }
 .bp-desc { margin-left: var(--sp-2); font-size: var(--fs-sm); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .bp-editor { gap: var(--sp-2); padding: var(--sp-1) 0 var(--sp-2) var(--sp-3); }
 .watch-list > li { align-items: center; }
+
+/* Cloud control (P4): same page/panel/toolbar language as the wall and flows pages. */
+.cloud-page { display: flex; flex-direction: column; gap: 12px; }
+.cloud-head { align-items: center; gap: 8px; flex-wrap: wrap; }
+.cloud-head .grow { flex: 1; }
+.cloud-origin { font-family: var(--font-mono, ui-monospace, monospace); font-size: 12px; }
+.cloud-tabs { display: flex; gap: 6px; }
+.cloud-pane { display: flex; flex-direction: column; gap: 12px; max-width: 720px; }
+.cloud-account p { margin: 0 0 6px; }
+.cloud-connect .hint { font-size: 12px; color: var(--muted-fg, inherit); }

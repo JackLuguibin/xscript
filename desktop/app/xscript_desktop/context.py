@@ -15,6 +15,7 @@ from typing import Any, Awaitable, Callable
 from . import __version__
 from .rpc import Dispatcher, RpcError, param
 from .services.adb import AdbError, AdbService
+from .services.backend_client import BackendError, CloudService, _Settings
 from .services.device_client import DeviceError, DeviceTarget, summarize_status
 from .services.device_manager import LAN_WARNING, DeviceManager, DeviceRecord, lan_hosts
 from .services import sync as syncmod
@@ -81,6 +82,8 @@ def _map_errors(fn: Callable[..., Awaitable[Any]]) -> Callable[..., Awaitable[An
             raise RpcError(error_code(e), e.message) from e
         except SecretError as e:
             raise RpcError(e.code, e.message) from e
+        except BackendError as e:
+            raise RpcError(e.code, e.message, retryable=e.retryable, details={"status": e.status}) from e
         except KeyError as e:
             raise RpcError("device.not_found", "no such connected device: %s" % e.args[0]) from e
         except ValueError as e:
@@ -114,6 +117,11 @@ class AppContext:
         self.mirror = MirrorProxy(self._mirror_client, self.dispatcher.emit, timings=mirror_timings)
         # Memory backend until main() swaps in the OS keyring. --selftest never touches the login keychain.
         self.secrets = SecretStore(MemoryBackend(), NameIndex(data_dir / "slot-index.json" if data_dir else None))
+        # Admin backend for cloud control (P4): origin in settings, token in the keyring slot backend/<origin>.
+        self.cloud = CloudService(self.secrets, _Settings(
+            get=lambda k: self.store.aexec(self.store._get_setting, k),
+            set=lambda k, v: self.store.aexec(self.store._set_setting, k, v),
+            delete=lambda k: self.store.aexec(self.store._delete_setting, k)))
         self.ui_ready = threading.Event()
         # Set by the page (app.setUnsaved), read by MainWindow.closeEvent on the GUI thread: plain attribute writes.
         self.unsaved = False
@@ -868,6 +876,23 @@ class AppContext:
         @_map_errors
         async def secret_has(params: dict[str, Any]) -> dict[str, Any]:
             return await asyncio.to_thread(self.secrets.has, param(params, "kind", str), param(params, "name", str))
+
+        # ---- cloud control: the admin backend (P4). The token goes in once and never comes back out. -----------------------
+
+        @d.method("cloud.status")
+        @_map_errors
+        async def cloud_status(params: dict[str, Any]) -> dict[str, Any]:
+            return await self.cloud.status()
+
+        @d.method("cloud.connect")
+        @_map_errors
+        async def cloud_connect(params: dict[str, Any]) -> dict[str, Any]:
+            return await self.cloud.connect(param(params, "origin", str), param(params, "token", str))
+
+        @d.method("cloud.disconnect")
+        @_map_errors
+        async def cloud_disconnect(params: dict[str, Any]) -> dict[str, Any]:
+            return await self.cloud.disconnect()
 
         @d.method("app.copyText")
         async def copy_text(params: dict[str, Any]) -> dict[str, Any]:

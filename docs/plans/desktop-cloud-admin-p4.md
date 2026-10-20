@@ -16,7 +16,7 @@
 
 ## 分阶段清单
 
-- [ ] **P4.1 后台连接**：设置里保存后台地址和令牌（keyring），`/api/auth` 登录、令牌过期提示；服务层 `services/backend_client.py` + 单测（假后台）
+- [x] **P4.1 后台连接**：「云控」页填后台地址 + API 令牌（后台「账号 → API 令牌」创建；bearer 只认 api 令牌，不走密码登录），令牌只进 keyring（`backend/<origin>`），换后台即删旧令牌；`/api/auth/me` 取角色，拒绝代理商账号；令牌失效 / 连不上分别提示；服务层 `services/backend_client.py`（错误码映射、消息里抹掉令牌）+ `tests/fake_backend.py` 假后台单测；前端 `CloudPage` + 演示后台 `cloud-demo.ts`
 - [ ] **P4.2 设备群表**：后台设备列表（在线、分组、标签、版本），筛选和多选；只读
 - [ ] **P4.3 批量命令**：对选中设备运行 / 停止脚本，结果逐台汇总；viewer 灰显
 - [ ] **P4.4 日志与任务**：日志检索、服务端定时任务列表和编辑
