@@ -4,7 +4,7 @@ import { ServicesContext } from "../src/app-context";
 import { createApi } from "../src/api";
 import { RpcClient } from "../src/bridge/client";
 import type { MemoryTransport } from "../src/bridge/memory";
-import { AUTO_KEY, LAST_KEY, UpdatePanel, formatSize, useUpdateBadge } from "../src/components/UpdatePanel";
+import { AUTO_KEY, DiagnosticsPanel, LAST_KEY, UpdatePanel, formatSize, useUpdateBadge } from "../src/components/UpdatePanel";
 import { createDemoTransport } from "../src/demo";
 import { DEMO_UPDATE } from "../src/update-demo";
 import { setLanguage, t } from "../src/strings";
@@ -182,5 +182,29 @@ describe("startup update check (badge)", () => {
     mount(<Badge enabled />, { setup: (tr) => tr.setHandler("update.info", () => { throw { code: "rpc.internal", message: "x" }; }) });
     await tick();
     expect(screen.getByTestId("badge").textContent).toBe("-");
+  });
+});
+
+describe("DiagnosticsPanel (P5.5)", () => {
+  it("exports through the shell and shows where it went", async () => {
+    const { transport } = mount(<DiagnosticsPanel />);
+    expect(screen.getByText(t.update.diagHint)).toBeTruthy();
+    fireEvent.click(screen.getByRole("button", { name: t.update.diagExport }));
+    expect(await screen.findByText(t.update.diagSaved("~/Desktop/xscript-diagnostics-demo.zip", 3))).toBeTruthy();
+    expect(transport.sent.filter((m) => m.method === "app.diagnostics")).toHaveLength(1);
+  });
+
+  it("says nothing when the save dialog is cancelled and shows errors", async () => {
+    const { transport } = mount(<DiagnosticsPanel />);
+    transport.setHandler("app.diagnostics", () => ({ saved: false }));
+    fireEvent.click(screen.getByRole("button", { name: t.update.diagExport }));
+    await waitFor(() => expect(transport.sent.some((m) => m.method === "app.diagnostics")).toBe(true));
+    await tick();
+    expect(screen.queryByRole("status")).toBeNull();
+    transport.setHandler("app.diagnostics", () => {
+      throw { code: "app.unavailable", message: "no save dialog in this mode" };
+    });
+    fireEvent.click(screen.getByRole("button", { name: t.update.diagExport }));
+    expect(await screen.findByRole("alert")).toBeTruthy();
   });
 });

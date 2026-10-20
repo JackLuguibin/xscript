@@ -222,3 +222,41 @@ export function useUpdateBadge(enabled: boolean): string | null {
   }, [api, enabled]);
   return ver;
 }
+
+/** Diagnostics bundle (P5.5): the shell asks where to save and writes a redacted zip. */
+export function DiagnosticsPanel() {
+  const { api } = useServices();
+  const [msg, setMsg] = useState("");
+  const [err, setErr] = useState("");
+  const [busy, setBusy] = useState(false);
+  const save = async () => {
+    setBusy(true);
+    setMsg("");
+    setErr("");
+    try {
+      const r = await api.diagnostics();
+      if (r.saved && r.path) setMsg(t.update.diagSaved(r.path, r.files?.length ?? 0));
+    } catch (e) {
+      setErr(errorLine(e));
+    } finally {
+      setBusy(false);
+    }
+  };
+  return (
+    <section className="update-panel" aria-labelledby="diag-title">
+      <h3 id="diag-title">{t.update.diagTitle}</h3>
+      <p className="muted">{t.update.diagHint}</p>
+      <div className="update-actions">
+        <Button onClick={() => void save()} disabled={busy}>
+          {t.update.diagExport}
+        </Button>
+      </div>
+      {msg && <p role="status" className="mono update-feed">{msg}</p>}
+      {err && (
+        <Alert tone="error" role="alert">
+          {err}
+        </Alert>
+      )}
+    </section>
+  );
+}

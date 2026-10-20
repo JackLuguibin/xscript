@@ -87,6 +87,13 @@ def main(argv: list[str] | None = None) -> int:
     app.setWindowIcon(app_icon())  # window title bar + macOS Dock / Windows taskbar
     runtime = AsyncRuntime().start()
     data_dir = Path(args.data_dir) if args.data_dir else default_data_dir()
+    if not (args.selftest or args.screenshot):
+        from .services.diagnostics import add_file_log
+
+        try:
+            add_file_log(data_dir)  # for the diagnostics bundle (P5.5)
+        except OSError as e:
+            log.warning("no log file: %s", e)
     ctx = AppContext(adb=AdbService(args.adb), data_dir=None if args.selftest else data_dir)
     bridge = Bridge(ctx, runtime)
     handler = XsAppHandler(ctx, runtime)

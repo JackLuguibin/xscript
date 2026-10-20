@@ -26,6 +26,7 @@ from .services.secrets import MemoryBackend, NameIndex, SecretError, SecretStore
 from .services.store import AppStore, SavedDevice, StoreError, StoreSyncCache
 from .services.tool_pages import TITLES, paired_url, tool_url
 from .services.updater import UpdateError, UpdateService
+from .services import diagnostics
 
 ACTION_TYPES = ("click", "swipe", "input", "key")
 MAX_FILE_CHARS = 2 * 1024 * 1024  # stays under the bridge's 4 MiB request cap even after JSON escaping
@@ -147,6 +148,36 @@ class AppContext:
             self._data_dir_tmp = getattr(self, "_data_dir_tmp", None) or Path(tempfile.mkdtemp(prefix="xscript-updates-"))
             return self._data_dir_tmp
         return self._data_dir / "updates"
+
+    async def diagnostics_info(self) -> dict[str, Any]:
+        """What a bug report needs, without identifiers or secrets: versions, platform, counts and states."""
+        try:
+            from PySide6 import __version__ as pyside, QtCore
+            qt = QtCore.qVersion()
+        except Exception:  # noqa: BLE001 - pure-Python test runs
+            pyside, qt = None, None
+        devices = self.devices.list()
+        states: dict[str, int] = {}
+        for rec in devices:
+            states[rec.state] = states.get(rec.state, 0) + 1
+        try:
+            saved = len(await self.store.aexec(self.store.list_devices))
+        except Exception:  # noqa: BLE001
+            saved = None
+        origin = await self.cloud.origin() if self.cloud else None
+        upd = self.updates.info()
+        return {
+            "app": {"version": __version__, "frozen": bool(getattr(sys, "frozen", False)), "install": str(self.updates.install_path or "")},
+            "platform": {"os": sys.platform, "release": platform.release(), "machine": platform.machine(),
+                         "python": platform.python_version(), "pyside6": pyside, "qt": qt},
+            "adb": {"path": self.adb.path()},
+            "devices": {"connected": len(devices), "states": states, "saved": saved},
+            "cloud": {"configured": bool(origin)},
+            "update": {k: upd.get(k) for k in ("platform", "configured", "feed", "state", "error", "canInstall")},
+            "ui": {"lang": self.ui_lang, "unsaved": self.unsaved},
+            "dataDir": str(self._data_dir) if self._data_dir else None,
+            "generated": time.strftime("%Y-%m-%dT%H:%M:%S%z"),
+        }
 
     async def install_update(self) -> dict[str, Any]:
         """Stage the verified download, start the helper, then quit so it can swap/upgrade and relaunch."""
@@ -1003,6 +1034,24 @@ class AppContext:
             return await backend_client.rollback_flow(
                 await self.cloud.client(), script_id=param(params, "scriptId", int), version_id=param(params, "versionId", int),
                 group=param(params, "group", str), run=param(params, "run", bool, default=True))
+
+        @d.method("app.diagnostics")
+        @_map_errors
+        async def app_diagnostics(params: dict[str, Any]) -> dict[str, Any]:
+            """Ask where to save, then write a zip with redacted info.json + the app's logs (P5.5). Nothing is uploaded."""
+            if self.save_file is None:
+                raise RpcError("app.unavailable", "no save dialog in this mode")
+            name = "xscript-diagnostics-%s.zip" % time.strftime("%Y%m%d-%H%M")
+            chosen = await self.save_file("导出诊断包" if self.ui_lang == "zh" else "Export diagnostics", name, "Zip (*.zip)")
+            if not chosen:
+                return {"saved": False}
+            data, files = await asyncio.to_thread(diagnostics.build, await self.diagnostics_info(),
+                                                  diagnostics.log_files(self._data_dir))
+            dest = Path(chosen)
+            if dest.suffix.lower() != ".zip":
+                dest = dest.with_suffix(".zip")
+            await asyncio.to_thread(dest.write_bytes, data)
+            return {"saved": True, "path": str(dest), "bytes": len(data), "files": files}
 
         @d.method("update.info")
         def update_info(params: dict[str, Any]) -> dict[str, Any]:

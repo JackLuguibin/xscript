@@ -16,6 +16,7 @@ export function updateDemoHandlers(): Record<string, Handler> {
   let s: UpdateStatus = { state: "idle", update: null, error: null, progress: { done: 0, total: 0 } };
   const snap = (): UpdateStatus => JSON.parse(JSON.stringify(s));
   return {
+    "app.diagnostics": () => ({ saved: true, path: "~/Desktop/xscript-diagnostics-demo.zip", bytes: 48_211, files: ["info.json", "logs/desktop.log", "README.txt"] }),
     "update.info": (): UpdateInfo => ({
       version: "0.4.0", platform: "macos-arm64", configured: true, canInstall: true, configError: "",
       feed: "https://github.com/JackLuguibin/xscript/releases/latest/download/desktop-update.json", ...snap(),

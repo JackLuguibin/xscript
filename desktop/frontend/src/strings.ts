@@ -309,6 +309,10 @@ const zh = {
     manual: "当前不是从安装包运行（源码运行），不会自动替换。下载好的文件：",
     auto: "启动时自动检查（每天最多一次）",
     settingsButton: "设置与更新",
+    diagTitle: "诊断包",
+    diagHint: "导出一个 zip：版本、系统环境、设备数量和状态、桌面端日志。令牌、密码、配对码等会替换成 ***，不读取系统凭据库，也不会上传；发给别人前可以先打开看看。",
+    diagExport: "导出诊断包…",
+    diagSaved: (path: string, n: number) => `已保存到 ${path}（${n} 个文件）`,
     badge: (v: string) => `有新版本 ${v}`,
     kinds: {
       network: "连不上更新服务器。",
@@ -1058,6 +1062,10 @@ const en: Strings = {
     manual: "This copy does not run from an installed package (source checkout) and is not replaced. The downloaded file:",
     auto: "Check at startup (at most once a day)",
     settingsButton: "Settings and updates",
+    diagTitle: "Diagnostics bundle",
+    diagHint: "Exports a zip with versions, system details, device counts and states, and the desktop logs. Tokens, passwords and pairing codes are replaced with ***; the credential store is not read and nothing is uploaded. Look inside before sharing it.",
+    diagExport: "Export diagnostics…",
+    diagSaved: (path: string, n: number) => `Saved to ${path} (${n} files)`,
     badge: (v: string) => `Version ${v} is available`,
     kinds: {
       network: "Cannot reach the update server.",

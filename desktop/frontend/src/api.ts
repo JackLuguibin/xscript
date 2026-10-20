@@ -309,6 +309,7 @@ export function createApi(rpc: RpcClient) {
     cloudPackCancel: (id: number) => rpc.call<{ ok: boolean }>("cloud.packCancel", { id }, { timeoutMs: 20_000 }),
     cloudPackSave: (id: number, name: string) => rpc.call<{ saved: boolean; path?: string; bytes?: number }>("cloud.packSave", { id, name }, { timeoutMs: 600_000 }),
     cloudGroups: () => rpc.call<{ groups: CloudGroup[]; apps: string[] }>("cloud.groups", {}, { timeoutMs: 20_000 }),
+    diagnostics: () => rpc.call<{ saved: boolean; path?: string; bytes?: number; files?: string[] }>("app.diagnostics", {}, { timeoutMs: 600_000 }),
     updateInfo: () => rpc.call<UpdateInfo>("update.info"),
     updateStatus: () => rpc.call<UpdateStatus>("update.status"),
     updateCheck: () => rpc.call<UpdateStatus>("update.check", {}, { timeoutMs: 60_000 }),

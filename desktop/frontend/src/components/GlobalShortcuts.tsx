@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState, type FormEvent, type RefObject } 
 import { isModalOpen } from "./Overlay";
 import { useServices } from "../app-context";
 import { CredentialsForm } from "./CredentialsForm";
-import { UpdatePanel } from "./UpdatePanel";
+import { DiagnosticsPanel, UpdatePanel } from "./UpdatePanel";
 import { Alert } from "./ui/alert";
 import { Button } from "./ui/button";
 import { Dialog } from "./ui/dialog";
@@ -228,6 +228,7 @@ function SettingsDialog({
       </form>
       <CredentialsForm />
       <UpdatePanel />
+      <DiagnosticsPanel />
     </Dialog>
   );
 }
