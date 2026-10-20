@@ -125,6 +125,54 @@ describe("state machine fallback", () => {
     expect(run(out.python)).toEqual(["a", "b", "n", "结束"]);
   });
 
+  it("lowers wait_until: polls, then jumps to then or timeout", () => {
+    const text = [
+      "flow w  # xflow 1",
+      "on start:",
+      '  btn: node.find(text="ok", timeout=0)',
+      "  hold: until btn.found timeout=600 interval=200:",
+      '    y: log(message="ready")',
+      "  timeout:",
+      '    n: log(message="late")',
+      "",
+    ].join("\n");
+    const out = compile(joined(text, ["y", "n"]), specs);
+    expect(out.python).toContain("while True:");
+    expect(out.python).toContain("while hold_i < 3:");
+    expect(out.python).not.toMatch(/if hold_ok:\n\s+pass/);
+    expect(run(out.python, ["ok"])).toEqual(["ready", "结束"]);
+    expect(run(out.python)).toEqual(["late", "结束"]);
+  });
+
+  it("lowers retry with its closed body: ok after a clean pass, failed after every attempt fails", () => {
+    const text = (times: number) => [
+      "flow r  # xflow 1",
+      "on start:",
+      "  r: retry times=" + times + ":",
+      '    a: log(message="try")',
+      '    btn: node.find(text="ok", timeout=0)',
+      "    miss: if btn.found:",
+      '      hit: log(message="hit")',
+      "    else:",
+      "      fail",
+      "  ok:",
+      '    y: log(message="ok")',
+      "  failed:",
+      '    n: log(message="failed")',
+      "",
+    ].join("\n");
+    const out = compile(joined(text(2), ["y", "n"]), specs);
+    expect(out.python).toContain("while True:");
+    expect(out.python).toContain("for r_i in range(2):");
+    expect(out.python).not.toContain("pc == 'a'");
+    expect(run(out.python, ["ok"])).toEqual(["try", "hit", "ok", "结束"]);
+    expect(run(out.python)).toEqual(["try", "try", "failed", "结束"]);
+    // a missing outcome ends the flow instead of spinning on the same state
+    const one = joined(text(1), ["y"]);
+    const bare: FlowGraph = { ...one, edges: one.edges.filter((edge) => edge.from !== "r.failed") };
+    expect(run(compile(bare, specs).python)).toEqual(["try"]);
+  });
+
   it("refuses a match whose branch jumps back out of it", () => {
     const text = ["flow mo  # xflow 1", 'var mode: str = "x"', "on start:", '  a: log(message="a")', "  pick: match mode:", '    "x":', '      b: log(message="b")', '  z: log(message="z")', ""].join("\n");
     const graph = parse(text);
@@ -139,7 +187,7 @@ describe("state machine fallback", () => {
     expect(() => compile(back, specs)).toThrow("its body jumps out of the loop");
     const retry = parse(["flow r  # xflow 1", "on start:", '  a: log(message="a")', "  retry times=2:", '    b: log(message="b")', ""].join("\n"));
     const looped: FlowGraph = { ...retry, edges: [...retry.edges, { from: "b.then", to: "a.exec" }] };
-    expect(() => compile(looped, specs)).toThrow("state machine cannot lower flow.retry");
+    expect(() => compile(looped, specs)).toThrow(/state machine cannot lower flow\.retry \w+: its body jumps out of it/);
   });
 
   it("runs a code node, data.set and a back edge through the state machine", () => {

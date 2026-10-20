@@ -1913,6 +1913,31 @@ function compileState(g: FlowGraph, specs: Map<string, NodeSpec>, opts?: { trace
       emit("continue", null, 2);
       continue;
     }
+    const fork = STATE_FORK[node.type];
+    if (fork) {
+      const inner = regionBody(g, id, fork.region);
+      if (!inner) throw new Error("state machine cannot lower " + node.type + " " + id + ": its body jumps out of it");
+      for (const member of inner) owned.add(member);
+      emit("if pc == " + pyRepr(id) + ":", null, 1);
+      // The structured code for the container without its two outcomes, then a jump on the flag it set.
+      const solo: FlowGraph = { ...g, edges: g.edges.filter((edge) => edge.from !== id + "." + fork.yes && edge.from !== id + "." + fork.no) };
+      const held: Array<[string, string | null, number]> = [];
+      compileBlock(solo, specs, id, (text, mark, indent) => held.push([text, mark, indent]), 2, trace, new Set());
+      const flag = pyIdent(id + "_ok");
+      const tail = held.slice(-2).map(([text]) => text);
+      if (tail[0] === "if " + flag + ":" && tail[1] === "pass") held.splice(-2);
+      for (const [text, mark, indent] of held) emit(text, mark, indent);
+      const jump = (pin: string) => {
+        const target = outEdge(g, id, pin);
+        return target && target.pin !== "break" && target.pin !== "continue" && target.pin !== "fail" ? "pc = " + pyRepr(target.node) : "break";
+      };
+      emit("if " + flag + ":", null, 2);
+      emit(jump(fork.yes), null, 3);
+      emit("else:", null, 2);
+      emit(jump(fork.no), null, 3);
+      emit("continue", null, 2);
+      continue;
+    }
     const outs = specs.get(node.type)?.exec.out ?? [];
     const join = STATE_JOIN[node.type];
     const exit = STATE_EXIT[node.type] ?? join ?? ((ALIAS_OF[node.type] || STATE_SOLO.has(node.type)) && outs.every((pin) => pin === "then") ? "then" : null);
@@ -1949,6 +1974,15 @@ const STATE_EXIT: Record<string, string> = { "flow.for_range": "completed", "flo
  * then a jump along this pin. Keyed by node type.
  */
 const STATE_JOIN: Record<string, string> = { "flow.match": "completed", "flow.sequence": "next" };
+
+/**
+ * Containers that end on one of two outcomes (the structured code sets `<id>_ok` and branches on it): the state
+ * holds the container (and its closed `region`) and then jumps to `yes` or `no`.
+ */
+const STATE_FORK: Record<string, { region: string[]; yes: string; no: string }> = {
+  "flow.wait_until": { region: [], yes: "then", no: "timeout" },
+  "flow.retry": { region: ["body"], yes: "ok", no: "failed" },
+};
 
 /** The exec pins that open a container's inner branches (each one compiled inside the container). */
 function regionPins(g: FlowGraph, node: FlowNode): string[] {
