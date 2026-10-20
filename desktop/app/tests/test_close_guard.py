@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import json
+import sys
 
 import pytest
 
@@ -123,8 +124,8 @@ def test_close_prompt_buttons(qtbot, env, lang, choice, closes):
         if not isinstance(box, QMessageBox):
             QTimer.singleShot(20, answer)
             return
-        seen.update(title=box.windowTitle(), text=box.text(), default=box.defaultButton().text(), escape=box.escapeButton().text(),
-                    buttons=sorted(b.text() for b in box.buttons()))
+        seen.update(title=box.windowTitle(), text=box.text(), info=box.informativeText(), default=box.defaultButton().text(),
+                    escape=box.escapeButton().text(), buttons=sorted(b.text() for b in box.buttons()))
         if choice == "escape":
             box.escapeButton().click()
         else:
@@ -132,7 +133,9 @@ def test_close_prompt_buttons(qtbot, env, lang, choice, closes):
 
     QTimer.singleShot(0, answer)
     assert win.close() is closes
-    assert seen == {"title": title, "text": text, "default": cancel, "escape": cancel, "buttons": sorted([discard, cancel])}
+    # macOS shows no window title, so the title becomes the bold message and the text the informative line.
+    words = {"title": "", "text": title, "info": text} if sys.platform == "darwin" else {"title": title, "text": text, "info": ""}
+    assert seen == {**words, "default": cancel, "escape": cancel, "buttons": sorted([discard, cancel])}
     assert win.isVisible() is (not closes)
     if not closes:
         ctx.unsaved = False
