@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import logging
+import sys
 from pathlib import Path
 from typing import Callable
 
@@ -109,6 +110,11 @@ class MainWindow(QMainWindow):
         """Ask whether to close anyway. Cancel is the default (Enter / Esc keep the window open)."""
         title, text, discard, cancel = CLOSE_PROMPT.get(lang, CLOSE_PROMPT["zh"])
         box = QMessageBox(QMessageBox.Icon.Warning, title, text, QMessageBox.StandardButton.NoButton, self)
+        if sys.platform == "darwin":
+            # macOS dialogs have no title bar text (Qt drops it), so follow the platform style:
+            # the title is the bold message and the explanation goes underneath.
+            box.setText(title)
+            box.setInformativeText(text)
         discard_btn = box.addButton(discard, QMessageBox.ButtonRole.DestructiveRole)
         cancel_btn = box.addButton(cancel, QMessageBox.ButtonRole.RejectRole)
         box.setDefaultButton(cancel_btn)
