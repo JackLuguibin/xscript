@@ -1,5 +1,6 @@
 import importlib
 import os
+import re
 import sys
 import threading
 import traceback
@@ -120,6 +121,7 @@ def run_project(project_dir, launch_params="{}", debug=False):
         # The import system caches directory listings keyed on mtime; a project pushed a moment ago
         # (or one created within the same timestamp tick) would otherwise be reported as missing.
         importlib.invalidate_caches()
+        _warm_ocr(project_dir)
         importlib.import_module(name)
         _wait_for_threads()
         print("xscript: finished %s" % name)
@@ -146,6 +148,45 @@ def run_project(project_dir, launch_params="{}", debug=False):
         except Exception:
             pass
     return code
+
+
+_OCR_CALL = re.compile(r"(?<!paddle\.)\bocr\w*\s*\(")
+
+
+def _uses_ocr(project_dir, max_files=300, max_bytes=4 << 20):
+    """True when the project's .py sources call ML Kit OCR (`ocr(`, `ocr_find(`, ...).
+
+    PaddleOCR calls (`paddle.ocr(`) do not count; compiled-only projects are not scanned.
+    """
+    seen = size = 0
+    for root, dirs, files in os.walk(project_dir):
+        dirs[:] = [d for d in dirs if not d.startswith(".") and d != "__pycache__"]
+        for f in files:
+            if not f.endswith(".py"):
+                continue
+            seen += 1
+            if seen > max_files or size > max_bytes:
+                return False
+            try:
+                with open(os.path.join(root, f), "r", encoding="utf-8", errors="ignore") as fh:
+                    text = fh.read(1 << 20)
+            except OSError:
+                continue
+            size += len(text)
+            if _OCR_CALL.search(text):
+                return True
+    return False
+
+
+def _warm_ocr(project_dir):
+    """Start loading the ML Kit recogniser in the background when the project will need it."""
+    try:
+        if _uses_ocr(project_dir):
+            warm = getattr(bridge, "ocr_warmup", None)
+            if warm:
+                warm()
+    except Exception:
+        pass
 
 
 def _prepare_packages(project_dir):

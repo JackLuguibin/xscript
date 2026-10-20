@@ -33,6 +33,29 @@ object OcrEngine {
         return c
     }
 
+    @Volatile
+    private var warming = false
+
+    /**
+     * Loads the recogniser and runs one tiny frame on a background thread, so the script's
+     * first real OCR call does not pay for model initialisation (~50-160 ms on an emulator).
+     * Idempotent; called by the runner only for projects whose source uses `ocr(`.
+     */
+    fun warmUp(context: Context) {
+        if (recognizer != null || warming) return
+        warming = true
+        Thread({
+            try {
+                val bmp = Bitmap.createBitmap(64, 32, Bitmap.Config.ARGB_8888)
+                bmp.eraseColor(android.graphics.Color.WHITE)
+                Tasks.await(client(context).process(InputImage.fromBitmap(bmp, 0)), 20, TimeUnit.SECONDS)
+                bmp.recycle()
+            } catch (_: Throwable) {
+                // Best effort: the first real call initialises the model again if this failed.
+            }
+        }, "xs-ocr-warmup").apply { isDaemon = true; priority = Thread.NORM_PRIORITY - 1 }.start()
+    }
+
     /**
      * Returns a JSON array of lines:
      * {"text","confidence","rect":[l,t,r,b],"center_x","center_y","elements":[...]}
