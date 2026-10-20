@@ -109,7 +109,7 @@ def _ocr(src, req, rect):
     else:
         from xscript.android import paddle
 
-        lines = paddle.engine("v4" if engine == "paddle_v4" else "v5").ocr(src, rect, 0.0)
+        lines = paddle._run_engine(engine, src, rect, 0.0, lambda: _img.ocr(rect, image=src))
     pattern = req.get("pattern") or None
     lines = _img.ocr_filter(lines, pattern, float(req.get("confidence") or 0.0))
     return {"lines": [line.to_dict() for line in lines]}

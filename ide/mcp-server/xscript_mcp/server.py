@@ -283,10 +283,10 @@ def vision_test(snapshot_id: str, op: str, colors: str = "", rect: list[int] | N
       find_colors     colors = 'x,y,#RRGGBB|x2,y2,#RRGGBB' (first point is the anchor); rect optional
       compare_colors  per-point expected vs actual
       find_image      template = '<project>:res/img/a.png', or template_rect = region of this snapshot
-      ocr             text lines with rects; rect optional. engine = mlkit (default) | paddle | paddle_v4
+      ocr             text lines with rects; rect optional. engine = mlkit (default) | auto | paddle | paddle_v4 | paddle_v6t | paddle_v6s
       yolo            detections; model = '<project>:res/best.onnx' or a path under the model dir; conf threshold
     rect / template_rect are [left, top, right, bottom] in screen pixels. sim is 0..1 (0.9 ≈ ±25 per channel).
-    The first paddle / yolo call loads (and may download) models, so it takes longer.
+    The first paddle / auto / yolo call loads (and may download) models, so it takes longer.
     """
     req: dict = {"snapshot": snapshot_id, "op": op, "sim": sim, "confidence": confidence}
     if engine:

@@ -328,6 +328,18 @@ def _rec_workers(threads, requested):
 
 _default = {"engine": None, "key": None}
 
+# Detection post-processing that each model family was tuned with (PaddleOCR inference.yml).
+VERSION_DEFAULTS = {
+    "v6t": {"thresh": 0.2, "box_thresh": 0.4, "unclip_ratio": 1.4},
+    "v6s": {"thresh": 0.2, "box_thresh": 0.4, "unclip_ratio": 1.4},
+}
+
+# OCR engine name (screen.ocr / set_ocr_engine) -> model version.
+ENGINES = {"paddle": "v5", "paddle_v4": "v4", "paddle_v6t": "v6t", "paddle_v6s": "v6s"}
+AUTO = "auto"
+AUTO_VERSION = "v6t"
+_auto = {"failed": None}
+
 
 def engine(version="v5", **kwargs):
     """The default PaddleOcr, built from the managed models (downloaded on first use)."""
@@ -336,10 +348,36 @@ def engine(version="v5", **kwargs):
     key = (version, tuple(sorted(kwargs.items())))
     if _default["engine"] is None or _default["key"] != key:
         files = models.paddle(version)
+        opts = dict(VERSION_DEFAULTS.get(version, {}))
+        opts.update(kwargs)
         _default["engine"] = PaddleOcr(files["det"], files["rec"], keys=files.get("keys"), cls=files.get("cls"),
-                                       **kwargs)
+                                       **opts)
         _default["key"] = key
     return _default["engine"]
+
+
+def _run_engine(name, image, rect, confidence, mlkit):
+    """OCR with engine `name` ("mlkit", "auto" or a key of ENGINES); `mlkit()` runs ML Kit.
+
+    "auto" uses PP-OCRv6 tiny and falls back to ML Kit (with one warning) when its models
+    cannot be downloaded or loaded.
+    """
+    if name == "mlkit":
+        return mlkit()
+    if name == AUTO:
+        if _auto["failed"] is None:
+            try:
+                eng = engine(AUTO_VERSION)
+            except Exception as e:  # offline, no onnxruntime, ...
+                _auto["failed"] = str(e)
+                print("xscript: ocr engine auto: PP-OCRv6 unavailable (%s), using ML Kit" % e)
+            else:
+                return eng.ocr(image, rect, confidence)
+        return mlkit()
+    version = ENGINES.get(name)
+    if version is None:
+        raise ValueError("unknown OCR engine %r (use mlkit, auto, %s)" % (name, ", ".join(sorted(ENGINES))))
+    return engine(version).ocr(image, rect, confidence)
 
 
 def ocr(rect=None, image=None, confidence=0.5, version="v5"):

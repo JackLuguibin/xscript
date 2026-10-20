@@ -159,3 +159,33 @@ class ClientTest(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class VisionTimeoutTest(unittest.TestCase):
+    def test_model_loading_engines_get_the_long_timeout(self):
+        from unittest import mock
+
+        client = DeviceClient(DeviceTarget("127.0.0.1", 9))
+        seen = []
+
+        class _Fake:
+            def __enter__(self):
+                return self
+
+            def __exit__(self, *a):
+                return False
+
+            def post(self, url, json=None):
+                resp = mock.Mock(status_code=200)
+                resp.json.return_value = {"ok": True}
+                return resp
+
+        def fake_client(timeout=None):
+            seen.append(timeout)
+            return _Fake()
+
+        with mock.patch.object(client, "_client", side_effect=fake_client), \
+                mock.patch("xscript_mcp.client._check"):
+            for engine in ("mlkit", "auto", "paddle_v6t", "paddle"):
+                client.vision({"op": "ocr", "engine": engine})
+        self.assertEqual(seen, [25, 130, 130, 130])

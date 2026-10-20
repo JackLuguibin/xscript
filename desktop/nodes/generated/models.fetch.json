@@ -6,8 +6,8 @@
     "en": "models.fetch"
   },
   "doc": {
-    "zh": "Download `url` (or each mirror + `url` if `mirrors` is given) to `directory()/name` unless present.",
-    "en": "Download `url` (or each mirror + `url` if `mirrors` is given) to `directory()/name` unless present."
+    "zh": "Download `url` (or each mirror + `url` if `mirrors` is given, or each of `urls`) to",
+    "en": "Download `url` (or each mirror + `url` if `mirrors` is given, or each of `urls`) to"
   },
   "exec": {
     "in": [
@@ -45,6 +45,11 @@
       "name": "progress",
       "type": "any",
       "default": null
+    },
+    {
+      "name": "urls",
+      "type": "any",
+      "default": null
     }
   ],
   "outputs": [
@@ -57,7 +62,7 @@
     "imports": [
       "from xscript.android import models"
     ],
-    "stmt": "{id} = models.fetch({url}, name={name}, sha256={sha256}, mirrors={mirrors}, timeout={timeout}, progress={progress})"
+    "stmt": "{id} = models.fetch({url}, name={name}, sha256={sha256}, mirrors={mirrors}, timeout={timeout}, progress={progress}, urls={urls})"
   },
   "dsl": {
     "alias": "models.fetch"

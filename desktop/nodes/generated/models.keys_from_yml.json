@@ -1,0 +1,49 @@
+{
+  "type": "models.keys_from_yml",
+  "category": "models",
+  "title": {
+    "zh": "models.keys_from_yml",
+    "en": "models.keys_from_yml"
+  },
+  "doc": {
+    "zh": "Write PostProcess.character_dict of a Paddle inference.yml as a keys file (one per line).",
+    "en": "Write PostProcess.character_dict of a Paddle inference.yml as a keys file (one per line)."
+  },
+  "exec": {
+    "in": [
+      "exec"
+    ],
+    "out": [
+      "then"
+    ]
+  },
+  "inputs": [
+    {
+      "name": "yml_path",
+      "type": "any"
+    },
+    {
+      "name": "keys_path",
+      "type": "any",
+      "default": null
+    }
+  ],
+  "outputs": [
+    {
+      "name": "result",
+      "type": "any"
+    }
+  ],
+  "py": {
+    "imports": [
+      "from xscript.android import models"
+    ],
+    "stmt": "{id} = models.keys_from_yml({yml_path}, keys_path={keys_path})"
+  },
+  "dsl": {
+    "alias": "models.keys_from_yml"
+  },
+  "since": "0.2.6",
+  "origin": "xscript.android.models.keys_from_yml",
+  "availability": "ok"
+}

@@ -77,19 +77,25 @@ def find_image(template, rect=None, confidence=0.9, rgb=False, scale_range=None,
 def find_all_images(template, rect=None, confidence=0.9, rgb=False, maxcnt=0, scale_range=None, image=None, method=None):
     ...
 OCR_MLKIT = 'mlkit'
+OCR_AUTO = 'auto'
 OCR_PADDLE = 'paddle'
 OCR_PADDLE_V4 = 'paddle_v4'
+OCR_PADDLE_V6T = 'paddle_v6t'
+OCR_PADDLE_V6S = 'paddle_v6s'
+OCR_ENGINES = ...
 
 def set_ocr_engine(name):
-    """Default OCR engine: "mlkit" (built in), "paddle" (PP-OCRv5) or "paddle_v4"."""
+    """Default OCR engine: "mlkit" (built in), "auto", "paddle" (PP-OCRv5), "paddle_v4",
+    "paddle_v6t" (PP-OCRv6 tiny) or "paddle_v6s" (PP-OCRv6 small)."""
     ...
 
 def ocr(rect=None, image=None, engine=None, confidence=None):
     """All text lines → [OcrResult(text, rect, center_x, center_y, confidence)].
 
-    engine: None (the default from set_ocr_engine), "mlkit", "paddle" or "paddle_v4".
-    PaddleOCR loads its models on first use (about 1 s per full screen afterwards), reads
-    small Chinese text better and works on emulators where ML Kit cannot run.
+    engine: None (the default from set_ocr_engine), "mlkit", "auto", "paddle" (PP-OCRv5),
+    "paddle_v4", "paddle_v6t" or "paddle_v6s". PaddleOCR models are downloaded on first use.
+    "paddle_v6t" (PP-OCRv6 tiny, ~6 MB) is the fastest and, on Chinese UI text, more accurate
+    than v5; "auto" uses it and falls back to ML Kit when it cannot be loaded.
     confidence: drop lines below it. Default 0 for ML Kit, 0.5 for PaddleOCR (which
     otherwise reports icons as low-confidence "text").
     """

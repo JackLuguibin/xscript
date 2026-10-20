@@ -6,8 +6,8 @@
     "en": "screen.set_ocr_engine"
   },
   "doc": {
-    "zh": "Default OCR engine: \"mlkit\" (built in), \"paddle\" (PP-OCRv5) or \"paddle_v4\".",
-    "en": "Default OCR engine: \"mlkit\" (built in), \"paddle\" (PP-OCRv5) or \"paddle_v4\"."
+    "zh": "Default OCR engine: \"mlkit\" (built in), \"auto\", \"paddle\" (PP-OCRv5), \"paddle_v4\",",
+    "en": "Default OCR engine: \"mlkit\" (built in), \"auto\", \"paddle\" (PP-OCRv5), \"paddle_v4\","
   },
   "exec": {
     "in": [
