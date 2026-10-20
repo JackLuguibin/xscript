@@ -1,4 +1,4 @@
-import type { CloudDevice, CloudLogLine, CloudRole, CloudStatus, CloudTask, CloudVersion } from "./api";
+import type { CloudDevice, CloudLogLine, CloudPackJob, CloudRole, CloudStatus, CloudTask, CloudVersion } from "./api";
 
 // Demo admin backend for plain-browser mode (`npm run dev`, screenshots). Same shapes as the Python cloud.* RPCs.
 // Any `xsk_…` token works: one containing "view" signs in as a viewer, "op" as an operator, anything else as admin.
@@ -55,6 +55,11 @@ export function cloudDemoHandlers(): Record<string, Handler> {
   const tasks: CloudTask[] = [
     { id: 1, name: "早班签到", target: "group:farm-1", path: "app_run", project: "daily-signin", daily: "08:30", every: null, enabled: true, lastRun: 1_791_990_000, nextRun: 1_792_076_400, lastResult: null, createdBy: "alice" },
     { id: 2, name: "夜间停止", target: "all", path: "app_stop", project: "", daily: "23:00", every: null, enabled: false, lastRun: null, nextRun: null, lastResult: null, createdBy: "alice" },
+  ];
+  const pack: CloudPackJob[] = [
+    { id: 12, status: "running", app_id: "com.demo.signin", app_name: "签到助手", version: "1.3.0", version_code: 13, project_name: "daily_signin", created_by: "alice", created_at: 1_792_000_000, finished_at: null, apk_size: null, error: "", has_apk: false, queue_position: null },
+    { id: 11, status: "done", app_id: "com.demo.signin", app_name: "签到助手", version: "1.2.0", version_code: 12, project_name: "daily_signin", created_by: "alice", created_at: 1_791_900_000, finished_at: 1_791_900_300, apk_size: 18_400_000, error: "", has_apk: true, queue_position: null },
+    { id: 10, status: "failed", app_id: "com.demo.farm", app_name: "Farm", version: "0.9.0", version_code: 9, project_name: "farm", created_by: "olga", created_at: 1_791_800_000, finished_at: 1_791_800_090, apk_size: null, error: "签名密钥不可用", has_apk: false, queue_position: null },
   ];
   const scripts = new Map<string, { id: number; versions: CloudVersion[] }>();
   const installOn = (group: string, run: boolean) => {
@@ -163,6 +168,19 @@ export function cloudDemoHandlers(): Record<string, Handler> {
       const v = [...scripts.values()].flatMap((s) => s.versions).find((x) => x.id === p.versionId) ?? fail("backend.not_found", "版本不存在");
       return { ...installOn(String(p.group), p.run !== false), scriptId: Number(p.scriptId), versionId: v.id, version: v.version };
     },
+    "cloud.console": () => {
+      needConn();
+      return { links: ["devices", "wall", "tasks", "scripts", "pack", "audit"].map((page) => ({ page, url: `${origin}/${page}` })) };
+    },
+    "cloud.packJobs": () => (needConn(), { available: true, reason: "", items: pack, total: pack.length }),
+    "cloud.packLog": (p) => ({ text: `[#${p.id}] gradle assembleRelease\n[#${p.id}] BUILD SUCCESSFUL in 41s\n`, next: 64 }),
+    "cloud.packCancel": (p) => {
+      if (role === "viewer") fail("backend.forbidden", "当前账号没有权限：权限不足");
+      const j = pack.find((x) => x.id === p.id) ?? fail("backend.not_found", "任务不存在");
+      j.status = "cancelled";
+      return { ok: true };
+    },
+    "cloud.packSave": (p) => ({ saved: true, path: `~/Downloads/demo-${p.id}.apk`, bytes: 18_400_000 }),
     "cloud.groups": () => {
       needConn();
       const names = [...new Set(devices.map((d) => d.group as string))].sort();

@@ -315,3 +315,69 @@ async def test_duplicate_version_is_reported(ctx, fb):
     await rpc(ctx, "cloud.flowDeploy", project="daily", files=PLAN, group="farm-1", version="2.0")
     r, _ = await rpc(ctx, "cloud.flowDeploy", project="daily", files=PLAN, group="farm-1", version="2.0")
     assert r["error"]["code"] == "backend.http" and "2.0" in r["error"]["message"]
+
+
+# ---- P4.6 thumbnails, console links, APK pack jobs ----------------------------------------------------------------
+
+async def test_cloud_thumbnail_goes_through_the_relay_as_bytes(ctx, fb):
+    await connected(ctx, "xsk_op")
+    data, mime = await ctx.cloud_thumb("dev-a1", 5000)
+    assert data == fb.jpeg and mime == "image/jpeg"
+    assert fb.relayed[-1] == {"method": "GET", "path": "/screen", "query": {"format": "jpg", "quality": 60, "max": 1080}, "timeout": 20}
+    with pytest.raises(BackendError) as e:
+        await ctx.cloud_thumb("dev-c3")
+    assert e.value.code == "backend.not_found"
+
+
+async def test_cloud_thumbnail_needs_operator(ctx):
+    await connected(ctx, "xsk_view")
+    with pytest.raises(BackendError) as e:
+        await ctx.cloud_thumb("dev-a1")
+    assert e.value.code == "backend.forbidden"
+
+
+async def test_console_links_carry_no_token(ctx):
+    r, _ = await rpc(ctx, "cloud.console")
+    assert r["error"]["code"] == "backend.not_configured"
+    await connected(ctx, "xsk_admin")
+    r, raw = await rpc(ctx, "cloud.console")
+    assert r["result"]["links"][0] == {"page": "devices", "url": ORIGIN + "/devices"}
+    assert {x["page"] for x in r["result"]["links"]} >= {"pack", "tasks", "audit"} and "xsk_" not in raw
+
+
+async def test_pack_jobs_log_and_cancel(ctx, fb):
+    await connected(ctx, "xsk_op")
+    r, raw = await rpc(ctx, "cloud.packJobs")
+    assert r["result"]["available"] and r["result"]["total"] == 2
+    assert r["result"]["items"][0]["id"] == 7 and r["result"]["items"][0]["has_apk"] is True
+    assert "options" not in r["result"]["items"][0] and "wss://secret" not in raw
+    r, _ = await rpc(ctx, "cloud.packLog", id=7, offset=4)
+    assert r["result"] == {"text": "line 4\n", "next": 9}
+    assert (await rpc(ctx, "cloud.packCancel", id=8))[0]["result"] == {"ok": True}
+    r, _ = await rpc(ctx, "cloud.packCancel", id=7)
+    assert r["error"]["code"] == "backend.http" and "排队" in r["error"]["message"]
+
+
+async def test_pack_save_writes_the_apk_where_the_user_chose(ctx, tmp_path):
+    await connected(ctx, "xsk_view")
+    asked = []
+
+    async def save(title, name, filt):
+        asked.append((title, name, filt))
+        return str(tmp_path / "out")
+
+    r, _ = await rpc(ctx, "cloud.packSave", id=7, name="Demo 1.2/../x.apk")
+    assert r["error"]["code"] == "app.unavailable"
+    ctx.save_file = save
+    r, _ = await rpc(ctx, "cloud.packSave", id=7, name="Demo 1.2/../x.apk")
+    assert r["result"] == {"saved": True, "path": str(tmp_path / "out.apk"), "bytes": 7}
+    assert asked[-1] == ("保存 APK", "Demo1.2..x.apk", "APK (*.apk)")
+    assert (tmp_path / "out.apk").read_bytes() == b"PK\x03\x04apk"
+    r, _ = await rpc(ctx, "cloud.packSave", id=8)
+    assert r["error"]["code"] == "backend.not_found"
+
+    async def cancel(*_a):
+        return None
+
+    ctx.save_file = cancel
+    assert (await rpc(ctx, "cloud.packSave", id=7))[0]["result"] == {"saved": False}

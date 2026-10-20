@@ -4,10 +4,13 @@ import type { CloudStatus } from "../api";
 import { errorLine } from "../errors";
 import { t } from "../strings";
 import { CloudBatch } from "./CloudBatch";
+import { CloudConsole } from "./CloudConsole";
 import { CloudDeploy } from "./CloudDeploy";
 import { CloudDevices } from "./CloudDevices";
 import { CloudLogs } from "./CloudLogs";
+import { CloudPack } from "./CloudPack";
 import { CloudTasks } from "./CloudTasks";
+import { CloudWall } from "./CloudWall";
 import { useConfirm } from "./ConfirmDialog";
 import { EmptyState } from "./EmptyState";
 import { IconCloud } from "./icons";
@@ -16,8 +19,8 @@ import { Badge, type BadgeTone } from "./ui/badge";
 import { Button } from "./ui/button";
 import { Input } from "./ui/input";
 
-export type CloudTab = "connect" | "devices" | "logs" | "tasks" | "deploy";
-const TABS: CloudTab[] = ["connect", "devices", "logs", "tasks", "deploy"];
+export type CloudTab = "connect" | "devices" | "wall" | "logs" | "tasks" | "deploy" | "pack" | "console";
+const TABS: CloudTab[] = ["connect", "devices", "wall", "logs", "tasks", "deploy", "pack", "console"];
 const TONE: Record<CloudStatus["state"], BadgeTone> = { connected: "ok", expired: "warn", unreachable: "bad", error: "bad", not_configured: "neutral" };
 
 /** Backend address + API token. The token is sent once (to the OS keyring) and the field is cleared. */
@@ -99,6 +102,12 @@ export function CloudPage() {
   let body: ReactNode = null;
   if (tab !== "connect" && !connected) {
     body = <p className="muted">{t.cloud.dev.needConnect}</p>;
+  } else if (tab === "wall" && account) {
+    body = <CloudWall account={account} />;
+  } else if (tab === "pack" && account) {
+    body = <CloudPack account={account} />;
+  } else if (tab === "console") {
+    body = <CloudConsole />;
   } else if (tab === "deploy" && account) {
     body = <CloudDeploy account={account} />;
   } else if (tab === "logs") {

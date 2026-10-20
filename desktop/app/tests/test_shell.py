@@ -151,3 +151,31 @@ def test_device_events_and_screenshot_over_scheme(shell, qtbot, mock_device):
     assert gone == "error"
     assert js(shell, qtbot, "call('device.disconnect', {id: 'adb:emulator-5554'})")["result"]["removed"] is True
     assert shell.fake.forwards == {}
+
+
+@pytest.mark.qt
+def test_cloud_thumbnail_over_scheme(shell, qtbot):
+    """The cloud wall's thumbnails come through xsapp://app/_cloudshot/<id>.jpg, fetched over the backend relay."""
+    from PySide6.QtCore import QBuffer, QByteArray, QIODevice
+    from PySide6.QtGui import QColor, QImage
+
+    from .fake_backend import ORIGIN, FakeBackend
+
+    img = QImage(8, 6, QImage.Format.Format_RGB32)
+    img.fill(QColor("teal"))
+    raw = QByteArray()
+    buf = QBuffer(raw)
+    buf.open(QIODevice.OpenModeFlag.WriteOnly)
+    img.save(buf, "JPG")
+    fb = FakeBackend()
+    fb.jpeg = bytes(raw.data())
+    shell.ctx.cloud.transport = fb.transport()
+    wait_ready(shell, qtbot)
+    r = js(shell, qtbot, "call('cloud.connect', {origin: '%s', token: 'xsk_op'})" % ORIGIN)
+    assert r["ok"], r
+    w = js(shell, qtbot, "new Promise(res => { const i = new Image(); i.onload = () => res(i.naturalWidth); i.onerror = () => res(-1); i.src = '/_cloudshot/dev-a1.jpg?max=320'; })")
+    assert w == 8
+    assert fb.relayed[-1]["query"]["max"] == 320
+    off = js(shell, qtbot, "new Promise(res => { const i = new Image(); i.onload = () => res('loaded'); i.onerror = () => res('error'); i.src = '/_cloudshot/dev-c3.jpg'; })")
+    assert off == "error"
+    assert js(shell, qtbot, "call('cloud.disconnect', {})")["ok"]

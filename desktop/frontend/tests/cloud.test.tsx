@@ -244,3 +244,52 @@ describe("CloudPage deploy (P4.5)", () => {
     expect((screen.getByLabelText(t.cloud.deploy.group) as HTMLSelectElement).disabled).toBe(true);
   });
 });
+
+describe("CloudPage screens, packaging and web console (P4.6)", () => {
+  it("shows online devices' screens and pauses", async () => {
+    await openTab("xsk_op_demo", "olga", "operator", t.cloud.tabs.wall);
+    const imgs = await screen.findAllByRole("img");
+    expect(imgs.length).toBe(10); // 12 demo phones, 2 offline
+    expect((imgs[0] as HTMLImageElement).getAttribute("src")).toMatch(/^\/_cloudshot\/farm-01\.jpg\?max=320&t=0$/);
+    fireEvent.change(screen.getByLabelText(t.cloud.dev.allGroups), { target: { value: "lab" } });
+    await waitFor(() => expect(screen.getAllByRole("img").length).toBe(2));
+    fireEvent.click(screen.getByRole("button", { name: t.cloud.wall.pause }));
+    expect(screen.getByText(t.cloud.wall.paused)).toBeTruthy();
+  });
+
+  it("escapes ids in the xsapp:// route and draws outlines in the plain-browser demo", async () => {
+    const { cloudThumbUrl } = await import("../src/api");
+    const { demoThumb } = await import("../src/components/CloudWall");
+    expect(cloudThumbUrl("farm 01/x", 3)).toBe("/_cloudshot/farm%2001%2Fx.jpg?max=320&t=3");
+    expect(decodeURIComponent(demoThumb("farm-01"))).toContain(">farm-01</text>");
+  });
+
+  it("viewers get no screens", async () => {
+    await openTab("xsk_view_demo", "victor", "viewer", t.cloud.tabs.wall);
+    expect(await screen.findByText(t.cloud.wall.viewerOnly)).toBeTruthy();
+    expect(screen.queryAllByRole("img").length).toBe(0);
+  });
+
+  it("lists pack jobs, shows a log, saves an APK and cancels a running job", async () => {
+    const { transport } = await openTab("xsk_op_demo", "olga", "operator", t.cloud.tabs.pack);
+    expect(await screen.findByText("签名密钥不可用")).toBeTruthy();
+    fireEvent.click(screen.getAllByRole("button", { name: t.cloud.pack.log })[1]);
+    expect((await screen.findByLabelText(t.cloud.pack.log)).textContent).toContain("[#11] BUILD SUCCESSFUL");
+    fireEvent.click(screen.getByRole("button", { name: t.cloud.pack.save }));
+    expect(await screen.findByText(t.cloud.pack.saved("~/Downloads/demo-11.apk"))).toBeTruthy();
+    expect(transport.sent.find((m) => m.method === "cloud.packSave")?.params).toEqual({ id: 11, name: "签到助手-1.2.0.apk" });
+    fireEvent.click(screen.getByRole("button", { name: t.cloud.pack.cancel }));
+    await screen.findByRole("alertdialog");
+    fireEvent.click(screen.getAllByRole("button", { name: t.cloud.pack.cancel }).at(-1)!);
+    expect(await screen.findByText(t.cloud.pack.status.cancelled)).toBeTruthy();
+  });
+
+  it("links into the web console without a token", async () => {
+    await openTab("xsk_admin", "alice", "admin", t.cloud.tabs.console);
+    await screen.findAllByRole("link");
+    const link = screen.getAllByRole("link").find((a) => a.textContent?.startsWith(t.cloud.console.pages.pack)) as HTMLAnchorElement;
+    expect(link.getAttribute("href")).toBe("https://cloud.example.com/pack");
+    expect(link.getAttribute("target")).toBeNull(); // the shell refuses new windows; a plain link goes to the system browser
+    for (const a of screen.getAllByRole("link")) expect(a.getAttribute("href")).not.toMatch(/xsk_|token/);
+  });
+});

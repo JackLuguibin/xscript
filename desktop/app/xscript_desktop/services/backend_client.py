@@ -56,7 +56,8 @@ class BackendClient:
         await self._http.aclose()
 
     async def request(self, method: str, path: str, *, params: dict[str, Any] | None = None, json: Any = None,
-                      files: Any = None, data: dict[str, str] | None = None, timeout: float | None = None) -> Any:
+                      files: Any = None, data: dict[str, str] | None = None, timeout: float | None = None,
+                      raw: bool = False) -> Any:
         try:
             if files is not None:  # multipart upload (script versions)
                 r = await self._http.request(method, path, params=params, files=files, data=data,
@@ -77,6 +78,8 @@ class BackendClient:
         if r.status_code >= 400:
             raise BackendError("backend.http", redact("后台返回 %d：%s" % (r.status_code, _detail(r)), self._token),
                                status=r.status_code, retryable=r.status_code >= 500)
+        if raw:
+            return r.content, r.headers.get("content-type", "application/octet-stream")
         if not r.content:
             return None
         try:
@@ -478,3 +481,56 @@ async def rollback_flow(c: BackendClient, *, script_id: int, version_id: int, gr
     """Install an earlier version on the group again (the backend keeps every uploaded version)."""
     out = await _deploy(c, script_id, version_id, _group_target(group), run)
     return {**out, "scriptId": script_id, "versionId": version_id}
+
+
+# ---- P4.6 thumbnails, web console links, APK pack jobs -------------------------------------------------------------
+MAX_APK = 300 * 1024 * 1024
+CONSOLE_PAGES = ("devices", "wall", "tasks", "scripts", "pack", "audit")
+
+
+async def thumb(c: BackendClient, dev_id: str, max_side: int = 480) -> tuple[bytes, str]:
+    """One JPEG of a cloud device's screen through the backend relay (operator+; GET /screen is on its allow list)."""
+    body = {"method": "GET", "path": "/screen", "query": {"format": "jpg", "quality": 60, "max": max(64, min(int(max_side), 1080))},
+            "timeout": 20}
+    data, mime = await c.request("POST", _dev_path(dev_id) + "/http", json=body, raw=True, timeout=30)
+    if not mime.startswith("image/"):
+        raise BackendError("backend.bad_response", "设备没有返回图片")
+    return data, mime.split(";")[0]
+
+
+def console_links(origin: str) -> list[dict[str, str]]:
+    """Deep links into the web console. They open in the system browser, which has its own console session: the
+    desktop's API token never leaves the keyring and is never put into a URL or a web view."""
+    return [{"page": p, "url": "%s/%s" % (origin, p)} for p in CONSOLE_PAGES]
+
+
+def pack_job_view(j: dict[str, Any]) -> dict[str, Any]:
+    keys = ("id", "status", "app_id", "app_name", "version", "version_code", "project_name", "created_by", "created_at",
+            "finished_at", "apk_size", "error", "has_apk", "queue_position")
+    out = {k: j.get(k) for k in keys}
+    out["has_apk"] = bool(out["has_apk"])
+    return out
+
+
+async def pack_jobs(c: BackendClient, page: int = 1) -> dict[str, Any]:
+    info = await c.get("/pack/info")
+    r = await c.get("/pack/jobs", page=max(1, page), page_size=20)
+    return {"available": bool((info or {}).get("available")), "reason": str((info or {}).get("reason") or ""),
+            "items": [pack_job_view(j) for j in (r or {}).get("items", []) if isinstance(j, dict)], "total": int((r or {}).get("total") or 0)}
+
+
+async def pack_log(c: BackendClient, job_id: int, offset: int = 0) -> dict[str, Any]:
+    r = await c.get("/pack/jobs/%d/log" % job_id, offset=max(0, offset))
+    return {"text": str((r or {}).get("text") or ""), "next": int((r or {}).get("next") or 0)}
+
+
+async def pack_cancel(c: BackendClient, job_id: int) -> dict[str, Any]:
+    await c.post("/pack/jobs/%d/cancel" % job_id)
+    return {"ok": True}
+
+
+async def pack_apk(c: BackendClient, job_id: int) -> bytes:
+    data, mime = await c.request("GET", "/pack/jobs/%d/apk" % job_id, raw=True, timeout=300)
+    if len(data) > MAX_APK or not data.startswith(b"PK"):
+        raise BackendError("backend.bad_response", "后台返回的不是 APK")
+    return data

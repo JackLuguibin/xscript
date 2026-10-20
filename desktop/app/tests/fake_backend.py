@@ -61,6 +61,24 @@ class FakeBackend:
                    lambda req, user, m: {"items": sorted(self.versions.get(int(m["id"]), []), key=lambda v: -v["version_code"])})
         self.route("POST", r"/scripts/(?P<id>\d+)/versions", "operator", self._version_upload)
         self.route("POST", r"/scripts/(?P<id>\d+)/deploy", "admin", self._deploy)
+        self.jpeg = b"\xff\xd8\xff\xe0fake-jpeg"
+        self.relayed: list[dict[str, Any]] = []
+        self.pack = [{"id": 7, "status": "done", "app_id": "com.demo.app", "app_name": "Demo", "version": "1.2", "version_code": 3,
+                      "project_name": "daily", "options": {"cloud_url": "wss://secret"}, "created_by": "alice", "created_at": 1,
+                      "started_at": 2, "finished_at": 3, "apk_size": 4, "error": "", "has_apk": True, "queue_position": None},
+                     {"id": 8, "status": "running", "app_id": "com.demo.app", "app_name": "Demo", "version": "1.3", "version_code": 4,
+                      "project_name": "daily", "options": {}, "created_by": "alice", "created_at": 5, "started_at": 6,
+                      "finished_at": None, "apk_size": None, "error": "", "has_apk": False, "queue_position": None}]
+        self.route("POST", r"/devices/(?P<id>[^/]+)/http", "operator", self._relay)
+        self.route("GET", r"/pack/info", "viewer", lambda req, user, m: {"available": True, "reason": "", "mode": "local"})
+        self.route("GET", r"/pack/jobs", "viewer", lambda req, user, m: {"items": self.pack, "total": len(self.pack)})
+        self.route("GET", r"/pack/jobs/(?P<id>\d+)/log", "viewer",
+                   lambda req, user, m: {"text": "line %s\n" % req.url.params.get("offset", "0"), "next": 9})
+        self.route("POST", r"/pack/jobs/(?P<id>\d+)/cancel", "operator",
+                   lambda req, user, m: {"ok": True} if m["id"] == "8" else (400, {"detail": "任务不在排队或运行中"}))
+        self.route("GET", r"/pack/jobs/(?P<id>\d+)/apk", "viewer",
+                   lambda req, user, m: httpx.Response(200, content=b"PK\x03\x04apk", headers={"content-type": "application/vnd.android.package-archive"})
+                   if m["id"] == "7" else httpx.Response(404, json={"detail": "没有 APK"}))
         self.route("GET", r"/auth/me", "viewer", lambda req, user, m: {"id": 1, "username": user[0], "role": user[1], "disabled": False})
 
     def _devices(self, req: httpx.Request, user: Any, m: Any) -> dict[str, Any]:
@@ -71,6 +89,15 @@ class FakeBackend:
                 and (qp.get("online") is None or d["online"] == (qp["online"] == "true"))]
         page, size = int(qp.get("page", 1)), int(qp.get("page_size", 50))
         return {"items": rows[(page - 1) * size: page * size], "total": len(rows)}
+
+    def _relay(self, req: httpx.Request, user: Any, m: Any) -> Any:
+        from urllib.parse import unquote
+        body = json.loads(req.content)
+        self.relayed.append(body)
+        dev = next((d for d in self.devices if d["id"] == unquote(m["id"])), None)
+        if dev is None or not dev["online"]:
+            return 404, {"detail": "设备离线"}
+        return httpx.Response(200, content=self.jpeg, headers={"content-type": "image/jpeg"})
 
     def _command(self, req: httpx.Request, user: Any, m: Any) -> dict[str, Any]:
         body = json.loads(req.content)
@@ -170,6 +197,8 @@ class FakeBackend:
                 if role != "any" and (user[1] == "reseller" and pat.pattern != "^/api/auth/me$" or LEVEL.get(user[1], -1) < LEVEL[role]):
                     return httpx.Response(403, json={"detail": "权限不足"})
                 out = fn(request, user, m)
+                if isinstance(out, httpx.Response):
+                    return out
                 status, out = out if isinstance(out, tuple) else (200, out)
                 return httpx.Response(status, json=out)
         return httpx.Response(404, json={"detail": "Not Found"})

@@ -606,3 +606,8 @@ pre.logs.debug-console { min-height: 4rem; max-height: 10rem; }
 .cloud-log time { color: var(--text-muted); margin-inline-end: var(--sp-2); }
 .cloud-form { display: grid; grid-template-columns: repeat(auto-fill, minmax(12rem, 1fr)); gap: var(--sp-2) var(--sp-3); align-items: end; }
 .cloud-form .stack { display: flex; flex-direction: column; gap: var(--sp-1); }
+.cloud-wall .wall-card img { cursor: default; aspect-ratio: 9 / 19.5; object-fit: contain; }
+.cloud-links { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(auto-fill, minmax(14rem, 1fr)); gap: var(--sp-2); }
+.cloud-links a { display: flex; flex-direction: column; gap: var(--sp-1); padding: var(--sp-3); border: 1px solid var(--border); border-radius: var(--r-sm); background: var(--surface); color: var(--text); text-decoration: none; }
+.cloud-links a:hover, .cloud-links a:focus-visible { border-color: var(--primary); }
+.cloud-links .mono { font-family: var(--font-mono); font-size: var(--fs-xs); color: var(--text-muted); overflow-wrap: anywhere; }
