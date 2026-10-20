@@ -120,6 +120,9 @@ class ResellerTest(unittest.TestCase):
     def test_quota_is_enforced_and_never_refunded(self):
         uid, c = self.reseller("r_quota", quota=3)
         self.assertEqual(c.get("/api/reseller/me").json()["left"], 3)
+        self.admin.put("/api/resellers/%d" % uid, json={"apps": ["*"], "kinds": ["normal"], "max_days": 30,
+                                                        "max_devices": 1, "max_uses": 1, "note": "内部备注"})
+        self.assertNotIn("note", c.get("/api/reseller/me").json())
         r = self.batch(c, 4)
         self.assertEqual(r.status_code, 403)
         self.assertIn("额度不足", r.json()["error"])
@@ -201,6 +204,9 @@ class ResellerTest(unittest.TestCase):
         self.assertIn(("admin", "reseller.quota"), actions)
         self.assertTrue(all(x["actor"] in ("r_stats", "admin") for x in rows))
         self.assertFalse(any(x["target"] == "r_stats_other" for x in rows))
+        cards_only = c.get("/api/reseller/audit", params={"action": "card."}).json()["items"]
+        self.assertTrue(cards_only and all(x["action"].startswith("card.") for x in cards_only))
+        self.assertEqual(c.get("/api/reseller/audit", params={"since": int(time.time()) + 3600}).json()["total"], 0)
         staff_audit = self.admin.get("/api/audit", params={"actor": "r_stats"}).json()["items"]
         self.assertTrue(any(x["action"] == "card.create" and x["detail"].get("reseller") for x in staff_audit))
 

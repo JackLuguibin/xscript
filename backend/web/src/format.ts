@@ -52,7 +52,7 @@ export const COMMAND_LABELS: Record<string, string> = {
   message: "发消息",
 };
 
-export const ROLE_LABELS: Record<string, string> = { viewer: "只读", operator: "操作员", admin: "管理员" };
+export const ROLE_LABELS: Record<string, string> = { viewer: "只读", operator: "操作员", admin: "管理员", reseller: "代理" };
 
 export function copy(text: string): Promise<void> {
   if (navigator.clipboard && window.isSecureContext) return navigator.clipboard.writeText(text);

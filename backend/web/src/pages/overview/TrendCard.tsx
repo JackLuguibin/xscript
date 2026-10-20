@@ -1,12 +1,27 @@
 import { useEffect, useId, useMemo, useRef, useState, type KeyboardEvent } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Card, Empty, Segmented, Skeleton, Tooltip } from "antd";
-import { api, type DailyStats, type TrendKey } from "../../api";
+import { api, type TrendData } from "../../api";
 
-export const TREND_SERIES: { key: TrendKey; label: string; color: string; total: (d: DailyStats) => number; unit: string }[] = [
+export interface SeriesDef {
+  key: string;
+  label: string;
+  color: string;
+  total: (d: TrendData) => number;
+  unit: string;
+}
+
+export const TREND_SERIES: SeriesDef[] = [
   { key: "activations", label: "激活", color: "var(--xs-violet)", total: (d) => d.totals.activations, unit: "张" },
   { key: "online_devices", label: "在线设备", color: "var(--xs-green)", total: (d) => d.totals.online_peak, unit: "台峰值" },
   { key: "new_devices", label: "新设备", color: "var(--xs-blue)", total: (d) => d.totals.new_devices, unit: "台" },
+  { key: "expirations", label: "到期", color: "var(--xs-amber)", total: (d) => d.totals.expirations, unit: "张" },
+];
+
+/** A 代理's cards: generated, activated and expired per day (no fleet-wide device numbers). */
+export const CARD_TREND_SERIES: SeriesDef[] = [
+  { key: "created", label: "生成", color: "var(--xs-blue)", total: (d) => d.totals.created, unit: "张" },
+  { key: "activations", label: "激活", color: "var(--xs-violet)", total: (d) => d.totals.activations, unit: "张" },
   { key: "expirations", label: "到期", color: "var(--xs-amber)", total: (d) => d.totals.expirations, unit: "张" },
 ];
 
@@ -45,7 +60,7 @@ function useWidth(fallback = 720) {
   return [ref, w] as const;
 }
 
-function Chart({ data, shown }: { data: DailyStats; shown: TrendKey[] }) {
+function Chart({ data, shown, defs }: { data: TrendData; shown: string[]; defs: SeriesDef[] }) {
   const [hover, setHover] = useState<number | null>(null);
   const [box, W] = useWidth();
   const titleId = useId();
@@ -58,7 +73,7 @@ function Chart({ data, shown }: { data: DailyStats; shown: TrendKey[] }) {
   const every = Math.max(1, Math.ceil(n / Math.max(4, Math.floor(W / 90))));
   // Regular ticks, plus the last day unless a regular tick sits too close to it.
   const showX = (i: number) => i === n - 1 || (i % every === 0 && n - 1 - i >= Math.ceil(every * 0.7));
-  const series = TREND_SERIES.filter((s) => shown.includes(s.key));
+  const series = defs.filter((s) => shown.includes(s.key));
 
   const onKey = (e: KeyboardEvent) => {
     if (e.key === "ArrowRight" || e.key === "ArrowLeft") {
@@ -198,24 +213,41 @@ function Ranking({ title, rows }: { title: string; rows: { name: string; count: 
   );
 }
 
-/** 概览 趋势: 激活 / 在线设备 / 新设备 / 到期 by server-local day, with app and batch rankings. */
-export default function TrendCard() {
+/**
+ * 按天趋势 by server-local day with app and batch rankings. Defaults to the 概览 card (激活 / 在线设备 / 新设备 /
+ * 到期 from /api/stats/daily); the 代理 pages pass their own endpoint and CARD_TREND_SERIES.
+ */
+export default function TrendCard({
+  title = "趋势",
+  url = (days: number) => `/api/stats/daily?days=${days}`,
+  cacheKey = "stats-daily",
+  defs = TREND_SERIES,
+  defaultHidden = ["expirations"],
+  emptyText = "所选时间段内还没有激活或设备数据",
+}: {
+  title?: string;
+  url?: (days: number) => string;
+  cacheKey?: string;
+  defs?: SeriesDef[];
+  defaultHidden?: string[];
+  emptyText?: string;
+}) {
   const [days, setDays] = useState(30);
-  const [hidden, setHidden] = useState<TrendKey[]>(["expirations"]);
+  const [hidden, setHidden] = useState<string[]>(defaultHidden);
   const { data, isLoading, isError } = useQuery({
-    queryKey: ["stats-daily", days],
-    queryFn: () => api.get<DailyStats>(`/api/stats/daily?days=${days}`),
+    queryKey: [cacheKey, days],
+    queryFn: () => api.get<TrendData>(url(days)),
     staleTime: 60_000,
     placeholderData: (prev) => prev,
   });
-  const shown = useMemo(() => TREND_SERIES.map((s) => s.key).filter((k) => !hidden.includes(k)), [hidden]);
-  const empty = data && TREND_SERIES.every((s) => data.series[s.key].every((v) => v === 0));
-  const toggle = (k: TrendKey) =>
-    setHidden((h) => (h.includes(k) ? h.filter((x) => x !== k) : h.length >= TREND_SERIES.length - 1 ? h : [...h, k]));
+  const shown = useMemo(() => defs.map((s) => s.key).filter((k) => !hidden.includes(k)), [defs, hidden]);
+  const empty = data && defs.every((s) => (data.series[s.key] ?? []).every((v) => v === 0));
+  const toggle = (k: string) =>
+    setHidden((h) => (h.includes(k) ? h.filter((x) => x !== k) : h.length >= defs.length - 1 ? h : [...h, k]));
 
   return (
     <Card
-      title="趋势"
+      title={title}
       className="trend-card"
       extra={<Segmented size="small" options={RANGES} value={days} onChange={(v) => setDays(Number(v))} aria-label="时间范围" />}
     >
@@ -226,7 +258,7 @@ export default function TrendCard() {
       ) : (
         <>
           <div className="trend-legend" role="group" aria-label="显示的数据">
-            {TREND_SERIES.map((s) => {
+            {defs.map((s) => {
               const on = shown.includes(s.key);
               return (
                 <button key={s.key} type="button" aria-pressed={on} className={on ? "on" : ""} onClick={() => toggle(s.key)}>
@@ -239,9 +271,9 @@ export default function TrendCard() {
             })}
           </div>
           {empty ? (
-            <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="所选时间段内还没有激活或设备数据" />
+            <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description={emptyText} />
           ) : (
-            <Chart data={data} shown={shown} />
+            <Chart data={data} shown={shown} defs={defs} />
           )}
           <div className="trend-foot">
             <Ranking title="激活最多的小程序" rows={data.by_app} />
