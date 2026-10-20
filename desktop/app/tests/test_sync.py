@@ -24,10 +24,11 @@ def test_syncignore_same_cases_as_vscode_extension():
     assert s.IgnoreRules("a**b\nx+y.py\n").ignores("a/q/b", False) and s.IgnoreRules("x+y.py").ignores("x+y.py", False)
 
 
+# newline="\n": these tests compare exact bytes and sizes; write_text would write \r\n on Windows.
 def test_collect_files_skips_and_encodes(tmp_path):
-    (tmp_path / "__init__.py").write_text("print(1)\n")
+    (tmp_path / "__init__.py").write_text("print(1)\n", newline="\n")
     (tmp_path / "lib").mkdir()
-    (tmp_path / "lib" / "a.py").write_text("A = '中'\n", "utf-8")
+    (tmp_path / "lib" / "a.py").write_text("A = '中'\n", "utf-8", newline="\n")
     (tmp_path / "img.png").write_bytes(b"\x89PNG\x00\xff")
     (tmp_path / "bad.txt").write_bytes(b"\xff\xfe")
     for skip in ("__pycache__", "node_modules", ".git", "venv"):
@@ -56,8 +57,8 @@ def test_collect_files_refuses_huge_folders(tmp_path, monkeypatch):
 
 
 def test_plan_upload_same_rules_as_vscode_extension(tmp_path):
-    (tmp_path / "__init__.py").write_text("print(1)\n")
-    (tmp_path / "b.py").write_text("B = 1\n")
+    (tmp_path / "__init__.py").write_text("print(1)\n", newline="\n")
+    (tmp_path / "b.py").write_text("B = 1\n", newline="\n")
     files = s.collect_files(tmp_path)
     first = s.plan_upload(files, None, {})
     assert len(first.upload) == 2  # project missing on the device: everything goes
@@ -65,7 +66,7 @@ def test_plan_upload_same_rules_as_vscode_extension(tmp_path):
     assert len(s.plan_upload(files, remote, {}).upload) == 2  # no cache: everything goes
     same = s.plan_upload(files, remote, first.hashes)
     assert same.upload == [] and same.skipped == ["__init__.py", "b.py"]
-    (tmp_path / "b.py").write_text("B = 2\n")  # same size, new content
+    (tmp_path / "b.py").write_text("B = 2\n", newline="\n")  # same size, new content
     assert [f.path for f in s.plan_upload(s.collect_files(tmp_path), remote, first.hashes).upload] == ["b.py"]
     assert [f.path for f in s.plan_upload(files, [r for r in remote if r["path"] != "b.py"], first.hashes).upload] == ["b.py"]
     resized = [dict(r, size=99) if r["path"] == "b.py" else r for r in remote]
