@@ -29,8 +29,12 @@ public = APIRouter(prefix="/license", tags=["license"])
 APP_PATTERN = r"^(\*|[a-zA-Z][a-zA-Z0-9_]*(\.[a-zA-Z][a-zA-Z0-9_]*)+)$"
 
 
-def _filtered(q: str, status: str, app: str, batch: str, kind: str = ""):
+def _filtered(q: str, status: str, app: str, batch: str, kind: str = "", owner: int = 0):
     stmt = select(Card)
+    if owner > 0:  # one 代理's cards
+        stmt = stmt.where(Card.owner_id == owner)
+    elif owner < 0:  # staff-created cards only
+        stmt = stmt.where(Card.owner_id.is_(None))
     if kind:
         stmt = stmt.where(Card.kind == kind)
     if q:
@@ -51,8 +55,8 @@ def _filtered(q: str, status: str, app: str, batch: str, kind: str = ""):
 
 @router.get("")
 def list_cards(p: Principal = Depends(viewer), s: Session = Depends(db_session), q: str = "", status: str = "",
-               app: str = "", batch: str = "", kind: str = "", page: int = 1, page_size: int = 50):
-    stmt = _filtered(q, status, app, batch, kind)
+               app: str = "", batch: str = "", kind: str = "", owner: int = 0, page: int = 1, page_size: int = 50):
+    stmt = _filtered(q, status, app, batch, kind, owner)
     total = s.scalar(select(func.count()).select_from(stmt.subquery())) or 0
     off, size = paginate(page, page_size)
     now = time.time()
@@ -151,9 +155,10 @@ def create_batch(body: BatchIn, request: Request, p: Principal = Depends(operato
 
 @router.get("/export")
 def export_cards(request: Request, p: Principal = Depends(operator), s: Session = Depends(db_session),
-                 q: str = "", status: str = "", app: str = "", batch: str = "", kind: str = ""):
+                 q: str = "", status: str = "", app: str = "", batch: str = "", kind: str = "", owner: int = 0):
     now = time.time()
-    rows = [cardsvc.to_dict(c, now) for c in s.scalars(_filtered(q, status, app, batch, kind).order_by(Card.created_at))]
+    rows = [cardsvc.to_dict(c, now) for c in s.scalars(_filtered(q, status, app, batch, kind, owner)
+                                                        .order_by(Card.created_at))]
     record(request, s, p, "card.export", batch or status or "all", {"count": len(rows)})
     s.commit()
     buf = io.StringIO()

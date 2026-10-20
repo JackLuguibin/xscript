@@ -12,7 +12,7 @@ from sqlalchemy.orm import Session
 
 from .. import totp
 from ..audit import get_settings
-from ..deps import SESSION_COOKIE, Principal, client_ip, ctx, current_user, db_session, ip_allowed, record, viewer
+from ..deps import SESSION_COOKIE, Principal, client_ip, ctx, current_user, db_session, ip_allowed, record, signed_in
 from ..models import AuthToken, User
 from ..security import DUMMY_HASH, check_password_policy, hash_password, new_secret, token_hash, verify_password
 
@@ -121,7 +121,7 @@ def logout(request: Request, response: Response, p: Principal = Depends(current_
 
 
 @router.get("/me")
-def me(p: Principal = Depends(viewer), s: Session = Depends(db_session)):
+def me(p: Principal = Depends(signed_in), s: Session = Depends(db_session)):
     return user_out(s.get(User, p.id), _require_totp(s))
 
 
@@ -137,7 +137,7 @@ class TotpDisable(BaseModel):
 
 
 @router.post("/totp/setup")
-def totp_setup(request: Request, p: Principal = Depends(viewer), s: Session = Depends(db_session)):
+def totp_setup(request: Request, p: Principal = Depends(signed_in), s: Session = Depends(db_session)):
     """Start enrolment: a new pending secret and the otpauth:// URI for the QR code."""
     if p.via != "web":
         raise HTTPException(403, "只能在网页里设置两步验证")
@@ -166,7 +166,7 @@ def _secret_failed(request: Request, key: str, msg: str) -> HTTPException:
 
 
 @router.post("/totp/enable")
-def totp_enable(body: TotpCode, request: Request, p: Principal = Depends(viewer), s: Session = Depends(db_session)):
+def totp_enable(body: TotpCode, request: Request, p: Principal = Depends(signed_in), s: Session = Depends(db_session)):
     user = s.get(User, p.id)
     if user.totp_enabled or not user.totp_secret:
         raise HTTPException(400, "先获取二维码")
@@ -185,7 +185,7 @@ def totp_enable(body: TotpCode, request: Request, p: Principal = Depends(viewer)
 
 
 @router.post("/totp/disable")
-def totp_disable(body: TotpDisable, request: Request, p: Principal = Depends(viewer),
+def totp_disable(body: TotpDisable, request: Request, p: Principal = Depends(signed_in),
                  s: Session = Depends(db_session)):
     user = s.get(User, p.id)
     if not user.totp_enabled:
@@ -206,7 +206,7 @@ def totp_disable(body: TotpDisable, request: Request, p: Principal = Depends(vie
 
 
 @router.post("/password")
-def change_password(body: PasswordIn, request: Request, p: Principal = Depends(viewer),
+def change_password(body: PasswordIn, request: Request, p: Principal = Depends(signed_in),
                     s: Session = Depends(db_session)):
     user = s.get(User, p.id)
     key = _secret_guard(request, p)
@@ -227,7 +227,7 @@ def change_password(body: PasswordIn, request: Request, p: Principal = Depends(v
 
 
 @router.get("/sessions")
-def list_sessions(p: Principal = Depends(viewer), s: Session = Depends(db_session)):
+def list_sessions(p: Principal = Depends(signed_in), s: Session = Depends(db_session)):
     """This user's browser sessions (登录设备)."""
     now = int(time.time())
     rows = s.scalars(select(AuthToken).where(AuthToken.user_id == p.id, AuthToken.kind == "web",
@@ -238,7 +238,7 @@ def list_sessions(p: Principal = Depends(viewer), s: Session = Depends(db_sessio
 
 
 @router.delete("/sessions/{session_id}")
-def end_session(session_id: int, request: Request, p: Principal = Depends(viewer), s: Session = Depends(db_session)):
+def end_session(session_id: int, request: Request, p: Principal = Depends(signed_in), s: Session = Depends(db_session)):
     row = s.get(AuthToken, session_id)
     if row is None or row.user_id != p.id or row.kind != "web":
         raise HTTPException(404, "会话不存在")
@@ -249,7 +249,7 @@ def end_session(session_id: int, request: Request, p: Principal = Depends(viewer
 
 
 @router.post("/sessions/logout-others")
-def end_other_sessions(request: Request, p: Principal = Depends(viewer), s: Session = Depends(db_session)):
+def end_other_sessions(request: Request, p: Principal = Depends(signed_in), s: Session = Depends(db_session)):
     res = s.execute(delete(AuthToken).where(AuthToken.user_id == p.id, AuthToken.kind == "web",
                                             AuthToken.id != (p.token_id if p.via == "web" else -1)))
     record(request, s, p, "auth.logout_others", "", {"count": res.rowcount or 0})
@@ -258,7 +258,7 @@ def end_other_sessions(request: Request, p: Principal = Depends(viewer), s: Sess
 
 
 @router.get("/tokens")
-def list_tokens(p: Principal = Depends(viewer), s: Session = Depends(db_session)):
+def list_tokens(p: Principal = Depends(signed_in), s: Session = Depends(db_session)):
     rows = s.scalars(select(AuthToken).where(AuthToken.user_id == p.id, AuthToken.kind == "api")
                      .order_by(AuthToken.id.desc()))
     return {"items": [{"id": t.id, "name": t.name, "created_at": t.created_at, "expires_at": t.expires_at,
@@ -266,7 +266,7 @@ def list_tokens(p: Principal = Depends(viewer), s: Session = Depends(db_session)
 
 
 @router.post("/tokens")
-def create_token(body: TokenIn, request: Request, p: Principal = Depends(viewer), s: Session = Depends(db_session)):
+def create_token(body: TokenIn, request: Request, p: Principal = Depends(signed_in), s: Session = Depends(db_session)):
     if p.via != "web":
         raise HTTPException(403, "API 令牌只能在网页里创建")
     token = new_secret("xsk_")
@@ -281,7 +281,7 @@ def create_token(body: TokenIn, request: Request, p: Principal = Depends(viewer)
 
 
 @router.delete("/tokens/{token_id}")
-def delete_token(token_id: int, request: Request, p: Principal = Depends(viewer), s: Session = Depends(db_session)):
+def delete_token(token_id: int, request: Request, p: Principal = Depends(signed_in), s: Session = Depends(db_session)):
     row = s.get(AuthToken, token_id)
     if row is None or row.user_id != p.id or row.kind != "api":
         raise HTTPException(404, "令牌不存在")

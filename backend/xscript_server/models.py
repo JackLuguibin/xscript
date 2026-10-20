@@ -156,6 +156,9 @@ class Card(Base):
     # 按次卡 (count): each app launch reports one use; the card stops working at 0 uses left.
     uses_total: Mapped[int] = mapped_column(Integer, default=0)
     uses_left: Mapped[int] = mapped_column(Integer, default=0)
+    # 代理: the reseller account that generated the card (None = created by staff). Kept when the account
+    # is deleted so sales history stays attributable.
+    owner_id: Mapped[int | None] = mapped_column(Integer, default=None, index=True)
     extras: Mapped[list["CardDevice"]] = relationship(cascade="all, delete-orphan", lazy="selectin",
                                                        order_by="CardDevice.id")
 
@@ -220,6 +223,24 @@ class AppUpdate(Base):
     notes: Mapped[str] = mapped_column(Text, default="")
     updated_by: Mapped[str] = mapped_column(String(64), default="")
     updated_at: Mapped[int] = mapped_column(Integer, default=now)
+
+
+class Reseller(Base):
+    """代理 limits for a user with role=reseller. quota counts cards the reseller may ever generate;
+    used only grows (revoking or deleting a card does not refund it)."""
+
+    __tablename__ = "resellers"
+
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), primary_key=True)
+    quota: Mapped[int] = mapped_column(Integer, default=0)
+    used: Mapped[int] = mapped_column(Integer, default=0)
+    apps: Mapped[list[str]] = mapped_column(JSON, default=list)        # allowed app packages; ["*"] = any
+    kinds: Mapped[list[str]] = mapped_column(JSON, default=list)       # normal | trial | count
+    max_days: Mapped[float] = mapped_column(Float, default=365.0)      # 0 = permanent cards allowed
+    max_devices: Mapped[int] = mapped_column(Integer, default=1)
+    max_uses: Mapped[int] = mapped_column(Integer, default=1000)       # 按次卡 uses per card
+    note: Mapped[str] = mapped_column(String(255), default="")
+    created_at: Mapped[int] = mapped_column(Integer, default=now)
 
 
 class AuditLog(Base):

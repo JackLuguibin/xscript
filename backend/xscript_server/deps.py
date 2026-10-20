@@ -129,6 +129,18 @@ def require(role: str) -> Callable[..., Principal]:
     return dep
 
 
+def signed_in(p: Principal = Depends(current_user)) -> Principal:
+    """Any account, including 代理 (role=reseller): only for an account's own settings and sessions."""
+    return p
+
+
+def reseller_only(p: Principal = Depends(current_user)) -> Principal:
+    """代理 console endpoints. Resellers have no rank in ROLES, so every staff endpoint refuses them."""
+    if p.role != "reseller":
+        raise HTTPException(403, "仅代理账号可用")
+    return p
+
+
 viewer = require("viewer")
 operator = require("operator")
 admin = require("admin")

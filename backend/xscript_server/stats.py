@@ -30,7 +30,10 @@ def day_range(days: int, now: float | None = None) -> tuple[list[str], int]:
     return labels, int(first)
 
 
-def daily(s: Session, days: int = 30, app: str = "", batch: str = "", now: float | None = None) -> dict[str, Any]:
+def daily(s: Session, days: int = 30, app: str = "", batch: str = "", now: float | None = None,
+          owner_id: int | None = None, cards_only: bool = False) -> dict[str, Any]:
+    """Trend series. owner_id limits card series to one reseller's cards; cards_only leaves out the device
+    series (a reseller must not see fleet-wide device numbers)."""
     now = time.time() if now is None else now
     labels, start = day_range(days, now)
     index = {d: i for i, d in enumerate(labels)}
@@ -48,6 +51,8 @@ def daily(s: Session, days: int = 30, app: str = "", batch: str = "", now: float
         card_filter.append(Card.app == app)
     if batch:
         card_filter.append(Card.batch == batch)
+    if owner_id is not None:
+        card_filter.append(Card.owner_id == owner_id)
 
     act_rows = s.execute(select(Card.activated_at, Card.app, Card.batch)
                          .where(Card.activated_at.is_not(None), Card.activated_at >= start, *card_filter)).all()
@@ -56,6 +61,23 @@ def daily(s: Session, days: int = 30, app: str = "", batch: str = "", now: float
         Card.revoked.is_(False), *card_filter)).all()
     upcoming = s.scalar(select(func.count()).select_from(Card).where(
         Card.expires_at > now, Card.expires_at <= now + 7 * 86400, Card.revoked.is_(False), *card_filter)) or 0
+
+    def top(values, limit=8):
+        return [{"name": k or "(全部)", "count": n} for k, n in Counter(values).most_common(limit)]
+
+    activations = series(r[0] for r in act_rows)
+    expirations = series(exp_rows)
+    if cards_only:
+        created = series(s.scalars(select(Card.created_at).where(Card.created_at >= start, *card_filter)).all())
+        return {
+            "days": labels,
+            "series": {"created": created, "activations": activations, "expirations": expirations},
+            "totals": {"created": sum(created), "activations": sum(activations), "expirations": sum(expirations)},
+            "expiring_7d": upcoming,
+            "by_app": top(r[1] for r in act_rows),
+            "by_batch": top(r[2] for r in act_rows if r[2]),
+            "timezone": time.strftime("%z", time.localtime(now)),
+        }
 
     dev_filter = [Device.app == app] if app else []
     new_rows = s.scalars(select(Device.first_seen).where(Device.first_seen >= start, *dev_filter)).all()
@@ -67,11 +89,6 @@ def daily(s: Session, days: int = 30, app: str = "", batch: str = "", now: float
         if d in index:
             online[index[d]] = int(n)
 
-    def top(values, limit=8):
-        return [{"name": k or "(全部)", "count": n} for k, n in Counter(values).most_common(limit)]
-
-    activations = series(r[0] for r in act_rows)
-    expirations = series(exp_rows)
     new_devices = series(new_rows)
     return {
         "days": labels,
