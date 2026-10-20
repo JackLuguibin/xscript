@@ -492,7 +492,7 @@
     ]
   },
   "scripts": {
-    "compile": "tsc -p . && node scripts/copy-stubs.js",
+    "compile": "tsc -p . && node scripts/copy-stubs.js && node scripts/copy-ui-form.js",
     "watch": "tsc -watch -p .",
     "test": "node --test \"out/test/**/*.test.js\"",
     "vscode:prepublish": "npm run compile",

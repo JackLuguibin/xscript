@@ -29,6 +29,8 @@ android/app/build-pack-gen/
 node_modules/
 ide/vscode-extension/out/
 ide/vscode-extension/stubs/
+ide/vscode-extension/media/ui-form.js
+ide/vscode-extension/media/ui-designer.js
 *.vsix
 
 # 管理后台 data directory (database, 卡密 signing key, pack jobs) and legacy files

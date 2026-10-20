@@ -8,6 +8,13 @@ usage: scripts/device_scheme_e2e.py [--no-browser] SERIAL DEVICE_URL [PACKAGE]  
        XS_APP_LABEL (give that build a distinct label) and the script picks it "Just once"; without it the script
        stops instead of guessing, so it never opens a different app.
 (needs `adb forward` to the device API; the emulator reaches this Mac as 10.0.2.2)
+Emulator notes:
+  - Start the emulator with `-gpu host` (e.g. `emulator -avd NAME -no-window -gpu host`). A headless emulator
+    otherwise falls back to software rendering (lavapipe / swiftshader_indirect); Chrome's GPU process keeps
+    crashing there and the page stays blank, so the browser checks cannot tap anything. Chrome's own
+    --disable-gpu flags do not help on Android (the browser process aborts). --no-browser needs no GPU.
+  - With more than one device attached, also set ANDROID_SERIAL to SERIAL: devauth.py reads the pairing code
+    over adb and otherwise cannot pick a device (the run then fails with HTTP 401).
 
 Serves a small page, opens it in Chrome with an adb VIEW intent, and taps real links (uiautomator
 taps, so Chrome sees genuine user gestures). Covers: confirm dialog (caller shown, cancel, run), launch

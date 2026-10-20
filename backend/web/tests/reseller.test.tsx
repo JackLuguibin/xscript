@@ -19,16 +19,31 @@ const limits = { quota: 100, used: 5, left: 95, apps: ["com.demo.app"], kinds: [
 const trend = { days: ["2026-10-19"], series: { created: [5], activations: [2], expirations: [0] },
   totals: { created: 5, activations: 2, expirations: 0 }, expiring_7d: 0, by_app: [], by_batch: [], timezone: "UTC" };
 
+const ledger = {
+  items: [
+    { id: 2, time: 1792500000, kind: "payment", amount_cents: 1500, batch: "", count: 0, unit_cents: 0, app: "",
+      card_kind: "", days: 0, note: "微信转账", actor: "admin" },
+    { id: 1, time: 1792400000, kind: "charge", amount_cents: 2500, batch: "B20261019", count: 5, unit_cents: 500,
+      app: "com.demo.app", card_kind: "normal", days: 30, note: "", actor: "agent1" },
+  ],
+  total: 2, charged: 2500, paid: 1500, adjusted: 0, balance: 1000,
+};
+const prices = { unpriced: "deny", items: [{ id: 1, app: "*", kind: "normal", days: 30, price_cents: 500 }] };
+
 let routes: Record<string, unknown>;
 let calls: string[];
+let sent: { method: string; path: string; body: unknown }[];
 
 beforeEach(() => {
   calls = [];
+  sent = [];
   vi.stubGlobal(
     "fetch",
-    vi.fn(async (url: string) => {
+    vi.fn(async (url: string, init?: RequestInit) => {
       const path = url.split("?")[0];
       calls.push(path);
+      if (init?.method && init.method !== "GET")
+        sent.push({ method: init.method, path, body: init.body ? JSON.parse(String(init.body)) : null });
       const body = path in routes ? routes[path] : { items: [], total: 0 };
       return new Response(JSON.stringify(body), { headers: { "content-type": "application/json" } });
     }),
@@ -54,7 +69,22 @@ describe("reseller console", () => {
       "/api/reseller/me": { username: "agent1", ...limits, cards: stats },
       "/api/reseller/cards/stats": stats,
       "/api/reseller/stats/daily": trend,
+      "/api/reseller/ledger": ledger,
+      "/api/reseller/balance": { ...ledger, prices },
     };
+  });
+
+  it("home shows the own ledger, balance and price list", async () => {
+    renderPage(<ResellerHome />);
+    expect(await screen.findByText("账单")).toBeTruthy();
+    expect(await screen.findByText("微信转账")).toBeTruthy();
+    expect(screen.getAllByText("¥10.00").length).toBeGreaterThan(0);              // 待结算
+    expect(screen.getByText("5 张 × ¥5.00")).toBeTruthy();
+    expect(screen.getByText("我的批发价")).toBeTruthy();
+    expect(screen.getByText(/不能生成/)).toBeTruthy();
+    expect(screen.getByRole("button", { name: /导出对账单/ })).toBeTruthy();
+    expect(calls).toContain("/api/reseller/ledger");
+    expect(calls.some((c) => c.startsWith("/api/resellers"))).toBe(false);
   });
 
   it("home shows quota and the allowed card range", async () => {
@@ -101,5 +131,54 @@ describe("admin 代理 page", () => {
     expect(screen.getByRole("button", { name: /新建代理/ })).toBeTruthy();
     fireEvent.click(screen.getByRole("button", { name: /充值|额度/ }));
     expect(await screen.findByRole("dialog")).toBeTruthy();
+  });
+
+  it("shows balances and records a payment from the settlement drawer", async () => {
+    routes = {
+      "/api/auth/me": user("admin"),
+      "/api/resellers": {
+        items: [{ id: 7, username: "agent1", disabled: false, last_login_at: null, note: "", cards: stats,
+          activations_30d: 2, ...limits }],
+      },
+      "/api/resellers/balances": { items: [{ id: 7, username: "agent1", charged: 2500, paid: 1500, adjusted: 0,
+        balance: 1000 }] },
+      "/api/resellers/7/ledger": ledger,
+      "/api/resellers/7/prices": prices,
+    };
+    renderPage(<ResellersPage />);
+    expect(await screen.findByText("agent1")).toBeTruthy();
+    await vi.waitFor(() => expect(screen.getAllByText("¥10.00").length).toBeGreaterThan(0));
+    fireEvent.click(screen.getByRole("button", { name: /结算/ }));
+    expect(await screen.findByText("代理 agent1 的结算")).toBeTruthy();
+    expect(await screen.findByText("微信转账")).toBeTruthy();
+    fireEvent.click(screen.getByRole("button", { name: /登记收款/ }));
+    const dialog = (await screen.findByText("收款金额")).closest(".ant-modal") as HTMLElement;
+    fireEvent.change(within(dialog).getByLabelText("金额"), { target: { value: "12.5" } });
+    fireEvent.click(within(dialog).getByRole("button", { name: /确\s*定|OK/ }));
+    await vi.waitFor(() =>
+      expect(sent).toContainEqual({ method: "POST", path: "/api/resellers/7/ledger",
+        body: { kind: "payment", amount_cents: 1250, note: "" } }),
+    );
+  });
+
+  it("edits and saves the price table", async () => {
+    routes = {
+      "/api/auth/me": user("admin"),
+      "/api/resellers": {
+        items: [{ id: 7, username: "agent1", disabled: false, last_login_at: null, note: "", cards: stats,
+          activations_30d: 2, ...limits }],
+      },
+      "/api/resellers/7/prices": prices,
+    };
+    renderPage(<ResellersPage />);
+    fireEvent.click(await screen.findByRole("button", { name: /结算/ }));
+    fireEvent.click(await screen.findByRole("tab", { name: "批发价" }));
+    await vi.waitFor(() => expect(screen.getByDisplayValue("5.00")).toBeTruthy());
+    fireEvent.change(screen.getByDisplayValue("5.00"), { target: { value: "6" } });
+    fireEvent.click(screen.getByRole("button", { name: /保存批发价/ }));
+    await vi.waitFor(() =>
+      expect(sent).toContainEqual({ method: "PUT", path: "/api/resellers/7/prices",
+        body: { unpriced: "deny", items: [{ app: "*", kind: "normal", days: 30, price_cents: 600 }] } }),
+    );
   });
 });

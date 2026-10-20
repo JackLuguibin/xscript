@@ -369,26 +369,34 @@ test('Web IDE explorer, editor and create/delete flows in a real browser', {skip
       await b.eval(click, row('__init__.py'));
       await b.waitFor(() => document.getElementById('editor').value.length > 0 && !document.getElementById('editor').disabled);
       await b.eval(() => { const e = document.getElementById('editor'); e.focus(); e.value = 'if x\n    pass\nprint "hi"\nok = (1,\n'; e.setSelectionRange(0, 0); e.dispatchEvent(new Event('input')); });
-      await b.waitFor(() => document.querySelectorAll('#diag .sq').length >= 3);
-      const d = await b.eval(() => ({
+      await b.waitFor(() => document.querySelectorAll('#diag .sq').length >= 1);
+      const state = () => b.eval(() => ({
         layer: document.getElementById('diag').textContent.replace(/\n$/, '') === document.getElementById('editor').value,
         marks: [...document.querySelectorAll('#line-numbers .diag-line')].map(n => n.textContent.trim()),
-        title: document.querySelector('#line-numbers .diag-line').title,
+        title: (document.querySelector('#line-numbers .diag-line') || {}).title || '',
         count: document.getElementById('problems').dataset.count, text: document.getElementById('problems').textContent, hidden: document.getElementById('problems').hidden,
         sq: getComputedStyle(document.querySelector('#diag .sq')).textDecorationLine,
       }));
+      // like CPython, the parser reports the first syntax error; fixing it reveals the next one
+      let d = await state();
       assert.equal(d.layer, true, 'diagnostic layer text matches the textarea (alignment)');
-      assert.deepEqual(d.marks, ['1', '3', '4']); assert.ok(d.title.length > 0);
-      assert.equal(d.count, '3'); assert.equal(d.hidden, false); assert.match(d.text, /第 1 行/); assert.match(d.sq, /underline/);
-      // problems button jumps to the next problem and moves the caret there
+      assert.deepEqual(d.marks, ['1']); assert.match(d.title, /冒号/);
+      assert.equal(d.count, '1'); assert.equal(d.hidden, false); assert.match(d.text, /第 1 行/); assert.match(d.sq, /underline/);
+      // problems button jumps to the problem and moves the caret there
+      await b.eval(() => document.getElementById('editor').setSelectionRange(30, 30));
       await b.eval(click, '#problems');
       assert.equal(await b.eval(() => document.getElementById('editor').value.slice(0, document.getElementById('editor').selectionStart).split('\n').length), 1);
-      await b.eval(click, '#problems');
-      assert.equal(await b.eval(() => document.getElementById('editor').value.slice(0, document.getElementById('editor').selectionStart).split('\n').length), 3);
       // typing clears stale squiggles immediately, then the check re-runs
       await b.insertText('x');
       assert.equal(await b.eval(() => document.querySelectorAll('#diag .sq').length), 0, 'stale marks dropped while typing');
-      await b.waitFor(() => document.querySelectorAll('#diag .sq').length >= 2);   // `xprint "hi"` is no longer a py2 print
+      await b.waitFor(() => document.querySelectorAll('#diag .sq').length >= 1);
+      const setText = (v) => b.eval((v) => { const e = document.getElementById('editor'); e.value = v; e.dispatchEvent(new Event('input')); }, v);
+      await setText('if x:\n    pass\nprint "hi"\nok = (1,\n');
+      await b.waitFor(() => [...document.querySelectorAll('#line-numbers .diag-line')].map(n => n.textContent.trim()).join() === '3');
+      assert.match((await state()).title, /print/);
+      await setText('if x:\n    pass\nprint("hi")\nok = (1,\n');
+      await b.waitFor(() => [...document.querySelectorAll('#line-numbers .diag-line')].map(n => n.textContent.trim()).join() === '4');
+      assert.match((await state()).title, /没有闭合/);
       // fix everything -> clean
       await b.eval(() => { const e = document.getElementById('editor'); e.value = 'if x:\n    pass\nprint("hi")\nok = (1,)\n'; e.dispatchEvent(new Event('input')); });
       await b.waitFor(() => document.getElementById('problems').dataset.count === '0');
@@ -451,6 +459,55 @@ test('Web IDE explorer, editor and create/delete flows in a real browser', {skip
       await b.eval(() => { const e = document.getElementById('editor'); e.value = '# pin\nx = 2\n'; e.dispatchEvent(new Event('input')); });
       await b.eval(() => document.getElementById('save').click());
       await b.waitFor(() => document.getElementById('message').textContent.includes('已保存 search/b.py'));
+    });
+
+    await t.test('go to definition (F12, Ctrl+click), library docs, find references (Shift+F12)', async () => {
+      await api('PUT', '/projects/dom/files', {files: [
+        {path: 'nav_lib.py', content: 'def helper(x):\n    return x * 2\n\nclass Tool:\n    def run(self):\n        return helper(1)\n'},
+        {path: 'nav_main.py', content: 'from nav_lib import helper, Tool\nfrom xscript.android import action\n\nt = Tool()\nprint(helper(2), t.run())\naction.click(1, 2)\n'}]});
+      await b.eval(click, '#refresh'); await b.waitFor(idle);
+      await b.eval(click, row('nav_main.py'));
+      await b.waitFor(() => document.getElementById('editor').value.startsWith('from nav_lib'));
+      const caret = (needle, nth = 0) => b.eval((w, k) => { const e = document.getElementById('editor'); let i = -1; for (let j = 0; j <= k; j++) i = e.value.indexOf(w, i + 1); e.focus(); e.setSelectionRange(i + 1, i + 1); return i; }, needle, nth);
+      const where = () => b.eval(() => { const e = document.getElementById('editor'); return [e.value.slice(0, 12), e.value.slice(e.selectionStart, e.selectionEnd), e.value.slice(0, e.selectionStart).split('\n').length]; });
+      const msg = () => b.eval(() => document.getElementById('message').textContent);
+      // F12 on a call of an imported function opens the other file at the def
+      await caret('helper(2)'); await b.key('F12', 'F12', 123);
+      await b.waitFor(() => document.getElementById('editor').value.startsWith('def helper'));
+      assert.deepEqual(await where(), ['def helper(x', 'helper', 1]); assert.match(await msg(), /定义 · nav_lib\.py:1/);
+      // Ctrl/Cmd+click on a method through an instance
+      await b.eval(click, row('nav_main.py')); await b.waitFor(() => document.getElementById('editor').value.startsWith('from nav_lib'));
+      await caret('run()');
+      await b.eval(() => document.getElementById('editor').dispatchEvent(new MouseEvent('click', {bubbles: true, ctrlKey: true})));
+      await b.waitFor(() => document.getElementById('editor').value.startsWith('def helper') && document.getElementById('editor').selectionStart > 0);
+      assert.deepEqual(await where(), ['def helper(x', 'run', 5]);
+      // library symbol: stub signature and docs in the tip, the file stays put
+      await b.eval(click, row('nav_main.py')); await b.waitFor(() => document.getElementById('editor').value.startsWith('from nav_lib'));
+      await caret('click('); await b.key('F12', 'F12', 123);
+      await b.waitFor(() => !document.getElementById('hover-doc').hidden);
+      assert.equal(await b.eval(() => document.querySelector('#hover-doc .tip-sig').textContent), 'def click(x, y=None, dur=20)');
+      assert.match(await msg(), /库符号 · xscript\.android\.action\.click/);
+      await b.key('Escape', 'Escape', 27);
+      // builtins have no project definition
+      await caret('print('); await b.key('F12', 'F12', 123);
+      await b.waitFor(() => /没有找到定义/.test(document.getElementById('message').textContent));
+      // Shift+F12: references across files in the sidebar list; a row jumps there; Esc returns to the files
+      await caret('helper(2)');
+      await b.eval(() => document.getElementById('editor').dispatchEvent(new KeyboardEvent('keydown', {key: 'F12', shiftKey: true, bubbles: true})));
+      await b.waitFor(() => !document.getElementById('refs-panel').hidden);
+      const panel = await b.eval(() => ({title: document.getElementById('refs-title').textContent, summary: document.getElementById('refs-summary').textContent,
+        files: getComputedStyle(document.getElementById('files')).display, sidebar: document.querySelector('.ide').classList.contains('refs'),
+        rows: [...document.querySelectorAll('#refs-results .sr-match')].map(r => r.title + ' ' + r.querySelector('mark').textContent)}));
+      assert.deepEqual(panel, {title: '引用：helper', summary: '4 处，2 个文件', files: 'none', sidebar: true,
+        rows: ['nav_lib.py:1（定义） helper', 'nav_lib.py:6 helper', 'nav_main.py:1 helper', 'nav_main.py:5 helper']});
+      await b.eval(() => document.querySelectorAll('#refs-results .sr-match')[1].click());
+      await b.waitFor(() => document.getElementById('editor').value.startsWith('def helper') && document.getElementById('editor').selectionEnd > document.getElementById('editor').selectionStart);
+      assert.deepEqual(await where(), ['def helper(x', 'helper', 6]);
+      await b.eval(() => document.querySelector('#refs-results .sr-match').focus());
+      await b.key('Escape', 'Escape', 27);
+      assert.deepEqual(await b.eval(() => [document.getElementById('refs-panel').hidden, getComputedStyle(document.getElementById('files')).display !== 'none']), [true, true]);
+      for (const p of ['nav_lib.py', 'nav_main.py']) await fetch(base + '/projects/dom/file?path=' + p, {method: 'DELETE'});
+      await b.eval(click, '#refresh'); await b.waitFor(idle);
     });
 
     await t.test('replace undo: restores written files, skips files edited since', async () => {
