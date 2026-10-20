@@ -65,6 +65,7 @@ class AutomationService : Service() {
 
         override fun captureFrame(left: Int, top: Int, right: Int, bottom: Int): ParcelFileDescriptor {
             val bytes = safe("captureFrame", ByteArray(0)) {
+                CaptureEngine.encodeFrame(left, top, right, bottom)?.let { return@safe it }
                 val full = CaptureEngine.captureBitmap() ?: return@safe ByteArray(0)
                 val cropped = FrameCodec.crop(full, left, top, right, bottom)
                 val encoded = FrameCodec.encode(cropped)
