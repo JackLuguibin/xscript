@@ -70,3 +70,16 @@ def test_dmg_check_never_touches_applications_or_the_user_profile():
     launches = [ln for ln in s.splitlines() if ("XScript\" --" in ln or ln.strip().startswith("open -n")) and "--" in ln]
     assert launches and all("--data-dir" in ln for ln in launches)
     assert "/Applications/XScript" not in s and "pwd -P" in s
+
+
+def test_release_workflow_desktop_feed_rules():
+    wf = (PKG.parents[2] / ".github" / "workflows" / "release.yml").read_text(encoding="utf-8")
+    dry = wf.split("\n  desktop-update-feed:\n")[1].split("\n  perf-apk:\n")[0]
+    assert "if: github.event_name != 'push'" in dry and "contents: read" in dry
+    assert "secrets." not in dry and "--new-key" in dry and 'rm -f "$RUNNER_TEMP/throwaway.key"' in dry
+    rel = wf.split("\n  release:\n")[1]
+    assert "needs: [verify, desktop, desktop-windows]" in rel
+    feed = rel.split("Desktop update feed (only with")[1].split("- name:")[0]
+    assert "UK: ${{ secrets.DESKTOP_UPDATE_KEY }}" in feed and "UPDATE_PUBLIC_KEYS" in feed and "umask 077" in feed
+    assert "echo \"$UK\"" not in feed and 'rm -f "$RUNNER_TEMP/update.key"' in feed
+    assert "windows-x64-setup.exe" in rel.split("gh release create")[1]
