@@ -573,3 +573,44 @@ pre.logs.debug-console { min-height: 4rem; max-height: 10rem; }
 .bp-desc { margin-left: var(--sp-2); font-size: var(--fs-sm); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .bp-editor { gap: var(--sp-2); padding: var(--sp-1) 0 var(--sp-2) var(--sp-3); }
 .watch-list > li { align-items: center; }
+
+/* Cloud control (P4): same page/panel/toolbar language as the wall and flows pages. */
+.cloud-page { display: flex; flex-direction: column; gap: var(--sp-3); min-height: 0; }
+.cloud-head { align-items: center; gap: var(--sp-2); flex-wrap: wrap; }
+.cloud-head .grow, .cloud-filters .grow { flex: 1; }
+.cloud-origin { font-family: var(--font-mono); font-size: var(--fs-xs); }
+.cloud-tabs { display: flex; gap: var(--sp-2); flex-wrap: wrap; }
+.cloud-pane { display: flex; flex-direction: column; gap: var(--sp-3); min-height: 0; }
+.cloud-narrow { max-width: 45rem; }
+.cloud-account p { margin: 0 0 var(--sp-2); }
+.cloud-connect .hint { font-size: var(--fs-xs); color: var(--text-muted); }
+.cloud-filters { align-items: center; gap: var(--sp-2); flex-wrap: wrap; }
+.cloud-filters > .ui-input { max-width: 16rem; }
+.cloud-filters > .ui-select { width: auto; }
+.cloud-table-wrap { overflow: auto; border: 1px solid var(--border); border-radius: var(--r-sm); background: var(--surface); }
+.cloud-table { width: 100%; border-collapse: collapse; font-size: var(--fs-xs); }
+.cloud-table th, .cloud-table td { text-align: left; padding: var(--sp-2) var(--sp-3); border-bottom: 1px solid var(--border); white-space: nowrap; }
+.cloud-table thead th { position: sticky; top: 0; background: var(--surface); font-weight: 600; color: var(--text-muted); }
+.cloud-table tbody tr:last-child td { border-bottom: 0; }
+.cloud-table tbody tr[aria-selected="true"] { background: var(--primary-soft); }
+.cloud-table .mono { font-family: var(--font-mono); }
+.cloud-table .check { width: 2rem; }
+.cloud-pager { align-items: center; gap: var(--sp-2); }
+.cloud-batch { display: flex; flex-direction: column; gap: var(--sp-2); }
+.cloud-batch .row { align-items: center; gap: var(--sp-2); flex-wrap: wrap; }
+.cloud-batch .ui-input { max-width: 16rem; }
+.cloud-results { max-height: 12rem; }
+.cloud-log { margin: 0; padding: var(--sp-2) var(--sp-3); max-height: 28rem; overflow: auto; font-family: var(--font-mono); font-size: var(--fs-xs); line-height: var(--lh); background: var(--surface); border: 1px solid var(--border); border-radius: var(--r-sm); }
+.cloud-log .stderr { color: var(--danger-fg); }
+.cloud-log .system { color: var(--text-muted); }
+.cloud-log time { color: var(--text-muted); margin-inline-end: var(--sp-2); }
+.cloud-form { display: grid; grid-template-columns: repeat(auto-fill, minmax(12rem, 1fr)); gap: var(--sp-2) var(--sp-3); align-items: end; }
+.cloud-form .stack { display: flex; flex-direction: column; gap: var(--sp-1); }
+.cloud-wall .wall-card img { cursor: default; aspect-ratio: 9 / 19.5; object-fit: contain; }
+.cloud-links { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(auto-fill, minmax(14rem, 1fr)); gap: var(--sp-2); }
+.cloud-links a { display: flex; flex-direction: column; gap: var(--sp-1); padding: var(--sp-3); border: 1px solid var(--border); border-radius: var(--r-sm); background: var(--surface); color: var(--text); text-decoration: none; }
+.cloud-links a:hover, .cloud-links a:focus-visible { border-color: var(--primary); }
+.cloud-links .mono { font-family: var(--font-mono); font-size: var(--fs-xs); color: var(--text-muted); overflow-wrap: anywhere; }
+.cloud-wall .wall-card .row { gap: var(--sp-2); min-width: 0; }
+.cloud-wall .wall-card .row > .grow { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.cloud-wall .wall-card .row > .muted { flex: none; white-space: nowrap; }
