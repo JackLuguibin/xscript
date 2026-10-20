@@ -1877,8 +1877,9 @@ function compileState(g: FlowGraph, specs: Map<string, NodeSpec>, opts?: { trace
     "# generated from " + g.name + ".xflow.json by XScript Desktop; do not edit, edit the flow instead",
     "from xscript.android import action, node, system",
     ...extraImports(g, specs),
-    "",
   ];
+  if (g.nodes.some((n) => n.type === "flow.parallel")) lines.push("import threading");
+  lines.push("");
   if (opts?.trace) lines.push(...traceHeader());
   if (g.nodes.some((n) => n.type === "flow.merge")) lines.push(...mergeHeader());
   const map: Record<string, string> = {};
@@ -1973,7 +1974,7 @@ const STATE_EXIT: Record<string, string> = { "flow.for_range": "completed", "flo
  * Containers a state can hold whole when every inner branch stays inside: the structured code for the container,
  * then a jump along this pin. Keyed by node type.
  */
-const STATE_JOIN: Record<string, string> = { "flow.match": "completed", "flow.sequence": "next" };
+const STATE_JOIN: Record<string, string> = { "flow.match": "completed", "flow.sequence": "next", "flow.try": "completed", "flow.parallel": "joined" };
 
 /**
  * Containers that end on one of two outcomes (the structured code sets `<id>_ok` and branches on it): the state
@@ -1987,6 +1988,8 @@ const STATE_FORK: Record<string, { region: string[]; yes: string; no: string }> 
 /** The exec pins that open a container's inner branches (each one compiled inside the container). */
 function regionPins(g: FlowGraph, node: FlowNode): string[] {
   if (node.type === "flow.sequence") return sequenceSteps(g, node.id);
+  if (node.type === "flow.parallel") return parallelBranches(g, node.id);
+  if (node.type === "flow.try") return ["body", "handler"];
   if (node.type === "flow.match") return g.edges.filter((edge) => pinNode(edge.from) === node.id && /^c\d+$/.test(edge.from.slice(node.id.length + 1))).map((edge) => edge.from.slice(node.id.length + 1));
   return [];
 }

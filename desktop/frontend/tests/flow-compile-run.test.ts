@@ -173,6 +173,64 @@ describe("state machine fallback", () => {
     expect(run(compile(bare, specs).python)).toEqual(["try"]);
   });
 
+  it("lowers a closed try: the handler catches, then completed", () => {
+    const text = [
+      "flow t  # xflow 1",
+      "on start:",
+      '  btn: node.find(text="签到", timeout=0)',
+      "  guard: try:",
+      "    tap: click(target=btn.node)",
+      "  except err:",
+      '    msg: log(message="失败")',
+      '  after: log(message="继续")',
+      "  hit: if btn.found:",
+      '    y: log(message="y")',
+      "  else:",
+      '    n: log(message="n")',
+      "",
+    ].join("\n");
+    const out = compile(joined(text, ["y", "n"]), specs);
+    expect(out.python).toContain("while True:");
+    expect(out.python).toContain("except Exception as err:");
+    expect(out.python).not.toContain("pc == 'msg'");
+    expect(run(out.python, ["签到"])).toEqual(["click 签到", "继续", "y", "结束"]);
+    expect(run(out.python)).toEqual(["失败", "继续", "n", "结束"]);
+  });
+
+  it("lowers closed parallel branches: both run, then joined", () => {
+    const text = [
+      "flow p  # xflow 1",
+      "on start:",
+      "  par: parallel:",
+      "    branch:",
+      '      a: log(message="a")',
+      "    branch:",
+      '      b: log(message="b")',
+      '  btn: node.find(text="ok", timeout=0)',
+      "  hit: if btn.found:",
+      '    y: log(message="y")',
+      "  else:",
+      '    n: log(message="n")',
+      "",
+    ].join("\n");
+    const out = compile(joined(text, ["y", "n"]), specs);
+    expect(out.python).toContain("while True:");
+    expect(out.python).toContain("import threading");
+    expect(out.python).toContain("_t.join()");
+    const lines = run(out.python, ["ok"]);
+    expect(lines.slice(0, 2).sort()).toEqual(["a", "b"]);
+    expect(lines.slice(2)).toEqual(["y", "结束"]);
+  });
+
+  it("refuses a try or parallel branch that jumps out", () => {
+    const tryText = ["flow t2  # xflow 1", "on start:", '  a: log(message="a")', "  guard: try:", '    b: log(message="b")', "  except err:", '    c: log(message="c")', ""].join("\n");
+    const tryGraph = parse(tryText);
+    expect(() => compile({ ...tryGraph, edges: [...tryGraph.edges, { from: "c.then", to: "a.exec" }] }, specs)).toThrow("state machine cannot lower flow.try guard: a branch jumps out of it");
+    const parText = ["flow p2  # xflow 1", "on start:", '  a: log(message="a")', "  par: parallel:", "    branch:", '      b: log(message="b")', ""].join("\n");
+    const parGraph = parse(parText);
+    expect(() => compile({ ...parGraph, edges: [...parGraph.edges, { from: "b.then", to: "a.exec" }] }, specs)).toThrow("state machine cannot lower flow.parallel par: a branch jumps out of it");
+  });
+
   it("refuses a match whose branch jumps back out of it", () => {
     const text = ["flow mo  # xflow 1", 'var mode: str = "x"', "on start:", '  a: log(message="a")', "  pick: match mode:", '    "x":', '      b: log(message="b")', '  z: log(message="z")', ""].join("\n");
     const graph = parse(text);
