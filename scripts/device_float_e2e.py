@@ -16,6 +16,7 @@ Restores the settings and the overlay grant (appops mode) it found. XS_ONLY=<sec
 Never uninstalls or clears data.
 """
 import base64, html, json, os, re, subprocess, sys, time, urllib.request
+import devauth  # scripts/devauth.py: pairing code (XSCRIPT_TOKEN or adb)
 
 SERIAL, BASE = sys.argv[1], sys.argv[2].rstrip("/")
 PKG = os.environ.get("XS_PKG", "com.xscript.app")
@@ -73,7 +74,7 @@ def adb(*a, out=False):
 
 def api(method, path, body=None):
     req = urllib.request.Request(BASE + path, method=method, data=None if body is None else json.dumps(body).encode(),
-                                 headers={"Content-Type": "application/json"})
+                                 headers=devauth.headers(BASE, {"Content-Type": "application/json"}))
     with OPENER.open(req, timeout=30) as r:
         return json.load(r)
 

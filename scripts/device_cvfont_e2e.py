@@ -19,6 +19,7 @@ import random
 import sys
 import time
 import urllib.request
+import devauth  # scripts/devauth.py: pairing code (XSCRIPT_TOKEN or adb)
 
 try:
     from PIL import Image, ImageDraw, ImageFont
@@ -76,7 +77,7 @@ def png(img):
 
 def api(method, path, body=None):
     req = urllib.request.Request(BASE + path, method=method, data=None if body is None else json.dumps(body).encode(),
-                                 headers={"Content-Type": "application/json"})
+                                 headers=devauth.headers(BASE, {"Content-Type": "application/json"}))
     with urllib.request.build_opener(urllib.request.ProxyHandler({})).open(req, timeout=30) as r:
         return json.load(r)
 

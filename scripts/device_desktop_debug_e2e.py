@@ -10,6 +10,7 @@ import asyncio, json, os, sys, urllib.parse, urllib.request
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "desktop", "app"))
 from xscript_desktop.services.debugger import DebugSession  # noqa: E402
 from xscript_desktop.services.device_client import DeviceClient, DeviceTarget  # noqa: E402
+import devauth  # scripts/devauth.py: pairing code (XSCRIPT_TOKEN or adb)  # noqa: E402
 
 BASE = (sys.argv[1] if len(sys.argv) > 1 else "http://127.0.0.1:19860").rstrip("/")
 OPENER = urllib.request.build_opener(urllib.request.ProxyHandler({}))
@@ -19,7 +20,7 @@ results = []
 
 def api(method, path, body=None):
     req = urllib.request.Request(BASE + path, method=method, data=None if body is None else json.dumps(body).encode(),
-                                 headers={"Content-Type": "application/json"})
+                                 headers=devauth.headers(BASE, {"Content-Type": "application/json"}))
     try:
         return json.load(OPENER.open(req, timeout=30))
     except Exception as e:  # DELETE of a missing project is fine
@@ -37,7 +38,7 @@ async def main():
     api("PUT", "/projects/dbgopt/files", {"files": [{"path": "__init__.py", "content": SRC}]})
     events = []
     u = urllib.parse.urlparse(BASE)
-    s = DebugSession("dev", DeviceClient(DeviceTarget(host=u.hostname, port=u.port or 80)), "dbgopt", lambda t, d: events.append((t, d)))
+    s = DebugSession("dev", DeviceClient(DeviceTarget(host=u.hostname, port=u.port or 80), token=devauth.token(BASE) or None), "dbgopt", lambda t, d: events.append((t, d)))
 
     async def paused():
         for _ in range(600):

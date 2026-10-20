@@ -37,8 +37,8 @@ jobs:
         with:
           persist-credentials: false
           fetch-depth: 2  # a pull_request checkout is the test merge commit: parent 1 is the base branch
-      - name: Self-test of the rules
-        run: python3 -m unittest scripts/tests/test_ci_changes.py
+      - name: Self-test of the rules (and the device scripts' pairing helper)
+        run: python3 -m unittest scripts/tests/test_ci_changes.py scripts/tests/test_devauth.py
       - id: areas
         name: Decide
         env:
