@@ -39,6 +39,11 @@ asyncio_mode = "auto"
 # @pytest.mark.timeout(N).
 timeout = 120
 timeout_method = "thread"
+# No pytest-qt Qt-log capture. It installs a Python qInstallMessageHandler per test and swaps it back afterwards, but
+# QtWebEngine logs from its own native threads (Chrome_InProcGpuThread) at any time, also between tests; a message that
+# arrives while the handler is being swapped calls a freed Python callable and segfaults the worker (~5 % of fresh runs of
+# test_close_guard on Linux, the "QtWebEngine segfault" flake). No test reads qtlog; Qt warnings still reach stderr.
+addopts = "--no-qt-log"
 required_plugins = ["pytest-timeout>=2.3"]
 filterwarnings = [
   # CPython 3.10 asyncio: a finished child's transport can be collected after the test's loop closed (harmless, no leak of the process)
