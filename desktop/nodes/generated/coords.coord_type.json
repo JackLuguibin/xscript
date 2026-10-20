@@ -1,0 +1,44 @@
+{
+  "type": "coords.coord_type",
+  "category": "coords",
+  "title": {
+    "zh": "coords.coord_type",
+    "en": "coords.coord_type"
+  },
+  "doc": {
+    "zh": "Normalise a coordinate system name: wgs84 / gps, gcj02 / gcj / amap / gaode / tencent, bd09 / bd09ll / baidu.",
+    "en": "Normalise a coordinate system name: wgs84 / gps, gcj02 / gcj / amap / gaode / tencent, bd09 / bd09ll / baidu."
+  },
+  "exec": {
+    "in": [
+      "exec"
+    ],
+    "out": [
+      "then"
+    ]
+  },
+  "inputs": [
+    {
+      "name": "name",
+      "type": "any"
+    }
+  ],
+  "outputs": [
+    {
+      "name": "result",
+      "type": "any"
+    }
+  ],
+  "py": {
+    "imports": [
+      "from xscript.android import coords"
+    ],
+    "stmt": "{id} = coords.coord_type({name})"
+  },
+  "dsl": {
+    "alias": "coords.coord_type"
+  },
+  "since": "0.2.6",
+  "origin": "xscript.android.coords.coord_type",
+  "availability": "ok"
+}

@@ -1,0 +1,56 @@
+{
+  "type": "coords.convert",
+  "category": "coords",
+  "title": {
+    "zh": "coords.convert",
+    "en": "coords.convert"
+  },
+  "doc": {
+    "zh": "(lon, lat) from one coordinate system to another (wgs84 / gcj02 / bd09).",
+    "en": "(lon, lat) from one coordinate system to another (wgs84 / gcj02 / bd09)."
+  },
+  "exec": {
+    "in": [
+      "exec"
+    ],
+    "out": [
+      "then"
+    ]
+  },
+  "inputs": [
+    {
+      "name": "lon",
+      "type": "any"
+    },
+    {
+      "name": "lat",
+      "type": "any"
+    },
+    {
+      "name": "from_type",
+      "type": "any"
+    },
+    {
+      "name": "to_type",
+      "type": "any"
+    }
+  ],
+  "outputs": [
+    {
+      "name": "result",
+      "type": "any"
+    }
+  ],
+  "py": {
+    "imports": [
+      "from xscript.android import coords"
+    ],
+    "stmt": "{id} = coords.convert({lon}, lat={lat}, from_type={from_type}, to_type={to_type})"
+  },
+  "dsl": {
+    "alias": "coords.convert"
+  },
+  "since": "0.2.6",
+  "origin": "xscript.android.coords.convert",
+  "availability": "ok"
+}

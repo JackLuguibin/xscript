@@ -1,0 +1,53 @@
+{
+  "type": "coords.from_wgs84",
+  "category": "coords",
+  "title": {
+    "zh": "coords.from_wgs84",
+    "en": "coords.from_wgs84"
+  },
+  "doc": {
+    "zh": "WGS84 (e.g. location.get_last()) -> `coord_type`, e.g. for a 高德 (gcj02) or 百度 (bd09) map link.",
+    "en": "WGS84 (e.g. location.get_last()) -> `coord_type`, e.g. for a 高德 (gcj02) or 百度 (bd09) map link."
+  },
+  "exec": {
+    "in": [
+      "exec"
+    ],
+    "out": [
+      "then"
+    ]
+  },
+  "inputs": [
+    {
+      "name": "lon",
+      "type": "any"
+    },
+    {
+      "name": "lat",
+      "type": "any"
+    },
+    {
+      "name": "coord_type",
+      "type": "any",
+      "default": "gcj02"
+    }
+  ],
+  "outputs": [
+    {
+      "name": "result",
+      "type": "any"
+    }
+  ],
+  "py": {
+    "imports": [
+      "from xscript.android import coords"
+    ],
+    "stmt": "{id} = coords.from_wgs84({lon}, lat={lat}, coord_type={coord_type})"
+  },
+  "dsl": {
+    "alias": "coords.from_wgs84"
+  },
+  "since": "0.2.6",
+  "origin": "xscript.android.coords.from_wgs84",
+  "availability": "ok"
+}

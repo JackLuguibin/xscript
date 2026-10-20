@@ -1,0 +1,53 @@
+{
+  "type": "coords.to_wgs84",
+  "category": "coords",
+  "title": {
+    "zh": "coords.to_wgs84",
+    "en": "coords.to_wgs84"
+  },
+  "doc": {
+    "zh": "(lon, lat) in `coord_type` (wgs84 / gcj02 / bd09, aliases as in coord_type()) -> WGS84.",
+    "en": "(lon, lat) in `coord_type` (wgs84 / gcj02 / bd09, aliases as in coord_type()) -> WGS84."
+  },
+  "exec": {
+    "in": [
+      "exec"
+    ],
+    "out": [
+      "then"
+    ]
+  },
+  "inputs": [
+    {
+      "name": "lon",
+      "type": "any"
+    },
+    {
+      "name": "lat",
+      "type": "any"
+    },
+    {
+      "name": "coord_type",
+      "type": "any",
+      "default": "wgs84"
+    }
+  ],
+  "outputs": [
+    {
+      "name": "result",
+      "type": "any"
+    }
+  ],
+  "py": {
+    "imports": [
+      "from xscript.android import coords"
+    ],
+    "stmt": "{id} = coords.to_wgs84({lon}, lat={lat}, coord_type={coord_type})"
+  },
+  "dsl": {
+    "alias": "coords.to_wgs84"
+  },
+  "since": "0.2.6",
+  "origin": "xscript.android.coords.to_wgs84",
+  "availability": "ok"
+}

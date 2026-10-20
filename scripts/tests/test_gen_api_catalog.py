@@ -80,6 +80,23 @@ class GenApiCatalogTest(unittest.TestCase):
         with self.assertRaisesRegex(gen.CatalogError, "listed twice"):
             gen.build(src)
 
+    def test_reexported_functions_resolve_in_their_source_stub(self):
+        loc = {f["name"]: f for f in self.build(self.src)["xscript.android.location"]["functions"]}
+        self.assertEqual(loc["convert"]["signature"], "convert(lon, lat, from_type, to_type) -> (lon, lat)")
+        self.assertIn("wgs84_to_bd09 / bd09_to_wgs84", loc)
+        self.assertTrue(loc["request"]["signature"].startswith("request(call_back=None"))
+        # a new public function in a stub the module re-exports from must be listed or omitted
+        src = copy.deepcopy(self.src)
+        m = self.mod(src, "xscript.android.location")
+        m["functions"] = [f for f in m["functions"] if f.get("name") != "coord_type"]
+        with self.assertRaisesRegex(gen.CatalogError, "coords functions \\['coord_type'\\]"):
+            gen.build(src)
+        m["omit"] = ["coord_type"]
+        gen.build(src)
+        m["functions"].append({"name": "nope", "from": "xscript.android.coords"})
+        with self.assertRaisesRegex(gen.CatalogError, "not defined in the xscript.android.coords stub"):
+            gen.build(src)
+
     def test_hand_written_modules_pass_through(self):
         cat = self.build(self.src)
         self.assertEqual(cat["devtools"], {k: v for k, v in self.mod(self.src, "devtools").items() if k != "stub"})

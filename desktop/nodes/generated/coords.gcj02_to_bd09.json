@@ -1,0 +1,48 @@
+{
+  "type": "coords.gcj02_to_bd09",
+  "category": "coords",
+  "title": {
+    "zh": "coords.gcj02_to_bd09",
+    "en": "coords.gcj02_to_bd09"
+  },
+  "doc": {
+    "zh": "GCJ-02 -> BD-09 (百度).",
+    "en": "GCJ-02 -> BD-09 (百度)."
+  },
+  "exec": {
+    "in": [
+      "exec"
+    ],
+    "out": [
+      "then"
+    ]
+  },
+  "inputs": [
+    {
+      "name": "lon",
+      "type": "any"
+    },
+    {
+      "name": "lat",
+      "type": "any"
+    }
+  ],
+  "outputs": [
+    {
+      "name": "result",
+      "type": "any"
+    }
+  ],
+  "py": {
+    "imports": [
+      "from xscript.android import coords"
+    ],
+    "stmt": "{id} = coords.gcj02_to_bd09({lon}, lat={lat})"
+  },
+  "dsl": {
+    "alias": "coords.gcj02_to_bd09"
+  },
+  "since": "0.2.6",
+  "origin": "xscript.android.coords.gcj02_to_bd09",
+  "availability": "ok"
+}
