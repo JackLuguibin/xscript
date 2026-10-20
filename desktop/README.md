@@ -1,11 +1,11 @@
 # XScript 桌面端（Windows 为目标平台）
 
-设计文档：[`docs/桌面端设计.md`](../docs/桌面端设计.md)。本目录实现其 §12.1 路线图：**P0**（验证与脚手架）已完成，**P1**（壳 + 设备 + 工程）大部分已实现，**P2**（流程编辑器）部分已实现，**P4**（云控与管理）已实现（见下面「P4 云控」），P3、P5 见下面的「没做」。
+设计文档：[`docs/桌面端设计.md`](../docs/桌面端设计.md)。本目录实现其 §12.1 路线图：**P0**（验证与脚手架）已完成，**P1**（壳 + 设备 + 工程）大部分已实现，**P2**（流程编辑器）部分已实现，**P4**（云控与管理）已实现（见下面「P4 云控」），**P5**（安装包、自动更新、诊断包）已实现（见下面「P5 安装包与更新」），P3 见下面的「没做」。
 入口执行方式的实测结论：[`docs/桌面端-入口执行实测.md`](../docs/桌面端-入口执行实测.md)。
 
-> **状态：P0 完成，P1 大部分、P2 部分，P4 完成。只在 macOS 上开发和验证。** 所有 Windows 专属行为（`adb.exe` 定位、`CREATE_NO_WINDOW`、凭据管理器、
+> **状态：P0 完成，P1 大部分、P2 部分，P4、P5 完成。只在 macOS 上开发和验证（Windows 安装包只在 CI 的 Windows 构建机上做过安装 / 自检 / 卸载）。** 所有 Windows 专属行为（`adb.exe` 定位、`CREATE_NO_WINDOW`、凭据管理器、
 > 打包、安装器、高 DPI、杀软/SmartScreen……）**均未验证**，代码和文档里用「⚠ Windows 未验证」标注。
-> v0.4.0 起 macOS arm64 的 dmg（ad-hoc 签名、未公证）随 App 一起附在 GitHub Release；Windows 包还没有。桌面端版本号跟随 App（`pyproject.toml` / `package.json` 都是 0.4.0），见设计 §13-14。
+> v0.4.0 起 macOS arm64 的 dmg（ad-hoc 签名、未公证）随 App 一起附在 GitHub Release；之后的版本还会附 Windows x64 安装包（未签名，见「P5」）。桌面端版本号跟随 App（`pyproject.toml` / `package.json` 都是 0.4.0），见设计 §13-14。
 
 ## P0 里有什么
 
@@ -41,7 +41,7 @@
 
 调试的限制：每台设备一个会话；多线程切换还没做。测试用的是 `app/tests/fake_debug_device.py` 里脚本化的 debugpy（`scripts/mock_device.py` 不支持 `/debug/*`）；设备上的真实 debugpy 用上面的脚本验证过；桌面窗口里的完整点击流程只在 fake 设备上做了 e2e。
 
-**没做**：trace 节流的真机预算核对（设计 §14.7；编译器已按 200 行突发 / 每秒 500 行生成 `__xf_trace`，还没在真机上测）；流程编辑器的剩余部分：状态机回退（有回边或汇合的图）里，被整体内联的容器（match / sequence / try / parallel / wait_until / retry 和封闭的循环）分支不能跳出容器，也不能 `break` / `continue` 外层被拆成状态的循环（会报错并指出节点）（React Flow 在 Qt 里的验证见 [`docs/桌面端-ReactFlow验证.md`](../docs/桌面端-ReactFlow验证.md)；语义 JSON 的 schema 在 `desktop/schema/`）、打包与安装器（P5）、`pyside6-deploy` 与 PyInstaller 对比。镜像流的方案 A（scheme 直接吐 multipart）没做，方案 B 已实现；本轮没有对真机开流。Windows 凭据管理器只按 `keyring` 的接口接上，没有在 Windows 上读写过。设计和 Mac 上能做的验证不等 Windows。
+**没做**：trace 节流的真机预算核对（设计 §14.7；编译器已按 200 行突发 / 每秒 500 行生成 `__xf_trace`，还没在真机上测）；流程编辑器的剩余部分：状态机回退（有回边或汇合的图）里，被整体内联的容器（match / sequence / try / parallel / wait_until / retry 和封闭的循环）分支不能跳出容器，也不能 `break` / `continue` 外层被拆成状态的循环（会报错并指出节点）（React Flow 在 Qt 里的验证见 [`docs/桌面端-ReactFlow验证.md`](../docs/桌面端-ReactFlow验证.md)；语义 JSON 的 schema 在 `desktop/schema/`）、`pyside6-deploy` 与 PyInstaller 对比；Developer ID 签名 / 公证和 Windows 代码签名（没有证书）；Windows 上的自动更新只测了脚本文本，没在真机上跑过。镜像流的方案 A（scheme 直接吐 multipart）没做，方案 B 已实现；本轮没有对真机开流。Windows 凭据管理器只按 `keyring` 的接口接上，没有在 Windows 上读写过。设计和 Mac 上能做的验证不等 Windows。
 
 **设备页美化前 → 后**（macOS 真实外壳，经 adb forward 连接 5554 模拟器；设计细节见设计文档 §14.15）：
 
@@ -54,6 +54,32 @@
 | ![美化后深色](../docs/images/desktop-after-dark.png) | ![窄窗口](../docs/images/desktop-after-narrow-dark.png) |
 
 重新生成：`python -m xscript_desktop --screenshot out.png --connect-adb emulator-5554 --click-screenshot --theme dark --size 1180x760`（`--theme` 会真的去按侧栏的主题按钮）。
+
+## P5 安装包与更新（已实现）
+
+| 内容 | 说明 | 位置 |
+| --- | --- | --- |
+| macOS dmg | PyInstaller 打包，**只用 ad-hoc 签名**（没有 Developer ID，未公证）。`check_macos_dmg.sh` 证明 dmg 在本机真的能打开：校验签名 → 复制出 App → 直接启动和经 LaunchServices（`open`）各跑一次 `--selftest`，`--gui` 再正常开窗 8 秒。全程临时 `--data-dir`，不碰 `/Applications` 和用户数据 | `app/packaging/build_macos_app.sh`、`build_macos_dmg.sh`、`check_macos_dmg.sh` |
+| Windows 安装包 | PyInstaller onedir + Inno Setup：按用户安装到 `%LOCALAPPDATA%\Programs\XScript`，不需要管理员权限；同一个 AppId 原地升级。**没有代码签名**（SmartScreen 提示「更多信息 → 仍要运行」，见 `release-notes-windows.md`）。CI 在 windows-latest 上构建、静默安装到临时目录、跑安装目录里的 `XScript.exe --selftest --report`、再静默卸载（安装后约 573 MB） | `app/packaging/build_windows.sh`、`xscript.iss`、`check_windows_install.sh` |
+| 自动更新 | 更新清单 `desktop-update.json`（版本、每个平台文件的大小和 sha256）用 **Ed25519** 签名（`.sig`）。客户端先验签名再解析，下载后核对大小和 sha256，**用户确认后**才安装：macOS 把新 App 复制到旁边并校验签名 / bundle id / 版本，退出后由小助手脚本换掉旧 App 并重新打开（失败会还原）；Windows 退出后静默运行新安装包再打开。只有比当前新的版本才会提示；只接受 https（或本机 http 测试源） | `app/xscript_desktop/services/updater.py`、`packaging/make_update_feed.py` |
+| 设置 → 关于与更新 | 侧栏「设置与更新」：当前版本、检查更新、下载进度、「安装并重启」（确认框）、启动时自动检查（每天最多一次，有新版本时按钮上有小圆点） | `frontend/src/components/UpdatePanel.tsx` |
+| 诊断包 | 「导出诊断包…」写一个 zip：`info.json`（版本、系统、设备数量和状态、更新状态）+ 桌面端日志（`<数据目录>/logs/desktop.log`，轮转 3 × 1 MB）。令牌、密码、配对码、私钥替换成 `***`，家目录写成 `~`；不读系统凭据库，不上传 | `app/xscript_desktop/services/diagnostics.py` |
+
+| 设置 → 关于与更新（本地测试更新源） | English |
+| --- | --- |
+| ![关于与更新](../docs/images/desktop-update-zh.png) | ![About and updates](../docs/images/desktop-update-en.png) |
+
+**更新签名密钥还没有**：正式版本的客户端里 `UPDATE_PUBLIC_KEYS` 是空的，所以「检查更新」会说明「没有配置更新签名公钥」，正式 Release 也不会带更新清单。要启用：生成一把 Ed25519 密钥（`python packaging/make_update_feed.py --new-key key.txt`），私钥放进仓库 Secrets `DESKTOP_UPDATE_KEY`，打印出来的公钥写进 `UPDATE_PUBLIC_KEYS`；之后 `release.yml` 会签出清单一起发布。这一步需要仓库管理员操作。
+
+**不用真实 Release 测试自动更新**（macOS）：
+
+```bash
+desktop/app/.venv/bin/python scripts/desktop_update_e2e.py
+```
+
+它构建当前版本和一个测试版本 `X.Y.(Z+1)-dev1`（临时 git worktree），确认两个 dmg 都能打开，把旧版装到临时「应用程序」目录，用临时密钥签一个本地更新源，然后：用别的公钥运行 → 拒绝、不下载；用对的公钥 `--update-now` → 下载、校验、替换、重新打开，新版 `--selftest` 报告新版本号。手动试也可以：设置环境变量 `XSCRIPT_UPDATE_FEED=http://127.0.0.1:端口/desktop-update.json` 和 `XSCRIPT_UPDATE_PUBKEY=<公钥>` 再启动。
+
+`release.yml` 在改到打包或工作流的 PR、以及手动运行时演练：构建 dmg 和 setup.exe 并各自验证，再用一次性密钥签一个包含两者的更新清单，用客户端自己的校验代码检查，全部作为 artifact 上传，不建 Release、不打标签。
 
 ## P4 云控（已实现）
 

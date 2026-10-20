@@ -309,6 +309,12 @@ export function createApi(rpc: RpcClient) {
     cloudPackCancel: (id: number) => rpc.call<{ ok: boolean }>("cloud.packCancel", { id }, { timeoutMs: 20_000 }),
     cloudPackSave: (id: number, name: string) => rpc.call<{ saved: boolean; path?: string; bytes?: number }>("cloud.packSave", { id, name }, { timeoutMs: 600_000 }),
     cloudGroups: () => rpc.call<{ groups: CloudGroup[]; apps: string[] }>("cloud.groups", {}, { timeoutMs: 20_000 }),
+    diagnostics: () => rpc.call<{ saved: boolean; path?: string; bytes?: number; files?: string[] }>("app.diagnostics", {}, { timeoutMs: 600_000 }),
+    updateInfo: () => rpc.call<UpdateInfo>("update.info"),
+    updateStatus: () => rpc.call<UpdateStatus>("update.status"),
+    updateCheck: () => rpc.call<UpdateStatus>("update.check", {}, { timeoutMs: 60_000 }),
+    updateDownload: () => rpc.call<UpdateStatus>("update.download", {}, { timeoutMs: 1_800_000 }),
+    updateInstall: () => rpc.call<UpdateStatus & { helperLog: string }>("update.install", {}, { timeoutMs: 180_000 }),
     copyText: (text: string) => rpc.call<{ ok: boolean }>("app.copyText", { text }),
     toolsOpen: (id: string, page: string) => rpc.call<{ url: string; page: string; warning: string }>("tools.open", { id, page }),
     uiTree: (id: string, mode = 0) => rpc.call<UiTreeResult>("device.uiTree", { id, mode }),
@@ -322,6 +328,22 @@ export type Api = ReturnType<typeof createApi>;
 // ---- cloud control (admin backend, P4) ----
 export type CloudRole = "viewer" | "operator" | "admin";
 export interface CloudAccount { username: string; role: CloudRole; canOperate: boolean; isAdmin: boolean }
+export type UpdateState = "idle" | "checking" | "none" | "available" | "downloading" | "ready" | "installing" | "error";
+export interface UpdateStatus {
+  state: UpdateState;
+  update: { version: string; published: string; notes: { zh?: string; en?: string }; newer: boolean; asset: { name: string; size: number; sha256: string } } | null;
+  error: { kind: string; message: string } | null;
+  progress: { done: number; total: number };
+}
+export interface UpdateInfo extends UpdateStatus {
+  version: string;
+  platform: string | null;
+  configured: boolean;
+  feed: string;
+  configError: string;
+  canInstall: boolean;
+}
+
 export interface CloudStatus {
   state: "not_configured" | "connected" | "expired" | "unreachable" | "error";
   origin: string;

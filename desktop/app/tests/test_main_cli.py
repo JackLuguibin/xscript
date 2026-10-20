@@ -92,9 +92,27 @@ def test_selftest_passes_with_one_bridge_roundtrip():
 
 
 @needs_build
-def test_selftest_times_out_with_exit_1_when_the_page_never_says_hello():
-    r = run_app("--selftest", "--timeout", "0.05")  # too short for the page to boot
+def test_selftest_times_out_with_exit_1_when_the_page_never_says_hello(tmp_path):
+    rep = tmp_path / "r.json"
+    r = run_app("--selftest", "--timeout", "0.05", "--report", str(rep))  # too short for the page to boot
     assert r.returncode == 1 and "timeout" in r.stderr
+    assert json.loads(rep.read_text())["selftest"] == "timeout"
+
+
+@needs_build
+def test_selftest_report_file_for_windowed_builds(tmp_path):
+    # XScript.exe is a windowed build without stdout: the installer check reads --report instead
+    rep = tmp_path / "sub" / "r.json"
+    rep.parent.mkdir()
+    r = run_app("--selftest", "--timeout", "40", "--report", str(rep))
+    assert r.returncode == 0, r.stderr
+    assert json.loads(rep.read_text(encoding="utf-8")) == {"selftest": "ok", "version": __version__, "page": "loaded", "bridge": "roundtrip"}
+
+
+@needs_build
+def test_selftest_report_to_unwritable_path_still_passes(tmp_path):
+    r = run_app("--selftest", "--timeout", "40", "--report", str(tmp_path / "missing" / "r.json"))
+    assert r.returncode == 0 and "cannot write --report" in r.stderr
 
 
 @needs_build
@@ -160,3 +178,48 @@ def test_screenshot_with_size_and_theme(fake_adb, tmp_path, theme):
     assert (img.width(), img.height()) == (900, 600)
     lum = sum(((p >> 16) & 255) * 0.3 + ((p >> 8) & 255) * 0.59 + (p & 255) * 0.11 for p in (img.pixel(x, y) for x in range(600, 880, 20) for y in range(20, 40, 5))) / (14 * 4)
     assert (lum < 70) if theme == "dark" else (lum > 200), lum
+
+
+@needs_build
+def test_update_now_without_a_trusted_key_fails_and_quits(tmp_path):
+    env = {"XSCRIPT_UPDATE_PUBKEY": "", "XSCRIPT_UPDATE_FEED": "http://127.0.0.1:9/desktop-update.json"}
+    r = run_app("--update-now", "--data-dir", str(tmp_path), env=env)
+    assert r.returncode == 1 and "update failed" in r.stderr and '"kind": "config"' in r.stderr
+
+
+@needs_build
+@pytest.mark.skipif(not __import__("xscript_desktop.services.updater", fromlist=["x"]).platform_key(),
+                    reason="no update downloads for this platform")
+def test_update_now_with_a_local_feed_of_the_same_version_says_none(tmp_path):
+    import base64
+    import functools
+    import http.server
+    import threading
+
+    from xscript_desktop.services.updater import platform_key
+
+    sys.path.insert(0, str(APP / "packaging"))
+    try:
+        import make_update_feed as F
+    finally:
+        sys.path.pop(0)
+    feed = tmp_path / "feed"
+    feed.mkdir()
+    pub = F.new_key(tmp_path / "k")
+    ext = "macos-arm64.dmg" if platform_key() == "macos-arm64" else "windows-x64-setup.exe"
+    f = feed / ("xscript-desktop-v%s-%s" % (__version__, ext))
+    f.write_bytes(b"x")
+    data = F.build(__version__, [f])
+    (feed / "desktop-update.json").write_bytes(data)
+    (feed / "desktop-update.json.sig").write_bytes(F.sign(data, (tmp_path / "k").read_text()))
+    srv = http.server.ThreadingHTTPServer(("127.0.0.1", 0), functools.partial(http.server.SimpleHTTPRequestHandler,
+                                                                             directory=str(feed)))
+    threading.Thread(target=srv.serve_forever, daemon=True).start()
+    try:
+        env = {"XSCRIPT_UPDATE_PUBKEY": pub, "XSCRIPT_UPDATE_FEED": "http://127.0.0.1:%d/desktop-update.json" % srv.server_port}
+        r = run_app("--update-now", "--data-dir", str(tmp_path / "d"), env=env)
+    finally:
+        srv.shutdown()
+    assert r.returncode == 0, r.stderr
+    assert '"state": "none"' in r.stdout and not (tmp_path / "d" / "updates").exists()
+    assert base64.b64decode(pub)  # the throwaway key never left the temp folder

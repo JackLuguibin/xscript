@@ -14,6 +14,7 @@ dependencies = [
   "PySide6>=6.8,!=6.12.0",
   "httpx>=0.27",
   "keyring>=25",
+  "cryptography>=42",  # Ed25519 check of the signed update manifest (services/updater.py)
 ]
 
 [project.optional-dependencies]

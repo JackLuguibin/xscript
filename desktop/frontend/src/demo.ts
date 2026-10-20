@@ -1,6 +1,7 @@
 import { MemoryTransport } from "./bridge/memory";
 import type { Device } from "./api";
 import { cloudDemoHandlers } from "./cloud-demo";
+import { updateDemoHandlers } from "./update-demo";
 
 // Demo backend for `npm run dev` in a plain browser. Shapes mirror the real /status of an emulator.
 const status = {
@@ -259,6 +260,7 @@ export function createDemoTransport(): MemoryTransport {
       "secret.delete": (p) => ({ deleted: secrets.delete(`${String(p.kind)}\t${String(p.name)}`) }),
       "secret.has": (p) => ({ present: secrets.has(`${String(p.kind)}\t${String(p.name)}`) }),
       ...cloudDemoHandlers(),
+      ...updateDemoHandlers(),
       "app.copyText": () => ({ ok: true }),
       "app.setUnsaved": (p) => ({ unsaved: p.unsaved === true }),
       "tools.open": (p) => {

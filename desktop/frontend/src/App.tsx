@@ -11,7 +11,8 @@ import { Button } from "./components/ui/button";
 import { CloudPage } from "./components/CloudPage";
 import { WallPage } from "./components/WallPage";
 import { DeviceProvider, useCurrentDevice } from "./device-context";
-import { IconCloud, IconFlow, IconFolder, IconGrid, IconMark, IconMonitor, IconMoon, IconPhone, IconSun } from "./components/icons";
+import { IconCloud, IconFlow, IconFolder, IconGrid, IconInfo, IconMark, IconMonitor, IconMoon, IconPhone, IconSun } from "./components/icons";
+import { useUpdateBadge } from "./components/UpdatePanel";
 import { onCanvasPick } from "./flow/inbox";
 import { useLanguage } from "./i18n";
 import type { ShellPage } from "./shortcuts";
@@ -72,6 +73,7 @@ function Shell() {
   const [projectsOpened, setProjectsOpened] = useState(false);
   const [unsaved, setUnsaved] = useState(false);
   const shortcuts = useGlobalShortcuts(page, setPage, lang, setLang);
+  const newVersion = useUpdateBadge(inShell);
   useEffect(() => {
     if (page === "projects") setProjectsOpened(true);
   }, [page]);
@@ -132,6 +134,16 @@ function Shell() {
           <div className="sidebar-foot">
             <ThemeToggle />
             <LangToggle lang={lang} onChange={setLang} />
+            <Button
+              variant="nav"
+              onClick={shortcuts.openSettings}
+              aria-label={newVersion ? `${t.update.settingsButton}（${t.update.badge(newVersion)}）` : t.update.settingsButton}
+              title={newVersion ? t.update.badge(newVersion) : t.update.settingsButton}
+            >
+              <IconInfo />
+              <span className="label">{t.update.settingsButton}</span>
+              {newVersion && <span className="nav-dot" aria-hidden="true" />}
+            </Button>
           </div>
         </aside>
         <div className="content">

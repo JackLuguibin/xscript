@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState, type FormEvent, type RefObject } 
 import { isModalOpen } from "./Overlay";
 import { useServices } from "../app-context";
 import { CredentialsForm } from "./CredentialsForm";
+import { DiagnosticsPanel, UpdatePanel } from "./UpdatePanel";
 import { Alert } from "./ui/alert";
 import { Button } from "./ui/button";
 import { Dialog } from "./ui/dialog";
@@ -226,6 +227,8 @@ function SettingsDialog({
         </Button>
       </form>
       <CredentialsForm />
+      <UpdatePanel />
+      <DiagnosticsPanel />
     </Dialog>
   );
 }
@@ -393,5 +396,6 @@ export function useGlobalShortcuts(page: ShellPage, setPage: (page: ShellPage) =
       <HelpDialog onClose={close} restoreFocus={restoreFocus} />
     ) : null;
 
-  return { collapsed, refreshToken, focusToken, dialog };
+  const openSettings = () => setOverlay("settings");
+  return { collapsed, refreshToken, focusToken, dialog, openSettings };
 }

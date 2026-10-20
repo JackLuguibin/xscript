@@ -14,6 +14,12 @@ REMOTE_ROOT = "/data/user/0/com.xscript.app/files/projects/dbg"
 STATUS = {"name": "dbg-phone", "model": "Fake", "device_id": "dbg01", "app_id": "com.xscript.app", "width": 1080, "height": 2340}
 
 
+class _Server(ThreadingHTTPServer):
+    # socketserver listens with a backlog of 5; Windows refuses connections beyond it at once (macOS/Linux queue
+    # them), which failed test_perf's 50 concurrent status calls on the Windows runner with "connection refused".
+    request_queue_size = 128
+
+
 class FakeDebugDevice:
     def __init__(self, n_lines: int = 6) -> None:
         self.lock = threading.Lock()
@@ -105,7 +111,7 @@ class FakeDebugDevice:
                     outer.connected = False
                     self._send(200, {"ok": True})
 
-        self._httpd = ThreadingHTTPServer(("127.0.0.1", 0), H)
+        self._httpd = _Server(("127.0.0.1", 0), H)
         self._httpd.daemon_threads = True
         threading.Thread(target=self._httpd.serve_forever, daemon=True).start()
 

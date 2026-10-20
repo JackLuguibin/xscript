@@ -7,16 +7,21 @@
 #   4. verifies both APKs: valid signature, signer certificate == the known release certificate, versionName, 16 KB readiness,
 #   5. builds the macOS arm64 desktop dmg on a macOS runner (job "desktop"; ad-hoc signed, not notarized) and fails unless
 #      the bundle's signature verifies deep+strict inside the finished dmg (a broken seal shows "XScript is damaged"),
-#   6. creates the GitHub Release (notes = CHANGELOG section + the desktop first-open notes) with the APKs, the vsix,
-#      the dmg and SHA256SUMS (covering all of them).
+#   6. builds the Windows x64 setup.exe (job "desktop-windows"; not code-signed) and checks a silent install + --selftest,
+#   7. creates the GitHub Release (notes = CHANGELOG section + the desktop first-open notes) with the APKs, the vsix,
+#      the dmg, the setup.exe and SHA256SUMS (covering all of them); plus desktop-update.json(.sig) for the desktop
+#      auto-update only when the DESKTOP_UPDATE_KEY secret exists and the client ships its public key (UPDATE_PUBLIC_KEYS).
 # Dry run: a pull request touching this workflow or desktop/app/packaging, or a manual run (workflow_dispatch), runs only
-# the "desktop" job: it builds and verifies the dmg and uploads it as an artifact; it never creates a Release or a tag.
+# the desktop jobs: "desktop" builds and verifies the dmg, "desktop-windows" builds the setup.exe, installs it silently into
+# a temp folder, runs --selftest there and uninstalls; "desktop-update-feed" signs an update feed for both with a throwaway
+# key and checks it with the client's own verification code. All upload artifacts and never create a Release or a tag.
 # Perf APK: a manual run with perf_apk=true skips the dmg and builds only the developer app as com.xscript.app.perf
 # (-Pxscript.appIdSuffix=.perf, arm64-v8a + x86_64), signed with the same secrets, verified (signer == release
 # certificate, package, 16 KB) and uploaded as the short-lived artifact "perf-apk" (1 day). It is for installing
 # next to the regular app on a test device; it never creates a Release or a tag and has no write permission.
 # Secrets (repository secrets, names only): RELEASE_KEYSTORE_BASE64 (base64 of the .p12 / .jks keystore),
-# RELEASE_STORE_PASSWORD, RELEASE_KEY_ALIAS, RELEASE_KEY_PASSWORD. They are only exposed to the "release" job.
+# RELEASE_STORE_PASSWORD, RELEASE_KEY_ALIAS, RELEASE_KEY_PASSWORD; optional DESKTOP_UPDATE_KEY (base64 Ed25519 private key
+# of the desktop update feed). They are only exposed to the "release" job.
 name: release
 
 on:
@@ -74,12 +79,106 @@ jobs:
         run: desktop/app/dist/XScript.app/Contents/MacOS/XScript --selftest
       - name: Build the dmg and verify the signature inside it
         run: bash desktop/app/packaging/build_macos_dmg.sh
+      - name: The dmg opens (copy the app out, --selftest directly and through LaunchServices)
+        run: bash desktop/app/packaging/check_macos_dmg.sh desktop/app/dist/xscript-desktop-v*-macos-arm64.dmg
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: desktop-dmg
           path: desktop/app/dist/*.dmg
           if-no-files-found: error
           retention-days: 14
+
+  desktop-windows:
+    name: desktop setup.exe (Windows x64)
+    if: ${{ !inputs.perf_apk }}
+    runs-on: windows-latest
+    timeout-minutes: 45
+    permissions:
+      contents: read
+    defaults:
+      run:
+        shell: bash
+    env:
+      PYTHONUTF8: "1"
+      QTWEBENGINE_CHROMIUM_FLAGS: --no-sandbox --disable-gpu
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: "22"
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: "3.10"
+      - name: Version matches the tag
+        if: github.event_name == 'push'
+        run: |
+          V="$(sed -n 's/^version = "\(.*\)"/\1/p' desktop/app/pyproject.toml)"
+          [ "v$V" = "$GITHUB_REF_NAME" ] || { echo "::error::desktop/app/pyproject.toml version $V does not match $GITHUB_REF_NAME"; exit 1; }
+      - name: Build XScript (PyInstaller onedir) and the Inno Setup installer (not code-signed)
+        run: |
+          (cd desktop/frontend && npm ci)
+          bash desktop/app/packaging/build_windows.sh
+      - name: Install silently into a temp folder, --selftest the installed exe, uninstall
+        run: bash desktop/app/packaging/check_windows_install.sh desktop/app/dist/xscript-desktop-v*-windows-x64-setup.exe
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: desktop-windows-setup
+          path: desktop/app/dist/*-setup.exe
+          if-no-files-found: error
+          retention-days: 14
+
+  desktop-update-feed:
+    name: desktop update feed (dry run, throwaway key)
+    if: github.event_name != 'push' && !inputs.perf_apk
+    needs: [desktop, desktop-windows]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: "3.10"
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: desktop-dmg
+          path: dist/feed
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: desktop-windows-setup
+          path: dist/feed
+      - name: Sign a feed for both installers with a throwaway key and verify it with the client code
+        run: |
+          python -m pip install -q httpx "cryptography>=42"
+          V="$(sed -n 's/^version = "\(.*\)"/\1/p' desktop/app/pyproject.toml)"
+          umask 077
+          PUB="$(python desktop/app/packaging/make_update_feed.py --new-key "$RUNNER_TEMP/throwaway.key")"
+          python desktop/app/packaging/make_update_feed.py dist/feed dist/feed/xscript-desktop-v$V-*.* --version "$V" \
+            --key "$RUNNER_TEMP/throwaway.key" --notes-zh "演练（不发布）" --notes-en "dry run (not published)"
+          rm -f "$RUNNER_TEMP/throwaway.key"
+          cd desktop/app && PUB="$PUB" V="$V" python - <<'PY'
+          import base64, os, pathlib
+          from xscript_desktop.services import updater as U
+          feed = pathlib.Path("../../dist/feed")
+          data = (feed / "desktop-update.json").read_bytes()
+          U.verify_signature(data, (feed / "desktop-update.json.sig").read_bytes(), [base64.b64decode(os.environ["PUB"])])
+          for key in ("macos-arm64", "windows-x64"):
+              u = U.parse_manifest(data, "https://example.invalid/desktop-update.json", key, "0.0.0")
+              f = feed / u.asset.name
+              assert u.version == os.environ["V"] and f.stat().st_size == u.asset.size and U.file_sha256(f) == u.asset.sha256, key
+              print("ok", key, u.asset.name, u.asset.size)
+          PY
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: desktop-update-feed-dry-run
+          path: dist/feed/desktop-update.json*
+          if-no-files-found: error
+          retention-days: 7
 
   perf-apk:
     name: signed perf APK (artifact only)
@@ -157,7 +256,7 @@ jobs:
   release:
     name: build, verify and publish
     if: github.event_name == 'push'
-    needs: [verify, desktop]
+    needs: [verify, desktop, desktop-windows]
     runs-on: ubuntu-24.04
     timeout-minutes: 90
     permissions:
@@ -246,12 +345,35 @@ jobs:
           name: desktop-dmg
           path: dist/release
 
-      - name: Add the dmg to SHA256SUMS
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: desktop-windows-setup
+          path: dist/release
+
+      - name: Add the dmg and the setup.exe to SHA256SUMS
         working-directory: dist/release
         run: |
           DMG="xscript-desktop-${TAG}-macos-arm64.dmg"
+          EXE="xscript-desktop-${TAG}-windows-x64-setup.exe"
           [ -f "$DMG" ] || { echo "::error::missing $DMG"; exit 1; }
-          sha256sum "$DMG" >> SHA256SUMS
+          [ -f "$EXE" ] || { echo "::error::missing $EXE"; exit 1; }
+          sha256sum "$DMG" "$EXE" >> SHA256SUMS
+
+      - name: Desktop update feed (only with the update key in Secrets and its public key in the client)
+        env:
+          UK: ${{ secrets.DESKTOP_UPDATE_KEY }}
+        run: |
+          if [ -z "$UK" ] || grep -q '^UPDATE_PUBLIC_KEYS: tuple\[str, \.\.\.\] = ()' desktop/app/xscript_desktop/services/updater.py; then
+            echo "::notice::no desktop update feed: DESKTOP_UPDATE_KEY secret or the client's UPDATE_PUBLIC_KEYS is not set up"
+            exit 0
+          fi
+          python -m pip install -q httpx "cryptography>=42"
+          umask 077
+          printf '%s' "$UK" > "$RUNNER_TEMP/update.key"
+          python desktop/app/packaging/make_update_feed.py dist/release dist/release/xscript-desktop-${TAG}-*.dmg \
+            dist/release/xscript-desktop-${TAG}-*-setup.exe --version "${TAG#v}" --key "$RUNNER_TEMP/update.key" \
+            --base-url "https://github.com/${GITHUB_REPOSITORY}/releases/download/${TAG}"
+          rm -f "$RUNNER_TEMP/update.key"
 
       - name: Re-verify the files that will be published
         working-directory: dist/release
@@ -269,9 +391,13 @@ jobs:
           bash scripts/release.sh notes "$TAG" > "$RUNNER_TEMP/notes.md"
           [ -s "$RUNNER_TEMP/notes.md" ] || { echo "::error::empty CHANGELOG section for $TAG"; exit 1; }
           { echo; sed "s/{VERSION}/${TAG#v}/g" desktop/app/packaging/release-notes-macos.md; } >> "$RUNNER_TEMP/notes.md"
+          { echo; sed "s/{VERSION}/${TAG#v}/g" desktop/app/packaging/release-notes-windows.md; } >> "$RUNNER_TEMP/notes.md"
+          FEED=""
+          [ -f dist/release/desktop-update.json ] && FEED="dist/release/desktop-update.json dist/release/desktop-update.json.sig"
           gh release create "$TAG" --verify-tag --title "XScript $TAG" --notes-file "$RUNNER_TEMP/notes.md" \
             "dist/release/xscript-${TAG}-release.apk" \
             "dist/release/xscript-${TAG}-release-arm64-v8a.apk" \
             "dist/release/xscript-vscode-${TAG#v}.vsix" \
             "dist/release/xscript-desktop-${TAG}-macos-arm64.dmg" \
-            dist/release/SHA256SUMS
+            "dist/release/xscript-desktop-${TAG}-windows-x64-setup.exe" \
+            dist/release/SHA256SUMS $FEED

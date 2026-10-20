@@ -27,7 +27,12 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     p.add_argument("--size", metavar="WxH", help="initial window size, e.g. 1180x760 (verification aid; documentation screenshots)")
     p.add_argument("--theme", choices=["system", "light", "dark"], help="with --screenshot: press the sidebar theme button until this theme is active (verification aid)")
     p.add_argument("--timeout", type=float, default=30.0, help="selftest/screenshot timeout in seconds")
+    p.add_argument("--report", metavar="JSON",
+                   help="with --selftest: also write the result to this file (a windowed build has no stdout, e.g. XScript.exe)")
     p.add_argument("--data-dir", help="where to keep the web profile (default: per-user app data dir)")
+    p.add_argument("--update-now", action="store_true",
+                   help="check the update feed, download, verify and install a newer version, then quit (verification aid; "
+                        "the same steps as the About dialog, used by scripts/desktop_update_e2e.py with a local feed)")
     return p.parse_args(argv)
 
 
@@ -82,6 +87,13 @@ def main(argv: list[str] | None = None) -> int:
     app.setWindowIcon(app_icon())  # window title bar + macOS Dock / Windows taskbar
     runtime = AsyncRuntime().start()
     data_dir = Path(args.data_dir) if args.data_dir else default_data_dir()
+    if not (args.selftest or args.screenshot):
+        from .services.diagnostics import add_file_log
+
+        try:
+            add_file_log(data_dir)  # for the diagnostics bundle (P5.5)
+        except OSError as e:
+            log.warning("no log file: %s", e)
     ctx = AppContext(adb=AdbService(args.adb), data_dir=None if args.selftest else data_dir)
     bridge = Bridge(ctx, runtime)
     handler = XsAppHandler(ctx, runtime)
@@ -106,7 +118,10 @@ def main(argv: list[str] | None = None) -> int:
     ctx.copy_text = clip.write
     tools = ToolHost(win)
     ctx.open_tools = tools.open
-    if not (args.selftest or args.screenshot):
+    quitter = _Quitter()
+    quitter.requested.connect(app.quit)  # queued onto the GUI thread when emitted from the asyncio thread
+    ctx.quit_app = quitter.requested.emit
+    if not (args.selftest or args.screenshot or args.update_now):
         ctx.secrets.backend = KeyringBackend()
     win.show()
     win.load()
@@ -115,6 +130,14 @@ def main(argv: list[str] | None = None) -> int:
     poll = QTimer()
     poll.setInterval(100)
     elapsed = {"t": 0.0, "ready_at": None, "clicked": False, "theme_ok": False}
+
+    def report(payload: dict) -> None:
+        print(json.dumps(payload, ensure_ascii=False))
+        if args.report:
+            try:
+                Path(args.report).write_text(json.dumps(payload, ensure_ascii=False), encoding="utf-8")
+            except OSError as e:
+                print("cannot write --report %s: %s" % (args.report, e), file=sys.stderr)
 
     def finish(code: int) -> None:
         result["code"] = code
@@ -130,16 +153,20 @@ def main(argv: list[str] | None = None) -> int:
         elapsed["t"] += 0.1
         if elapsed["t"] > args.timeout and (args.selftest or args.screenshot):
             print("FAIL: timeout waiting for the page (ui_ready=%s)" % ctx.ui_ready.is_set(), file=sys.stderr)
+            if args.selftest:
+                report({"selftest": "timeout", "version": __version__, "uiReady": ctx.ui_ready.is_set()})
             finish(1)
             return
         if not ctx.ui_ready.is_set():
             return
         if elapsed["ready_at"] is None:
             elapsed["ready_at"] = elapsed["t"]
-            if not args.selftest and not args.screenshot:
+            if not (args.selftest or args.screenshot or args.update_now):
                 runtime.submit(ctx.connect_saved())  # only rows with auto_connect=1; design §14.5
             if args.connect_adb:
                 runtime.submit(_connect(ctx, args.connect_adb))
+            if args.update_now:
+                runtime.submit(_update_now(ctx, result))
         if args.theme and not elapsed["theme_ok"]:
             # Click the theme button (system → light → dark) until <html data-theme> shows the wanted theme, at most one
             # click per tick so React re-renders in between. Counting clicks blindly lost one whenever the button was
@@ -147,7 +174,7 @@ def main(argv: list[str] | None = None) -> int:
             win.page.runJavaScript(THEME_STEP_JS % json.dumps(args.theme), theme_step_done)
             return
         if args.selftest and not args.connect_adb:
-            print(json.dumps({"selftest": "ok", "version": __version__, "page": "loaded", "bridge": "roundtrip"}))
+            report({"selftest": "ok", "version": __version__, "page": "loaded", "bridge": "roundtrip"})
             finish(0)
         elif args.screenshot and args.click_screenshot and not elapsed["clicked"] and ctx.devices.list() and \
                 elapsed["t"] - elapsed["ready_at"] >= 1.0:
@@ -161,7 +188,7 @@ def main(argv: list[str] | None = None) -> int:
             finish(0 if ok else 1)
         elif args.selftest and args.connect_adb and ctx.devices.list():
             rec = ctx.devices.list()[0]
-            print(json.dumps({"selftest": "ok", "device": rec.to_dict()["info"], "state": rec.state}, ensure_ascii=False))
+            report({"selftest": "ok", "device": rec.to_dict()["info"], "state": rec.state})
             finish(0)
 
     poll.timeout.connect(tick)
@@ -178,7 +205,41 @@ def main(argv: list[str] | None = None) -> int:
 
     app.aboutToQuit.connect(on_quit)
     app.exec()
-    return result["code"] if (args.selftest or args.screenshot) else 0
+    return result["code"] if (args.selftest or args.screenshot or args.update_now) else 0
+
+
+def _Quitter():
+    """A QObject whose `requested` signal, emitted from any thread, runs the connected slot on the GUI thread."""
+    from PySide6.QtCore import QObject, Signal
+
+    class Quitter(QObject):
+        requested = Signal()
+
+    return Quitter()
+
+
+async def _update_now(ctx, result: dict) -> None:
+    """--update-now: check → download → install (the app then quits; exit code 0) or report why not (exit 1, quit)."""
+    u = ctx.updates
+    try:
+        s = await u.check()
+        print("update check: %s" % json.dumps(s, ensure_ascii=False))
+        if s["state"] == "none":
+            result["code"] = 0
+        elif s["state"] == "available":
+            s = await u.download()
+            print("update download: %s" % s["state"])
+            if s["state"] == "ready":
+                r = await ctx.install_update()  # quits the app
+                print("update install: %s (helper log %s)" % (r["state"], r["helperLog"]))
+                result["code"] = 0
+                return
+    except Exception as e:  # noqa: BLE001 - reported, exit code 1
+        print("update failed: %s" % e, file=sys.stderr)
+    if u.error:
+        print("update failed: %s" % json.dumps(u.error, ensure_ascii=False), file=sys.stderr)
+    if ctx.quit_app:
+        ctx.quit_app()
 
 
 async def _connect(ctx, serial: str) -> None:
