@@ -11,6 +11,7 @@ const ROLE_OPTIONS = [
   { value: "viewer", label: "只读：查看设备、卡密、打包记录" },
   { value: "operator", label: "操作员：下发指令、生成卡密、打包" },
   { value: "admin", label: "管理员：全部权限，含用户、密钥、日志" },
+  { value: "reseller", label: "代理：只能在额度内生成和管理自己的卡密" },
 ];
 
 export default function UsersPage() {

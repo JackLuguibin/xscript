@@ -21,6 +21,7 @@ import {
   MobileOutlined,
   SafetyCertificateOutlined,
   SettingOutlined,
+  ShopOutlined,
   TeamOutlined,
 } from "@ant-design/icons";
 import { api, type Role, type Settings } from "./api";
@@ -44,6 +45,8 @@ const UsersPage = lazy(() => import("./pages/Users"));
 const AuditPage = lazy(() => import("./pages/Audit"));
 const SettingsPage = lazy(() => import("./pages/Settings"));
 const AccountPage = lazy(() => import("./pages/Account"));
+const ResellersPage = lazy(() => import("./pages/Resellers"));
+const ResellerHome = lazy(() => import("./pages/reseller/ResellerHome"));
 const TotpGate = lazy(() => import("./pages/Account").then((m) => ({ default: m.TotpGate })));
 
 const { Sider, Content } = Layout;
@@ -63,6 +66,7 @@ const NAV: NavItem[] = [
   { path: "/tasks", label: "定时任务", icon: <ClockCircleOutlined />, role: "viewer", group: "云控" },
   { path: "/device-keys", label: "设备密钥", icon: <KeyOutlined />, role: "admin", group: "云控" },
   { path: "/cards", label: "卡密管理", icon: <SafetyCertificateOutlined />, role: "viewer", group: "授权" },
+  { path: "/resellers", label: "代理", icon: <ShopOutlined />, role: "admin", group: "授权" },
   { path: "/app-ops", label: "应用运营", icon: <NotificationOutlined />, role: "viewer", group: "发布" },
   { path: "/scripts", label: "小程序", icon: <AppstoreOutlined />, role: "viewer", group: "发布" },
   { path: "/pack", label: "APK 打包", icon: <BuildOutlined />, role: "viewer", group: "发布" },
@@ -70,6 +74,29 @@ const NAV: NavItem[] = [
   { path: "/audit", label: "操作日志", icon: <AuditOutlined />, role: "admin", group: "系统" },
   { path: "/settings", label: "系统设置", icon: <SettingOutlined />, role: "viewer", group: "系统" },
 ];
+
+/** The 代理 console: its own cards, sales and log only (the server refuses every staff endpoint as well). */
+const RESELLER_NAV: NavItem[] = [
+  { path: "/", label: "我的概览", icon: <DashboardOutlined />, role: "reseller", group: "" },
+  { path: "/cards", label: "我的卡密", icon: <SafetyCertificateOutlined />, role: "reseller", group: "代理" },
+  { path: "/audit", label: "操作记录", icon: <AuditOutlined />, role: "reseller", group: "代理" },
+];
+
+function ResellerRoutes() {
+  return (
+    <Routes>
+      <Route path="/" element={<ResellerHome />} />
+      <Route path="/cards" element={<CardsPage />} />
+      <Route path="/audit" element={<AuditPage />} />
+      <Route path="/account" element={<AccountPage />} />
+      <Route path="/login" element={<Navigate to="/" replace />} />
+      <Route
+        path="*"
+        element={<Result status="404" title="页面不存在" subTitle="代理账号只能使用左侧菜单里的页面" />}
+      />
+    </Routes>
+  );
+}
 
 function Guard({ role, children }: { role: Role; children: React.ReactNode }) {
   const { can } = useAuth();
@@ -115,6 +142,8 @@ function PageFallback() {
 
 export default function App() {
   const { user, logout, can } = useAuth();
+  const reseller = user?.role === "reseller";
+  const nav = reseller ? RESELLER_NAV : NAV;
   const location = useLocation();
   const navigate = useNavigate();
   const screens = Grid.useBreakpoint();
@@ -126,14 +155,14 @@ export default function App() {
   const settings = useQuery({
     queryKey: ["settings"],
     queryFn: () => api.get<Settings>("/api/settings"),
-    enabled: !!user,
+    enabled: !!user && !reseller,
     staleTime: 60_000,
   });
 
   const narrow = collapsed && !mobile;
   const menuItems = useMemo<MenuProps["items"]>(() => {
     const groups = new Map<string, NavItem[]>();
-    for (const n of NAV.filter((n) => can(n.role))) {
+    for (const n of reseller ? nav : nav.filter((n) => can(n.role))) {
       groups.set(n.group, [...(groups.get(n.group) ?? []), n]);
     }
     const out: NonNullable<MenuProps["items"]> = [];
@@ -143,7 +172,7 @@ export default function App() {
       else out.push(...entries);
     }
     return out;
-  }, [can, narrow]);
+  }, [can, narrow, nav, reseller]);
 
   // Public download pages work with or without a session.
   if (location.pathname.startsWith("/d/")) {
@@ -172,11 +201,12 @@ export default function App() {
     );
   }
 
-  const current = NAV.find(
+  const current = nav.find(
     (n) => n.path !== "/" && (location.pathname === n.path || location.pathname.startsWith(n.path + "/")),
   );
   const selected = current?.path ?? "/";
-  const crumbLabel = location.pathname === "/account" ? "账号与令牌" : (current?.label ?? "概览");
+  const home = reseller ? "我的概览" : "概览";
+  const crumbLabel = location.pathname === "/account" ? "账号与令牌" : (current?.label ?? home);
   const crumbGroup = location.pathname === "/account" ? "个人" : current?.group;
 
   const brand = (
@@ -185,7 +215,7 @@ export default function App() {
       {!narrow && (
         <div className="brand-name">
           <strong>{settings.data?.site_name || "XScript"}</strong>
-          <span>云控 · 授权 · 打包</span>
+          <span>{reseller ? "代理后台" : "云控 · 授权 · 打包"}</span>
         </div>
       )}
     </div>
@@ -279,51 +309,63 @@ export default function App() {
         <Content className="shell-content" key={location.pathname}>
           <ErrorBoundary key={location.pathname}>
             <Suspense fallback={<PageFallback />}>
-              <Routes>
-                <Route path="/" element={<OverviewPage />} />
-                <Route path="/devices" element={<DevicesPage />} />
-                <Route path="/tasks" element={<TasksPage />} />
-                <Route path="/scripts" element={<ScriptsPage />} />
-                <Route
-                  path="/wall"
-                  element={
-                    <Guard role="operator">
-                      <WallPage />
-                    </Guard>
-                  }
-                />
-                <Route
-                  path="/device-keys"
-                  element={
-                    <Guard role="admin">
-                      <DeviceKeysPage />
-                    </Guard>
-                  }
-                />
-                <Route path="/cards" element={<CardsPage />} />
-                <Route path="/app-ops" element={<AppOpsPage />} />
-                <Route path="/pack" element={<PackPage />} />
-                <Route
-                  path="/users"
-                  element={
-                    <Guard role="admin">
-                      <UsersPage />
-                    </Guard>
-                  }
-                />
-                <Route
-                  path="/audit"
-                  element={
-                    <Guard role="admin">
-                      <AuditPage />
-                    </Guard>
-                  }
-                />
-                <Route path="/settings" element={<SettingsPage />} />
-                <Route path="/account" element={<AccountPage />} />
-                <Route path="/login" element={<Navigate to="/" replace />} />
-                <Route path="*" element={<Result status="404" title="页面不存在" />} />
-              </Routes>
+              {reseller ? (
+                <ResellerRoutes />
+              ) : (
+                <Routes>
+                  <Route path="/" element={<OverviewPage />} />
+                  <Route path="/devices" element={<DevicesPage />} />
+                  <Route path="/tasks" element={<TasksPage />} />
+                  <Route path="/scripts" element={<ScriptsPage />} />
+                  <Route
+                    path="/wall"
+                    element={
+                      <Guard role="operator">
+                        <WallPage />
+                      </Guard>
+                    }
+                  />
+                  <Route
+                    path="/device-keys"
+                    element={
+                      <Guard role="admin">
+                        <DeviceKeysPage />
+                      </Guard>
+                    }
+                  />
+                  <Route path="/cards" element={<CardsPage />} />
+                  <Route path="/app-ops" element={<AppOpsPage />} />
+                  <Route path="/pack" element={<PackPage />} />
+                  <Route
+                    path="/users"
+                    element={
+                      <Guard role="admin">
+                        <UsersPage />
+                      </Guard>
+                    }
+                  />
+                  <Route
+                    path="/audit"
+                    element={
+                      <Guard role="admin">
+                        <AuditPage />
+                      </Guard>
+                    }
+                  />
+                  <Route path="/settings" element={<SettingsPage />} />
+                  <Route path="/account" element={<AccountPage />} />
+                  <Route
+                    path="/resellers"
+                    element={
+                      <Guard role="admin">
+                        <ResellersPage />
+                      </Guard>
+                    }
+                  />
+                  <Route path="/login" element={<Navigate to="/" replace />} />
+                  <Route path="*" element={<Result status="404" title="页面不存在" />} />
+                </Routes>
+              )}
             </Suspense>
           </ErrorBoundary>
         </Content>

@@ -3,7 +3,8 @@ import { Spin } from "antd";
 import { useQueryClient } from "@tanstack/react-query";
 import { api, setUnauthorizedHandler, type Role, type TotpRequired, type User } from "./api";
 
-const RANK: Record<Role, number> = { viewer: 0, operator: 1, admin: 2 };
+// 代理 has no staff rank: can() is false for every staff page; the 代理 console checks the role itself.
+const RANK: Record<Role, number> = { reseller: -1, viewer: 0, operator: 1, admin: 2 };
 
 interface AuthState {
   user: User | null;

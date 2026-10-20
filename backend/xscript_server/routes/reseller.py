@@ -21,7 +21,7 @@ from sqlalchemy.orm import Session
 
 from .. import cards as cardsvc
 from .. import stats
-from ..deps import Principal, admin, db_session, paginate, record, reseller_only
+from ..deps import Principal, admin, db_session, like_contains, like_escape, paginate, record, reseller_only
 from ..models import AuditLog, Card, Reseller, User
 from .cards import APP_PATTERN, _filtered
 
@@ -139,7 +139,9 @@ def _mine(p: Principal, s: Session) -> Reseller:
 
 @me.get("/me")
 def my_limits(p: Principal = Depends(reseller_only), s: Session = Depends(db_session)):
-    return {"username": p.username, **_limits(_mine(p, s)), "cards": cardsvc.stats(s, p.id)}
+    limits = _limits(_mine(p, s))
+    limits.pop("note")  # the admin's note about this reseller stays internal
+    return {"username": p.username, **limits, "cards": cardsvc.stats(s, p.id)}
 
 
 @me.get("/cards")
@@ -288,13 +290,19 @@ def my_daily(days: int = Query(30, ge=7, le=365), app: str = Query("", max_lengt
 
 @me.get("/audit")
 def my_audit(p: Principal = Depends(reseller_only), s: Session = Depends(db_session), action: str = "",
-             page: int = 1, page_size: int = 50):
+             q: str = "", since: int = 0, until: int = 0, page: int = 1, page_size: int = 50):
     """The reseller's own actions, plus admin quota / limit changes made to this account."""
     stmt = select(AuditLog).where(or_(AuditLog.actor == p.username,
                                       (AuditLog.action.in_(("reseller.quota", "reseller.limits")))
                                       & (AuditLog.target == p.username)))
-    if action:
-        stmt = stmt.where(AuditLog.action == action)
+    if action:  # same filters as the staff log: "card." is a category prefix
+        stmt = stmt.where(AuditLog.action.like(like_escape(action.rstrip("*")) + "%", escape="\\"))
+    if q:
+        stmt = stmt.where(AuditLog.target.like(like_contains(q), escape="\\"))
+    if since:
+        stmt = stmt.where(AuditLog.time >= since)
+    if until:
+        stmt = stmt.where(AuditLog.time <= until)
     total = s.scalar(select(func.count()).select_from(stmt.subquery())) or 0
     off, size = paginate(page, page_size)
     rows = s.scalars(stmt.order_by(AuditLog.id.desc()).offset(off).limit(size))

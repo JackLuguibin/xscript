@@ -3,6 +3,7 @@ import { keepPreviousData, useQuery } from "@tanstack/react-query";
 import { Card, DatePicker, Select, Table, Typography } from "antd";
 import type { Dayjs } from "dayjs";
 import { api, type AuditEntry, type Page } from "../api";
+import { useAuth } from "../auth";
 import { PageHeader, Pill, SearchInput } from "../components";
 import { fmtTime } from "../format";
 
@@ -37,6 +38,8 @@ const ACTIONS: Record<string, string> = {
   "card.extend": "卡密延期",
   "card.offline": "离线授权码",
   "card.activate": "卡密激活",
+  "reseller.quota": "代理额度调整",
+  "reseller.limits": "修改代理限制",
   "pack.create": "提交打包",
   "pack.finish": "打包完成",
   "pack.delete": "删除打包",
@@ -82,23 +85,44 @@ const CATEGORIES: [string, string][] = [
   ["device_key.", "设备密钥"],
   ["task.", "定时任务"],
   ["card.", "卡密"],
+  ["reseller.", "代理"],
   ["script.", "小程序"],
   ["pack.", "打包与分发"],
   ["system.", "备份与维护"],
   ["settings.", "设置"],
 ];
 
+// What a 代理 can find in its own log.
+const RESELLER_CATEGORIES = ["auth.", "token.", "card.", "reseller."];
+
+/** 操作日志. Admins see everything; a 代理 sees its own actions and the admin's changes to its quota and limits. */
 export default function AuditPage() {
+  const { user } = useAuth();
+  const mine = user?.role === "reseller";
   const [f, setF] = useState({ actor: "", action: "", q: "", since: 0, until: 0, page: 1, page_size: 50 });
   const list = useQuery({
-    queryKey: ["audit", f],
-    queryFn: () => api.get<Page<AuditEntry>>("/api/audit", f),
+    queryKey: ["audit", mine, f],
+    queryFn: () => {
+      if (!mine) return api.get<Page<AuditEntry>>("/api/audit", f);
+      const { actor: _actor, ...own } = f; // the server already limits the log to this account
+      return api.get<Page<AuditEntry>>("/api/reseller/audit", own);
+    },
     placeholderData: keepPreviousData,
   });
+  const ownCategory = (a: string) => RESELLER_CATEGORIES.some((p) => a.startsWith(p));
+  const categories = mine ? CATEGORIES.filter(([p]) => ownCategory(p)) : CATEGORIES;
+  const actions = Object.entries(ACTIONS).filter(([a]) => !mine || ownCategory(a));
 
   return (
     <>
-      <PageHeader title="操作日志" desc="所有登录、配置变更、下发指令、发卡和打包都会记录在这里，点击行首可查看详情。" />
+      <PageHeader
+        title={mine ? "操作记录" : "操作日志"}
+        desc={
+          mine
+            ? "你的登录、发卡、停用、导出等操作，以及管理员对你额度和发卡限制的调整。"
+            : "所有登录、配置变更、下发指令、发卡和打包都会记录在这里，点击行首可查看详情。"
+        }
+      />
       <Card className="table-card">
         <div className="toolbar">
           <Select
@@ -111,15 +135,17 @@ export default function AuditPage() {
             options={[
               {
                 label: "分类",
-                options: CATEGORIES.map(([p, label]) => ({
+                options: categories.map(([p, label]) => ({
                   value: p,
                   label: "全部" + label,
                 })),
               },
-              { label: "操作", options: Object.entries(ACTIONS).map(([value, label]) => ({ value, label })) },
+              { label: "操作", options: actions.map(([value, label]) => ({ value, label })) },
             ]}
           />
-          <SearchInput placeholder="操作人" width={160} onSearch={(actor) => setF((f) => ({ ...f, actor, page: 1 }))} />
+          {!mine && (
+            <SearchInput placeholder="操作人" width={160} onSearch={(actor) => setF((f) => ({ ...f, actor, page: 1 }))} />
+          )}
           <SearchInput placeholder="对象（卡密 / 设备 / 包名）" width={240} onSearch={(q) => setF((f) => ({ ...f, q, page: 1 }))} />
           <DatePicker.RangePicker
             showTime={{ format: "HH:mm" }}

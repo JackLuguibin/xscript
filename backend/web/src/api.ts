@@ -88,7 +88,8 @@ export async function download(path: string, query?: Query, fallbackName = "down
 
 // ---------------------------------------------------------------- types
 
-export type Role = "viewer" | "operator" | "admin";
+/** reseller = 代理: no staff rank; only the 代理 console (/api/reseller/*). */
+export type Role = "viewer" | "operator" | "admin" | "reseller";
 
 export interface User {
   id: number;
@@ -219,7 +220,39 @@ export interface Card {
   stack: boolean;
   uses_total: number;
   uses_left: number;
+  /** 代理 that generated the card; null = staff. */
+  owner_id: number | null;
   devices: { device: string; model: string }[];
+}
+
+export type CardKind = "normal" | "trial" | "count";
+
+/** 代理 limits and quota (quota = cards the reseller may ever generate; used never goes down). */
+export interface ResellerLimits {
+  quota: number;
+  used: number;
+  left: number;
+  apps: string[];
+  kinds: CardKind[];
+  max_days: number;
+  max_devices: number;
+  max_uses: number;
+}
+
+export interface ResellerMe extends ResellerLimits {
+  username: string;
+  cards: CardStats;
+}
+
+export interface ResellerRow extends ResellerLimits {
+  id: number;
+  username: string;
+  disabled: boolean;
+  last_login_at: number | null;
+  /** Admin-only note about the 代理. */
+  note: string;
+  cards: CardStats;
+  activations_30d: number;
 }
 
 export interface AbuseItem {
@@ -349,6 +382,17 @@ export interface Overview {
 }
 
 export type TrendKey = "activations" | "expirations" | "new_devices" | "online_devices";
+
+/** Any trend payload: the 概览 one (DailyStats) or a 代理's card-only one (created / activations / expirations). */
+export interface TrendData {
+  days: string[];
+  series: Record<string, number[]>;
+  totals: Record<string, number>;
+  expiring_7d: number;
+  by_app: { name: string; count: number }[];
+  by_batch: { name: string; count: number }[];
+  timezone: string;
+}
 
 /** GET /api/stats/daily: per server-local day, oldest first. */
 export interface DailyStats {

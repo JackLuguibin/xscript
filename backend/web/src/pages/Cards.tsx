@@ -1,4 +1,5 @@
-import { useState } from "react";
+import { useMemo, useState } from "react";
+import { useSearchParams } from "react-router-dom";
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   Alert,
@@ -18,7 +19,18 @@ import {
   Tooltip,
 } from "antd";
 import { DownloadOutlined, DownOutlined, KeyOutlined, PlusOutlined } from "@ant-design/icons";
-import { api, download, type AbuseItem, type Batch, type Card as CardT, type CardStats, type DeviceBanItem, type Page } from "../api";
+import {
+  api,
+  download,
+  type AbuseItem,
+  type Batch,
+  type Card as CardT,
+  type CardStats,
+  type DeviceBanItem,
+  type Page,
+  type ResellerMe,
+  type ResellerRow,
+} from "../api";
 import { useAuth } from "../auth";
 import { CARD_STATUS_OPTIONS, CardStatusTag, CopyText, PageHeader, SearchInput, toneColor } from "../components";
 import { copy, fmtDays, fmtTime } from "../format";
@@ -30,16 +42,34 @@ interface Filters {
   status: string;
   app: string;
   batch: string;
+  /** Staff only: one 代理's cards (user id), -1 = staff-created only, 0 = all. */
+  owner: number;
   page: number;
   page_size: number;
 }
 
+/**
+ * 卡密管理. Staff see every card; a 代理 sees the same page scoped to /api/reseller/cards (own cards, quota-limited
+ * creation, no delete / extend / offline codes / abuse / bans).
+ */
 export default function CardsPage() {
-  const { can } = useAuth();
+  const { can, user } = useAuth();
+  const reseller = user?.role === "reseller";
+  const base = reseller ? "/api/reseller/cards" : "/api/cards";
+  const edit = reseller || can("operator");
   const { message, modal } = App.useApp();
   const qc = useQueryClient();
+  const [params] = useSearchParams();
   const [tab, setTab] = useState("cards");
-  const [f, setF] = useState<Filters>({ q: "", status: "", app: "", batch: "", page: 1, page_size: 20 });
+  const [f, setF] = useState<Filters>(() => ({
+    q: "",
+    status: "",
+    app: "",
+    batch: "",
+    owner: reseller ? 0 : Number(params.get("owner")) || 0,
+    page: 1,
+    page_size: 20,
+  }));
   const [selected, setSelected] = useState<string[]>([]);
   const [createOpen, setCreateOpen] = useState(false);
   const [offlineOpen, setOfflineOpen] = useState(false);
@@ -47,26 +77,50 @@ export default function CardsPage() {
   const [created, setCreated] = useState<{ batch: string; cards: string[] } | null>(null);
   const [devicesOf, setDevicesOf] = useState<string | null>(null);
 
-  const stats = useQuery({ queryKey: ["card-stats"], queryFn: () => api.get<CardStats>("/api/cards/stats") });
+  // A 代理 never sends owner: the server scopes /api/reseller/* to the signed-in account.
+  const filterParams = (q: Partial<Filters>) => ({
+    q: q.q,
+    status: q.status,
+    app: q.app,
+    batch: q.batch,
+    owner: reseller ? undefined : q.owner || undefined,
+  });
+  const stats = useQuery({ queryKey: ["card-stats", base], queryFn: () => api.get<CardStats>(base + "/stats") });
   const list = useQuery({
-    queryKey: ["cards", f],
-    queryFn: () => api.get<Page<CardT>>("/api/cards", { ...f }),
+    queryKey: ["cards", base, f],
+    queryFn: () => api.get<Page<CardT>>(base, { ...filterParams(f), page: f.page, page_size: f.page_size }),
     placeholderData: keepPreviousData,
   });
   const batches = useQuery({
-    queryKey: ["batches"],
-    queryFn: () => api.get<{ items: Batch[] }>("/api/cards/batches"),
+    queryKey: ["batches", base],
+    queryFn: () => api.get<{ items: Batch[] }>(base + "/batches"),
     enabled: tab === "batches",
   });
+  const me = useQuery({
+    queryKey: ["reseller-me"],
+    queryFn: () => api.get<ResellerMe>("/api/reseller/me"),
+    enabled: reseller,
+  });
+  // Names for the 来源 column and filter; only admins can list 代理.
+  const resellers = useQuery({
+    queryKey: ["resellers"],
+    queryFn: () => api.get<{ items: ResellerRow[] }>("/api/resellers"),
+    enabled: !reseller && can("admin"),
+    staleTime: 60_000,
+  });
+  const ownerName = useMemo(
+    () => new Map((resellers.data?.items ?? []).map((r) => [r.id, r.username])),
+    [resellers.data],
+  );
   const abuse = useQuery({
     queryKey: ["card-abuse"],
     queryFn: () => api.get<{ items: AbuseItem[] }>("/api/cards/abuse"),
-    enabled: tab === "abuse",
+    enabled: !reseller && tab === "abuse",
   });
   const bans = useQuery({
     queryKey: ["card-bans"],
     queryFn: () => api.get<{ items: DeviceBanItem[] }>("/api/cards/bans"),
-    enabled: tab === "bans" || tab === "abuse",
+    enabled: !reseller && (tab === "bans" || tab === "abuse"),
   });
   const ban = useMutation({
     mutationFn: (v: { device: string; reason: string }) => api.post("/api/cards/bans", v),
@@ -88,10 +142,11 @@ export default function CardsPage() {
     qc.invalidateQueries({ queryKey: ["cards"] });
     qc.invalidateQueries({ queryKey: ["card-stats"] });
     qc.invalidateQueries({ queryKey: ["batches"] });
+    qc.invalidateQueries({ queryKey: ["reseller-me"] });
   };
 
   const action = useMutation({
-    mutationFn: (v: { cards: string[]; action: string; device?: string }) => api.post<{ updated: number }>("/api/cards/actions", v),
+    mutationFn: (v: { cards: string[]; action: string; device?: string }) => api.post<{ updated: number }>(base + "/actions", v),
     onSuccess: (r) => {
       message.success(`已处理 ${r.updated} 张`);
       setSelected([]);
@@ -117,18 +172,41 @@ export default function CardsPage() {
   };
 
   const exportCsv = (query: Partial<Filters>) =>
-    download("/api/cards/export", { q: query.q, status: query.status, app: query.app, batch: query.batch }, "cards.csv").catch(
-      (e) => message.error((e as Error).message),
-    );
+    download(base + "/export", filterParams(query), "cards.csv").catch((e) => message.error((e as Error).message));
 
+  const quota = me.data;
   const s = stats.data;
   return (
     <>
       <PageHeader
-        title="卡密管理"
-        desc="生成、发放和管理打包 App 的授权卡密。点击上方统计可按状态筛选。"
+        title={reseller ? "我的卡密" : "卡密管理"}
+        desc={
+          reseller
+            ? "在额度内生成卡密，管理和导出你自己发出的卡。点击上方统计可按状态筛选。"
+            : "生成、发放和管理打包 App 的授权卡密。点击上方统计可按状态筛选。"
+        }
         extra={
-          can("operator") && (
+          reseller ? (
+            <>
+              {quota && (
+                <span className={"quota-chip" + (quota.left === 0 ? " empty" : "")} aria-label="剩余额度">
+                  剩余额度 <b>{quota.left.toLocaleString()}</b>
+                  <small>/ {quota.quota.toLocaleString()} 张</small>
+                </span>
+              )}
+              <Tooltip title={quota?.left === 0 ? "额度已用完，请联系管理员充值" : undefined}>
+                <Button
+                  type="primary"
+                  icon={<PlusOutlined />}
+                  disabled={!quota || quota.left === 0}
+                  onClick={() => setCreateOpen(true)}
+                >
+                  生成卡密
+                </Button>
+              </Tooltip>
+            </>
+          ) : (
+            can("operator") && (
             <>
               {can("admin") && (
                 <Button icon={<KeyOutlined />} onClick={() => setOfflineOpen(true)}>
@@ -139,6 +217,7 @@ export default function CardsPage() {
                 生成卡密
               </Button>
             </>
+            )
           )
         }
       />
@@ -206,12 +285,25 @@ export default function CardsPage() {
                       onChange={(e) => !e.target.value && setF({ ...f, app: "", page: 1 })}
                       onPressEnter={(e) => setF({ ...f, app: e.currentTarget.value.trim(), page: 1 })}
                     />
+                    {!reseller && can("admin") && (
+                      <Select
+                        style={{ width: 150 }}
+                        value={f.owner}
+                        aria-label="卡密来源"
+                        onChange={(owner) => setF({ ...f, owner, page: 1 })}
+                        options={[
+                          { value: 0, label: "全部来源" },
+                          { value: -1, label: "员工生成" },
+                          ...(resellers.data?.items ?? []).map((r) => ({ value: r.id, label: "代理 " + r.username })),
+                        ]}
+                      />
+                    )}
                     {f.batch && <Button onClick={() => setF({ ...f, batch: "", page: 1 })}>批次 {f.batch} ✕</Button>}
-                    <Button icon={<DownloadOutlined />} onClick={() => exportCsv(f)} disabled={!can("operator")}>
+                    <Button icon={<DownloadOutlined />} onClick={() => exportCsv(f)} disabled={!edit}>
                       导出 CSV
                     </Button>
                     <span className="spacer" />
-                    {selected.length > 0 && can("operator") && (
+                    {selected.length > 0 && edit && (
                       <div className="selection-bar">
                         已选 {selected.length} 张
                         <Button size="small" onClick={() => copy(selected.join("\n")).then(() => message.success("已复制"))}>
@@ -220,11 +312,11 @@ export default function CardsPage() {
                         <Dropdown
                           menu={{
                             items: [
-                              { key: "extend", label: "延期…" },
+                              ...(reseller ? [] : [{ key: "extend", label: "延期…" }]),
                               { key: "unbind", label: "解绑设备" },
                               { key: "revoke", label: "停用", danger: true },
                               { key: "restore", label: "恢复" },
-                              ...(can("admin")
+                              ...(!reseller && can("admin")
                                 ? [{ type: "divider" as const }, { key: "delete", label: "删除", danger: true }]
                                 : []),
                             ],
@@ -248,7 +340,7 @@ export default function CardsPage() {
                     dataSource={list.data?.items}
                     scroll={{ x: 1300 }}
                     rowSelection={
-                      can("operator")
+                      edit
                         ? {
                             selectedRowKeys: selected,
                             onChange: (k) => setSelected(k as string[]),
@@ -299,6 +391,22 @@ export default function CardsPage() {
                         ellipsis: true,
                         render: (a: string) => (a === "*" ? "全部应用" : a),
                       },
+                      ...(reseller
+                        ? []
+                        : [
+                            {
+                              title: "来源",
+                              dataIndex: "owner_id",
+                              width: 120,
+                              ellipsis: true,
+                              render: (o: number | null) =>
+                                o == null ? (
+                                  <span className="muted">员工</span>
+                                ) : (
+                                  <Tag color="geekblue">{ownerName.get(o) ?? "代理 #" + o}</Tag>
+                                ),
+                            },
+                          ]),
                       {
                         title: "绑定设备",
                         dataIndex: "device",
@@ -333,7 +441,7 @@ export default function CardsPage() {
                         width: 120,
                         fixed: "right",
                         render: (_, c) =>
-                          can("operator") && (
+                          edit && (
                             <Space size={0}>
                               {c.revoked ? (
                                 <Button type="link" size="small" onClick={() => confirmAction([c.card], "restore")}>
@@ -403,7 +511,7 @@ export default function CardsPage() {
                           >
                             查看
                           </Button>
-                          {can("operator") && (
+                          {edit && (
                             <Button
                               type="link"
                               size="small"
@@ -420,82 +528,87 @@ export default function CardsPage() {
                 />
               ),
             },
-            {
-              key: "abuse",
-              label: "滥用告警",
-              children: (
-                <>
-                  <Alert
-                    type="info"
-                    showIcon
-                    style={{ marginBottom: 12 }}
-                    title="最近 24 小时内的异常激活：卡密被多台设备尝试、单设备激活大量卡密、单 IP 激活大量设备、暴力猜卡密。阈值和通知渠道在「系统设置」里配置（事件：卡密滥用告警）。"
-                  />
-                  <Table<AbuseItem>
-                    rowKey={(r) => r.time + r.subject + r.signal}
-                    loading={abuse.isLoading}
-                    dataSource={abuse.data?.items}
-                    columns={[
-                      { title: "时间", dataIndex: "time", width: 160, render: fmtTime },
-                      { title: "类型", dataIndex: "label" },
-                      { title: "对象", dataIndex: "subject", render: (x: string) => <span className="mono">{x}</span> },
-                      { title: "次数 / 阈值", key: "n", render: (_, r) => `${r.count} / ${r.threshold}` },
-                      { title: "来源 IP", dataIndex: "ip", render: (x: string) => <span className="mono">{x}</span> },
-                      {
-                        title: "操作",
-                        key: "ops",
-                        render: (_, r) =>
-                          r.signal === "card_shared" ? (
-                            <Button
-                              type="link"
-                              size="small"
-                              onClick={() => {
-                                setTab("cards");
-                                setF({ ...f, q: r.subject, status: "", batch: "", page: 1 });
-                              }}
-                            >
-                              查看卡密
-                            </Button>
-                          ) : r.signal === "device_many_cards" && can("operator") ? (
-                            bans.data?.items.some((b) => b.device === r.subject) ? (
-                              <Tag>已在黑名单</Tag>
-                            ) : (
-                              <Button
-                                type="link"
-                                size="small"
-                                danger
-                                onClick={() =>
-                                  modal.confirm({
-                                    title: "把这台设备加入黑名单？",
-                                    content: `${r.subject}：它将不能再激活卡密，已激活的授权在下次联网复核时失效。`,
-                                    okType: "danger",
-                                    onOk: () => ban.mutateAsync({ device: r.subject, reason: r.label }),
-                                  })
-                                }
-                              >
-                                加入黑名单
-                              </Button>
-                            )
-                          ) : null,
-                      },
-                    ]}
-                  />
-                </>
-              ),
-            },
-            {
-              key: "bans",
-              label: "设备黑名单",
-              children: (
-                <BansPanel
-                  items={bans.data?.items}
-                  loading={bans.isLoading}
-                  canEdit={can("operator")}
-                  onAdd={(device, reason) => ban.mutateAsync({ device, reason })}
-                  onRemove={(device) => unban.mutateAsync(device)}
-                />
-              ),
-            },
+            // 代理 only manage their own cards: abuse findings and the device blacklist are staff tools.
+            ...(reseller
+              ? []
+              : [
+                {
+                  key: "abuse",
+                  label: "滥用告警",
+                  children: (
+                    <>
+                      <Alert
+                        type="info"
+                        showIcon
+                        style={{ marginBottom: 12 }}
+                        title="最近 24 小时内的异常激活：卡密被多台设备尝试、单设备激活大量卡密、单 IP 激活大量设备、暴力猜卡密。阈值和通知渠道在「系统设置」里配置（事件：卡密滥用告警）。"
+                      />
+                      <Table<AbuseItem>
+                        rowKey={(r) => r.time + r.subject + r.signal}
+                        loading={abuse.isLoading}
+                        dataSource={abuse.data?.items}
+                        columns={[
+                          { title: "时间", dataIndex: "time", width: 160, render: fmtTime },
+                          { title: "类型", dataIndex: "label" },
+                          { title: "对象", dataIndex: "subject", render: (x: string) => <span className="mono">{x}</span> },
+                          { title: "次数 / 阈值", key: "n", render: (_, r) => `${r.count} / ${r.threshold}` },
+                          { title: "来源 IP", dataIndex: "ip", render: (x: string) => <span className="mono">{x}</span> },
+                          {
+                            title: "操作",
+                            key: "ops",
+                            render: (_, r) =>
+                              r.signal === "card_shared" ? (
+                                <Button
+                                  type="link"
+                                  size="small"
+                                  onClick={() => {
+                                    setTab("cards");
+                                    setF({ ...f, q: r.subject, status: "", batch: "", page: 1 });
+                                  }}
+                                >
+                                  查看卡密
+                                </Button>
+                              ) : r.signal === "device_many_cards" && can("operator") ? (
+                                bans.data?.items.some((b) => b.device === r.subject) ? (
+                                  <Tag>已在黑名单</Tag>
+                                ) : (
+                                  <Button
+                                    type="link"
+                                    size="small"
+                                    danger
+                                    onClick={() =>
+                                      modal.confirm({
+                                        title: "把这台设备加入黑名单？",
+                                        content: `${r.subject}：它将不能再激活卡密，已激活的授权在下次联网复核时失效。`,
+                                        okType: "danger",
+                                        onOk: () => ban.mutateAsync({ device: r.subject, reason: r.label }),
+                                      })
+                                    }
+                                  >
+                                    加入黑名单
+                                  </Button>
+                                )
+                              ) : null,
+                          },
+                        ]}
+                      />
+                    </>
+                  ),
+                },
+                {
+                  key: "bans",
+                  label: "设备黑名单",
+                  children: (
+                    <BansPanel
+                      items={bans.data?.items}
+                      loading={bans.isLoading}
+                      canEdit={can("operator")}
+                      onAdd={(device, reason) => ban.mutateAsync({ device, reason })}
+                      onRemove={(device) => unban.mutateAsync(device)}
+                    />
+                  ),
+                },
+              ]),
           ]}
         />
       </Card>
@@ -507,6 +620,8 @@ export default function CardsPage() {
       />
       <CreateModal
         open={createOpen}
+        endpoint={base + "/batches"}
+        limits={reseller ? quota : undefined}
         onClose={() => setCreateOpen(false)}
         onCreated={(r) => {
           setCreateOpen(false);
@@ -524,7 +639,7 @@ export default function CardsPage() {
           refresh();
         }}
       />
-      <OfflineModal open={offlineOpen} onClose={() => setOfflineOpen(false)} onDone={refresh} />
+      {!reseller && <OfflineModal open={offlineOpen} onClose={() => setOfflineOpen(false)} onDone={refresh} />}
     </>
   );
 }
