@@ -1,0 +1,89 @@
+{
+ "version": 1,
+ "templates": [
+  {
+   "id": "empty",
+   "label": "空白工程",
+   "detail": "只有 __init__.py、build.as 和 res/",
+   "label_en": "Empty project",
+   "detail_en": "__init__.py, build.as and res/",
+   "files": {
+    "__init__.py": "# XScript project entry. Run it with XScript: Upload and Run Project (Ctrl+Shift+R).\n",
+    "build.as": "{\"name\":\"{{name}}\",\"version\":\"1.0.0\",\"entry\":\"__init__.py\"}\n",
+    "res/.gitkeep": ""
+   }
+  },
+  {
+   "id": "hello",
+   "label": "Hello（屏幕 + 点击）",
+   "detail": "打印屏幕尺寸并点击屏幕中间",
+   "label_en": "Hello (screen + tap)",
+   "detail_en": "prints the screen size, finds text and taps",
+   "files": {
+    "__init__.py": "from xscript.android import action, screen\n\nw, h = screen.size()\nprint(\"screen\", w, h)\naction.click(w // 2, h // 2)  # tap the middle of the screen\n",
+    "build.as": "{\"name\":\"{{name}}\",\"version\":\"1.0.0\",\"entry\":\"__init__.py\"}\n",
+    "res/.gitkeep": ""
+   }
+  },
+  {
+   "id": "ascript",
+   "label": "AScript 风格",
+   "detail": "from ascript.android import ...（兼容层）",
+   "label_en": "AScript style",
+   "detail_en": "from ascript.android import ... (compat layer)",
+   "files": {
+    "__init__.py": "from ascript.android.action import click\nfrom ascript.android.system import Device\n\ndisplay = Device.display()\nclick(display.widthPixels // 2, display.heightPixels // 2)  # tap the middle of the screen\n",
+    "build.as": "{\"name\":\"{{name}}\",\"version\":\"1.0.0\",\"entry\":\"__init__.py\"}\n",
+    "res/.gitkeep": ""
+   }
+  },
+  {
+   "id": "checkin",
+   "label": "每日签到",
+   "detail": "打开 App，用 OCR 找到按钮并点击，回到桌面",
+   "label_en": "Daily check-in",
+   "detail_en": "open an app, tap a text button found by OCR, go home",
+   "files": {
+    "__init__.py": "# Daily check-in: open an app, wait for a button by its text, tap it.\nfrom xscript.android import action, screen, system, ui\n\nAPP = \"com.example.app\"  # package name of the app to check in to\nBUTTON = \"签到\"  # text on the check-in button (regex)\n\nsystem.open(APP)\nsystem.wait_for_package(APP, timeout=30)\nif screen.ocr_click(BUTTON, timeout=15):\n    ui.toast(\"checked in\")\nelse:\n    print(\"button not found:\", BUTTON)\naction.sleep(1)\naction.home()\n",
+    "build.as": "{\"name\":\"{{name}}\",\"version\":\"1.0.0\",\"entry\":\"__init__.py\"}\n",
+    "res/.gitkeep": ""
+   }
+  },
+  {
+   "id": "findImage",
+   "label": "找图并点击",
+   "detail": "在屏幕上匹配 res/img/target.png 并点击",
+   "label_en": "Find image and tap",
+   "detail_en": "template match res/img/target.png on screen and tap it",
+   "files": {
+    "__init__.py": "# Find an image on screen and tap it. Put a cropped screenshot at res/img/target.png.\nfrom xscript.android import action, screen\nfrom xscript.android.system import R\n\nTARGET = R.img(\"target.png\")\n\nfor _ in range(10):\n    hit = screen.find_image(TARGET, confidence=0.9)\n    if hit:\n        print(\"found\", hit)\n        action.click(hit[\"center_x\"], hit[\"center_y\"])\n        break\n    action.sleep(1)\nelse:\n    print(\"target.png not found on screen\")\n",
+    "build.as": "{\"name\":\"{{name}}\",\"version\":\"1.0.0\",\"entry\":\"__init__.py\"}\n",
+    "res/img/.gitkeep": ""
+   }
+  },
+  {
+   "id": "ocr",
+   "label": "OCR 读文字",
+   "detail": "读取屏幕上所有文字行并提取数字",
+   "label_en": "OCR read text",
+   "detail_en": "read all text lines on screen and find a number",
+   "files": {
+    "__init__.py": "# Read text on screen with OCR and pull a number out of it.\nimport re\nfrom xscript.android import screen\n\nlines = screen.ocr()  # optionally rect=(x1, y1, x2, y2) to read one area\nfor line in lines:\n    print(line[\"text\"], line[\"confidence\"])\n\nnums = [m for line in lines for m in re.findall(r\"\\d+(?:\\.\\d+)?\", line[\"text\"])]\nprint(\"numbers:\", nums)\n",
+    "build.as": "{\"name\":\"{{name}}\",\"version\":\"1.0.0\",\"entry\":\"__init__.py\"}\n",
+    "res/.gitkeep": ""
+   }
+  },
+  {
+   "id": "floatUi",
+   "label": "悬浮窗界面",
+   "detail": "HTML 设置窗口（res/ui/main.html）+ 悬浮窗菜单",
+   "label_en": "Floating window UI",
+   "detail_en": "HTML settings window (res/ui/main.html) and a floating-window menu",
+   "files": {
+    "__init__.py": "# Settings UI: show res/ui/main.html, read the values, then work from the floating window.\nfrom xscript.android import ui\nfrom xscript.android.system import R\n\nsettings = {}\n\nwith open(R.ui(\"main.html\"), encoding=\"utf-8\") as f:\n    win = ui.Window(f.read(), width=\"85vw\", height=\"50vh\")\n\n\n@win.on(\"start\")\ndef start(value):\n    settings.update(dict(p.split(\"=\", 1) for p in value.split(\"&\") if \"=\" in p))\n    win.close()\n\n\nwin.show(wait=True)\nprint(\"settings:\", settings)\n\n\ndef hello():\n    ui.toast(\"hello \" + settings.get(\"name\", \"\"))\n\n\nui.float_add_menu(\"hello\", \"\", hello)\nui.float_show()\n",
+    "build.as": "{\"name\":\"{{name}}\",\"version\":\"1.0.0\",\"entry\":\"__init__.py\"}\n",
+    "res/ui/main.html": "<!doctype html>\n<html><body style=\"font-family:sans-serif;padding:12px\">\n  <h3>Settings</h3>\n  <label>Name <input id=\"name\" value=\"xscript\"></label><br><br>\n  <label>Rounds <input id=\"rounds\" type=\"number\" value=\"3\"></label><br><br>\n  <button onclick=\"xscript.call('start', 'name=' + encodeURIComponent(name.value) + '&rounds=' + rounds.value)\">Start</button>\n</body></html>\n"
+   }
+  }
+ ]
+}

@@ -4,6 +4,7 @@ import com.xscript.app.project.ProjectStore
 import org.json.JSONObject
 import org.junit.After
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Before
@@ -54,6 +55,30 @@ class ProjectRoutesTest {
         assertEquals(400, call("POST", "bad name", "").status)
         assertEquals(400, call("POST", "9x", "").status)
         assertEquals(200, call("POST", "中文_工程", "").status)
+    }
+
+    @Test
+    fun createProjectFromTemplate() {
+        val json = File("src/main/assets/templates/projects.json").readText()
+        routes = ProjectRoutes(ProjectStore(root)) { com.xscript.app.project.ProjectTemplates(json) }
+        val ok = call("POST", "shot", "", JSONObject().put("template", "findImage"))
+        assertEquals(200, ok.status)
+        assertEquals("findImage", ok.json.getString("template"))
+        assertTrue(File(root, "shot/__init__.py").readText().contains("find_image"))
+        assertTrue(File(root, "shot/build.as").readText().contains("\"name\":\"shot\""))
+        assertTrue(File(root, "shot/res/img").isDirectory)
+        assertEquals(400, call("POST", "other", "", JSONObject().put("template", "nope")).status)
+        assertFalse(File(root, "other").exists() && File(root, "other/__init__.py").exists())
+        assertEquals(409, call("POST", "shot", "", JSONObject().put("template", "ocr")).status)
+        assertTrue(File(root, "shot/__init__.py").readText().contains("find_image"))
+        // No template: the plain entry file, as before.
+        assertEquals(200, call("POST", "plain", "", JSONObject()).status)
+        assertTrue(File(root, "plain/__init__.py").readText().contains("hello from plain"))
+    }
+
+    @Test
+    fun templateWithoutCatalogIs400() {
+        assertEquals(400, call("POST", "x", "", JSONObject().put("template", "empty")).status)
     }
 
     @Test

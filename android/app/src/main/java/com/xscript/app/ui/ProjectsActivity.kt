@@ -6,7 +6,17 @@ import com.google.android.material.dialog.MaterialAlertDialogBuilder
 import android.content.Intent
 import android.os.Bundle
 import android.view.ViewGroup
+import android.text.SpannableStringBuilder
+import android.text.Spanned
+import android.text.style.AbsoluteSizeSpan
+import android.text.style.ForegroundColorSpan
+import android.view.View
 import android.widget.EditText
+import android.widget.RadioGroup
+import android.widget.ScrollView
+import android.widget.TextView
+import com.google.android.material.radiobutton.MaterialRadioButton
+import com.xscript.app.project.ProjectTemplates
 import android.widget.LinearLayout
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AppCompatActivity
@@ -48,10 +58,70 @@ class ProjectsActivity : AppCompatActivity() {
     }
 
     private fun create() {
-        askName("新建小程序", "demo") { name ->
-            store.create(name)
-            openProject(name)
+        val templates = try { ProjectTemplates.load(this) } catch (e: Exception) { null }
+        if (templates == null || templates.all.isEmpty()) {
+            askName("新建小程序", "demo") { name ->
+                store.create(name)
+                openProject(name)
+            }
+            return
         }
+        val input = EditText(this).apply {
+            setText("demo")
+            isSingleLine = true
+            selectAll()
+            contentDescription = "工程名称"
+        }
+        val group = RadioGroup(this).apply { orientation = RadioGroup.VERTICAL }
+        val ids = HashMap<Int, String>()
+        for (t in templates.all) {
+            val label = SpannableStringBuilder(t.label)
+            if (t.detail.isNotEmpty()) {
+                val start = label.length
+                label.append("\n").append(t.detail)
+                label.setSpan(ForegroundColorSpan(ui.muted), start, label.length, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
+                label.setSpan(AbsoluteSizeSpan(UiKit.Type.CAPTION.toInt(), true), start, label.length, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
+            }
+            val rb = MaterialRadioButton(this).apply {
+                id = View.generateViewId()
+                text = label
+                textSize = UiKit.Type.BODY
+                setTextColor(ui.text)
+                minHeight = UiKit.dp(this@ProjectsActivity, UiKit.MIN_TOUCH_DP)
+                val v = UiKit.dp(this@ProjectsActivity, UiKit.Space.XS)
+                setPadding(paddingLeft, v, paddingRight, v)
+                tag = "tpl:" + t.id
+            }
+            ids[rb.id] = t.id
+            group.addView(rb, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT))
+            if (t.id == ProjectTemplates.DEFAULT) group.check(rb.id)
+        }
+        val caption = TextView(this).apply {
+            text = "模板"
+            textSize = UiKit.Type.LABEL
+            setTextColor(ui.muted)
+            setPadding(0, UiKit.dp(this@ProjectsActivity, UiKit.Space.M), 0, UiKit.dp(this@ProjectsActivity, UiKit.Space.XS))
+        }
+        val box = UiKit.dialogField(this, input, caption, group)
+        val scroll = ScrollView(this).apply { addView(box) }
+        MaterialAlertDialogBuilder(this)
+            .setTitle("新建小程序")
+            .setMessage("名称用作 Python 包名：字母/汉字/数字/下划线，不能以数字开头")
+            .setView(scroll)
+            .setPositiveButton("创建") { _, _ ->
+                val name = input.text.toString().trim()
+                val id = ids[group.checkedRadioButtonId] ?: ProjectTemplates.DEFAULT
+                try {
+                    ProjectStore.sanitize(name)
+                    check(!store.exists(name)) { "工程已存在: $name" }
+                    store.createFromTemplate(name, templates.render(id, name))
+                    openProject(name)
+                } catch (e: Exception) {
+                    UiKit.toast(this, e.message, long = true)
+                }
+            }
+            .setNegativeButton("取消", null)
+            .show()
     }
 
     override fun onResume() {

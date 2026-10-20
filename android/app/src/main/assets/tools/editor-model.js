@@ -13,11 +13,15 @@
     }
     key(path, project = this.project) { return project + ":" + path; }
     async listProjects() { return (await this.api("GET", "/projects")).projects || []; }
-    async createProject(name) {
+    async listTemplates() {
+      try { const r = await this.api("GET", "/project-templates"); return {templates: r.templates || [], default: r.default || "empty"}; }
+      catch (e) { return {templates: [], default: ""}; }  // older device firmware: plain empty project only
+    }
+    async createProject(name, template = "") {
       if (!/^[\p{L}_][\p{L}\p{N}_]*$/u.test(name)) throw new Error("工程名须以字母或下划线开头，仅包含字母、数字、下划线");
       const names = await this.listProjects();
       if (names.includes(name)) throw new Error("工程已存在：" + name);
-      await this.api("POST", this.projectUrl(name), {});
+      await this.api("POST", this.projectUrl(name), template ? {template} : {});
       this.project = name;
       return this.listFiles();
     }
