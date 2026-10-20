@@ -47,7 +47,7 @@ class DebugSession:
         self.state = "idle"
         self.thread_id: int | None = None
         self.frames: list[dict[str, Any]] = []
-        self.breakpoints: dict[str, list[int]] = {}
+        self.breakpoints: dict[str, list[dict[str, Any]]] = {}
         self._seq = 0
         self._pending: dict[int, asyncio.Future] = {}
         self._cursor = 0
@@ -136,8 +136,10 @@ class DebugSession:
         elif ev in ("terminated", "exited"):
             self._spawn(self._finish("脚本已结束" if ev == "terminated" else "exit %s" % body.get("exitCode", 0)))
         elif ev == "output":
-            # the script's own stdout/stderr already comes through /logs; keep debugpy's own lines (logpoints, warnings)
-            if body.get("category") in ("stdout", "stderr") and not body.get("source") and not body.get("line"):
+            # the script's own stdout/stderr already comes through /logs; keep debugpy's own lines (logpoints, warnings).
+            # debugpy sends a logpoint as category "stdout" with an empty `source: {}` (seen on the device), so the key's
+            # presence marks it, not its value.
+            if body.get("category") in ("stdout", "stderr") and "source" not in body and not body.get("line"):
                 return
             self._output(str(body.get("output", "")), "console")
 
@@ -173,8 +175,10 @@ class DebugSession:
         return [{"name": v.get("name", ""), "value": v.get("value", ""), "type": v.get("type", ""), "ref": v.get("variablesReference", 0)}
                 for v in body.get("variables") or []]
 
-    async def evaluate(self, expression: str, frame_id: int | None) -> dict[str, Any]:
-        args: dict[str, Any] = {"expression": expression, "context": "repl"}
+    async def evaluate(self, expression: str, frame_id: int | None, context: str = "repl") -> dict[str, Any]:
+        if context not in ("repl", "watch", "hover"):
+            raise DebugError("rpc.bad_params", "unknown evaluate context: %s" % context)
+        args: dict[str, Any] = {"expression": expression, "context": context}
         if frame_id is not None:
             args["frameId"] = frame_id
         body = await self.request("evaluate", args)
@@ -190,19 +194,37 @@ class DebugSession:
             self.frames = []
             self._set_state("running", reason="")
 
-    async def set_breakpoints(self, rel: str, lines: list[int]) -> list[dict[str, Any]]:
-        self.breakpoints[rel] = sorted(set(lines))
+    @staticmethod
+    def normalize_breakpoints(items: list[Any]) -> list[dict[str, Any]]:
+        """[3, {"line": 5, "condition": "i > 2"}] -> one spec per line (the last one wins), sorted, empty options dropped.
+
+        Options are DAP SourceBreakpoint fields: condition (expression), hitCondition (e.g. "3", ">= 3", "% 2") and
+        logMessage (a logpoint: prints instead of pausing; {expr} is interpolated by debugpy)."""
+        by_line: dict[int, dict[str, Any]] = {}
+        for it in items:
+            spec: dict[str, Any] = {"line": it} if isinstance(it, int) else {"line": it["line"]}
+            if isinstance(it, dict):
+                for k in ("condition", "hitCondition", "logMessage"):
+                    v = it.get(k)
+                    if isinstance(v, str) and v.strip():
+                        spec[k] = v.strip()
+            by_line[spec["line"]] = spec
+        return [by_line[k] for k in sorted(by_line)]
+
+    async def set_breakpoints(self, rel: str, items: list[Any]) -> list[dict[str, Any]]:
+        self.breakpoints[rel] = self.normalize_breakpoints(items)
+        specs = self.breakpoints[rel]
         if not self._connected:
-            return [{"line": ln, "verified": False} for ln in self.breakpoints[rel]]
+            return [{"line": b["line"], "verified": False} for b in specs]
         body = await self.request("setBreakpoints", {"source": {"path": self.to_remote(rel), "name": rel.rsplit("/", 1)[-1]},
-                                                     "breakpoints": [{"line": ln} for ln in self.breakpoints[rel]],
-                                                     "lines": self.breakpoints[rel]})
+                                                     "breakpoints": specs,
+                                                     "lines": [b["line"] for b in specs]})
         return [{"line": b.get("line"), "verified": bool(b.get("verified")), "message": b.get("message", "")} for b in body.get("breakpoints") or []]
 
     # ---- lifecycle ---------------------------------------------------------------------------------------------------------------------
 
-    async def start(self, breakpoints: dict[str, list[int]]) -> dict[str, Any]:
-        self.breakpoints = {k: sorted(set(v)) for k, v in breakpoints.items()}
+    async def start(self, breakpoints: dict[str, list[Any]]) -> dict[str, Any]:
+        self.breakpoints = {k: self.normalize_breakpoints(v) for k, v in breakpoints.items()}
         self._set_state("starting")
         try:
             try:
