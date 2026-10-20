@@ -332,6 +332,19 @@ ui.float_add_menu("rec", "/sdcard/rec.png", on_click, remove_system=False)  # �
   ```
 
   AScript 图色助手生成的 `font.t` 是未公开的二进制格式，读不了，会报错并提示用 `MatrixFont` 重做。
+- **GP 图色流水线：** `gp.run(path)` 读取图色工具导出的 JSON `.gp`、目录或 ZIP 里的 `data.gp`（只做声明式解释，不执行包内代码）；没有 `data.gp` 的旧版 Python 导出包与 AScript 一样导入并调用 `gp(cv_img)`，`allow_python=False` 可拒绝。`data.params` 里可以写字面量、任务常量（如 `Canny.RETR_TREE`）和 `R.img / R.res / R.ui / R.root / R.sd` 路径（图色工具导出模板图时就是这种写法），其他表达式一律报错。工程里自己写的图色插件（继承 `GPTask`）在 `build.as` 的 `gp` 数组里登记后（`{"id": ".user.MyPlug", "des": "…"}`，与 AScript 相同），任务 id 写 `.user.MyPlug` 即可在流水线里使用；只会导入当前运行工程里已登记的模块。
+
+  ```python
+  # build.as: {"gp": [{"id": ".tasks.Brightness", "des": "亮度过滤"}]}
+  from ascript.android.screen.gp import GPStack
+  GPStack.run_json([
+      {"id": "ascript.android.screen.gp_tasks.Crop", "data": {"params": "0, 300, 1080, 900"}},
+      {"id": ".tasks.Brightness", "data": {"params": "threshold=200"}},
+      {"id": "ascript.android.screen.gp_tasks.CvFontLib",
+       "data": {"params": "[R.img('0.png'), R.img('1.png')], ['0', '1']"}},
+  ])
+  ```
+
 - **网页控件（`WebSelector` / `WebNode`）：** 在已 `show()` 的 `WebWindow` 里按 `tag` / `text` / `value` / `attr` 查找 DOM 元素，`child` / `brother` / `parent` 按 AScript 的序号规则取关系元素（`1` 第一个、`-1` 倒数第一个、`1.3` 第 1 到 3 个、`brother(0.1)` / `(-0.1)` 下一个 / 上一个），`click()` / `long_click()` / `input(val)` 作用在找到的元素上。字符串精确匹配，`"/正则/"` 按 JS 正则匹配；`text` 只保留最内层的匹配元素（父元素的文本包含子元素，不重复返回）。`input` 用原生 setter 赋值并触发 `input` / `change`，React / Vue 表单也能收到。`WebNode` 有 `tag_name`、`text`、`value`、`attributes`、`bounds`（相对网页窗口的设备像素）。查询在页面里通过 JS 桥执行，只作用于脚本自己的 WebWindow，不能操作其他 App 里的网页（那些请用无障碍 `Selector`）。
 
   ```python
@@ -361,7 +374,7 @@ ui.float_add_menu("rec", "/sdcard/rec.png", on_click, remove_system=False)  # �
 - `action.Hid`
 - NCNN 模型文件（请使用同一模型的 ONNX 导出）
 - AScript 图色助手生成的二进制点阵字库（`font.t`）：`Ocr.matrix` / `OcrX` 已支持，但字库要用 `MatrixFont` 重新制作（见上文 AScript 兼容的「点阵字库」）
-- AScript 图色工具生成的 gp 文件
+- 云端 GP 插件（`type` 含「云端」的任务；没有插件服务器，可用 `gp.register_task` 映射到本地实现）
 - 内置 YOLO 插件以外的 `plug.load` 插件，`plug.inject` / `load_module_dynamically`
 - `cloud_control.connect_to_as`（AScript 官方云服务）
 - `media.AliTts`（请用 `media.talk()`）
