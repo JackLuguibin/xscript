@@ -1200,6 +1200,8 @@ function successors(g: FlowGraph, id: string): string[] {
             ? [...sequenceSteps(g, id), "next"]
             : node.type === "flow.wait_until"
               ? ["then", "timeout"]
+              : node.type === "flow.match"
+                ? [...regionPins(g, node), "completed"]
               : node.type === "flow.retry"
                 ? ["body", "ok", "failed"]
                 : node.type === "flow.for_range" || node.type === "flow.for_each" || node.type === "flow.while"
@@ -1912,11 +1914,16 @@ function compileState(g: FlowGraph, specs: Map<string, NodeSpec>, opts?: { trace
       continue;
     }
     const outs = specs.get(node.type)?.exec.out ?? [];
-    const exit = STATE_EXIT[node.type] ?? ((ALIAS_OF[node.type] || STATE_SOLO.has(node.type)) && outs.every((pin) => pin === "then") ? "then" : null);
+    const join = STATE_JOIN[node.type];
+    const exit = STATE_EXIT[node.type] ?? join ?? ((ALIAS_OF[node.type] || STATE_SOLO.has(node.type)) && outs.every((pin) => pin === "then") ? "then" : null);
     if (!exit) throw new Error("state machine cannot lower " + node.type);
-    if (exit === "completed") {
+    if (STATE_EXIT[node.type]) {
       const inner = loopBody(g, id);
       if (!inner) throw new Error("state machine cannot lower " + node.type + " " + id + ": its body jumps out of the loop");
+      for (const member of inner) owned.add(member);
+    } else if (join) {
+      const inner = regionBody(g, id, regionPins(g, node));
+      if (!inner) throw new Error("state machine cannot lower " + node.type + " " + id + ": a branch jumps out of it");
       for (const member of inner) owned.add(member);
     }
     emit("if pc == " + pyRepr(id) + ":", null, 1);
@@ -1937,6 +1944,19 @@ function compileState(g: FlowGraph, specs: Map<string, NodeSpec>, opts?: { trace
 
 /** Loops a state can hold whole, keyed by the pin that leaves them. */
 const STATE_EXIT: Record<string, string> = { "flow.for_range": "completed", "flow.for_each": "completed", "flow.while": "completed" };
+/**
+ * Containers a state can hold whole when every inner branch stays inside: the structured code for the container,
+ * then a jump along this pin. Keyed by node type.
+ */
+const STATE_JOIN: Record<string, string> = { "flow.match": "completed", "flow.sequence": "next" };
+
+/** The exec pins that open a container's inner branches (each one compiled inside the container). */
+function regionPins(g: FlowGraph, node: FlowNode): string[] {
+  if (node.type === "flow.sequence") return sequenceSteps(g, node.id);
+  if (node.type === "flow.match") return g.edges.filter((edge) => pinNode(edge.from) === node.id && /^c\d+$/.test(edge.from.slice(node.id.length + 1))).map((edge) => edge.from.slice(node.id.length + 1));
+  return [];
+}
+
 /** Single-exit nodes without a DSL alias that the structured compiler already knows. */
 const STATE_SOLO = new Set(["flow.call", "code.python", "data.set", "flow.merge"]);
 
@@ -1945,14 +1965,21 @@ const STATE_SOLO = new Set(["flow.call", "code.python", "data.set", "flow.merge"
  * null when the body jumps out (a goto to an outer node) or is entered from elsewhere; that needs real states.
  */
 function loopBody(g: FlowGraph, loop: string): Set<string> | null {
-  const entry = outEdge(g, loop, "body");
+  return regionBody(g, loop, ["body"]);
+}
+
+/**
+ * Nodes run by the branches leaving `owner` on `pins`, when they are closed: every node they reach is entered only
+ * from inside them (or from one of those pins). null when a branch jumps back to the owner or out to an outer node.
+ */
+function regionBody(g: FlowGraph, owner: string, pins: string[]): Set<string> | null {
   const inner = new Set<string>();
-  if (!entry) return inner;
-  const stack = [entry.node];
+  const entries = new Set(pins.map((pin) => owner + "." + pin));
+  const stack = pins.map((pin) => outEdge(g, owner, pin)?.node).filter((id): id is string => !!id);
   while (stack.length) {
     const id = stack.pop() as string;
     if (inner.has(id)) continue;
-    if (id === loop || id === "start") return null;
+    if (id === owner || id === "start") return null;
     inner.add(id);
     stack.push(...successors(g, id));
   }
@@ -1960,7 +1987,7 @@ function loopBody(g: FlowGraph, loop: string): Set<string> | null {
     const to = pinNode(edge.to);
     if (!inner.has(to) || !EXEC_IN.test(edge.to.slice(to.length + 1))) continue;
     const from = pinNode(edge.from);
-    if (!inner.has(from) && edge.from !== loop + ".body") return null;
+    if (!inner.has(from) && !entries.has(edge.from)) return null;
   }
   return inner;
 }

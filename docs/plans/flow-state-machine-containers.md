@@ -16,7 +16,7 @@
 
 ## 分阶段清单
 
-- [ ] **C.1 match / sequence**：`match` 降级为 `if/elif/else` 设置 `pc`；`sequence` 依次跑每条线（子块结构化时内联），然后到 `next`
+- [x] **C.1 match / sequence**：`match` 降级为 `if/elif/else` 设置 `pc`；`sequence` 依次跑每条线（子块结构化时内联），然后到 `next`
 - [ ] **C.2 wait_until / retry**：容器体能结构化时，整个容器作为一个状态内联（复用结构化发射），出口设置 `pc`
 - [ ] **C.3 try / parallel**：同上：体内无跳出的回边时整体内联；体内有跳出时给出清楚的错误（指出节点和引脚）
 - [ ] **C.4 循环体跳出**：循环体里跳到循环外的回边：把循环本身也降级为状态（计数器变量 + 状态），保持 break/continue 语义

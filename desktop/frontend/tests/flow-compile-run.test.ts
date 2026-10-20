@@ -76,6 +76,62 @@ describe("state machine fallback", () => {
     expect(run(out.python)).toEqual(["0", "1", "2", "3", "4", "a", "c", "结束"]);
   });
 
+  it("holds a closed match whole and jumps on completed", () => {
+    const text = (mode: string) => [
+      "flow m  # xflow 1",
+      'var mode: str = "' + mode + '"',
+      "on start:",
+      "  pick: match mode:",
+      '    "签到":',
+      '      tap: log(message="签到了")',
+      "    _:",
+      '      other: log(message="其它")',
+      '  after: log(message="after")',
+      '  btn: node.find(text="ok", timeout=0)',
+      "  hit: if btn.found:",
+      '    y: log(message="y")',
+      "  else:",
+      '    n: log(message="n")',
+      "",
+    ].join("\n");
+    const out = compile(joined(text("签到"), ["y", "n"]), specs);
+    expect(out.python).toContain("while True:");
+    expect(out.python).toContain("if pick_v == '签到':");
+    expect(out.python).not.toContain("pc == 'tap'");
+    expect(run(out.python, ["ok"])).toEqual(["签到了", "after", "y", "结束"]);
+    expect(run(compile(joined(text("别的"), ["y", "n"]), specs).python)).toEqual(["其它", "after", "n", "结束"]);
+  });
+
+  it("holds a closed sequence whole and runs its steps in order before next", () => {
+    const text = [
+      "flow s  # xflow 1",
+      "on start:",
+      "  order: seq:",
+      "    step:",
+      '      a: log(message="a")',
+      "    step:",
+      '      b: log(message="b")',
+      '  btn: node.find(text="ok", timeout=0)',
+      "  hit: if btn.found:",
+      '    y: log(message="y")',
+      "  else:",
+      '    n: log(message="n")',
+      "",
+    ].join("\n");
+    const out = compile(joined(text, ["y", "n"]), specs);
+    expect(out.python).toContain("while True:");
+    expect(out.python).not.toContain("pc == 'b'");
+    expect(run(out.python, ["ok"])).toEqual(["a", "b", "y", "结束"]);
+    expect(run(out.python)).toEqual(["a", "b", "n", "结束"]);
+  });
+
+  it("refuses a match whose branch jumps back out of it", () => {
+    const text = ["flow mo  # xflow 1", 'var mode: str = "x"', "on start:", '  a: log(message="a")', "  pick: match mode:", '    "x":', '      b: log(message="b")', '  z: log(message="z")', ""].join("\n");
+    const graph = parse(text);
+    const back: FlowGraph = { ...graph, edges: [...graph.edges, { from: "b.then", to: "a.exec" }] };
+    expect(() => compile(back, specs)).toThrow("a branch jumps out of it");
+  });
+
   it("refuses a loop whose body jumps out, and a container it cannot hold", () => {
     const text = ["flow out  # xflow 1", "on start:", '  a: log(message="a")', "  for loop in range(0, 2):", '    lp: log(message="x")', '  z: log(message="z")', ""].join("\n");
     const graph = parse(text);
