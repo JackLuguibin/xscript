@@ -34,3 +34,14 @@ include = ["xscript_server*"]
 
 [tool.setuptools.package-data]
 xscript_server = ["api_catalog.json"]  # API list for 后台 AI 写脚本 (copy of ide/mcp-server's)
+
+# Coverage of the server (CI: backend + MCP on Python 3.12; run from the repo root with --rcfile=backend/pyproject.toml).
+[tool.coverage.run]
+branch = true
+source = ["xscript_server"]
+
+[tool.coverage.report]
+# Floor, not a target: measured 83 % (branch) on 2026-10-20. Raise it as tests land.
+fail_under = 82
+skip_covered = true
+exclude_also = ["if __name__ == .__main__.:"]

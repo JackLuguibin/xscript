@@ -1,0 +1,13 @@
+# Coverage of the on-device Python runtime (CI job "runtime"; run from the repo root with --rcfile=android/python-runtime/.coveragerc).
+[run]
+branch = True
+source =
+    android/python-runtime/xscript
+    android/python-runtime/ascript
+
+[report]
+# Floor, not a target: measured 71 % (branch) on 2026-10-20 with the phone's library versions. Raise it as tests land.
+fail_under = 70
+skip_covered = True
+exclude_also =
+    if __name__ == .__main__.:
