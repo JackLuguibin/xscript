@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Which heavy CI jobs a pull request needs, from the files it changes.
 
-usage: scripts/ci_changes.py <base-sha> <head-sha>   -> prints `android=`, `desktop=` and `postgres=true|false`
+usage: scripts/ci_changes.py <base-sha> <head-sha>   -> prints `android=`, `desktop=`, `postgres=`, `runtime=` and `python=true|false`
        scripts/ci_changes.py --all                   -> everything true (push to main, release, manual runs)
 
 A job is skipped only when *every* changed file is in an area listed below as unable to affect it. Anything else, a
@@ -26,6 +26,18 @@ DESKTOP_NEEDED_INSIDE = ("android/python-runtime/",)
 # The backend suite on PostgreSQL only needs the server's Python code (the console and docs cannot change SQL).
 POSTGRES_UNAFFECTED = ("android/", "desktop/", "ide/", "docs/", "deploy/", "backend/web/", "backend/README.md")
 
+# The on-device Python runtime tests read android/python-runtime only; the phone's library pins live in
+# android/app/build.gradle.kts (the CI job mirrors them, see scripts/tests/test_phone_pins.py), so that file runs it.
+RUNTIME_UNAFFECTED = ("desktop/", "ide/", "backend/", "docs/", "deploy/", "android/app/src/", "android/gradle/")
+
+# backend + MCP + generated-file checks + vertical slice: backend/, ide/, android/python-runtime (stubs, completion
+# index in android/app/src/main/assets), desktop/nodes (node specs), scripts/ and protocol/ all matter.
+PYTHON_UNAFFECTED = ("desktop/app/", "desktop/frontend/", "android/app/src/main/java/", "android/app/src/main/res/",
+                     "android/app/src/test/", "android/app/src/androidTest/", "android/gradle/", "backend/web/",
+                     "ide/vscode-extension/", "docs/", "deploy/")
+
+ALL = ("android", "desktop", "postgres", "runtime", "python")
+
 
 def _unaffected(path: str, prefixes: tuple[str, ...], needed: tuple[str, ...] = ()) -> bool:
     if path in ROOT_DOCS:
@@ -37,11 +49,13 @@ def _unaffected(path: str, prefixes: tuple[str, ...], needed: tuple[str, ...] = 
 
 def decide(files: list[str]) -> dict[str, bool]:
     if not files:  # nothing to compare (or an empty diff): be safe
-        return {"android": True, "desktop": True, "postgres": True}
+        return {k: True for k in ALL}
     return {
         "android": not all(_unaffected(f, ANDROID_UNAFFECTED) for f in files),
         "desktop": not all(_unaffected(f, DESKTOP_UNAFFECTED, DESKTOP_NEEDED_INSIDE) for f in files),
         "postgres": not all(_unaffected(f, POSTGRES_UNAFFECTED) for f in files),
+        "runtime": not all(_unaffected(f, RUNTIME_UNAFFECTED) for f in files),
+        "python": not all(_unaffected(f, PYTHON_UNAFFECTED) for f in files),
     }
 
 
@@ -53,7 +67,7 @@ def changed_files(base: str, head: str) -> list[str]:
 
 def main(argv: list[str]) -> int:
     if argv[1:] == ["--all"]:
-        result = {"android": True, "desktop": True, "postgres": True}
+        result = {k: True for k in ALL}
     elif len(argv) == 3:
         try:
             files = changed_files(argv[1], argv[2])

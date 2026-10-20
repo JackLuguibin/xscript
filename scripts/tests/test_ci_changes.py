@@ -70,12 +70,51 @@ class Postgres(unittest.TestCase):
         self.assertFalse(ci.decide(files)["postgres"])
 
 
+class RuntimeAndPython(unittest.TestCase):
+    """The always-on Python jobs: the runtime tests (phone library pins) and backend + MCP + generated files."""
+
+    def pick(self, files):
+        d = ci.decide(files)
+        return {"runtime": d["runtime"], "python": d["python"]}
+
+    def test_runtime_code_runs_both(self):
+        # the runtime is the source of the stubs, the completion index and the node specs
+        self.assertEqual(self.pick(["android/python-runtime/xscript/android/screen.py"]), {"runtime": True, "python": True})
+
+    def test_phone_pins_run_the_runtime_job(self):
+        self.assertTrue(self.pick(["android/app/build.gradle.kts"])["runtime"])
+
+    def test_kotlin_ui_and_docs_skip_both(self):
+        files = ["android/app/src/main/java/com/xscript/app/MainActivity.kt", "android/app/src/main/res/values/strings.xml",
+                 "android/app/src/test/java/A.kt", "docs/路线图.md", "README.md", "CHANGELOG.md"]
+        self.assertEqual(self.pick(files), {"runtime": False, "python": False})
+
+    def test_desktop_and_console_and_vscode_skip_both(self):
+        files = ["desktop/app/xscript_desktop/window.py", "desktop/frontend/src/App.tsx", "backend/web/src/App.tsx",
+                 "ide/vscode-extension/src/extension.ts"]
+        self.assertEqual(self.pick(files), {"runtime": False, "python": False})
+
+    def test_backend_and_mcp_run_python_only(self):
+        self.assertEqual(self.pick(["backend/xscript_server/db.py"]), {"runtime": False, "python": True})
+        self.assertEqual(self.pick(["ide/mcp-server/xscript_mcp/client.py"]), {"runtime": False, "python": True})
+
+    def test_python_job_inputs_outside_backend_run_it(self):
+        for f in ("android/app/src/main/assets/tools/editor-api.js", "desktop/nodes/generated/screen.json", "ide/python-stubs/xscript/android/screen.pyi",
+                  "protocol/openapi.yaml", "scripts/mock_device.py"):
+            self.assertTrue(self.pick([f])["python"], f)
+
+    def test_workflow_scripts_and_unknown_run_both(self):
+        for f in (".github/workflows/ci.yml", "scripts/ci_changes.py", "newdir/a.py"):
+            self.assertEqual(self.pick([f]), {"runtime": True, "python": True}, f)
+        self.assertEqual(self.pick([]), {"runtime": True, "python": True})
+
+
 class Cli(unittest.TestCase):
     def run_cli(self, *args: str) -> str:
         return subprocess.run([sys.executable, str(REPO / "scripts" / "ci_changes.py"), *args], capture_output=True, text=True, check=True, cwd=REPO).stdout
 
     def test_all(self):
-        self.assertEqual(self.run_cli("--all"), "android=true\ndesktop=true\npostgres=true\n")
+        self.assertEqual(self.run_cli("--all"), "android=true\ndesktop=true\npostgres=true\nruntime=true\npython=true\n")
 
     def test_reads_a_real_diff_with_a_chinese_path(self):
         import os
@@ -98,11 +137,11 @@ class Cli(unittest.TestCase):
             git("commit", "-qm", "docs")
             out = subprocess.run([sys.executable, str(REPO / "scripts" / "ci_changes.py"), base, "HEAD"], cwd=d,
                                  capture_output=True, text=True, check=True)
-            self.assertEqual(out.stdout, "android=false\ndesktop=true\npostgres=false\n")
+            self.assertEqual(out.stdout, "android=false\ndesktop=true\npostgres=false\nruntime=false\npython=false\n")
             self.assertIn("docs/桌面端-测试方案.md", out.stderr)
 
     def test_a_bad_revision_runs_everything(self):
-        self.assertEqual(self.run_cli("0" * 40, "HEAD"), "android=true\ndesktop=true\npostgres=true\n")
+        self.assertEqual(self.run_cli("0" * 40, "HEAD"), "android=true\ndesktop=true\npostgres=true\nruntime=true\npython=true\n")
 
 
 if __name__ == "__main__":
