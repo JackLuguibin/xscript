@@ -61,6 +61,11 @@
       "name": "fast",
       "type": "any",
       "default": true
+    },
+    {
+      "name": "method",
+      "type": "any",
+      "default": null
     }
   ],
   "outputs": [
@@ -73,7 +78,7 @@
     "imports": [
       "from xscript.android import image"
     ],
-    "stmt": "{id} = image.find_templates({parts}, rect={rect}, confidence={confidence}, rgb={rgb}, maxcnt={maxcnt}, scale_range={scale_range}, image={image}, ori={ori}, fast={fast})"
+    "stmt": "{id} = image.find_templates({parts}, rect={rect}, confidence={confidence}, rgb={rgb}, maxcnt={maxcnt}, scale_range={scale_range}, image={image}, ori={ori}, fast={fast}, method={method})"
   },
   "dsl": {
     "alias": "image.find_templates"

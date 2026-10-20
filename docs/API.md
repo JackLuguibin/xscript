@@ -95,8 +95,12 @@ p = screen.find_colors("#ff0000|20,0,#00ff00", rect=[0, 0, 1080, 1200])   # Poin
 screen.find_all_colors("#ff0000", max_num=10)
 
 hit = screen.find_image("res/img/btn.png", confidence=0.85)
-# {'result': (cx, cy), 'rect': [l, t, r, b], 'center_x': .., 'center_y': .., 'confidence': .., 'index': 0}
+# {'result': (cx, cy), 'rect': [l, t, r, b], 'center_x': .., 'center_y': .., 'confidence': .., 'index': 0,
+#  'quad': [[x, y] × 4], 'angle': 0.0, 'scale': 1.0, 'method': 'template'}
 screen.find_all_images(["a.png", "b.png"], maxcnt=5, scale_range=[0.8, 1.2])
+screen.find_image("res/img/banner.png", method="auto")      # 先模板匹配，找不到再用特征点（可缩放、旋转）
+screen.find_image("res/img/banner.png", method="feature")   # 只用特征点：hit["angle"]、hit["scale"]、hit["quad"]
+screen.find_image("res/img/page.png", rect=[0, 0, 1080, 300], method="hash")   # 这块区域是不是这张图
 
 with_cache = screen.cache(True)      # 冻结一帧，供多次查找使用
 screen.cache(False)
@@ -111,6 +115,18 @@ screen.ocr_click("同意")
 颜色模式：第一项为绝对颜色（`#rrggbb`）或 `x,y,#rrggbb`。后续各项为 `dx,dy,#rrggbb`，相对于第一项。可选的 `-rrggbb` 设置每个通道的容差。
 
 模板匹配默认使用灰度，`rgb=True` 时使用 H+S。透明 PNG 像素会被屏蔽。`scale_range` 先在按对数间隔（约 12%）取值的缩放比例上粗搜，再在最佳几个候选附近细搜比例（精确到模板长边约 1 像素），所以落在两个粗搜步长之间的比例（如 0.8 倍）也能以高置信度找到，并保留最佳结果。大模板会经过由粗到精的匹配流程。模板可以是路径（相对路径基于项目解析）、numpy 数组，或二者组成的列表。
+
+`method` 选择找图方式（不传时和以前一样：模板匹配，给了 `scale_range` 就是多尺度）：
+
+| method | 做法 | 适合 | 设备耗时（模拟器，1080×2400） |
+|---|---|---|---|
+| `None` / `"template"` | 模板匹配（灰度 NCC），`scale_range` 时多尺度 | 按钮、图标，和截图时大小一致 | 9–70ms |
+| `"multiscale"` | 模板匹配，`scale_range` 默认 0.5–2.0 | 不同分辨率的设备 | 50–180ms |
+| `"feature"` | ORB 特征点，不行再 SIFT，MAGSAC 拟合单应矩阵，再把找到的区域变换回模板大小用 NCC 打分 | 被缩放、旋转的有纹理目标（卡片、横幅、带文字的大块） | 约 15ms（ORB）/ 80ms（SIFT） |
+| `"auto"` | 先模板匹配，没找到的模板再用特征点 | 推荐：大小、角度可能变化时 | 命中同模板；缩放/旋转时 60–125ms |
+| `"hash"` | 比较 `rect` 区域与模板的 dHash（不滑动搜索） | 判断“当前是不是这个界面” | 约 1ms |
+
+特征点结果的 `confidence` 和模板匹配一样是 NCC 分数，所以阈值含义不变；另外带 `quad`（模板四个角在屏幕上的位置，从左上角顺时针）、`angle`（度，逆时针为正）、`scale`、`inliers`，`method` 为 `"feature:orb"` 或 `"feature:sift"`。特征点需要纹理：纯色小图标几乎没有特征点，`"feature"` 会直接返回 None（约 1ms），所以推荐用 `"auto"`。`"feature"` 每个模板最多返回 1 个结果。
 
 OCR 引擎：
 
@@ -381,7 +397,7 @@ ui.float_add_menu("rec", "/sdcard/rec.png", on_click, remove_system=False)  # �
   ```
 - **YOLO：** `screen.YoLov5(path=...)` 和 `plug.load("yolov5" | "Yolov8Ncnn" | "Yolov11Ncnn")` 运行 ONNX 检测器，并返回 AScript 的结果结构。AScript 自带的是 NCNN 模型（`.param` / `.bin`）；请把同一份权重导出为 ONNX（`format=onnx`），再让 `load()` 指向 `.onnx` 文件。类别名称取自模型、同目录下的 `data.yaml` 或 `classes.txt`，或 `nc`。
 - **云控：** `cloud_control.connect_to_ws / send / close`、`system.channel` 和 `system.Control.send` 使用 XScript 的云控连接。启动参数也会像 AScript 一样设置到 `builtins` 上。`R.get_card()` 返回打包应用的卡密。
-- **模板匹配：** `FindImages.find` / `find_all` 默认使用置信度为 0.9 的模板匹配。`method="smart"` 和 `find_sift` 会回退为模板匹配。结果采用 AScript 的字典结构（`result`、`rect`、`center_x`、`center_y`、`confidence`）。
+- **模板匹配：** `FindImages.find` / `find_all` 默认使用置信度为 0.9 的模板匹配。`method="smart"`（或 `"auto"`）先模板匹配、找不到再用特征点；`find_sift` / `find_all_sift`、`method="sift"`、`ascv.find_all_sift` / `find_surf` 先用 ORB/SIFT 特征点（可缩放、旋转），模板太平没有特征点时回退为模板匹配。结果采用 AScript 的字典结构（`result`、`rect`、`center_x`、`center_y`、`confidence`）。
 - **截图：** `capture()` 与 AScript 一样返回 android `Bitmap`。`capture_cv` 返回 BGR numpy 数组。
 - **事件：** `NotificationEvent` 事件携带的是纯数据，因此 `event.raw` 为 `None`。`Selector.on_event` 收到的对象提供 `getEventType()`、`getPackageName()`、`getClassName()` 和 `getText()`。
 - **`system.reboot(ms)`：** 在新的脚本进程中重启项目，不会重启设备。

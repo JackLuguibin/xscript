@@ -104,12 +104,19 @@ def match_template(source, part, rect=None, confidence=0.9, rgb=False, maxcnt=0,
 def sort_by_ori(items, ori):
     """AScript scan-direction ordering (1..8) of template/OCR dicts by center."""
     ...
+FIND_METHODS = ('auto', 'template', 'multiscale', 'feature', 'hash')
+DEFAULT_MULTISCALE = (0.5, 2.0)
 
-def find_templates(parts, rect=None, confidence=0.9, rgb=False, maxcnt=0, scale_range=None, image=None, ori=None, fast=True):
+def find_templates(parts, rect=None, confidence=0.9, rgb=False, maxcnt=0, scale_range=None, image=None, ori=None, fast=True, method=None):
     """parts: path or list of paths. Captures once and searches every template.
 
     `ori=None` (XScript): best confidence first, `maxcnt` caps the combined list.
     `ori=1..8` (AScript): `maxcnt` applies per template, results ordered by scan direction.
+
+    `method`: None / "template" (default: template matching, multi-scale when `scale_range` is given),
+    "multiscale" (template matching over `scale_range`, default 0.5-2.0), "feature" (ORB then SIFT keypoints +
+    homography: any scale and rotation, at most one hit per template), "auto" (template first, features for
+    templates it did not find) or "hash" (is the `rect` region the same picture as the template, by dHash).
     """
     ...
 

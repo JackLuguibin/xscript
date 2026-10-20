@@ -51,6 +51,11 @@
       "name": "image",
       "type": "any",
       "default": null
+    },
+    {
+      "name": "method",
+      "type": "any",
+      "default": null
     }
   ],
   "outputs": [
@@ -63,7 +68,7 @@
     "imports": [
       "from xscript.android import screen"
     ],
-    "stmt": "{id} = screen.find_all_images({template}, rect={rect}, confidence={confidence}, rgb={rgb}, maxcnt={maxcnt}, scale_range={scale_range}, image={image})"
+    "stmt": "{id} = screen.find_all_images({template}, rect={rect}, confidence={confidence}, rgb={rgb}, maxcnt={maxcnt}, scale_range={scale_range}, image={image}, method={method})"
   },
   "dsl": {
     "alias": "screen.find_all_images"

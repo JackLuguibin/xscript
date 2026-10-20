@@ -50,11 +50,15 @@ def find_colors(colors, rect=None, sim=0.9, space=5, ori=2, image=None):
 def find_all_colors(colors, rect=None, sim=0.9, space=5, ori=2, max_num=0, image=None):
     ...
 
-def find_image(template, rect=None, confidence=0.9, rgb=False, scale_range=None, image=None):
-    """Best template match → dict {center_x, center_y, rect, confidence, ...} or None."""
+def find_image(template, rect=None, confidence=0.9, rgb=False, scale_range=None, image=None, method=None):
+    """Best match → dict {center_x, center_y, rect, confidence, quad, angle, scale, method, ...} or None.
+
+    method: None/"template" (default), "multiscale", "feature" (any scale / rotation), "auto" (template, then
+    features) or "hash" (is `rect` the same picture). See docs/API.md.
+    """
     ...
 
-def find_all_images(template, rect=None, confidence=0.9, rgb=False, maxcnt=0, scale_range=None, image=None):
+def find_all_images(template, rect=None, confidence=0.9, rgb=False, maxcnt=0, scale_range=None, image=None, method=None):
     ...
 OCR_MLKIT = 'mlkit'
 OCR_PADDLE = 'paddle'

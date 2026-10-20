@@ -478,25 +478,56 @@ class FindImages(GPTask):
     @staticmethod
     def find(part_img, rect=None, confidence=None, rgb=False, source_img=None, ori=2, scale_range=None, image=None,
              method="template", fast=True):
-        if method == "smart":
-            warn_once("smart", "FindImages method='smart' falls back to template matching")
         conf = FindImages._TEMPLATE_DEFAULT_CONF if confidence is None else confidence
+        if method in ("smart", "auto", "feature", "sift"):
+            res = FindImages._find_all_method(part_img, rect, conf, rgb, 1, source_img, ori, scale_range, image,
+                                              "feature" if method == "sift" else "auto")
+            return res[0] if res else None
         return FindImages.find_template(part_img, rect, conf, rgb, source_img, ori, scale_range, image, fast)
 
     @staticmethod
     def find_all(part_img, rect=None, confidence=None, rgb=False, source_img=None, maxcnt=0, ori=2,
                  scale_range=None, image=None, method="template", fast=True):
         conf = FindImages._TEMPLATE_DEFAULT_CONF if confidence is None else confidence
+        if method in ("smart", "auto", "feature", "sift"):
+            return FindImages._find_all_method(part_img, rect, conf, rgb, maxcnt, source_img, ori, scale_range,
+                                               image, "feature" if method == "sift" else "auto")
         return FindImages.find_all_template(part_img, rect, conf, rgb, maxcnt, source_img, ori, scale_range, image, fast)
 
     @staticmethod
+    def _find_all_method(part_img, rect, confidence, rgb, maxcnt, source_img, ori, scale_range, image, method):
+        """"auto": template first, keypoints for what it missed. "feature": keypoints first (scale / rotation
+        invariant), template matching for templates too flat for keypoints."""
+        src = source_img if source_img is not None else image
+        if src is not None:
+            src = _ensure_cv(src)
+        try:
+            if method == "auto":
+                res = _img.find_templates(part_img, rect, confidence, rgb, maxcnt, scale_range, src,
+                                          ori=ori or 2, method="auto")
+            else:
+                res = _img.find_templates(part_img, rect, confidence, rgb, maxcnt, scale_range, src,
+                                          ori=ori or 2, method="feature")
+                if not res:
+                    res = _img.find_templates(part_img, rect, confidence, rgb, maxcnt, scale_range, src,
+                                              ori=ori or 2)
+        except Exception as e:
+            print(str(e))
+            return None
+        return res or None
+
+    @staticmethod
     def find_sift(part_img, rect=None, confidence=0.9, rgb=False, source_img=None, ori=2, scale_range=None, fast=True):
-        return FindImages.find_template(part_img, rect, confidence, rgb, source_img, ori, scale_range)
+        """Keypoint (ORB / SIFT) matching: finds scaled and rotated targets; flat templates use template matching."""
+        res = FindImages._find_all_method(part_img, rect, confidence, rgb, 1, source_img, ori, scale_range, None,
+                                          "feature")
+        return res[0] if res else None
 
     @staticmethod
     def find_all_sift(part_img, rect=None, confidence=0.9, rgb=False, source_img=None, maxcnt=0, ori=2,
                       scale_range=None, fast=True):
-        return FindImages.find_all_template(part_img, rect, confidence, rgb, maxcnt, source_img, ori, scale_range)
+        return FindImages._find_all_method(part_img, rect, confidence, rgb, maxcnt, source_img, ori, scale_range,
+                                           None, "feature")
 
     @staticmethod
     def find_template(part_img, rect=None, confidence=0.9, rgb=False, source_img=None, ori=2, scale_range=None,

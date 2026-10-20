@@ -73,14 +73,19 @@ def find_all_colors(colors, rect=None, sim=0.9, space=5, ori=2, max_num=0, image
     return _img.find_colors(colors, rect, sim, space, ori, max_num, image)
 
 
-def find_image(template, rect=None, confidence=0.9, rgb=False, scale_range=None, image=None):
-    """Best template match → dict {center_x, center_y, rect, confidence, ...} or None."""
-    hits = _img.find_templates(template, rect, confidence, rgb, 1, scale_range, image)
+def find_image(template, rect=None, confidence=0.9, rgb=False, scale_range=None, image=None, method=None):
+    """Best match → dict {center_x, center_y, rect, confidence, quad, angle, scale, method, ...} or None.
+
+    method: None/"template" (default), "multiscale", "feature" (any scale / rotation), "auto" (template, then
+    features) or "hash" (is `rect` the same picture). See docs/API.md.
+    """
+    hits = _img.find_templates(template, rect, confidence, rgb, 1, scale_range, image, method=method)
     return hits[0] if hits else None
 
 
-def find_all_images(template, rect=None, confidence=0.9, rgb=False, maxcnt=0, scale_range=None, image=None):
-    return _img.find_templates(template, rect, confidence, rgb, maxcnt, scale_range, image)
+def find_all_images(template, rect=None, confidence=0.9, rgb=False, maxcnt=0, scale_range=None, image=None,
+                    method=None):
+    return _img.find_templates(template, rect, confidence, rgb, maxcnt, scale_range, image, method=method)
 
 
 OCR_MLKIT = "mlkit"

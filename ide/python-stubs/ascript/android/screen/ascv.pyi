@@ -8,7 +8,10 @@ def find_all_template(image_source, image_search, rect=None, threshold=0.5, rgb=
 find_all_template_cvimg = ...
 
 def find_all_sift(image_source, image_search, rect=None, threshold=0.5, rgb=False, maxcnt=0):
+    """Keypoint matching (ORB, then SIFT, + homography): finds scaled and rotated targets. Templates with too
+    little texture for keypoints (small flat icons) fall back to template matching, as before."""
     ...
 
 def find_surf(image_source, image_search, threshold=0.5, off_rect=None, rgb=False, maxcnt=0):
+    """SURF is patented and not in OpenCV's main module; same keypoint search as find_all_sift."""
     ...
