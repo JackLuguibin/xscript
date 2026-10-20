@@ -1,0 +1,39 @@
+{
+  "type": "ai.status",
+  "category": "ai",
+  "title": {
+    "zh": "ai.status",
+    "en": "ai.status"
+  },
+  "doc": {
+    "zh": "{\"configured\", \"base_url\", \"model\", \"coords\"}; never includes the key.",
+    "en": "{\"configured\", \"base_url\", \"model\", \"coords\"}; never includes the key."
+  },
+  "exec": {
+    "in": [
+      "exec"
+    ],
+    "out": [
+      "then"
+    ]
+  },
+  "inputs": [],
+  "outputs": [
+    {
+      "name": "result",
+      "type": "any"
+    }
+  ],
+  "py": {
+    "imports": [
+      "from xscript.android import ai"
+    ],
+    "stmt": "{id} = ai.status()"
+  },
+  "dsl": {
+    "alias": "ai.status"
+  },
+  "since": "0.2.6",
+  "origin": "xscript.android.ai.status",
+  "availability": "ok"
+}

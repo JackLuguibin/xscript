@@ -124,6 +124,21 @@ screen.ocr(engine="paddle", confidence=0.6)  # 或按次指定
 
 离线设备：把文件放到 `models.directory()/paddle/v5/`（例如用 `adb push`，或 `PUT /models/paddle/v5/<file>`）。
 
+### AI 识屏（`screen.ai_find` / `screen.ai_ask`）
+
+接任意 OpenAI 兼容的 `/chat/completions` 视觉模型（通义千问 Qwen-VL、GPT-4o、本地 vLLM / Ollama 等）。密钥由使用者自备，可在脚本里传入，或设置环境变量 `XSCRIPT_AI_BASE_URL` / `XSCRIPT_AI_KEY` / `XSCRIPT_AI_MODEL`；本模块不会把密钥写到磁盘，`ai.status()` 也不返回密钥。
+
+```python
+from xscript.android import ai, screen
+ai.config("https://dashscope.aliyuncs.com/compatible-mode/v1", api_key=MY_KEY, model="qwen-vl-max")
+hit = screen.ai_find("红色的关闭按钮")        # {'text', 'rect', 'center_x', 'center_y', 'confidence'} 或 None
+screen.ai_click("同意并继续", timeout=10)
+screen.ai_ask("当前是不是登录页？只回答是或否")   # 返回文本
+screen.ai_find_all("商品卡片", rect=[0, 300, 1080, 1800], limit=10)
+```
+
+截图会按 `image_tokens`（默认 1024，单位 32×32 块）缩放后以 JPEG data URL 上传，只发送 `rect` 范围内的像素。模型返回的框默认按上传图像素解析，`coords="norm1000"`（Qwen2-VL 风格 0–1000）、`"ratio"`（0–1）、`"auto"` 可选；结果会映射回屏幕坐标。回复里的 ```json 代码块、`<think>` 段和多余文字会被忽略。失败时抛 `ai.AiError`（`status` 为 HTTP 状态码或 None）。AScript 的 `asai`（`/vision/locate`、`/vision/ask` 协议）保持不变。
+
 ## yolo（目标检测）
 
 ```python

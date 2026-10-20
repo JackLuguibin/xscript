@@ -1,0 +1,55 @@
+{
+  "type": "screen.ai_click",
+  "category": "screen",
+  "title": {
+    "zh": "screen.ai_click",
+    "en": "screen.ai_click"
+  },
+  "doc": {
+    "zh": "ai_click",
+    "en": "ai_click"
+  },
+  "exec": {
+    "in": [
+      "exec"
+    ],
+    "out": [
+      "then"
+    ]
+  },
+  "inputs": [
+    {
+      "name": "target",
+      "type": "any"
+    },
+    {
+      "name": "timeout",
+      "type": "any",
+      "default": 0
+    },
+    {
+      "name": "rect",
+      "type": "any",
+      "default": null
+    }
+  ],
+  "outputs": [
+    {
+      "name": "result",
+      "type": "any"
+    }
+  ],
+  "py": {
+    "imports": [
+      "from xscript.android import screen"
+    ],
+    "stmt": "{id} = screen.ai_click({target}, timeout={timeout}, rect={rect})"
+  },
+  "dsl": {
+    "alias": "screen.ai_click"
+  },
+  "since": "0.2.6",
+  "origin": "xscript.android.screen.ai_click",
+  "availability": "ok",
+  "latent": true
+}

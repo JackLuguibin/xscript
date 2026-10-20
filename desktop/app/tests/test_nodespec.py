@@ -87,7 +87,7 @@ def test_generated_call_nodes_match_the_runtime_and_the_status_table():
     assert not (GENERATED / "action.click.json").exists()
     rows = gen.status_rows((REPO / "docs" / "功能对照.md").read_text(encoding="utf-8"))
     assert gen.availability_for("action.Hid.click", rows) == "partial"
-    assert gen.availability_for("screen.vlm.ask", rows) == "partial"
+    assert gen.availability_for("screen.vlm.ask", rows) == "ok"  # AI 识屏 ✅ since screen.ai_find
     assert gen.availability_for("action.swipe", rows) == "ok"
     assert gen.availability_for("service.db.query", rows) == "hidden"
     assert {item["origin"] for item in skipped} >= {"xscript.android.event.on", "xscript.android.event.wait"}
