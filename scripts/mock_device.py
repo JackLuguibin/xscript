@@ -6,12 +6,26 @@ import base64
 import io
 import json
 import os
+import re
 import struct
 import threading
 import time
 import zipfile
+from pathlib import Path
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from urllib.parse import parse_qs, unquote, urlparse
+
+
+def runtime_version() -> str:
+    """The version the real device reports: the on-device runtime's __version__ (kept equal to the App versionName)."""
+    src = Path(__file__).resolve().parents[1] / "android" / "python-runtime" / "xscript" / "__init__.py"
+    m = re.search(r'^__version__ = "([^"]+)"', src.read_text(encoding="utf-8"), re.M)
+    if not m:
+        raise RuntimeError("no __version__ in %s" % src)
+    return m.group(1)
+
+
+APP_VERSION = runtime_version()
 
 def _make_png(width=24, height=48):
     """A small valid RGB gradient PNG (browsers can decode it; the old 1x1 stub could not be)."""
@@ -373,7 +387,7 @@ class Handler(BaseHTTPRequestHandler):
                 "capture_source": "mock",
                 "running": STATE["running"] is not None,
                 "project": STATE["running"],
-                "version": "0.2.0",
+                "version": APP_VERSION,
                 "overlay": {
                     "enabled": STATE["settings"]["float_on_run"],
                     "always": STATE["settings"]["float_always"],

@@ -5,8 +5,8 @@
 # vX.Y.Z; .github/workflows/release.yml re-verifies, builds the signed APK (GitHub Secrets) and the vsix, writes SHA256SUMS,
 # checks the signing certificate and 16 KB alignment, and creates the Release. See docs/发布.md.
 #
-#   scripts/release.sh check                 versions agree (android versionName == extension version); used by verify.sh and CI
-#   scripts/release.sh prepare X.Y.Z         bump android versionName (+ versionCode + 1), extension package.json / lock,
+#   scripts/release.sh check                 versions agree (android versionName == extension version == runtime __version__); used by verify.sh and CI
+#   scripts/release.sh prepare X.Y.Z         bump android versionName (+ versionCode + 1), runtime __version__, extension package.json / lock,
 #                                            the README / README.en.md download link, and turn CHANGELOG "未发布" into "vX.Y.Z（date）".
 #                                            Edits files only; review, then commit (chore(release): vX.Y.Z) and push.
 #   scripts/release.sh build [--skip-apk]    dist/release/: xscript-vX.Y.Z-release.apk (arm64-v8a + x86_64, signed with
@@ -32,6 +32,9 @@ DIST=dist/release
 KNOWN_CERT_SHA256=e04b22c87fb67b47f1651f078f6e0640f30a555d63d59fbe8d2b86eb504829ac
 
 app_version() { sed -n 's/.*versionName = if (packed) packProp("version_name", "[^"]*") else "\([^"]*\)".*/\1/p' "$GRADLE"; }
+RUNTIME_INIT=android/python-runtime/xscript/__init__.py
+STUB_INIT=ide/python-stubs/xscript/__init__.pyi   # IDE stubs mirror the runtime __version__
+runtime_version() { sed -n 's/^__version__ = "\([^"]*\)"/\1/p' "$RUNTIME_INIT"; }
 ext_version() { python3 -c 'import json,sys; print(json.load(open(sys.argv[1]))["version"])' "$EXT/package.json"; }
 sha256() { if command -v sha256sum >/dev/null 2>&1; then sha256sum "$@"; else shasum -a 256 "$@"; fi; }
 sdk_tool() { # newest build-tools binary: sdk_tool apksigner | aapt2 | zipalign
@@ -67,6 +70,10 @@ check)
   if [ "$A" != "$E" ]; then
     echo "release: extension version $E != App versionName $A (they ship together; see scripts/release.sh)" >&2; exit 1
   fi
+  R="$(runtime_version)"
+  if [ "$A" != "$R" ]; then
+    echo "release: runtime __version__ $R ($RUNTIME_INIT) != App versionName $A" >&2; exit 1
+  fi
   echo "release versions agree: $A"
   ;;
 prepare)
@@ -82,6 +89,8 @@ s, n2 = re.subn(r'(packProp\("version_code", "1"\)\.toInt\(\) else )\d+', lambda
 assert n1 == 1 and n2 == 1, "versionName / versionCode pattern not found"
 open(path, "w", encoding="utf-8").write(s)
 PY
+  sed -i.bak 's/^__version__ = "[^"]*"/__version__ = "'"$V"'"/' "$RUNTIME_INIT" && rm -f "$RUNTIME_INIT.bak"
+  sed -i.bak "s/^__version__ = '[^']*'/__version__ = '$V'/" "$STUB_INIT" && rm -f "$STUB_INIT.bak"
   (cd "$EXT" && npm version "$V" --no-git-tag-version --allow-same-version >/dev/null)
   python3 - "$V" <<'PY'
 import datetime, os, re, sys
@@ -103,7 +112,7 @@ assert "\n## 未发布\n" in c, "CHANGELOG has no 未发布 section"
 c = c.replace("\n## 未发布\n", "\n## 未发布\n\n## v%s（%s）\n" % (v, datetime.date.today().isoformat()), 1)
 open("CHANGELOG.md", "w", encoding="utf-8").write(c)
 PY
-  echo "prepared v$V: $GRADLE, $EXT/package.json(+lock), README.md, CHANGELOG.md. Review (git diff), then: git commit -am 'chore(release): v$V' && git push"
+  echo "prepared v$V: $GRADLE, $RUNTIME_INIT, $EXT/package.json(+lock), README.md, CHANGELOG.md. Review (git diff), then: git commit -am 'chore(release): v$V' && git push"
   ;;
 build)
   SKIP_APK=0; [ "${1:-}" = "--skip-apk" ] && SKIP_APK=1

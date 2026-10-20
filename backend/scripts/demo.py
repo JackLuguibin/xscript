@@ -28,6 +28,11 @@ import websockets  # noqa: E402
 from xscript_server.__main__ import main as cli  # noqa: E402
 from xscript_server.app import create_app  # noqa: E402
 from xscript_server.config import Config  # noqa: E402
+
+# what a real phone reports: the on-device runtime's version (== App versionName, see release.sh check)
+_RUNTIME_INIT = Path(__file__).resolve().parents[2] / "android" / "python-runtime" / "xscript" / "__init__.py"
+APP_VERSION = next(line.split('"')[1] for line in _RUNTIME_INIT.read_text(encoding="utf-8").splitlines()
+                   if line.startswith("__version__ = "))
 from xscript_server.security import new_secret, token_hash  # noqa: E402
 
 PORT = int(os.environ.get("PORT", "8765"))
@@ -105,7 +110,7 @@ async def fake_device(url: str, n: int) -> None:
 
                 def status():
                     return {"model": model, "brand": brand, "running": bool(running["project"]),
-                            "project": running["project"], "channel": "accessibility", "version": "0.2.0",
+                            "project": running["project"], "channel": "accessibility", "version": APP_VERSION,
                             "sdk": 34, "release": "14", "width": 1080, "height": 2400}
 
                 await ws.send(json.dumps({"type": "hello", "device_id": dev_id, "group": group,
