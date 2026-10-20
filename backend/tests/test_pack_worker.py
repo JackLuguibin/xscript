@@ -377,8 +377,10 @@ class WorkerProcessE2E(RemoteBase):
         workers = (await self.admin.get("/api/pack/workers")).json()["items"]
         self.assertTrue(workers[0]["online"])
         self.assertIsNone(workers[0]["job_id"])
+        stopped = time.monotonic()
         worker.send_signal(signal.SIGTERM)
         self.assertEqual(await asyncio.to_thread(worker.wait, 15), 0, self.worker_log.read_text())
+        self.assertLess(time.monotonic() - stopped, 3)  # wakes from its poll sleep at once
 
     async def test_a_killed_worker_hands_its_job_to_another(self):
         self.packer.lease_s = 2
