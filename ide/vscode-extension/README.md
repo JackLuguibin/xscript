@@ -52,7 +52,7 @@ cd ide/vscode-extension && npm ci && npm run package     # 生成 xscript-vscode
 
 ## UI 设计器
 
-`XScript: 新建界面（UI 设计器）`（命令面板，或在工程里右键）创建 `res/ui/<name>.ui.json` 并用设计器打开；任何 `*.ui.json` 都默认用设计器打开（「重新打开编辑器的方式…」可切回文本）。左边点或拖控件进表单（文本、密码、多行、数字、勾选、下拉、单选、说明文字），中间拖动排序，右边改属性和窗口标题/按钮/大小，最右是预览。保存时生成：
+`XScript: 新建界面（UI 设计器）`（命令面板，或在工程里右键）创建 `res/ui/<name>.ui.json` 并用设计器打开；任何 `*.ui.json` 都默认用设计器打开（「重新打开编辑器的方式…」可切回文本）。左边点或拖控件进表单（文本、密码、多行、数字、勾选、选项列表、单选、说明文字），中间拖动排序，右边改属性和窗口标题/按钮/大小，最右是预览。保存时生成：
 
 - `res/ui/<name>.html`：给 `ui.Window` 显示的页面（提交时 `xscript.call("submit", JSON)`）；
 - `ui_<name>.py`：`show(values=None)` 显示表单、阻塞到提交，返回按类型转换好的 dict（取消返回 None）。
@@ -64,7 +64,7 @@ if values:
     print(values["name"], values["rounds"], values["loop"])
 ```
 
-两个生成文件每次保存都会重写，改界面请改 `.ui.json`。
+两个生成文件每次保存都会重写，改界面请改 `.ui.json`。生成器和设计器界面与手机网页 IDE 共用（`android/app/src/main/assets/tools/ui-form.js`、`ui-designer.js`，构建时复制进扩展），两边打开同一个 `.ui.json` 结果一致。「选项列表」在手机上显示为页内列表，不是系统下拉框：`ui.Window` 的悬浮窗里系统下拉框弹不出来。
 
 ## 和 AScript 官方扩展的对照
 
