@@ -249,10 +249,7 @@ def main():
             check(v.get("name") == "preset" and v.get("count") == 7 and v.get("fast") is True and v.get("side") == "right"
                   and v.get("mode") == "hard", "unchanged submit returns the pre-filled values", got)
     finally:
-        try:
-            api("POST", "/projects/%s/stop" % PROJECT, {})
-        except Exception:
-            pass
+        api("POST", "/projects/%s/stop" % PROJECT, {})  # 200 even when idle: an error here is real, let it show
         time.sleep(1)
         api("DELETE", "/projects/" + PROJECT)
     print("\n%d passed, %d failed%s" % (len(passes), len(fails), (": " + ", ".join(fails)) if fails else ""))
