@@ -16,12 +16,14 @@
 
 ## 分阶段清单
 
-- [ ] **P5.1 Windows 打包**：PyInstaller onedir + Inno Setup 脚本，CI（windows-latest）产出 setup.exe 作为 artifact；`--selftest` 在安装目录里跑
-- [ ] **P5.2 macOS 签名/公证**：Developer ID 签名 + notarytool（Secrets 有证书时），没有就保持 ad-hoc；`verify_macos_app.sh` 校验
-- [ ] **P5.3 Windows 签名**：signtool（Secrets 有证书时）；记录 SmartScreen / Defender 结果（W-13）
-- [ ] **P5.4 自动更新**：更新清单（版本、sha256、签名）+ 客户端检查/下载/校验/替换；先只提示，用户确认后安装
+> 2026-10-20 调整（用户要求）：只用 ad-hoc 签名，没有 Developer ID / Windows 代码签名证书；任何 dmg 都要在本机 Mac 上实际打开验证；不打标签、不发 Release；自动更新必须能用本地更新源测试，不依赖真实 Release。
+
+- [ ] **P5.1 Windows 安装包**：PyInstaller onedir + Inno Setup（按用户安装，不要管理员权限）；`release.yml` 的 Windows 作业产出 setup.exe artifact，静默安装到临时目录、在安装目录里跑 `--selftest`、再静默卸载
+- [ ] **P5.2 macOS dmg（ad-hoc）**：保持 ad-hoc 签名；新增 `check_macos_dmg.sh`：挂载 dmg、复制出 App、经 LaunchServices（`open`）真正启动并跑自检；Developer ID / 公证不做（没有证书），文档写明
+- [ ] **P5.3 Windows 签名**：没有证书，不签名；文档写明 SmartScreen / Defender 的提示和放行方式（W-13），以及以后有证书时接 signtool 的位置
+- [ ] **P5.4 自动更新**：更新清单 `desktop-update.json`（版本、各平台文件 sha256 / 大小）+ Ed25519 签名；客户端检查 → 提示 → 用户确认后下载、校验、替换并重启；`scripts/desktop_update_feed.py` 起本地更新源（临时密钥），端到端从旧版更新到新版
 - [ ] **P5.5 诊断包**：一键导出日志、版本、环境（去掉令牌和密钥）
-- [ ] **P5.6 release.yml**：workflow_dispatch 演练产出全部桌面产物（不发布）；文档中英
+- [ ] **P5.6 release.yml 与文档**：workflow_dispatch / PR 演练产出全部桌面产物和更新清单（临时密钥签名，不发布）；正式发布时清单用 Secrets 里的更新密钥签名（没有就不出清单）；中英文档、截图
 
 ## 测试计划
 
@@ -31,5 +33,6 @@
 
 ## 风险
 
-- 证书成本和获取时间；没有证书时只能验证流程。
+- 没有证书：macOS 只能 ad-hoc（首次打开要手动放行），Windows 未签名（SmartScreen 提示）。
+- 更新签名私钥要放进 GitHub Secrets（需要用户操作）；放之前正式版本不带更新清单、客户端里没有受信公钥，检查更新会说明「未配置」。
 - Inno Setup 在 runner 上的安装方式（choco）可能变化。
