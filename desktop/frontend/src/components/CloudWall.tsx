@@ -83,7 +83,7 @@ export function CloudWall({ account }: { account: CloudAccount }) {
         {(devices ?? []).map((d) => (
           <article key={d.id} className="wall-card">
             <div className="row">
-              <span className="grow mono">{d.id}</span>
+              <span className="grow mono" title={d.id}>{d.id}</span>
               <span className="muted">{d.running ? `${t.cloud.dev.running}${d.project ? " · " + d.project : ""}` : t.cloud.dev.idle}</span>
             </div>
             <Thumb device={d} tick={tick} />
