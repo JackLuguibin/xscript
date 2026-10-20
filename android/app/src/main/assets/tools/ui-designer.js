@@ -7,7 +7,7 @@
 (function (root) {
   const TEXT = {
     en: {
-      kinds: { text: "Text", password: "Password", textarea: "Multi-line text", number: "Number", checkbox: "Checkbox", select: "Dropdown", radio: "Radio group", label: "Static text" },
+      kinds: { text: "Text", password: "Password", textarea: "Multi-line text", number: "Number", checkbox: "Checkbox", select: "Choice list", radio: "Radio group", label: "Static text" },
       controls: "Controls", addHint: "Click or drag into the form", saveHint: "Save (Ctrl+S) writes res/ui/<name>.html and ui_<name>.py.",
       form: "Form", dropHint: "Drag controls here.", up: "Move up", down: "Move down", del: "Delete",
       field: "Field: ", text: "Text", label: "Label", id: "Key in the returned dict (id)", options: "Options (one per line)",
@@ -17,7 +17,7 @@
       previewHint: "Preview only; on the phone: from ui_<name> import show; values = show()",
     },
     zh: {
-      kinds: { text: "单行文本", password: "密码", textarea: "多行文本", number: "数字", checkbox: "复选框", select: "下拉选择", radio: "单选组", label: "说明文字" },
+      kinds: { text: "单行文本", password: "密码", textarea: "多行文本", number: "数字", checkbox: "复选框", select: "选项列表", radio: "单选组", label: "说明文字" },
       controls: "控件", addHint: "点击或拖到表单里", saveHint: "保存（Ctrl/Cmd+S）时生成 res/ui/<名称>.html 和 ui_<名称>.py。",
       form: "表单", dropHint: "把控件拖到这里。", up: "上移", down: "下移", del: "删除",
       field: "字段：", text: "文字", label: "标题", id: "返回字典里的键（id）", options: "选项（每行一个）",
