@@ -390,15 +390,50 @@
     finally { pending = false; render(); }
   }
   el("projects").onchange = () => operation(() => selectProject(el("projects").value));
-  el("new-project").onclick = () => {
-    const name = prompt("新工程名称（以字母或下划线开头，仅字母、数字、下划线；入口为 __init__.py）");
-    if (name === null) return;
-    if (!name.trim()) { message("工程名称不能为空", true); return; }
+  // 新建工程: name + template picker (same templates as the VS Code extension and the phone app).
+  function newProjectDialog(list) {
+    return new Promise(resolve => {
+      const prev = document.activeElement, back = document.createElement("div");
+      back.className = "xs-dialog-backdrop";
+      back.innerHTML = '<form class="xs-dialog new-project-dialog" role="dialog" aria-modal="true" aria-labelledby="np-title">' +
+        '<h2 id="np-title">新建工程</h2><div class="body">' +
+        '<label for="np-name">工程名称</label><input id="np-name" type="text" autocomplete="off" spellcheck="false" placeholder="例如 my_script">' +
+        '<div class="np-hint">以字母或下划线开头，仅字母、数字、下划线；入口为 __init__.py</div>' +
+        '<div class="np-label" id="np-tpl-label">模板</div><div class="tpl-list" role="radiogroup" aria-labelledby="np-tpl-label"></div>' +
+        '<div class="np-error" role="alert"></div></div>' +
+        '<div class="foot"><button type="button" data-a="cancel">取消</button><button type="submit" class="primary">创建</button></div></form>';
+      const box = back.querySelector(".tpl-list"), name = back.querySelector("#np-name"), err = back.querySelector(".np-error");
+      if (!list.templates.length) { box.remove(); back.querySelector(".np-label").remove(); }
+      list.templates.forEach(t => {
+        const row = document.createElement("label"); row.className = "tpl-item"; row.dataset.id = t.id;
+        const r = document.createElement("input"); r.type = "radio"; r.name = "np-tpl"; r.value = t.id; r.checked = t.id === list.default;
+        const txt = document.createElement("span"), b = document.createElement("b"), d = document.createElement("small");
+        b.textContent = t.label; d.textContent = t.detail || ""; txt.append(b, d); row.append(r, txt); box.appendChild(row);
+      });
+      if (box.isConnected && !box.querySelector("input:checked")) box.querySelector("input").checked = true;
+      const close = value => { back.remove(); if (prev && prev.focus) prev.focus(); resolve(value); };
+      back.querySelector("form").addEventListener("submit", e => {
+        e.preventDefault();
+        const n = name.value.trim();
+        if (!n) { err.textContent = "工程名称不能为空"; name.focus(); return; }
+        if (!/^[\p{L}_][\p{L}\p{N}_]*$/u.test(n)) { err.textContent = "工程名须以字母或下划线开头，仅包含字母、数字、下划线"; name.focus(); return; }
+        const sel = back.querySelector('input[name="np-tpl"]:checked');
+        close({name: n, template: sel ? sel.value : ""});
+      });
+      name.addEventListener("input", () => { err.textContent = ""; });
+      back.addEventListener("click", e => { if (e.target === back || e.target.closest('[data-a="cancel"]')) close(null); });
+      back.addEventListener("keydown", e => { e.stopPropagation(); if (e.key === "Escape") close(null); });
+      document.body.appendChild(back); name.focus();
+    });
+  }
+  el("new-project").onclick = async () => {
+    if (pending) return;
+    const choice = await newProjectDialog(await model.listTemplates());
+    if (!choice) return;
     operation(async () => {
-      const target = name.trim();
-      await model.createProject(target);
-      await projects(target);
-      message("已创建工程 " + target + "，入口 __init__.py");
+    await model.createProject(choice.name, choice.template);
+    await projects(choice.name);
+    message("已创建工程 " + choice.name + (choice.template && choice.template !== "empty" ? "（模板）" : "") + "，入口 __init__.py");
     });
   };
   // Default the prompt to the selected empty folder, or the folder of the open file.

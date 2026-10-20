@@ -206,6 +206,26 @@ paths:
                 $ref: "#/components/schemas/Settings"
         "400":
           description: Bad value
+  /project-templates:
+    get:
+      summary: New-project templates (same set as the VS Code extension)
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  default: { type: string }
+                  templates:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        id: { type: string }
+                        label: { type: string }
+                        detail: { type: string }
   /projects:
     get:
       summary: List project names
@@ -220,10 +240,20 @@ paths:
     parameters:
       - $ref: "#/components/parameters/ProjectName"
     post:
-      summary: Create an empty project with a template __init__.py
+      summary: Create a project, optionally from a new-project template
       description: >-
         The name must be an identifier (Unicode letters, digits, underscore; not starting
-        with a digit). Never overwrites: an existing project is a 409.
+        with a digit). Never overwrites: an existing project is a 409. Without a body (or
+        without `template`) the project gets a default __init__.py; with `template` (an id
+        from GET /project-templates) its files are written, `{{name}}` replaced by the name.
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                template: { type: string, description: "Template id from GET /project-templates" }
       responses:
         "200":
           description: Created
@@ -234,8 +264,9 @@ paths:
                 properties:
                   ok: { type: boolean }
                   project: { type: string }
+                  template: { type: string }
         "400":
-          description: Invalid project name
+          description: Invalid project name or unknown template
           content:
             application/json:
               schema: { $ref: "#/components/schemas/Error" }

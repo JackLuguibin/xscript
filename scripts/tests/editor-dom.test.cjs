@@ -604,6 +604,27 @@ test('Web IDE explorer, editor and create/delete flows in a real browser', {skip
       files = await paths();
       assert.ok(files.includes('pkg/zz.py') && !files.includes('zz.py'));
     });
+    await t.test('新建工程 dialog: template list, validation, Esc cancels, creates from the chosen template', async () => {
+      const name = 'dom_tpl_' + Date.now() % 100000;
+      if (device) await fetch(base + '/projects/' + name, {method: 'DELETE'});
+      const open = async () => { await b.eval(click, '#new-project'); await b.waitFor(() => document.querySelectorAll('.new-project-dialog .tpl-item').length > 0); };
+      await open();
+      const items = await b.eval(() => [...document.querySelectorAll('.tpl-item')].map(r => ({id: r.dataset.id, checked: r.querySelector('input').checked})));
+      assert.ok(items.length >= 7); assert.deepEqual(items.filter(i => i.checked).map(i => i.id), ['empty']);
+      assert.equal(await b.eval(() => document.activeElement.id), 'np-name');
+      await b.eval(() => { document.querySelector('.new-project-dialog').requestSubmit(); });
+      assert.match(await b.eval(() => document.querySelector('.np-error').textContent), /不能为空/);
+      await b.eval(() => { const n = document.getElementById('np-name'); n.value = '9bad'; document.querySelector('.new-project-dialog').requestSubmit(); });
+      assert.match(await b.eval(() => document.querySelector('.np-error').textContent), /工程名/);
+      await b.eval(() => document.activeElement.dispatchEvent(new KeyboardEvent('keydown', {key: 'Escape', bubbles: true})));
+      assert.equal(await b.eval(() => !!document.querySelector('.xs-dialog-backdrop')), false);
+      await open();
+      await b.eval(n => { document.getElementById('np-name').value = n; document.querySelector('.tpl-item[data-id="ocr"] input').click(); document.querySelector('.new-project-dialog').requestSubmit(); }, name);
+      await b.waitFor(n => document.getElementById('projects').value === n, 5000, name); await settle();
+      const main = (await api('GET', '/projects/' + name + '/file?path=__init__.py')).content;
+      assert.match(main, /Ocr|ocr/); assert.ok(!main.includes('{{name}}'));
+      await fetch(base + '/projects/' + name, {method: 'DELETE'});
+    });
   } finally {
     if (browser) await browser.close();
     if (device && base) await fetch(base + '/projects/dom', {method: 'DELETE'}).catch(() => {});

@@ -94,7 +94,7 @@ class ApiRouter(private val context: Context) {
 
     private val store = ProjectStore(context)
     private val tools = com.xscript.app.tools.ToolsRouter(context)
-    private val projectRoutes = ProjectRoutes(store)
+    private val projectRoutes = ProjectRoutes(store) { com.xscript.app.project.ProjectTemplates.load(context) }
     private val projectRoute = Regex("^/projects/([^/]+)(/.*)?$")
 
     fun handle(req: Request): Reply {
@@ -134,6 +134,10 @@ class ApiRouter(private val context: Context) {
             m == "POST" && p == "/action" -> return action(req)
             m == "GET" && p == "/settings" -> return Reply.json(settings())
             m == "PUT" && p == "/settings" -> return putSettings(req)
+            m == "GET" && p == "/project-templates" -> return Reply.json(
+                JSONObject().put("templates", com.xscript.app.project.ProjectTemplates.load(context).describe())
+                    .put("default", com.xscript.app.project.ProjectTemplates.DEFAULT),
+            )
             m == "GET" && p == "/projects" -> return Reply.json(
                 JSONObject().put("projects", JSONArray(store.list())).put("details", store.describe()),
             )

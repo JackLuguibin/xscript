@@ -1,6 +1,7 @@
 package com.xscript.app.http
 
 import com.xscript.app.project.ProjectStore
+import com.xscript.app.project.ProjectTemplates
 import org.json.JSONObject
 
 /**
@@ -8,13 +9,15 @@ import org.json.JSONObject
  * [ProjectStore]. Pure JVM (no Android Context), so the HTTP contract is unit-tested directly.
  * Exceptions map to status codes in [ApiRouter.errorReply].
  */
-class ProjectRoutes(private val store: ProjectStore) {
+class ProjectRoutes(private val store: ProjectStore, private val templates: () -> ProjectTemplates? = { null }) {
     /** Reply for `METHOD /projects/<name><sub>`, or null when this is not a file-management route. */
     fun handle(method: String, name: String, sub: String, req: ApiRouter.Request): ApiRouter.Reply? = when {
         method == "POST" && sub.isEmpty() -> {
-            // Strict: 400 for an invalid name, 409 when the project already exists.
-            store.createNew(name)
-            ApiRouter.Reply.json(JSONObject().put("ok", true).put("project", name))
+            // Strict: 400 for an invalid name or unknown template, 409 when the project already exists.
+            val template = req.json().optString("template")
+            val files = if (template.isEmpty()) null else (templates() ?: throw IllegalArgumentException("没有可用的模板")).render(template, name.trim())
+            store.createNew(name, files)
+            ApiRouter.Reply.json(JSONObject().put("ok", true).put("project", name).apply { if (template.isNotEmpty()) put("template", template) })
         }
         method == "GET" && sub == "/files" -> {
             ApiRouter.Reply.json(JSONObject().put("project", name).put("files", store.files(name)).put("dirs", store.dirs(name)))

@@ -31,3 +31,18 @@ test("template ids are unique and the scenario templates from the roadmap exist"
   assert.equal(new Set(ids).size, ids.length);
   for (const id of ["checkin", "findImage", "ocr", "floatUi"]) assert.ok(ids.includes(id), id);
 });
+
+test("templates match the device copy (android assets/templates/projects.json)", () => {
+  const file = path.join(__dirname, "..", "..", "..", "..", "android", "app", "src", "main", "assets", "templates", "projects.json");
+  const device = JSON.parse(fs.readFileSync(file, "utf-8")) as {
+    templates: { id: string; label_en: string; detail_en: string; files: Record<string, string> }[];
+  };
+  assert.deepEqual(device.templates.map((t) => t.id), TEMPLATES.map((t) => t.id));
+  for (const t of TEMPLATES) {
+    const d = device.templates.find((x) => x.id === t.id)!;
+    assert.equal(d.label_en, t.label, t.id);
+    assert.equal(d.detail_en, t.detail, t.id);
+    const rendered = Object.fromEntries(Object.entries(d.files).map(([k, v]) => [k, v.split("{{name}}").join("demo")]));
+    assert.deepEqual(rendered, t.files("demo"), t.id);
+  }
+});

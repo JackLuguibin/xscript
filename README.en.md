@@ -88,7 +88,7 @@ If you would rather not build it yourself, use the published packages. All you n
 
 ![Script IDE: directory tree on the left, editor with Python highlighting on the right, run log below](docs/images/ide-overview.png)
 
-- **New** project / file / folder: file paths look like `utils/net.py` and go into the folder selected in the tree by default; the tree works like VS Code's.
+- **New** project from a template (empty, Hello, AScript-compatible, check-in, find image and tap, OCR readout, floating UI; the phone app's **New** offers the same list); **New** file / folder: file paths look like `utils/net.py` and go into the folder selected in the tree by default; the tree works like VS Code's.
 - ⌘/Ctrl+S saves; **Save and run** (F6) runs on the phone, **Stop** (Shift+F6) ends the run; **Save and debug** supports breakpoints, stepping and variable inspection.
 - **Delete file**: the entry file `__init__.py` cannot be deleted, and a folder must be emptied first. The dark theme can be switched at the top right.
 

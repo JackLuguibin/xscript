@@ -76,10 +76,24 @@ class ProjectStore(val root: File) {
      * Strict create for the HTTP API / Web IDE: rejects invalid names (IllegalArgumentException → 400)
      * and existing projects (IllegalStateException → 409) instead of silently reusing them.
      */
-    fun createNew(name: String): File {
+    fun createNew(name: String, files: Map<String, String>? = null): File {
         require(isValidName(name)) { "工程名须以字母或下划线开头，仅包含字母、数字、下划线: $name" }
         check(!hasEntry(dir(name))) { "工程已存在: ${name.trim()}" }
-        return create(name, strict = true)
+        val d = create(name, strict = true)
+        files?.let { writeTemplate(name, it) }
+        return d
+    }
+
+    /** Create (lenient, like [create]) and fill with template [files] when the project is new. */
+    fun createFromTemplate(name: String, files: Map<String, String>): File {
+        val fresh = !hasEntry(dir(name))
+        val d = create(name)
+        if (fresh) writeTemplate(name, files)
+        return d
+    }
+
+    private fun writeTemplate(name: String, files: Map<String, String>) {
+        for ((rel, content) in files) writeFile(name, rel, content, "utf-8")
     }
 
     /** Delete a project. Symlinks inside it are removed, never followed (their targets stay intact). */

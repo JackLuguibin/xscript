@@ -164,3 +164,16 @@
   .ide-shot { max-height:60vh; }
   .search-actions { flex-wrap:wrap; }
 }
+
+/* ---------- 新建工程 dialog ---------- */
+.new-project-dialog { width: min(480px, 92vw); }
+.new-project-dialog label[for], .new-project-dialog .np-label { display: block; font-size: 12px; color: var(--text-strong); margin-top: 6px; }
+.new-project-dialog .np-hint { font-size: 11px; color: var(--text-dim, var(--text)); opacity: .75; margin-top: 4px; }
+.new-project-dialog .tpl-list { display: flex; flex-direction: column; gap: 4px; max-height: 46vh; overflow: auto; margin-top: 4px; }
+.new-project-dialog .tpl-item { display: flex; align-items: flex-start; gap: 8px; padding: 8px 10px; border: 1px solid var(--divider); border-radius: var(--radius); cursor: pointer; }
+.new-project-dialog .tpl-item:hover { background: var(--bg-hover); }
+.new-project-dialog .tpl-item:has(input:checked) { border-color: var(--accent); background: var(--bg-hover); }
+.new-project-dialog .tpl-item input { margin-top: 3px; width: auto; height: auto; }
+.new-project-dialog .tpl-item span { display: flex; flex-direction: column; min-width: 0; }
+.new-project-dialog .tpl-item small { opacity: .75; }
+.new-project-dialog .np-error { color: var(--bad); font-size: 12px; min-height: 16px; margin-top: 6px; }

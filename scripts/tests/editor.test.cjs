@@ -185,3 +185,15 @@ test('move rejects the entry point and moving a folder into itself before callin
   assert.equal(await model.move('utils.py','utils.py'),'utils.py','no-op');
   assert.equal(calls.filter(c=>c.url.endsWith('/move')).length,0);
 });
+
+test('createProject sends the template id; listTemplates tolerates older devices', async()=>{
+  const {model,calls}=fixture();
+  await model.createProject('tpl_demo','ocr');
+  assert.deepEqual(calls.at(-2),{method:'POST',url:'/projects/tpl_demo',body:{template:'ocr'}});
+  await model.createProject('plain');
+  assert.deepEqual(calls.at(-2).body,{});
+  const old=new EditorModel(async()=>{throw new Error('404');});
+  assert.deepEqual(await old.listTemplates(),{templates:[],default:''});
+  const ok=new EditorModel(async()=>({templates:[{id:'empty',label:'空'}],default:'empty'}));
+  assert.equal((await ok.listTemplates()).templates[0].id,'empty');
+});

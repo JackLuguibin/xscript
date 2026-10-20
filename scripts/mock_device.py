@@ -170,6 +170,16 @@ def _log(line):
     STATE["logs"].append({"seq": seq, "ts": seq, "stream": "stdout", "line": line})
 
 
+_TEMPLATES_JSON = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "android", "app", "src", "main",
+                               "assets", "templates", "projects.json")
+
+
+def _templates():
+    """The device's new-project templates (same asset the app ships)."""
+    with open(_TEMPLATES_JSON, encoding="utf-8") as f:
+        return json.load(f)["templates"]
+
+
 class Handler(BaseHTTPRequestHandler):
     def log_message(self, fmt, *args):
         return
@@ -308,6 +318,10 @@ class Handler(BaseHTTPRequestHandler):
             return
         if parsed.path == "/projects":
             self._json(200, {"projects": sorted(STATE["projects"])})
+            return
+        if parsed.path == "/project-templates":
+            self._json(200, {"default": "empty", "templates": [
+                {"id": t["id"], "label": t["label"], "detail": t.get("detail", "")} for t in _templates()]})
             return
         if parsed.path == "/ascript/projects":
             self._json(200, {"projects": sorted(STATE["ascript"])})
@@ -634,6 +648,16 @@ class Handler(BaseHTTPRequestHandler):
                 return
             if name in STATE["projects"]:
                 self._json(409, {"error": "工程已存在: " + name})
+                return
+            template = str(self._body().get("template") or "")
+            if template:
+                found = next((t for t in _templates() if t["id"] == template), None)
+                if found is None:
+                    self._json(400, {"error": "未知模板: " + template})
+                    return
+                STATE["projects"][name] = {
+                    rel: text.replace("{{name}}", name).encode("utf-8") for rel, text in found["files"].items()}
+                self._json(200, {"ok": True, "project": name, "template": template})
                 return
             STATE["projects"][name] = {"__init__.py": b"print('hello')\n"}
             self._json(200, {"ok": True, "project": name})
