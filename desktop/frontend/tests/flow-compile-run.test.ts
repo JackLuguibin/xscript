@@ -238,11 +238,92 @@ describe("state machine fallback", () => {
     expect(() => compile(back, specs)).toThrow("a branch jumps out of it");
   });
 
-  it("refuses a loop whose body jumps out, and a container it cannot hold", () => {
-    const text = ["flow out  # xflow 1", "on start:", '  a: log(message="a")', "  for loop in range(0, 2):", '    lp: log(message="x")', '  z: log(message="z")', ""].join("\n");
+  it("lowers a for loop whose body jumps out into real states", () => {
+    const text = [
+      "flow out  # xflow 1",
+      "on start:",
+      '  btn: node.find(text="ok", timeout=0)',
+      "  for loop in range(0, 3):",
+      "    lp: log(message=loop)",
+      "    hit: if btn.found:",
+      '      esc: log(message="esc")',
+      '  z: log(message="z")',
+      "",
+    ].join("\n");
     const graph = parse(text);
-    const back: FlowGraph = { ...graph, edges: [...graph.edges, { from: "lp.then", to: "a.exec" }] };
-    expect(() => compile(back, specs)).toThrow("its body jumps out of the loop");
+    const out: FlowGraph = { ...graph, edges: [...graph.edges, { from: "esc.then", to: "z.exec" }] };
+    const py = compile(out, specs).python;
+    expect(py).toContain("while True:");
+    expect(py).toContain("if pc == 'loop__head':");
+    expect(run(py)).toEqual(["0", "1", "2", "z"]);
+    expect(run(py, ["ok"])).toEqual(["0", "esc", "z"]);
+    // `break` inside the lowered body leaves on completed; the back edge to a node before the loop is a plain jump
+    const brk = parse(text.replace('      esc: log(message="esc")', "      break"));
+    const viaBreak: FlowGraph = { ...brk, edges: [...brk.edges, { from: "lp.then", to: "hit.exec" }, { from: "z.then", to: "btn.exec" }] };
+    const once = compile({ ...viaBreak, edges: viaBreak.edges.filter((edge) => edge.from !== "z.then") }, specs).python;
+    expect(run(once, ["ok"])).toEqual(["0", "z"]);
+  });
+
+  it("lowers while and for-each loops whose body jumps out", () => {
+    const loopWhile = [
+      "flow w  # xflow 1",
+      "on start:",
+      '  btn: node.find(text="ok", timeout=0)',
+      "  w: while btn.found max=3:",
+      '    lw: log(message="w")',
+      '    k: node.find(text="esc", timeout=0)',
+      "    hit: if k.found:",
+      '      esc: log(message="esc")',
+      '  z: log(message="z")',
+      "",
+    ].join("\n");
+    const gw = parse(loopWhile);
+    const pw = compile({ ...gw, edges: [...gw.edges, { from: "esc.then", to: "z.exec" }] }, specs).python;
+    expect(pw).toContain("if pc == 'w__head':");
+    expect(run(pw, ["ok"])).toEqual(["w", "w", "w", "z"]);
+    expect(run(pw, ["ok", "esc"])).toEqual(["w", "esc", "z"]);
+    expect(run(pw)).toEqual(["z"]);
+    const each = [
+      "flow e  # xflow 1",
+      "on start:",
+      '  box: code(outPins="xs:list", source="xs = [1, 2, 3]")',
+      "  for it in box.xs:",
+      "    li: log(message=it)",
+      '    k: node.find(text="esc", timeout=0)',
+      "    hit: if k.found:",
+      '      esc: log(message="esc")',
+      '  z: log(message="z")',
+      "",
+    ].join("\n");
+    const ge = parse(each);
+    const pe = compile({ ...ge, edges: [...ge.edges, { from: "esc.then", to: "z.exec" }] }, specs).python;
+    expect(pe).toContain("if pc == 'it__head':");
+    expect(pe).toContain("except StopIteration:");
+    expect(run(pe)).toEqual(["1", "2", "3", "z"]);
+    expect(run(pe, ["esc"])).toEqual(["1", "esc", "z"]);
+  });
+
+  it("refuses a held container that breaks out of a lowered loop", () => {
+    const text = [
+      "flow mb  # xflow 1",
+      'var mode: str = "x"',
+      "on start:",
+      '  btn: node.find(text="ok", timeout=0)',
+      "  for loop in range(0, 3):",
+      "    pick: match mode:",
+      '      "x":',
+      "        break",
+      "    hit: if btn.found:",
+      '      esc: log(message="esc")',
+      '  z: log(message="z")',
+      "",
+    ].join("\n");
+    const graph = parse(text);
+    const out: FlowGraph = { ...graph, edges: [...graph.edges, { from: "esc.then", to: "z.exec" }] };
+    expect(() => compile(out, specs)).toThrow("state machine cannot lower flow.match pick: a branch jumps out of it");
+  });
+
+  it("still refuses a container that cannot be held: a retry body that jumps out", () => {
     const retry = parse(["flow r  # xflow 1", "on start:", '  a: log(message="a")', "  retry times=2:", '    b: log(message="b")', ""].join("\n"));
     const looped: FlowGraph = { ...retry, edges: [...retry.edges, { from: "b.then", to: "a.exec" }] };
     expect(() => compile(looped, specs)).toThrow(/state machine cannot lower flow\.retry \w+: its body jumps out of it/);
