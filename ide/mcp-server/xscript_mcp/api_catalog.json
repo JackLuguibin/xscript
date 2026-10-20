@@ -787,6 +787,11 @@
           "doc": "AScript method names (hintText, packageName, childCount, longClickable, ...)."
         },
         {
+          "name": "node.WebSelector / WebNode",
+          "signature": "WebSelector(web_window).tag(..).text(..).value(..).attr(k, v).child(*i).brother(*i).parent(*i).click().long_click().input(s).find() / find_all(find_num=0)",
+          "doc": "DOM elements in a shown WebWindow via the JS bridge; '/re/' strings are JS regexes. WebNode: tag_name, text, value, attributes, bounds, child/brother/parent/click/long_click/input."
+        },
+        {
           "name": "screen.capture / capture_cv / capture_pil / cache / get_color",
           "signature": "capture(x=None, y=None, x1=None, y1=None)",
           "doc": "Screenshots and bitmap helpers (bitmap_to_file, bitmap_crop, bitmap_base64, ...)."
@@ -897,7 +902,6 @@
         "screen.YoLov5",
         "screen.gp files from AScript's 图色工具",
         "FindImages method='smart' (falls back to template)",
-        "node.WebSelector",
         "sms",
         "plug",
         "bluetooth",

@@ -297,7 +297,7 @@ ui.float_add_menu("rec", "/sdcard/rec.png", on_click, remove_system=False)  # �
 
 `ascript.android.*` 对应 ascript-tip 1.3.0，即 MIT 许可的 API 包。AScript 项目无需修改即可运行：通过 **小程序列表 → 导入 → 从 AScript 导入** 导入（`/sdcard/airscript/model`，需要 root），或从 zip 导入（`PUT /projects/<name>/zip`），或通过 MCP 的 `upload_directory` 导入。
 
-已支持：`action`（click / swipe / slide / Touch / Key / Path / gesture / Ime / catch_click）、`node.Selector`（AScript 方法名、`xpath=`、`on_event`）、`screen`（capture、bitmap 辅助函数、Colors / FindColors / CompareColors / FindBlock / FindImages / Ocr / CodeScanner / Eraser 以及 GP 任务流水线）、`system`（Device、R、KeyValue、Clipboard、Config、Notification.listen、reboot、shell、open 等）、`event`（KeyEvent / TouchEvent / NotificationEvent）、`ui`（WebWindow、Dialog、Loger、FloatWindow、ImageWindow、Canvas）、`media` 和 `data`。
+已支持：`action`（click / swipe / slide / Touch / Key / Path / gesture / Ime / catch_click）、`node.Selector`（AScript 方法名、`xpath=`、`on_event`）、`node.WebSelector` / `WebNode`（WebWindow 网页控件）、`screen`（capture、bitmap 辅助函数、Colors / FindColors / CompareColors / FindBlock / FindImages / Ocr / CodeScanner / Eraser 以及 GP 任务流水线）、`system`（Device、R、KeyValue、Clipboard、Config、Notification.listen、reboot、shell、open 等）、`event`（KeyEvent / TouchEvent / NotificationEvent）、`ui`（WebWindow、Dialog、Loger、FloatWindow、ImageWindow、Canvas）、`media` 和 `data`。
 
 行为差异：
 
@@ -317,6 +317,18 @@ ui.float_add_menu("rec", "/sdcard/rec.png", on_click, remove_system=False)  # �
   ```
 
   AScript 图色助手生成的 `font.t` 是未公开的二进制格式，读不了，会报错并提示用 `MatrixFont` 重做。
+- **网页控件（`WebSelector` / `WebNode`）：** 在已 `show()` 的 `WebWindow` 里按 `tag` / `text` / `value` / `attr` 查找 DOM 元素，`child` / `brother` / `parent` 按 AScript 的序号规则取关系元素（`1` 第一个、`-1` 倒数第一个、`1.3` 第 1 到 3 个、`brother(0.1)` / `(-0.1)` 下一个 / 上一个），`click()` / `long_click()` / `input(val)` 作用在找到的元素上。字符串精确匹配，`"/正则/"` 按 JS 正则匹配；`text` 只保留最内层的匹配元素（父元素的文本包含子元素，不重复返回）。`input` 用原生 setter 赋值并触发 `input` / `change`，React / Vue 表单也能收到。`WebNode` 有 `tag_name`、`text`、`value`、`attributes`、`bounds`（相对网页窗口的设备像素）。查询在页面里通过 JS 桥执行，只作用于脚本自己的 WebWindow，不能操作其他 App 里的网页（那些请用无障碍 `Selector`）。
+
+  ```python
+  from ascript.android.node import WebSelector
+  from ascript.android.ui import WebWindow
+  from ascript.android.system import R
+
+  w = WebWindow(R.ui("login.html")); w.show()
+  WebSelector(w).attr("id", "user").input("tom").find()
+  WebSelector(w).tag("button").text("/登录/").click().find()
+  items = WebSelector(w).attr("id", "list").child().find_all()
+  ```
 - **YOLO：** `screen.YoLov5(path=...)` 和 `plug.load("yolov5" | "Yolov8Ncnn" | "Yolov11Ncnn")` 运行 ONNX 检测器，并返回 AScript 的结果结构。AScript 自带的是 NCNN 模型（`.param` / `.bin`）；请把同一份权重导出为 ONNX（`format=onnx`），再让 `load()` 指向 `.onnx` 文件。类别名称取自模型、同目录下的 `data.yaml` 或 `classes.txt`，或 `nc`。
 - **云控：** `cloud_control.connect_to_ws / send / close`、`system.channel` 和 `system.Control.send` 使用 XScript 的云控连接。启动参数也会像 AScript 一样设置到 `builtins` 上。`R.get_card()` 返回打包应用的卡密。
 - **模板匹配：** `FindImages.find` / `find_all` 默认使用置信度为 0.9 的模板匹配。`method="smart"` 和 `find_sift` 会回退为模板匹配。结果采用 AScript 的字典结构（`result`、`rect`、`center_x`、`center_y`、`confidence`）。
@@ -335,7 +347,6 @@ ui.float_add_menu("rec", "/sdcard/rec.png", on_click, remove_system=False)  # �
 - NCNN 模型文件（请使用同一模型的 ONNX 导出）
 - AScript 图色助手生成的二进制点阵字库（`font.t`）：`Ocr.matrix` / `OcrX` 已支持，但字库要用 `MatrixFont` 重新制作（见上文 AScript 兼容的「点阵字库」）
 - AScript 图色工具生成的 gp 文件
-- `node.WebSelector`
 - 内置 YOLO 插件以外的 `plug.load` 插件，`plug.inject` / `load_module_dynamically`
 - `cloud_control.connect_to_as`（AScript 官方云服务）
 - `media.AliTts`（请用 `media.talk()`）
