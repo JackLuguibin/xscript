@@ -191,10 +191,8 @@ def main():
         print("PASS" if not bad else "FAIL: %d mismatches" % bad)
         return 1 if bad else 0
     finally:
-        try:
-            api("POST", "/stop", {})
-        except Exception:
-            pass
+        # stop answers 200 whether or not the project is running, so any error here is real: let it surface
+        api("POST", "/projects/%s/stop" % PROJECT, {})
         api("DELETE", "/projects/" + PROJECT)
 
 

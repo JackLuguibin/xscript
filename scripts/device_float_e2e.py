@@ -15,7 +15,7 @@ revoked grant show nothing, and that the stored position survives a settings rou
 Restores the settings and the overlay grant (appops mode) it found. XS_ONLY=<section> runs one section. XS_PKG=<applicationId> XS_PACKED=1 XS_PROJECT=<name> test a packed app (its dev server must be on). Project `_float_e2e` is created and deleted on the device.
 Never uninstalls or clears data.
 """
-import base64, html, json, os, re, subprocess, sys, time, urllib.request
+import base64, html, json, os, re, subprocess, sys, time, urllib.error, urllib.request
 import devauth  # scripts/devauth.py: pairing code (XSCRIPT_TOKEN or adb)
 
 SERIAL, BASE = sys.argv[1], sys.argv[2].rstrip("/")
@@ -229,16 +229,10 @@ def main():
         else:
             flow()
     finally:
-        try:
-            api("POST", "/projects/%s/stop" % PROJECT, {})
-        except Exception:
-            pass
+        api("POST", "/projects/%s/stop" % PROJECT, {})  # 200 even when idle: an error here is real, let it show
         time.sleep(1)
         if not PACKED:
-            try:
-                api("DELETE", "/projects/" + PROJECT)
-            except Exception:
-                pass
+            delete_project(PROJECT)
         api("PUT", "/settings", {"float_on_run": old.get("float_on_run", True), "float_always": old.get("float_always", False)})
         if os.environ.get("XS_KEEP_GRANT") != "1":
             adb("shell", "appops", "set", PKG, "SYSTEM_ALERT_WINDOW", old_mode)
@@ -262,16 +256,21 @@ def drop_project(name):
             api("POST", "/projects/%s/stop" % name, {})
             wait(lambda: not api("GET", "/status")["running"], 15)
         script_gone()
+    finally:
+        delete_project(name)
+
+
+def delete_project(name):
+    """Delete a scratch project; only "it was never created" (404) is fine, any other error surfaces."""
+    try:
         api("DELETE", "/projects/" + name)
-    except Exception:
-        pass
+    except urllib.error.HTTPError as e:
+        if e.code != 404:
+            raise
 
 
 def stop_running():
-    try:
-        api("POST", "/projects/%s/stop" % PROJECT, {})
-    except Exception:
-        pass
+    api("POST", "/projects/%s/stop" % PROJECT, {})
     wait(lambda: not api("GET", "/status")["running"], 15)
 
 

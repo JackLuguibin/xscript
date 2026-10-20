@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 # Grant XScript's screen-capture (图色) permission on an emulator without touching the screen:
-#   scripts/emulator_grant_capture.sh [adb-serial] [package]
+#   scripts/emulator_grant_capture.sh [adb-serial] [package]     package defaults to com.xscript.app; another build id
+#   (e.g. com.xscript.app.perf) works too: the launcher activity keeps its class name com.xscript.app.LauncherActivity.
 # The system MediaProjection consent dialog cannot be pre-granted with `appops`/`pm grant`, so this opens
 # the app, taps the 图色权限 row and answers whatever dialog this Android version shows
 # ("Start now", or "Share one app" -> "Share entire screen" -> "Share screen"). Needs adb + python3.
@@ -28,9 +29,16 @@ sys.exit(1)
 ' "$1" "${2:-0}" "${ADB[@]}"
 }
 
-"${ADB[@]}" shell am start -n "$PKG/.LauncherActivity" >/dev/null
+"${ADB[@]}" shell am start -n "$PKG/com.xscript.app.LauncherActivity" >/dev/null
 sleep 3
-tap_text 图色权限 || { echo "图色权限 row not found (is $PKG the XScript home screen?)" >&2; exit 1; }
+# the row can sit below the fold (e.g. on a fresh install): scroll down a few times to find it
+found=0
+for _ in 1 2 3 4 5; do
+  sleep 1
+  tap_text 图色权限 && { found=1; break; }
+  "${ADB[@]}" shell input swipe 540 1600 540 700 300
+done
+[ "$found" = 1 ] || { echo "图色权限 row not found (is $PKG the XScript home screen?)" >&2; exit 1; }
 sleep 3
 if tap_text "Start now" 1; then
   :
