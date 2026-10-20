@@ -1,0 +1,39 @@
+{
+  "type": "agent.stop_all",
+  "category": "agent",
+  "title": {
+    "zh": "agent.stop_all",
+    "en": "agent.stop_all"
+  },
+  "doc": {
+    "zh": "Stop every running agent (e.g. from a floating-window button).",
+    "en": "Stop every running agent (e.g. from a floating-window button)."
+  },
+  "exec": {
+    "in": [
+      "exec"
+    ],
+    "out": [
+      "then"
+    ]
+  },
+  "inputs": [],
+  "outputs": [
+    {
+      "name": "result",
+      "type": "any"
+    }
+  ],
+  "py": {
+    "imports": [
+      "from xscript.android import agent"
+    ],
+    "stmt": "{id} = agent.stop_all()"
+  },
+  "dsl": {
+    "alias": "agent.stop_all"
+  },
+  "since": "0.2.6",
+  "origin": "xscript.android.agent.stop_all",
+  "availability": "ok"
+}
