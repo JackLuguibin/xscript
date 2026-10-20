@@ -2293,3 +2293,11 @@ textarea.ant-input.ai-code[disabled] {
 .ai-notes .ant-alert-description {
   white-space: pre-wrap;
 }
+
+/* 代理结算: money columns */
+.money-in {
+  color: var(--xs-green);
+}
+.money-owed {
+  color: var(--xs-red);
+}
