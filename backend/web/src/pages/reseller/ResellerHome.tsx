@@ -1,12 +1,14 @@
 import { useNavigate } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
-import { Button, Card, Col, Descriptions, Row, Skeleton, Tag } from "antd";
+import { useState } from "react";
+import { Button, Card, Col, Descriptions, Row, Skeleton, Table, Tag } from "antd";
 import { PlusOutlined } from "@ant-design/icons";
-import { api, type ResellerMe } from "../../api";
+import { api, type ResellerBalance, type ResellerMe, type ResellerPrice, type ResellerPrices } from "../../api";
 import { PageHeader, toneColor } from "../../components";
-import { fmtDays } from "../../format";
+import { fmtDays, fmtYuan } from "../../format";
 import TrendCard, { CARD_TREND_SERIES } from "../overview/TrendCard";
 import { KIND_LABELS, QuotaBar } from "../resellers/ResellerModals";
+import { BalanceStats, LedgerTable } from "../resellers/Settlement";
 
 /** 代理 home: quota, own card counts, what may be issued, and the daily sales trend. */
 export default function ResellerHome() {
@@ -15,6 +17,11 @@ export default function ResellerHome() {
     queryKey: ["reseller-me"],
     queryFn: () => api.get<ResellerMe>("/api/reseller/me"),
   });
+  const money = useQuery({
+    queryKey: ["reseller-balance"],
+    queryFn: () => api.get<ResellerBalance & { prices: ResellerPrices }>("/api/reseller/balance"),
+  });
+  const [bal, setBal] = useState<ResellerBalance>();
   const d = me.data;
   const stats: [string, number | undefined, string][] = [
     ["已生成", d?.cards.total, toneColor("blue")],
@@ -105,6 +112,35 @@ export default function ResellerHome() {
         defaultHidden={[]}
         emptyText="所选时间段内还没有生成或激活卡密"
       />
+      <Card title="账单" style={{ marginTop: 16 }}>
+        <BalanceStats b={bal ?? money.data} />
+        <LedgerTable base="/api/reseller" cacheKey="reseller-ledger" onBalance={setBal} />
+      </Card>
+      <Card title="我的批发价" style={{ marginTop: 16 }}>
+        <Table<ResellerPrice>
+          rowKey={(p) => `${p.app}|${p.kind}|${p.days}`}
+          size="small"
+          pagination={false}
+          loading={money.isLoading}
+          dataSource={money.data?.prices.items}
+          locale={{ emptyText: "管理员还没有设置批发价" }}
+          columns={[
+            { title: "卡类型", dataIndex: "kind", width: 120, render: (k: ResellerPrice["kind"]) => KIND_LABELS[k] },
+            { title: "有效期", dataIndex: "days", width: 140, render: (d: number | null) => (d ? fmtDays(d) : "任意天数") },
+            {
+              title: "应用",
+              dataIndex: "app",
+              render: (a: string) => (a === "*" ? "全部应用" : <span className="mono">{a}</span>),
+            },
+            { title: "单价", dataIndex: "price_cents", align: "right", width: 140, render: (c: number) => fmtYuan(c) },
+          ]}
+        />
+        {money.data && (
+          <p className="muted" style={{ margin: "8px 0 0" }}>
+            没有匹配的价格时：{money.data.prices.unpriced === "deny" ? "不能生成，请联系管理员加价格" : "记 0 元"}
+          </p>
+        )}
+      </Card>
     </>
   );
 }
