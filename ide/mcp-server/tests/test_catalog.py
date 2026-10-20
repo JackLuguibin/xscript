@@ -26,6 +26,29 @@ class CatalogTest(unittest.TestCase):
             for cls in mod.get("classes", []):
                 self.assertTrue(cls.get("name") and isinstance(cls.get("methods"), list), (mod["name"], cls))
 
+    def _module(self, name):
+        return [m for m in self.catalog["modules"] if m["name"] == name][0]
+
+    def test_unsupported_list_does_not_name_implemented_modules(self):
+        # These were stubs once; AI clients must not be told to avoid them now.
+        unsupported = " ".join(self._module("ascript.android")["unsupported"]).lower()
+        for implemented in ("sms", "location", "sensor", "bluetooth", "recode", "send_email", "smart", "yolov5"):
+            self.assertNotIn(implemented, unsupported, implemented)
+        self.assertNotRegex(unsupported, r"(^|[^.])\bplug\b(?!\.)")
+
+    def test_screen_lists_current_vision_api(self):
+        fns = {f["name"]: f for f in self._module("xscript.android.screen")["functions"]}
+        for name in ("count_color", "find_color_blobs", "dominant_colors"):
+            self.assertIn(name, fns)
+        for name in ("find_colors", "find_all_colors", "compare_colors", "count_color"):
+            self.assertIn("color_space=", fns[name]["signature"], name)
+            self.assertIn("tolerance=", fns[name]["signature"], name)
+        for name in ("find_image", "find_all_images"):
+            self.assertIn("method=", fns[name]["signature"], name)
+        for engine in ("auto", "paddle_v6t", "paddle_v6s", "mlkit", "paddle_v4"):
+            self.assertIn(engine, fns["ocr"]["doc"], engine)
+        self.assertEqual(len(fns), len(self._module("xscript.android.screen")["functions"]), "duplicate names")
+
     def test_covers_native_and_ascript_packages(self):
         names = {m["name"] for m in self.catalog["modules"]}
         for expected in (
