@@ -466,7 +466,7 @@ ui.float_add_menu("rec", "/sdcard/rec.png", on_click, remove_system=False)  # �
 - **控制：** 在画面上的点击和拖动会转换为手机上的点击和滑动。
 - **帧率：** 取决于截图来源。root `screencap` 约 2 fps；授予图色权限（MediaProjection）后会快得多。
 
-MCP 服务端为 AI 编程提供同样的检查能力：先调用 `take_snapshot`，再调用 `vision_test(snapshot_id, op, ...)`、`crop_template` 和 `export_dataset`。
+MCP 服务端为 AI 编程提供同样的检查能力：先调用 `take_snapshot`，再调用 `vision_test(snapshot_id, op, ...)`、`crop_template` 和 `export_dataset`。`vision_test` 的 op 与脚本 API 对应：`pixel`、`find_colors`、`compare_colors`、`count_color`、`find_color_blobs`、`dominant_colors`、`find_image`（`method`）、`ocr`（`engine`）、`yolo`；颜色类 op 接受 `color_space`（rgb / hsv / lab）和 `tolerance`，含义与 `screen` 模块相同。
 
 ## 设备 HTTP 与 eval
 

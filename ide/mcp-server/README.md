@@ -33,7 +33,7 @@ Cursor 配置：
 - `project_run_options`（开机自启 / 停止后重新运行）
 - `list_schedules`、`add_schedule`、`update_schedule`、`delete_schedule`、`run_schedule_now`（定时任务）
 - `device_action`、`eval_python`
-- `take_snapshot`、`vision_test`、`crop_template`（图色：在冻结的画面上测试颜色、模板和 OCR）
+- `take_snapshot`、`vision_test`、`crop_template`（图色：在冻结的画面上测试颜色、色块、主色、模板和 OCR；支持 `color_space` / `tolerance` / `method`）
 - `list_datasets`、`export_dataset`（标注：下载 YOLO zip）
 - `get_module_apis`、`search_api`
 

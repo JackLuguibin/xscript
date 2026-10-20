@@ -275,17 +275,27 @@ def take_snapshot() -> str:
 @mcp.tool()
 def vision_test(snapshot_id: str, op: str, colors: str = "", rect: list[int] | None = None, sim: float = 0.9,
                 x: int = 0, y: int = 0, template: str = "", template_rect: list[int] | None = None,
-                confidence: float = 0.8, engine: str = "", model: str = "", conf: float = 0.25) -> str:
+                confidence: float = 0.8, engine: str = "", model: str = "", conf: float = 0.25,
+                method: str = "", color_space: str = "", tolerance: float | list[float] | None = None,
+                color: str = "", min_area: int = 50, max_num: int = 0, k: int = 3) -> str:
     """Run one 图色 check on a snapshot, with the same engine scripts use. Returns timings in ms.
 
     op:
       pixel           color at (x, y)
       find_colors     colors = 'x,y,#RRGGBB|x2,y2,#RRGGBB' (first point is the anchor); rect optional
       compare_colors  per-point expected vs actual
-      find_image      template = '<project>:res/img/a.png', or template_rect = region of this snapshot
+      count_color     color = '#RRGGBB' (several joined by '|'); pixel count and ratio in rect
+      find_color_blobs  connected regions of color, largest first: rect, center, area, fill;
+                      min_area (default 50), max_num; color_space defaults to hsv here
+      dominant_colors main colours of rect by k-means: k (default 3) → [{color, ratio}]
+      find_image      template = '<project>:res/img/a.png', or template_rect = region of this snapshot;
+                      method = template (default) | multiscale | feature | hash | auto
       ocr             text lines with rects; rect optional. engine = mlkit (default) | auto | paddle | paddle_v4 | paddle_v6t | paddle_v6s
       yolo            detections; model = '<project>:res/best.onnx' or a path under the model dir; conf threshold
     rect / template_rect are [left, top, right, bottom] in screen pixels. sim is 0..1 (0.9 ≈ ±25 per channel).
+    Colour ops (find_colors, compare_colors, count_color, find_color_blobs) take color_space = rgb | hsv | lab
+    (hsv/lab tolerate lighting changes) and an optional tolerance overriding sim: rgb/hsv one number or
+    [a, b, c] (hsv = [hue degrees, sat, val]), lab a delta E. dominant_colors clusters in lab unless told otherwise.
     The first paddle / auto / yolo call loads (and may download) models, so it takes longer.
     """
     req: dict = {"snapshot": snapshot_id, "op": op, "sim": sim, "confidence": confidence}
@@ -303,6 +313,18 @@ def vision_test(snapshot_id: str, op: str, colors: str = "", rect: list[int] | N
         req["template"] = template
     if template_rect:
         req["template_rect"] = template_rect
+    if method:
+        req["method"] = method
+    if color_space:
+        req["color_space"] = color_space
+    if tolerance is not None:
+        req["tolerance"] = tolerance
+    if color:
+        req["color"] = color
+    if op == "find_color_blobs":
+        req.update(min_area=min_area, max_num=max_num)
+    if op == "dominant_colors":
+        req["k"] = k
     return _json(_client.vision(req))
 
 

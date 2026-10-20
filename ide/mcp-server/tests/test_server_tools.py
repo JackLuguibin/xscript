@@ -92,6 +92,23 @@ class ToolShapingTest(unittest.TestCase):
         self.assertEqual((req["model"], req["conf"], req["rect"], req["engine"]), ("p:res/best.onnx", 0.25, [0, 0, 10, 10], "paddle"))
         self.assertNotIn("x", req)
 
+    def test_vision_color_ops_and_method(self):
+        server.vision_test("snap", "find_colors", colors="#ff0000", color_space="hsv", tolerance=[10, 60, 60])
+        req = self.last()[1][0]
+        self.assertEqual((req["color_space"], req["tolerance"]), ("hsv", [10, 60, 60]))
+        self.assertNotIn("method", req)
+        server.vision_test("snap", "find_color_blobs", color="#ff0000", min_area=10, max_num=3)
+        req = self.last()[1][0]
+        self.assertEqual((req["color"], req["min_area"], req["max_num"]), ("#ff0000", 10, 3))
+        self.assertNotIn("k", req)
+        server.vision_test("snap", "dominant_colors", rect=[0, 0, 5, 5], k=4)
+        self.assertEqual(self.last()[1][0]["k"], 4)
+        server.vision_test("snap", "find_image", template="p:res/img/a.png", method="feature")
+        req = self.last()[1][0]
+        self.assertEqual(req["method"], "feature")
+        self.assertNotIn("color_space", req)
+        self.assertNotIn("tolerance", req)
+
     def test_catalog_queries(self):
         everything = json.loads(server.get_module_apis(""))
         self.assertGreater(len(everything["modules"]), 5)

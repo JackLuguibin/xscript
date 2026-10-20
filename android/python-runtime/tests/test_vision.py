@@ -103,6 +103,52 @@ class VisionTest(unittest.TestCase):
             out = self.run_op(op="ocr", pattern=r"\d+", binary=128)
         self.assertEqual(out["lines"], [])
 
+    def test_color_space_and_tolerance(self):
+        # The block is #ff0000; a dimmed red misses in rgb at sim 0.95 but matches in hsv.
+        self.assertEqual(self.run_op(op="find_colors", colors="#c80000", sim=0.95)["points"], [])
+        hsv = self.run_op(op="find_colors", colors="#c80000", color_space="HSV", tolerance=[10, 80, 80], max_num=1)
+        self.assertEqual(hsv["points"], [[20, 10]])
+        self.assertFalse(self.run_op(op="compare_colors", colors="25,15,#c80000", sim=0.95)["match"])
+        out = self.run_op(op="compare_colors", colors="25,15,#c80000|999,0,#c80000", color_space="hsv",
+                          tolerance=[10, 80, 80], count_sim=0.5)
+        self.assertTrue(out["match"])
+        self.assertEqual([d["ok"] for d in out["details"]], [True, False])
+        self.assertTrue(self.run_op(op="compare_colors", colors="25,15,#fc0000", color_space="lab", tolerance=5)["match"])
+        self.assertFalse(self.run_op(op="compare_colors", colors="25,15,#c80000", color_space="lab", tolerance=5)["match"])
+        with self.assertRaises(ValueError):
+            self.run_op(op="find_colors", colors="#ff0000", color_space="cmyk")
+
+    def test_count_color(self):
+        out = self.run_op(op="count_color", color="#ff0000", sim=1.0)
+        self.assertEqual(out["count"], 400)
+        self.assertAlmostEqual(out["ratio"], 400 / (200 * 120.0), places=4)
+        out = self.run_op(op="count_color", color="#ff0000", rect=[20, 10, 30, 30])
+        self.assertEqual((out["count"], out["ratio"]), (200, 1.0))
+
+    def test_find_color_blobs(self):
+        out = self.run_op(op="find_color_blobs", color="#ff0000")
+        self.assertEqual(len(out["blobs"]), 1)
+        b = out["blobs"][0]
+        self.assertEqual((b["rect"], b["area"], b["fill"]), ([20, 10, 40, 30], 400, 1.0))
+        self.assertEqual((b["center_x"], b["center_y"]), (30, 20))
+        self.assertFalse(out["truncated"])
+        json.dumps(out)
+        self.assertEqual(self.run_op(op="find_color_blobs", color="#ff0000", min_area=500)["blobs"], [])
+        capped = self.run_op(op="find_color_blobs", color="#808080", color_space="rgb", min_area=1, max_num=1)
+        self.assertEqual(len(capped["blobs"]), 1)
+
+    def test_dominant_colors(self):
+        out = self.run_op(op="dominant_colors", rect=[0, 0, 60, 40], k=2)
+        self.assertEqual([c["color"] for c in out["colors"]], ["#808080", "#ff0000"])
+        self.assertAlmostEqual(sum(c["ratio"] for c in out["colors"]), 1.0, places=3)
+        json.dumps(out)
+
+    def test_find_image_method(self):
+        out = self.run_op(op="find_image", template_rect=[140, 70, 180, 100], method="template")
+        self.assertEqual(out["hits"][0]["rect"], [140, 70, 180, 100])
+        with self.assertRaises(ValueError):
+            self.run_op(op="find_image", template_rect=[140, 70, 180, 100], method="nope")
+
     def test_errors(self):
         with self.assertRaises(ValueError):
             self.run_op(op="nope")
