@@ -139,6 +139,28 @@ screen.ai_find_all("商品卡片", rect=[0, 300, 1080, 1800], limit=10)
 
 截图会按 `image_tokens`（默认 1024，单位 32×32 块）缩放后以 JPEG data URL 上传，只发送 `rect` 范围内的像素。模型返回的框默认按上传图像素解析，`coords="norm1000"`（Qwen2-VL 风格 0–1000）、`"ratio"`（0–1）、`"auto"` 可选；结果会映射回屏幕坐标。回复里的 ```json 代码块、`<think>` 段和多余文字会被忽略。失败时抛 `ai.AiError`（`status` 为 HTTP 状态码或 None）。AScript 的 `asai`（`/vision/locate`、`/vision/ask` 协议）保持不变。
 
+### AI 智能体（`agent.run`）
+
+给一个目标，模型自己看屏幕、决定下一步、执行，直到完成。每一步截一张图，连同目标和最近几步发给 `ai.config()` 选定的模型，模型回复一个 JSON 动作。
+
+```python
+from xscript.android import ai, agent
+ai.config("https://dashscope.aliyuncs.com/compatible-mode/v1", api_key=MY_KEY, model="qwen-vl-max")
+res = agent.run("打开设置，进入 WLAN 页面", max_steps=15)
+print(res.status, res.message)        # done / failed / max_steps / timeout / aborted
+for s in res.steps:                    # 每一步：step、action、reason、ok、error
+    print(s)
+
+a = agent.Agent("清空购物车", actions=agent.ACTIONS, timeout=120)   # 放开 input / home / recents
+# 在悬浮窗按钮或另一个线程里：a.stop() 或 agent.stop_all()
+a.run()
+```
+
+- **动作白名单：** 默认只允许 `click`、`long_click`、`swipe`、`back`、`wait`；`input`、`home`、`recents` 要在 `actions=` 里显式放开（`agent.ACTIONS` 为全部）。`done` / `fail` 始终可用。只有白名单里的动作会写进提示；模型返回白名单外的动作一律拒绝，不会执行。
+- **安全检查：** 坐标必须是数字且落在截图范围内（按 `ai.config` 的 `coords` 换算，再映射回屏幕；`rect=` 只截取并操作该区域）；`input` 文本限 500 字；`wait` 最长 10 秒。被拒绝的一步会写进下一轮的历史，让模型自己纠正；连续 `max_invalid`（默认 3）次无效回复就以 `failed` 结束。
+- **限制与停止：** `max_steps`（默认 20，最多 200）、`timeout`（默认 300 秒）。每一步正好一次模型请求，所以 `max_steps` 也是费用上限。`stop()` / `stop_all()` 让循环在当前一步之后结束：模型思考时按下停止，它回复的动作不会执行；`wait` 和步间等待会被立即打断。停止脚本同样会结束智能体。
+- **日志与调试：** 默认每一步打印一行 `[agent] 2/15 {"action": "back"} ok (关闭弹窗)`，`log=False` 关闭；`on_step=` 回调拿到每一步的记录；`dry_run=True` 只问模型不执行动作。401 / 403 等请求错误直接抛 `ai.AiError`，5xx 和 429 计为一次无效回复后重试。
+
 ## yolo（目标检测）
 
 ```python

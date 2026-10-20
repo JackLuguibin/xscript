@@ -385,6 +385,22 @@
       ]
     },
     {
+      "name": "xscript.android.agent",
+      "description": "Goal-driven agent loop on the ai.config() endpoint: screenshot -> model -> one allowlisted action, with step limit, timeout and stop control.",
+      "functions": [
+        {
+          "name": "run",
+          "signature": "run(goal, max_steps=20, actions=DEFAULT_ACTIONS, timeout=300, settle=1.0, max_invalid=3, history=8, rect=None, on_step=None, capture=None, dry_run=False, log=True) -> AgentResult",
+          "doc": "status is done, failed, max_steps, timeout or aborted; steps lists every action with reason, ok and error. Default actions: click, long_click, swipe, back, wait; pass agent.ACTIONS to also allow input, home, recents. Agent(goal, ...) takes the same arguments and adds .stop() to end the loop before the next action."
+        },
+        {
+          "name": "stop_all",
+          "signature": "stop_all() -> int",
+          "doc": "Stop every running agent; returns how many."
+        }
+      ]
+    },
+    {
       "name": "xscript.android.system",
       "description": "Apps, device info, shell (root), clipboard, key-value store, resources (R), toast/vibrate/tts, run options and 定时任务.",
       "functions": [

@@ -1,0 +1,39 @@
+{
+  "type": "agent.Agent.stop",
+  "category": "agent",
+  "title": {
+    "zh": "agent.Agent.stop",
+    "en": "agent.Agent.stop"
+  },
+  "doc": {
+    "zh": "Ask the loop to end after the current step; no further action is performed.",
+    "en": "Ask the loop to end after the current step; no further action is performed."
+  },
+  "exec": {
+    "in": [
+      "exec"
+    ],
+    "out": [
+      "then"
+    ]
+  },
+  "inputs": [],
+  "outputs": [
+    {
+      "name": "result",
+      "type": "any"
+    }
+  ],
+  "py": {
+    "imports": [
+      "from xscript.android import agent"
+    ],
+    "stmt": "{id} = agent.Agent.stop()"
+  },
+  "dsl": {
+    "alias": "agent.Agent.stop"
+  },
+  "since": "0.2.6",
+  "origin": "xscript.android.agent.Agent.stop",
+  "availability": "ok"
+}

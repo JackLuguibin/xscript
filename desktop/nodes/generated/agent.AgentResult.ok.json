@@ -1,0 +1,39 @@
+{
+  "type": "agent.AgentResult.ok",
+  "category": "agent",
+  "title": {
+    "zh": "agent.AgentResult.ok",
+    "en": "agent.AgentResult.ok"
+  },
+  "doc": {
+    "zh": "ok",
+    "en": "ok"
+  },
+  "exec": {
+    "in": [
+      "exec"
+    ],
+    "out": [
+      "then"
+    ]
+  },
+  "inputs": [],
+  "outputs": [
+    {
+      "name": "result",
+      "type": "any"
+    }
+  ],
+  "py": {
+    "imports": [
+      "from xscript.android import agent"
+    ],
+    "stmt": "{id} = agent.AgentResult.ok()"
+  },
+  "dsl": {
+    "alias": "agent.AgentResult.ok"
+  },
+  "since": "0.2.6",
+  "origin": "xscript.android.agent.AgentResult.ok",
+  "availability": "ok"
+}

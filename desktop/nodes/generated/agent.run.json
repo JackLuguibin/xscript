@@ -1,0 +1,99 @@
+{
+  "type": "agent.run",
+  "category": "agent",
+  "title": {
+    "zh": "agent.run",
+    "en": "agent.run"
+  },
+  "doc": {
+    "zh": "Run an Agent to completion and return its AgentResult (see Agent for the arguments).",
+    "en": "Run an Agent to completion and return its AgentResult (see Agent for the arguments)."
+  },
+  "exec": {
+    "in": [
+      "exec"
+    ],
+    "out": [
+      "then"
+    ]
+  },
+  "inputs": [
+    {
+      "name": "goal",
+      "type": "any"
+    },
+    {
+      "name": "max_steps",
+      "type": "any",
+      "default": 20
+    },
+    {
+      "name": "actions",
+      "type": "any"
+    },
+    {
+      "name": "timeout",
+      "type": "any",
+      "default": 300
+    },
+    {
+      "name": "settle",
+      "type": "any",
+      "default": 1.0
+    },
+    {
+      "name": "max_invalid",
+      "type": "any",
+      "default": 3
+    },
+    {
+      "name": "history",
+      "type": "any",
+      "default": 8
+    },
+    {
+      "name": "rect",
+      "type": "any",
+      "default": null
+    },
+    {
+      "name": "on_step",
+      "type": "any",
+      "default": null
+    },
+    {
+      "name": "capture",
+      "type": "any",
+      "default": null
+    },
+    {
+      "name": "dry_run",
+      "type": "any",
+      "default": false
+    },
+    {
+      "name": "log",
+      "type": "any",
+      "default": true
+    }
+  ],
+  "outputs": [
+    {
+      "name": "result",
+      "type": "any"
+    }
+  ],
+  "py": {
+    "imports": [
+      "from xscript.android import agent"
+    ],
+    "stmt": "{id} = agent.run({goal}, max_steps={max_steps}, actions={actions}, timeout={timeout}, settle={settle}, max_invalid={max_invalid}, history={history}, rect={rect}, on_step={on_step}, capture={capture}, dry_run={dry_run}, log={log})"
+  },
+  "dsl": {
+    "alias": "agent.run"
+  },
+  "since": "0.2.6",
+  "origin": "xscript.android.agent.run",
+  "availability": "ok",
+  "latent": true
+}

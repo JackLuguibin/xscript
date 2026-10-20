@@ -1,0 +1,39 @@
+{
+  "type": "agent.Agent.stopped",
+  "category": "agent",
+  "title": {
+    "zh": "agent.Agent.stopped",
+    "en": "agent.Agent.stopped"
+  },
+  "doc": {
+    "zh": "stopped",
+    "en": "stopped"
+  },
+  "exec": {
+    "in": [
+      "exec"
+    ],
+    "out": [
+      "then"
+    ]
+  },
+  "inputs": [],
+  "outputs": [
+    {
+      "name": "result",
+      "type": "any"
+    }
+  ],
+  "py": {
+    "imports": [
+      "from xscript.android import agent"
+    ],
+    "stmt": "{id} = agent.Agent.stopped()"
+  },
+  "dsl": {
+    "alias": "agent.Agent.stopped"
+  },
+  "since": "0.2.6",
+  "origin": "xscript.android.agent.Agent.stopped",
+  "availability": "ok"
+}
