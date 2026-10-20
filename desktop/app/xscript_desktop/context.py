@@ -719,16 +719,26 @@ class AppContext:
 
         # ---- breakpoint debugging (/debug/*; port of ide/vscode-extension/src/dap.ts) --------------------------------------------
 
-        def _bp_map(raw: Any) -> dict[str, list[int]]:
+        _BP_KEYS = ("condition", "hitCondition", "logMessage")
+
+        def _bp_item(n: Any) -> bool:
+            if isinstance(n, int):
+                return not isinstance(n, bool) and n > 0
+            if not isinstance(n, dict) or not _bp_item(n.get("line")) or set(n) - {"line", *_BP_KEYS}:
+                return False
+            return all(n.get(k) is None or (isinstance(n[k], str) and len(n[k]) <= 1000) for k in _BP_KEYS)
+
+        def _bp_map(raw: Any) -> dict[str, list[Any]]:
+            """{path: [line | {line, condition?, hitCondition?, logMessage?}]}; plain line lists stay valid."""
             if raw is None:
                 return {}
             if not isinstance(raw, dict):
                 raise RpcError("rpc.bad_params", "breakpoints must be {path: [lines]}")
-            out: dict[str, list[int]] = {}
+            out: dict[str, list[Any]] = {}
             for rel, lines in raw.items():
                 _rel_path({"path": rel})
-                if not isinstance(lines, list) or not all(isinstance(n, int) and not isinstance(n, bool) and n > 0 for n in lines):
-                    raise RpcError("rpc.bad_params", "breakpoint lines must be positive integers")
+                if not isinstance(lines, list) or not all(_bp_item(n) for n in lines):
+                    raise RpcError("rpc.bad_params", "breakpoints must be positive line numbers or {line, condition, hitCondition, logMessage}")
                 out[rel] = lines
             return out
 
@@ -780,7 +790,8 @@ class AppContext:
         @d.method("debug.evaluate")
         @_map_errors
         async def debug_evaluate(params: dict[str, Any]) -> dict[str, Any]:
-            return await self._debug(params).evaluate(param(params, "expression", str), param(params, "frameId", int, default=None))
+            return await self._debug(params).evaluate(param(params, "expression", str), param(params, "frameId", int, default=None),
+                                                      param(params, "context", str, default="repl"))
 
         @d.method("debug.stop")
         @_map_errors

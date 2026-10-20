@@ -131,12 +131,14 @@ function registerXflow(): void {
   });
 }
 
+export type BpKind = "cond" | "log";
+
 export interface EditorHandle {
   getValue(): string;
   setValue(v: string): void;
   setTheme(dark: boolean): void;
-  /** gutter breakpoint dots (1-based lines) */
-  setBreakpoints(lines: number[]): void;
+  /** gutter breakpoint dots (1-based lines); kinds marks conditional and log points */
+  setBreakpoints(lines: number[], kinds?: Record<number, BpKind>): void;
   /** the paused line (highlighted and revealed), or null */
   setCurrentLine(line: number | null): void;
   dispose(): void;
@@ -145,7 +147,7 @@ export interface EditorHandle {
 export function createEditor(
   el: HTMLElement,
   opts: { value: string; language: string; dark: boolean; label: string; onChange: (v: string) => void; onKey: (e: KeyboardEvent) => void;
-    breakpoints?: number[]; currentLine?: number | null; onToggleBreakpoint?: (line: number) => void; toggleLabel?: string },
+    breakpoints?: number[]; breakpointKinds?: Record<number, BpKind>; currentLine?: number | null; onToggleBreakpoint?: (line: number) => void; toggleLabel?: string },
 ): EditorHandle {
   register();
   const ed = monaco.editor.create(el, {
@@ -165,13 +167,18 @@ export function createEditor(
   });
   const bpDeco = ed.createDecorationsCollection();
   const lineDeco = ed.createDecorationsCollection();
-  const setBreakpoints = (lines: number[]) =>
-    bpDeco.set(lines.map((ln) => ({ range: new monaco.Range(ln, 1, ln, 1), options: { glyphMarginClassName: "bp-glyph", glyphMarginHoverMessage: { value: `breakpoint ${ln}` }, stickiness: 1 } })));
+  const setBreakpoints = (lines: number[], kinds: Record<number, BpKind> = {}) =>
+    bpDeco.set(lines.map((ln) => {
+      const k = kinds[ln];
+      const cls = "bp-glyph" + (k ? " bp-" + k : "");
+      const hover = k === "log" ? `logpoint ${ln}` : k === "cond" ? `conditional breakpoint ${ln}` : `breakpoint ${ln}`;
+      return { range: new monaco.Range(ln, 1, ln, 1), options: { glyphMarginClassName: cls, glyphMarginHoverMessage: { value: hover }, stickiness: 1 } };
+    }));
   const setCurrentLine = (line: number | null) => {
     lineDeco.set(line ? [{ range: new monaco.Range(line, 1, line, 1), options: { isWholeLine: true, className: "dbg-current-line", glyphMarginClassName: "dbg-current-glyph" } }] : []);
     if (line) ed.revealLineInCenterIfOutsideViewport(line);
   };
-  setBreakpoints(opts.breakpoints ?? []);
+  setBreakpoints(opts.breakpoints ?? [], opts.breakpointKinds);
   setCurrentLine(opts.currentLine ?? null);
   ed.onMouseDown((e) => {
     const T = monaco.editor.MouseTargetType;

@@ -1,12 +1,14 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useServices } from "../app-context";
-import type { Breakpoints, DebugScope, DebugState, DebugStep, DebugVar } from "../api";
+import { bpKey, hasBpOptions } from "../api";
+import type { BpOptions, BreakpointOptions, Breakpoints, DebugScope, DebugState, DebugStep, DebugVar } from "../api";
 import { t } from "../strings";
 import { Badge } from "./Badge";
 import { Spinner } from "./icons";
 import { Alert } from "./ui/alert";
 import { Button } from "./ui/button";
 import { Input } from "./ui/input";
+import { Select } from "./ui/select";
 
 const MAX_OUT = 1000;
 const IDLE: DebugState = { id: "", state: "idle", frames: [] };
@@ -90,11 +92,78 @@ function VarTree({ devId, vars, depth }: { devId: string; vars: DebugVar[]; dept
   );
 }
 
+type BpField = "condition" | "hitCondition" | "logMessage";
+const BP_FIELDS: BpField[] = ["condition", "hitCondition", "logMessage"];
+
+/** Short description of a breakpoint's options for the list ("条件: i > 3 · 命中: 2"). */
+function describeBp(o: BpOptions | undefined): string {
+  if (!hasBpOptions(o)) return "";
+  return BP_FIELDS.filter((k) => o[k]?.trim()).map((k) => `${t.debug.bpField[k]}: ${o[k]!.trim()}`).join(" · ");
+}
+
+/** Inline editor of one breakpoint: kind (condition / hit count / log message) + value, like VS Code's breakpoint widget. */
+function BreakpointEditor({ where, initial, onSave, onCancel }: { where: string; initial: BpOptions | undefined; onSave: (o: BpOptions) => void; onCancel: () => void }) {
+  const [field, setField] = useState<BpField>(() => BP_FIELDS.find((k) => initial?.[k]?.trim()) ?? "condition");
+  const [values, setValues] = useState<BpOptions>(() => ({ ...initial }));
+  return (
+    <form
+      className="bp-editor row"
+      aria-label={t.debug.editBp(where)}
+      onSubmit={(e) => {
+        e.preventDefault();
+        onSave(values);
+      }}
+      onKeyDown={(e) => {
+        if (e.key === "Escape") {
+          e.stopPropagation();
+          onCancel();
+        }
+      }}
+    >
+      <Select aria-label={t.debug.bpKind} className="w-auto" value={field} onChange={(e) => setField(e.target.value as BpField)}>
+        {BP_FIELDS.map((k) => (
+          <option key={k} value={k}>
+            {t.debug.bpField[k]}
+          </option>
+        ))}
+      </Select>
+      <Input
+        key={field}
+        autoFocus
+        aria-label={t.debug.bpField[field]}
+        className="grow mono w-auto"
+        spellCheck={false}
+        placeholder={t.debug.bpPlaceholder[field]}
+        value={values[field] ?? ""}
+        onChange={(e) => setValues((v) => ({ ...v, [field]: e.target.value }))}
+      />
+      <Button size="sm" type="submit" variant="primary">
+        {t.debug.bpSave}
+      </Button>
+      <Button size="sm" type="button" onClick={onCancel}>
+        {t.debug.bpCancel}
+      </Button>
+    </form>
+  );
+}
+
+const WATCH_KEY = (project: string) => `xscript.watch.${project}`;
+function readWatches(project: string): string[] {
+  try {
+    const v = JSON.parse(localStorage.getItem(WATCH_KEY(project)) ?? "[]");
+    return Array.isArray(v) ? v.filter((x): x is string => typeof x === "string").slice(0, 50) : [];
+  } catch {
+    return [];
+  }
+}
+
 interface Props {
   devId: string;
   project: string;
   session: ReturnType<typeof useDebugSession>;
   breakpoints: Breakpoints;
+  breakpointOptions?: BreakpointOptions;
+  onEditBreakpoint?: (path: string, line: number, o: BpOptions) => void;
   busy: boolean;
   onStart: () => void;
   onStep: (cmd: DebugStep) => void;
@@ -105,7 +174,7 @@ interface Props {
 }
 
 /** Toolbar + call stack + variables (+ evaluate) + debug console. */
-export function DebugPanel({ devId, project, session, breakpoints, busy, onStart, onStep, onStop, onRemoveBreakpoint, onOpenLocation, onError }: Props) {
+export function DebugPanel({ devId, project, session, breakpoints, breakpointOptions = {}, onEditBreakpoint, busy, onStart, onStep, onStop, onRemoveBreakpoint, onOpenLocation, onError }: Props) {
   const { api } = useServices();
   const { state, output, active } = session;
   const stopped = state.state === "stopped";
@@ -114,6 +183,20 @@ export function DebugPanel({ devId, project, session, breakpoints, busy, onStart
   const [expr, setExpr] = useState("");
   const [evals, setEvals] = useState<Array<{ expr: string; result: string; error?: boolean }>>([]);
   const outRef = useRef<HTMLPreElement>(null);
+  const [editing, setEditing] = useState<string | null>(null);
+  // watch expressions: kept per project (localStorage), re-evaluated in the selected frame whenever the script pauses
+  const [watches, setWatches] = useState<string[]>(() => readWatches(project));
+  const [watchExpr, setWatchExpr] = useState("");
+  const [watchVals, setWatchVals] = useState<Record<string, { result: string; error?: boolean }>>({});
+  useEffect(() => setWatches(readWatches(project)), [project]);
+  const saveWatches = (next: string[]) => {
+    setWatches(next);
+    try {
+      localStorage.setItem(WATCH_KEY(project), JSON.stringify(next));
+    } catch {
+      /* storage full or disabled: keep them for this session */
+    }
+  };
 
   const loadFrame = useCallback(
     async (id: number) => {
@@ -144,6 +227,33 @@ export function DebugPanel({ devId, project, session, breakpoints, busy, onStart
     const el = outRef.current;
     if (el) el.scrollTop = el.scrollHeight;
   }, [output]);
+
+  useEffect(() => {
+    if (!stopped || frameId === null || watches.length === 0) {
+      setWatchVals({});
+      return;
+    }
+    let alive = true;
+    void Promise.all(
+      watches.map(async (w) => {
+        try {
+          return [w, { result: (await api.debugEvaluate(devId, w, frameId, "watch")).result }] as const;
+        } catch (err) {
+          return [w, { result: err instanceof Error ? err.message : String(err), error: true }] as const;
+        }
+      }),
+    ).then((pairs) => alive && setWatchVals(Object.fromEntries(pairs)));
+    return () => {
+      alive = false;
+    };
+  }, [api, devId, stopped, frameId, watches, state]);
+
+  const addWatch = () => {
+    const w = watchExpr.trim();
+    if (!w) return;
+    if (!watches.includes(w)) saveWatches([...watches, w].slice(-50));
+    setWatchExpr("");
+  };
 
   const loadScope = async (i: number) => {
     const s = scopes[i];
@@ -239,20 +349,77 @@ export function DebugPanel({ devId, project, session, breakpoints, busy, onStart
             <p className="muted">{t.debug.noBreakpoints}</p>
           ) : (
             <ul className="list" aria-label={t.debug.breakpoints}>
-              {bpList.map(([p, ln]) => (
-                <li key={`${p}:${ln}`} className="file-row">
-                  <Button variant="bare" className="list-btn mono" onClick={() => onOpenLocation(p, ln)}>
-                    {`● ${p}:${ln}`}
-                  </Button>
-                  <Button variant="ghost" size="sm" aria-label={t.debug.removeBp(p, ln)} onClick={() => onRemoveBreakpoint(p, ln)}>
-                    ✕
-                  </Button>
-                </li>
-              ))}
+              {bpList.map(([p, ln]) => {
+                const k = bpKey(p, ln);
+                const o = breakpointOptions[k];
+                const log = !!o?.logMessage?.trim();
+                return (
+                  <li key={k}>
+                    <div className="file-row">
+                      <Button variant="bare" className="list-btn mono" onClick={() => onOpenLocation(p, ln)}>
+                        <span className={"bp-mark" + (log ? " log" : hasBpOptions(o) ? " cond" : "")}>{`${log ? "◆" : "●"} ${p}:${ln}`}</span>
+                        {hasBpOptions(o) && <span className="muted bp-desc">{describeBp(o)}</span>}
+                      </Button>
+                      {onEditBreakpoint && (
+                        <Button variant="ghost" size="sm" aria-label={t.debug.editBp(`${p}:${ln}`)} aria-expanded={editing === k} onClick={() => setEditing(editing === k ? null : k)}>
+                          ✎
+                        </Button>
+                      )}
+                      <Button variant="ghost" size="sm" aria-label={t.debug.removeBp(p, ln)} onClick={() => onRemoveBreakpoint(p, ln)}>
+                        ✕
+                      </Button>
+                    </div>
+                    {editing === k && onEditBreakpoint && (
+                      <BreakpointEditor
+                        where={`${p}:${ln}`}
+                        initial={o}
+                        onCancel={() => setEditing(null)}
+                        onSave={(next) => {
+                          onEditBreakpoint(p, ln, next);
+                          setEditing(null);
+                        }}
+                      />
+                    )}
+                  </li>
+                );
+              })}
             </ul>
           )}
         </div>
         <div>
+          <h3 className="sub-head">{t.debug.watch}</h3>
+          <form
+            className="row"
+            onSubmit={(e) => {
+              e.preventDefault();
+              addWatch();
+            }}
+          >
+            <Input aria-label={t.debug.watchAdd} className="grow mono w-auto" value={watchExpr} placeholder={t.debug.watchPlaceholder} spellCheck={false} onChange={(e) => setWatchExpr(e.target.value)} />
+            <Button size="sm" type="submit" disabled={!watchExpr.trim()}>
+              {t.debug.watchAdd}
+            </Button>
+          </form>
+          {watches.length === 0 ? (
+            <p className="muted">{t.debug.noWatch}</p>
+          ) : (
+            <ul className="var-tree watch-list" aria-label={t.debug.watch}>
+              {watches.map((w) => {
+                const v = watchVals[w];
+                return (
+                  <li key={w} className="file-row">
+                    <span className="grow">
+                      <span className="var-name mono">{w}</span>
+                      <span className={v?.error ? "err mono" : "mono"}>{v ? ` = ${v.result}` : stopped ? " …" : ` ${t.debug.watchIdle}`}</span>
+                    </span>
+                    <Button variant="ghost" size="sm" aria-label={t.debug.watchRemove(w)} onClick={() => saveWatches(watches.filter((x) => x !== w))}>
+                      ✕
+                    </Button>
+                  </li>
+                );
+              })}
+            </ul>
+          )}
           <h3 className="sub-head">{t.debug.vars}</h3>
           {scopes.length === 0 ? (
             <p className="muted">{t.debug.noVars}</p>

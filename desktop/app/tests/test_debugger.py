@@ -141,3 +141,31 @@ async def test_param_validation(ctx):
     assert (await rpc(ctx, "debug.start", id=DEV, project="dbg", breakpoints=[1]))["error"]["code"] == "rpc.bad_params"
     assert (await rpc(ctx, "debug.scopes", id=DEV, frameId=1))["error"]["code"] == "debug.no_session"
     assert (await rpc(ctx, "debug.status", id=DEV))["result"]["state"] == "idle"
+
+
+async def test_conditional_breakpoints_logpoints_and_watch(ctx, fdev):
+    bps = {"__init__.py": [{"line": 2, "logMessage": "LP total={total}"}, {"line": 3, "condition": "False"},
+                           {"line": 4, "condition": "total > 0", "hitCondition": "1"}, {"line": 5, "condition": "  "}]}
+    assert (await rpc(ctx, "debug.start", id=DEV, project="dbg", breakpoints=bps))["ok"]
+    sent = fdev.bp_specs[REMOTE_ROOT + "/__init__.py"]
+    assert sent == [{"line": 2, "logMessage": "LP total={total}"}, {"line": 3, "condition": "False"},
+                    {"line": 4, "condition": "total > 0", "hitCondition": "1"}, {"line": 5}]  # blank options dropped
+    st = await wait_state(ctx, "stopped", 4)  # logpoint on 2 printed, false condition on 3 skipped
+    assert st["line"] == 4 and "LP total={total}" in outputs(ctx)
+    ev = await rpc(ctx, "debug.evaluate", id=DEV, expression="total", frameId=100, context="watch")
+    assert ev["result"]["result"] == "eval:total" and fdev.eval_contexts[-1] == "watch"
+    assert (await rpc(ctx, "debug.evaluate", id=DEV, expression="x", context="bogus"))["error"]["code"] == "rpc.bad_params"
+    # mid-session edit: mixed plain lines and specs; duplicates keep the last spec
+    out = (await rpc(ctx, "debug.setBreakpoints", id=DEV, path="__init__.py",
+                     lines=[6, {"line": 6, "hitCondition": "1"}]))["result"]["breakpoints"]
+    assert out == [{"line": 6, "verified": True, "message": ""}]
+    assert fdev.bp_specs[REMOTE_ROOT + "/__init__.py"] == [{"line": 6, "hitCondition": "1"}]
+    await rpc(ctx, "debug.step", id=DEV, command="continue")
+    await wait_state(ctx, "stopped", 6)
+    await rpc(ctx, "debug.stop", id=DEV)
+
+
+async def test_breakpoint_spec_validation(ctx, fdev):
+    for bad in ({"a.py": [{"line": 0}]}, {"a.py": [{"line": 2, "color": "red"}]}, {"a.py": [{"line": 2, "condition": 5}]},
+                {"a.py": [{"condition": "x"}]}, {"a.py": [{"line": 2, "logMessage": "x" * 1001}]}, {"a.py": [True]}):
+        assert (await rpc(ctx, "debug.start", id=DEV, project="dbg", breakpoints=bad))["error"]["code"] == "rpc.bad_params", bad

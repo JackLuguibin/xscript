@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useServices } from "../app-context";
-import type { Breakpoints, DebugStep, FileContent, LogEntry, ProjectFiles, ProjectSummary } from "../api";
+import { bpKey, hasBpOptions, wireBreakpoints } from "../api";
+import type { BpOptions, BreakpointOptions, Breakpoints, DebugStep, FileContent, LogEntry, ProjectFiles, ProjectSummary } from "../api";
 import { t } from "../strings";
 import { useBusy } from "../useBusy";
 import { useCurrentDevice } from "../device-context";
@@ -45,6 +46,7 @@ export function ProjectsPage({ pollMs = LOG_POLL_MS, onDirtyChange }: { pollMs?:
   const cursor = useRef<number | null>(null);
   const logRef = useRef<HTMLPreElement>(null);
   const [breakpoints, setBreakpoints] = useState<Breakpoints>({});
+  const [bpOptions, setBpOptions] = useState<BreakpointOptions>({});
   const debug = useDebugSession(devId);
 
   const online = devices.filter((d) => d.state === "online");
@@ -81,6 +83,7 @@ export function ProjectsPage({ pollMs = LOG_POLL_MS, onDirtyChange }: { pollMs?:
     setDirty(false); // the switcher already asked before taking the device away
     setLogs([]);
     setBreakpoints({});
+    setBpOptions({});
     cursor.current = null;
     void loadProjects();
   }, [loadProjects]);
@@ -127,6 +130,7 @@ export function ProjectsPage({ pollMs = LOG_POLL_MS, onDirtyChange }: { pollMs?:
     void act("open:" + name, async () => {
       setProject(name);
       setBreakpoints({});
+      setBpOptions({});
       setFile(null);
       setDirty(false);
       setFiles(await api.files(devId, name));
@@ -189,6 +193,7 @@ export function ProjectsPage({ pollMs = LOG_POLL_MS, onDirtyChange }: { pollMs?:
       await loadProjects();
       setProject(name);
       setBreakpoints({});
+      setBpOptions({});
       setFile(null);
       setFiles(await api.files(devId, name));
     });
@@ -210,21 +215,48 @@ export function ProjectsPage({ pollMs = LOG_POLL_MS, onDirtyChange }: { pollMs?:
   const dbgState = debug.state;
   const debuggingHere = debug.active && (!dbgState.project || dbgState.project === project);
 
+  const pushBreakpoints = (path: string, lines: number[], opts: BreakpointOptions) => {
+    if (debuggingHere) void api.debugSetBreakpoints(devId, path, wireBreakpoints(path, lines, opts)).catch((e) => setError(e));
+  };
   const toggleBreakpoint = (path: string, line: number) => {
     const cur = breakpoints[path] ?? [];
-    const lines = cur.includes(line) ? cur.filter((n) => n !== line) : [...cur, line].sort((a, b) => a - b);
+    const removing = cur.includes(line);
+    const lines = removing ? cur.filter((n) => n !== line) : [...cur, line].sort((a, b) => a - b);
     const next = { ...breakpoints };
     if (lines.length) next[path] = lines;
     else delete next[path];
+    const opts = { ...bpOptions };
+    if (removing) delete opts[bpKey(path, line)];
     setBreakpoints(next);
-    if (debuggingHere) void api.debugSetBreakpoints(devId, path, lines).catch((e) => setError(e));
+    setBpOptions(opts);
+    pushBreakpoints(path, lines, opts);
+  };
+  /** Set (or clear, with empty options) a breakpoint's condition / hit count / log message; adds the breakpoint if missing. */
+  const editBreakpoint = (path: string, line: number, o: BpOptions) => {
+    const cur = breakpoints[path] ?? [];
+    const lines = cur.includes(line) ? cur : [...cur, line].sort((a, b) => a - b);
+    const opts = { ...bpOptions };
+    if (hasBpOptions(o)) opts[bpKey(path, line)] = o;
+    else delete opts[bpKey(path, line)];
+    setBreakpoints({ ...breakpoints, [path]: lines });
+    setBpOptions(opts);
+    pushBreakpoints(path, lines, opts);
+  };
+  const bpKinds = (path: string) => {
+    const out: Record<number, "cond" | "log"> = {};
+    for (const ln of breakpoints[path] ?? []) {
+      const o = bpOptions[bpKey(path, ln)];
+      if (hasBpOptions(o)) out[ln] = o.logMessage?.trim() ? "log" : "cond";
+    }
+    return out;
   };
 
   const startDebug = () =>
     act("debug", async () => {
       if (dirty) await save(); // debug what is in the editor
       debug.clearOutput();
-      debug.setState(await api.debugStart(devId, project, breakpoints));
+      const wire = Object.fromEntries(Object.entries(breakpoints).map(([p, lines]) => [p, wireBreakpoints(p, lines, bpOptions)]));
+      debug.setState(await api.debugStart(devId, project, wire));
     });
   const onDebugError = useCallback((e: unknown) => setError(e), []);
   const debugStep = (cmd: DebugStep) => void api.debugStep(devId, cmd).catch((e) => setError(e));
@@ -433,6 +465,7 @@ export function ProjectsPage({ pollMs = LOG_POLL_MS, onDirtyChange }: { pollMs?:
               label={t.projects.editor}
               value={text}
               breakpoints={breakpoints[file.path]}
+              breakpointKinds={bpKinds(file.path)}
               currentLine={currentLine}
               onToggleBreakpoint={(ln) => toggleBreakpoint(file.path, ln)}
               onChange={(v) => {
@@ -460,6 +493,8 @@ export function ProjectsPage({ pollMs = LOG_POLL_MS, onDirtyChange }: { pollMs?:
               project={project}
               session={debug}
               breakpoints={breakpoints}
+              breakpointOptions={bpOptions}
+              onEditBreakpoint={editBreakpoint}
               busy={has("debug")}
               onStart={() => void startDebug()}
               onStep={debugStep}
