@@ -5,8 +5,8 @@ return the filled values.
 usage: scripts/device_ui_designer_e2e.py SERIAL DEVICE_URL      e.g. emulator-5554 http://127.0.0.1:19861
 (needs `adb forward tcp:19861 tcp:9860`; the app answering there is the one tested, e.g. com.xscript.app.perf).
 
-Generates the files with the designer's own generator (ide/vscode-extension/src/uiForm.ts, run by node >= 23
-which strips the types), for a form that uses every control kind. Uploads them as project `_ui_e2e`, runs it, fills
+Generates the files with the designers' shared generator (android/app/src/main/assets/tools/ui-form.js, used by
+both the VS Code extension and the Web IDE; needs node), for a form that uses every control kind. Uploads them as project `_ui_e2e`, runs it, fills
 the form through uiautomator (text, password, textarea, number, checkbox, select, radio), taps the submit button and
 checks the dict the script prints. A second run taps cancel and expects None. A third passes values to show() and
 checks the form comes up pre-filled. XS_SHOTS=dir keeps screenshots.
@@ -48,9 +48,9 @@ print("UI_E2E_RESULT " + json.dumps(v, ensure_ascii=False, sort_keys=True), flus
 
 
 def generate():
-    js = ("import(process.argv[1]).then(m => { const s = m.parseSpec(process.argv[2]); const e = m.validateSpec(s);"
-          " if (e.length) throw new Error(e.join('; ')); process.stdout.write(JSON.stringify(m.outputs(s, 'e2e_form'))); })")
-    r = subprocess.run(["node", "--no-warnings", "-e", js, os.path.join(ROOT, "ide/vscode-extension/src/uiForm.ts"),
+    js = ("const m = require(process.argv[1]); const s = m.parseSpec(process.argv[2]); const e = m.validateSpec(s);"
+          " if (e.length) throw new Error(e.join('; ')); process.stdout.write(JSON.stringify(m.outputs(s, 'e2e_form')));")
+    r = subprocess.run(["node", "-e", js, os.path.join(ROOT, "android/app/src/main/assets/tools/ui-form.js"),
                         json.dumps(SPEC)], capture_output=True, text=True, check=True)
     return json.loads(r.stdout)
 

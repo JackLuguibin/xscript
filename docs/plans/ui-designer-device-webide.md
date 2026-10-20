@@ -17,7 +17,7 @@
 ## 分阶段清单
 
 - [x] **E.1 设备验证脚本**：`scripts/device_ui_designer_e2e.py`：用现有生成器生成一个设置界面，上传到 perf 应用，运行，uiautomator 填表并提交，读运行日志里的返回值；修复发现的问题
-- [ ] **E.2 抽出共享核心**：`uiForm` 的模型、校验、HTML/Python 生成改为无依赖 JS（`android/app/src/main/assets/tools/ui-form.js`），VS Code 扩展改为引用它（构建时复制，`--check` 防漂移）
+- [x] **E.2 抽出共享核心**：`uiForm` 的模型、校验、HTML/Python 生成改为无依赖 JS（`android/app/src/main/assets/tools/ui-form.js`），VS Code 扩展改为引用它（构建时复制，`--check` 防漂移）
 - [ ] **E.3 网页 IDE 设计器**：网页 IDE 打开 `.ui.json` 时显示设计器（控件面板、拖拽排序、属性、预览），保存生成两份文件
 - [ ] **E.4 文档与截图**：使用手册、功能对照、截图
 
