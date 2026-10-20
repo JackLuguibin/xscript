@@ -40,3 +40,9 @@ xscript_cloud_state.json
 backend/web/dist/
 *.tsbuildinfo
 ascript_analysis/*.venv-build/
+
+# coverage.py data and HTML reports (local and CI test runs)
+.coverage
+.coverage.*
+htmlcov/
+coverage.xml
