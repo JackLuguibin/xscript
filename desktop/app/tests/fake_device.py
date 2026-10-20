@@ -22,6 +22,12 @@ STATUS = {
 }
 
 
+class _Server(ThreadingHTTPServer):
+    # socketserver listens with a backlog of 5; Windows refuses connections beyond it at once (macOS/Linux queue
+    # them), which failed test_perf's 50 concurrent status calls on the Windows runner with "connection refused".
+    request_queue_size = 128
+
+
 def make_png(w: int = 270, h: int = 585) -> bytes:
     """Deterministic vertical gradient with a lighter top bar, so a screenshot is recognisable in a visual diff."""
     rows = bytearray()
@@ -114,7 +120,7 @@ class FakeDevice:
                 else:
                     self._send(200, "image/png", outer.png)
 
-        self._httpd = ThreadingHTTPServer(("127.0.0.1", 0), H)
+        self._httpd = _Server(("127.0.0.1", 0), H)
         self._httpd.daemon_threads = True
         self._thread = threading.Thread(target=self._httpd.serve_forever, daemon=True)
         self._thread.start()
