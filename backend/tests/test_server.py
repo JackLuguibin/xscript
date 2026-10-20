@@ -25,6 +25,10 @@ from unittest import mock
 
 HERE = Path(__file__).resolve().parent
 sys.path.insert(0, str(HERE.parent))
+sys.path.insert(0, str(HERE))
+import pgtest  # noqa: E402
+
+pgtest.install()
 
 try:
     import httpx
@@ -987,7 +991,7 @@ class SchedulerTest(unittest.IsolatedAsyncioTestCase):
 
         cfg = Config.load(tempfile.mkdtemp())
         cfg.ensure_dirs()
-        self.db = Database(cfg.db_path)
+        self.db = Database(cfg.db_url)
         self.db.create_all()
         self.release = asyncio.Event()
         self.calls: list[str] = []
@@ -1102,7 +1106,7 @@ class LegacyImportTest(unittest.TestCase):
         from xscript_server.models import Card, Device, DeviceKey, Task
         from xscript_server.security import token_hash
 
-        with Database(cfg.db_path).session() as s:
+        with Database(cfg.db_url).session() as s:
             self.assertEqual(s.get(Device, "dev1").group_override, "vip")
             self.assertEqual(s.query(Task).one().daily, "08:30")
             self.assertEqual(s.get(Card, "XS-AAAA-BBBB-CCCC-DDDD").expires_at, 99)
@@ -1125,7 +1129,7 @@ class StatusBatchTest(unittest.IsolatedAsyncioTestCase):
 
         cfg = Config.load(tempfile.mkdtemp())
         cfg.ensure_dirs()
-        self.db = Database(cfg.db_path)
+        self.db = Database(cfg.db_url)
         self.db.create_all()
         self.hub = Hub(self.db)
         self.Conn = Conn

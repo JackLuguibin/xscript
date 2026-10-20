@@ -32,7 +32,7 @@ class ServiceTest(unittest.TestCase):
     def setUp(self):
         cfg = Config.load(tempfile.mkdtemp())
         cfg.ensure_dirs()
-        self.db = Database(cfg.db_path)
+        self.db = Database(cfg.db_url)
         self.db.create_all()
         self.key = licensing.generate_private()
         self.pub = licensing.public_b64(self.key)
@@ -226,7 +226,9 @@ class MigrateCardsTest(unittest.TestCase):
     def test_old_cards_table_gets_the_new_columns(self):
         import sqlite3
 
-        cfg = Config.load(tempfile.mkdtemp())
+        import pgtest
+
+        cfg = pgtest.sqlite_only(Config.load(tempfile.mkdtemp()))  # an old SQLite file on purpose
         cfg.ensure_dirs()
         con = sqlite3.connect(cfg.db_path)
         con.executescript(
@@ -237,7 +239,7 @@ class MigrateCardsTest(unittest.TestCase):
             "PRAGMA user_version = 3;")
         con.commit()
         con.close()
-        db = Database(cfg.db_path)
+        db = Database(cfg.db_url)
         db.create_all()
         with db.session() as s:
             c = s.get(Card, "XS-OLD")
@@ -290,7 +292,7 @@ class AbusePersistenceTest(unittest.TestCase):
     def setUp(self):
         cfg = Config.load(tempfile.mkdtemp())
         cfg.ensure_dirs()
-        self.db = Database(cfg.db_path)
+        self.db = Database(cfg.db_url)
         self.db.create_all()
 
     def observe(self, m, code, card, device, now, ip="ip"):

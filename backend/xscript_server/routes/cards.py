@@ -40,7 +40,7 @@ def _filtered(q: str, status: str, app: str, batch: str, kind: str = "", owner: 
     if q:
         like = like_contains(q)
         stmt = stmt.where(or_(Card.card.like(like_contains(q.upper()), escape="\\"),
-                              Card.device.like(like, escape="\\"), Card.note.like(like, escape="\\")))
+                              Card.device.ilike(like, escape="\\"), Card.note.ilike(like, escape="\\")))
     if status:
         try:
             stmt = stmt.where(cardsvc.status_filter(status, int(time.time())))
@@ -71,11 +71,7 @@ def card_stats(p: Principal = Depends(viewer), s: Session = Depends(db_session))
 
 @router.get("/batches")
 def list_batches(p: Principal = Depends(viewer), s: Session = Depends(db_session)):
-    rows = s.execute(select(Card.batch, Card.app, Card.days, Card.note, func.count(), func.min(Card.created_at),
-                            func.count(Card.device), func.max(Card.kind), func.max(Card.max_devices))
-                     .group_by(Card.batch).order_by(func.min(Card.created_at).desc()).limit(500)).all()
-    return {"items": [{"batch": r[0], "app": r[1], "days": r[2], "note": r[3], "count": r[4], "created_at": r[5],
-                       "bound": r[6], "kind": r[7] or "normal", "max_devices": r[8] or 1} for r in rows]}
+    return {"items": cardsvc.batches(s)}
 
 
 @router.get("/abuse")

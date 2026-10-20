@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Which heavy CI jobs a pull request needs, from the files it changes.
 
-usage: scripts/ci_changes.py <base-sha> <head-sha>   -> prints `android=true|false` and `desktop=true|false`
+usage: scripts/ci_changes.py <base-sha> <head-sha>   -> prints `android=`, `desktop=` and `postgres=true|false`
        scripts/ci_changes.py --all                   -> everything true (push to main, release, manual runs)
 
 A job is skipped only when *every* changed file is in an area listed below as unable to affect it. Anything else, a
@@ -23,6 +23,9 @@ ANDROID_UNAFFECTED = ("desktop/", "ide/", "backend/", "docs/", "deploy/")
 DESKTOP_UNAFFECTED = ("android/", "backend/", "ide/vscode-extension/", "ide/mcp-server/", "deploy/")
 DESKTOP_NEEDED_INSIDE = ("android/python-runtime/",)
 
+# The backend suite on PostgreSQL only needs the server's Python code (the console and docs cannot change SQL).
+POSTGRES_UNAFFECTED = ("android/", "desktop/", "ide/", "docs/", "deploy/", "backend/web/", "backend/README.md")
+
 
 def _unaffected(path: str, prefixes: tuple[str, ...], needed: tuple[str, ...] = ()) -> bool:
     if path in ROOT_DOCS:
@@ -34,10 +37,11 @@ def _unaffected(path: str, prefixes: tuple[str, ...], needed: tuple[str, ...] = 
 
 def decide(files: list[str]) -> dict[str, bool]:
     if not files:  # nothing to compare (or an empty diff): be safe
-        return {"android": True, "desktop": True}
+        return {"android": True, "desktop": True, "postgres": True}
     return {
         "android": not all(_unaffected(f, ANDROID_UNAFFECTED) for f in files),
         "desktop": not all(_unaffected(f, DESKTOP_UNAFFECTED, DESKTOP_NEEDED_INSIDE) for f in files),
+        "postgres": not all(_unaffected(f, POSTGRES_UNAFFECTED) for f in files),
     }
 
 
@@ -49,7 +53,7 @@ def changed_files(base: str, head: str) -> list[str]:
 
 def main(argv: list[str]) -> int:
     if argv[1:] == ["--all"]:
-        result = {"android": True, "desktop": True}
+        result = {"android": True, "desktop": True, "postgres": True}
     elif len(argv) == 3:
         try:
             files = changed_files(argv[1], argv[2])

@@ -332,6 +332,8 @@ export interface Webhook {
 
 export interface Settings {
   site_name: string;
+  /** Which database the server uses (never its address). */
+  database?: "sqlite" | "postgresql";
   public_url: string;
   version: string;
   license_public_key: string;

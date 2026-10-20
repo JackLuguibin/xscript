@@ -162,12 +162,7 @@ def my_card_stats(p: Principal = Depends(reseller_only), s: Session = Depends(db
 
 @me.get("/cards/batches")
 def my_batches(p: Principal = Depends(reseller_only), s: Session = Depends(db_session)):
-    rows = s.execute(select(Card.batch, Card.app, Card.days, Card.note, func.count(), func.min(Card.created_at),
-                            func.count(Card.device), func.max(Card.kind), func.max(Card.max_devices))
-                     .where(Card.owner_id == p.id)
-                     .group_by(Card.batch).order_by(func.min(Card.created_at).desc()).limit(500)).all()
-    return {"items": [{"batch": r[0], "app": r[1], "days": r[2], "note": r[3], "count": r[4], "created_at": r[5],
-                       "bound": r[6], "kind": r[7] or "normal", "max_devices": r[8] or 1} for r in rows]}
+    return {"items": cardsvc.batches(s, owner_id=p.id)}
 
 
 class MyBatchIn(BaseModel):
@@ -298,7 +293,7 @@ def my_audit(p: Principal = Depends(reseller_only), s: Session = Depends(db_sess
     if action:  # same filters as the staff log: "card." is a category prefix
         stmt = stmt.where(AuditLog.action.like(like_escape(action.rstrip("*")) + "%", escape="\\"))
     if q:
-        stmt = stmt.where(AuditLog.target.like(like_contains(q), escape="\\"))
+        stmt = stmt.where(AuditLog.target.ilike(like_contains(q), escape="\\"))
     if since:
         stmt = stmt.where(AuditLog.time >= since)
     if until:

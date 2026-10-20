@@ -6,7 +6,6 @@ import base64
 import hashlib
 import hmac
 import json
-import os
 import sqlite3
 import sys
 import tempfile
@@ -16,6 +15,11 @@ from pathlib import Path
 from unittest import mock
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+import pgtest  # noqa: E402
+from sqlalchemy import text  # noqa: E402
+
+pgtest.install()
 
 from xscript_server import audit as auditmod, maintenance, migrate  # noqa: E402
 from xscript_server.alerts import RateLimiter, build_request  # noqa: E402
@@ -32,7 +36,7 @@ def fresh_cfg() -> Config:
 
 class MigrateTest(unittest.TestCase):
     def test_upgrades_old_schema(self):
-        cfg = fresh_cfg()
+        cfg = pgtest.sqlite_only(fresh_cfg())
         # A 0.3 database: devices without last_run, script_versions without downloads, user_version 0.
         con = sqlite3.connect(cfg.db_path)
         con.executescript(
@@ -49,7 +53,7 @@ class MigrateTest(unittest.TestCase):
             "CREATE INDEX ix_device_logs_device_ts ON device_logs (device, ts);")
         con.commit()
         con.close()
-        db = Database(cfg.db_path)
+        db = Database(cfg.db_url)
         db.create_all()
         with db.engine.connect() as c:
             self.assertEqual(migrate.current(c), migrate.LATEST)
@@ -71,19 +75,19 @@ class MigrateTest(unittest.TestCase):
         self.assertEqual(sqlite3.connect(cfg.db_path).execute("SELECT id FROM devices").fetchall(), [("d1",)])
 
     def test_refuses_newer_database(self):
-        cfg = fresh_cfg()
+        cfg = pgtest.sqlite_only(fresh_cfg())
         con = sqlite3.connect(cfg.db_path)
         con.execute("PRAGMA user_version = %d" % (migrate.LATEST + 5))
         con.commit()
         con.close()
         with self.assertRaises(RuntimeError):
-            Database(cfg.db_path).create_all()
+            Database(cfg.db_url).create_all()
 
 
 class BackupTest(unittest.TestCase):
     def test_round_trip(self):
         cfg = fresh_cfg()
-        db = Database(cfg.db_path)
+        db = Database(cfg.db_url)
         db.create_all()
         with db.session() as s:
             s.add(User(username="alice", password_hash="x", role="admin"))
@@ -98,11 +102,16 @@ class BackupTest(unittest.TestCase):
         self.assertEqual(oct(path.stat().st_mode & 0o777), "0o600")
 
         target = fresh_cfg()
-        with self.assertRaises(ValueError):  # existing db needs --force
-            Database(target.db_path).create_all()
+        existing = Database(target.db_url)
+        existing.create_all()
+        with existing.session() as s:
+            s.add(User(username="bob", password_hash="x", role="admin"))
+            s.commit()
+        existing.dispose()
+        with self.assertRaises(ValueError):  # a database with data needs --force
             maintenance.restore_backup(target, path)
         maintenance.restore_backup(target, path, force=True)
-        with Database(target.db_path).session() as s:
+        with Database(target.db_url).session() as s:
             self.assertEqual(s.query(User).one().username, "alice")
         self.assertEqual(target.key_path.read_text(), "KEY")
         self.assertTrue((target.scripts_dir / "1" / "2" / "source.zip").is_file())
@@ -121,7 +130,7 @@ class BackupTest(unittest.TestCase):
 class RetentionTest(unittest.TestCase):
     def test_policy(self):
         cfg = fresh_cfg()
-        db = Database(cfg.db_path)
+        db = Database(cfg.db_url)
         db.create_all()
         now = time.time()
         with db.session() as s:
@@ -194,7 +203,7 @@ class SettingsCacheTest(unittest.TestCase):
     def setUp(self):
         from sqlalchemy import event
 
-        self.db = Database(fresh_cfg().db_path)
+        self.db = Database(fresh_cfg().db_url)
         self.db.create_all()
         self.reads = 0
 
@@ -235,10 +244,10 @@ class SettingsCacheTest(unittest.TestCase):
 
     def test_ttl_picks_up_writes_from_another_process(self):
         self.get("site_name")
-        con = sqlite3.connect(self.db.path)  # e.g. the CLI on the same data dir
-        con.execute("INSERT INTO settings (key, value) VALUES ('site_name', '\"B\"')")
-        con.commit()
-        con.close()
+        other = Database(self.db.url)  # its own engine: e.g. the CLI on the same database
+        with other.engine.begin() as c:
+            c.execute(text("INSERT INTO settings (key, value) VALUES ('site_name', '\"B\"')"))
+        other.dispose()
         self.assertEqual(self.get("site_name"), "XScript 管理后台")  # cached
         later = time.monotonic() + auditmod.SETTINGS_TTL + 1
         with mock.patch.object(auditmod.time, "monotonic", return_value=later):
@@ -250,10 +259,15 @@ class ValuesInTest(unittest.TestCase):
     def test_long_id_lists_use_one_parameter(self):
         from sqlalchemy import func, select
 
-        from xscript_server.db import values_in
+        from xscript_server.db import in_values
         from xscript_server.models import Device
 
-        db = Database(fresh_cfg().db_path)
+        db = Database(fresh_cfg().db_url)
+
+        def values_in(where, ids, negate=False):
+            e = in_values(Device.id, ids, db.dialect)
+            return ~e if negate else e
+
         db.create_all()
         with db.session() as s:
             s.add_all(Device(id="d%d" % i, device_id="d%d" % i) for i in range(5))
@@ -263,10 +277,10 @@ class ValuesInTest(unittest.TestCase):
             def count(where):
                 return s.scalar(select(func.count()).select_from(Device).where(where))
 
-            self.assertEqual(count(Device.id.in_(values_in(live))), 2)
-            self.assertEqual(count(Device.id.not_in(values_in(live))), 3)
-            self.assertEqual(count(Device.id.in_(values_in([]))), 0)
-            self.assertEqual(count(Device.id.not_in(values_in({}))), 5)
+            self.assertEqual(count(values_in(Device.id, live)), 2)
+            self.assertEqual(count(values_in(Device.id, live, negate=True)), 3)
+            self.assertEqual(count(values_in(Device.id, [])), 0)
+            self.assertEqual(count(values_in(Device.id, {}, negate=True)), 5)
         db.engine.dispose()
 
 

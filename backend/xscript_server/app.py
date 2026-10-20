@@ -48,7 +48,7 @@ def load_signing_key(config: Config):
 
 def create_app(config: Config, start_workers: bool = True) -> FastAPI:
     config.ensure_dirs()
-    db = Database(config.db_path)
+    db = Database(config.db_url)
     db.create_all()
     key = load_signing_key(config)
     alerts = Alerts(db)

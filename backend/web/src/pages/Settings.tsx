@@ -292,6 +292,15 @@ export default function SettingsPage() {
               label: "正式签名证书",
               children: s?.release_signing ? <Tag color="green">已配置</Tag> : <Tag>未配置（XSCRIPT_KEYSTORE）</Tag>,
             },
+            {
+              label: "数据库",
+              children:
+                s?.database === "postgresql" ? (
+                  <Tag color="blue">PostgreSQL</Tag>
+                ) : (
+                  <Tag>SQLite（默认，可用 XSCRIPT_DATABASE_URL 换成 PostgreSQL）</Tag>
+                ),
+            },
             { label: "版本", children: s?.version },
           ]}
         />

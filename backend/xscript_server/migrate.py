@@ -1,10 +1,13 @@
-"""Schema migrations for the SQLite database.
+"""Schema migrations (SQLite and PostgreSQL).
 
 `create_all` only creates missing tables. Columns added to existing tables after a release
-need a numbered step here; the applied version is kept in `PRAGMA user_version`.
+need a numbered step here. The applied version is kept in `PRAGMA user_version` on SQLite and in
+the one-row table `xscript_schema` on PostgreSQL.
 
-Steps run in order inside one transaction each and must be idempotent (check before ALTER),
-so a database created by `create_all` at the latest version is also valid.
+A brand-new database is stamped at LATEST without running the steps (create_all has just made the
+current schema), so PostgreSQL support starts at v7 and steps up to v7 only ever run on SQLite.
+Steps run in order inside one transaction each and must be idempotent (check before ALTER). New
+steps must use DDL both databases accept: `BOOLEAN ... DEFAULT false`, `BIGINT` for times, `JSON`.
 """
 
 from __future__ import annotations
@@ -72,18 +75,35 @@ LATEST = len(STEPS)
 
 
 def current(conn: Connection) -> int:
-    return int(conn.execute(text("PRAGMA user_version")).scalar() or 0)
+    if conn.dialect.name == "sqlite":
+        return int(conn.execute(text("PRAGMA user_version")).scalar() or 0)
+    conn.execute(text("CREATE TABLE IF NOT EXISTS xscript_schema (version INTEGER NOT NULL)"))
+    return int(conn.execute(text("SELECT max(version) FROM xscript_schema")).scalar() or 0)
 
 
-def migrate(engine) -> tuple[int, int]:
-    """Bring the database to LATEST. Returns (from, to). Refuses databases from a newer release."""
+def stamp(conn: Connection, version: int) -> None:
+    if conn.dialect.name == "sqlite":
+        conn.execute(text("PRAGMA user_version = %d" % int(version)))
+    else:
+        conn.execute(text("DELETE FROM xscript_schema"))
+        conn.execute(text("INSERT INTO xscript_schema (version) VALUES (:v)"), {"v": int(version)})
+
+
+def migrate(engine, fresh: bool = False) -> tuple[int, int]:
+    """Bring the database to LATEST. Returns (from, to). Refuses databases from a newer release.
+
+    fresh: the tables were all just created by create_all, so the schema already is LATEST."""
     with engine.begin() as conn:
         start = current(conn)
+        if fresh and start == 0:
+            stamp(conn, LATEST)
+            log.info("new database at v%d", LATEST)
+            return 0, LATEST
     if start > LATEST:
         raise RuntimeError("数据库版本 %d 比这个程序支持的 %d 新，请升级 xscript-server" % (start, LATEST))
     for version in range(start + 1, LATEST + 1):
         with engine.begin() as conn:
             STEPS[version - 1](conn)
-            conn.execute(text("PRAGMA user_version = %d" % version))
+            stamp(conn, version)
         log.info("database migrated to v%d", version)
     return start, LATEST

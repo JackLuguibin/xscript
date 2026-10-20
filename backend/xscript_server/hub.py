@@ -17,7 +17,7 @@ from starlette.concurrency import run_in_threadpool
 from starlette.websockets import WebSocket
 
 from .audit import audit
-from .db import Database, values_in
+from .db import Database, in_values
 from .models import Device, DeviceDay, DeviceLog, Task
 
 log = logging.getLogger("xscript.hub")
@@ -102,7 +102,7 @@ class Hub:
         """Write status, script data and last_seen of these connections in one transaction."""
         with self.db.session() as s:
             # One SELECT fills the identity map; s.get() below then needs no round trip per row.
-            list(s.scalars(select(Device).where(Device.id.in_(values_in(c.id for c in conns)))))
+            list(s.scalars(select(Device).where(in_values(Device.id, (c.id for c in conns), self.db.dialect))))
             for conn in conns:
                 if live_only and self.conns.get(conn.id) is not conn:
                     continue  # replaced or gone meanwhile: hello / detach wrote the row
@@ -132,7 +132,7 @@ class Hub:
             return
         with self.db.session() as s:
             have = set(s.scalars(select(DeviceDay.device).where(
-                DeviceDay.day == day, DeviceDay.device.in_(values_in(c.id for c in todo)))))
+                DeviceDay.day == day, in_values(DeviceDay.device, (c.id for c in todo), self.db.dialect))))
             for c in todo:
                 if c.id not in have:
                     s.add(DeviceDay(day=day, device=c.id))
@@ -332,7 +332,7 @@ class Hub:
         if not ids:
             return {}
         with self.db.session() as s:
-            rows = s.execute(select(Device.id, Device.group_override).where(Device.id.in_(values_in(ids)))).all()
+            rows = s.execute(select(Device.id, Device.group_override).where(in_values(Device.id, ids, self.db.dialect))).all()
         return {r[0]: r[1] for r in rows if r[1]}
 
     async def select(self, target: str) -> list[Conn]:

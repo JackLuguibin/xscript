@@ -14,37 +14,60 @@ ci = importlib.util.module_from_spec(_spec)
 _spec.loader.exec_module(ci)  # type: ignore[union-attr]
 
 
+def heavy(files):
+    """android/desktop only (the postgres area has its own tests)."""
+    d = ci.decide(files)
+    return {"android": d["android"], "desktop": d["desktop"]}
+
+
 class Decide(unittest.TestCase):
     def test_empty_or_unknown_runs_everything(self):
-        self.assertEqual(ci.decide([]), {"android": True, "desktop": True})
-        self.assertEqual(ci.decide(["protocol/x.md"]), {"android": True, "desktop": True})
-        self.assertEqual(ci.decide(["newdir/a.py"]), {"android": True, "desktop": True})
+        self.assertEqual(heavy([]), {"android": True, "desktop": True})
+        self.assertEqual(heavy(["protocol/x.md"]), {"android": True, "desktop": True})
+        self.assertEqual(heavy(["newdir/a.py"]), {"android": True, "desktop": True})
 
     def test_workflow_and_scripts_run_everything(self):
         for f in (".github/workflows/ci.yml", "scripts/check_16kb.py", "scripts/mock_device.py"):
-            self.assertEqual(ci.decide([f]), {"android": True, "desktop": True}, f)
+            self.assertEqual(heavy([f]), {"android": True, "desktop": True}, f)
 
     def test_desktop_only_skips_android(self):
-        self.assertEqual(ci.decide(["desktop/app/x.py", "desktop/frontend/src/a.tsx"]), {"android": False, "desktop": True})
+        self.assertEqual(heavy(["desktop/app/x.py", "desktop/frontend/src/a.tsx"]), {"android": False, "desktop": True})
 
     def test_android_only_skips_desktop(self):
-        self.assertEqual(ci.decide(["android/app/build.gradle.kts", "android/app/src/main/java/A.kt"]), {"android": True, "desktop": False})
+        self.assertEqual(heavy(["android/app/build.gradle.kts", "android/app/src/main/java/A.kt"]), {"android": True, "desktop": False})
 
     def test_python_runtime_runs_desktop_too(self):
-        self.assertEqual(ci.decide(["android/python-runtime/xscript/android/action.py"]), {"android": True, "desktop": True})
+        self.assertEqual(heavy(["android/python-runtime/xscript/android/action.py"]), {"android": True, "desktop": True})
 
     def test_docs_skip_android_but_not_desktop(self):
-        self.assertEqual(ci.decide(["docs/桌面端-测试方案.md"]), {"android": False, "desktop": True})
+        self.assertEqual(heavy(["docs/桌面端-测试方案.md"]), {"android": False, "desktop": True})
 
     def test_root_docs_and_other_areas_skip_both(self):
-        self.assertEqual(ci.decide(["CHANGELOG.md", "README.md"]), {"android": False, "desktop": False})
-        self.assertEqual(ci.decide(["backend/xscript_server/app.py", "ide/vscode-extension/src/a.ts"]), {"android": False, "desktop": False})
+        self.assertEqual(heavy(["CHANGELOG.md", "README.md"]), {"android": False, "desktop": False})
+        self.assertEqual(heavy(["backend/xscript_server/app.py", "ide/vscode-extension/src/a.ts"]), {"android": False, "desktop": False})
 
     def test_ide_stubs_run_desktop(self):
-        self.assertEqual(ci.decide(["ide/python-stubs/xscript/action.pyi"]), {"android": False, "desktop": True})
+        self.assertEqual(heavy(["ide/python-stubs/xscript/action.pyi"]), {"android": False, "desktop": True})
 
     def test_a_mix_runs_what_any_file_needs(self):
-        self.assertEqual(ci.decide(["CHANGELOG.md", "android/app/a.kt", "desktop/app/b.py"]), {"android": True, "desktop": True})
+        self.assertEqual(heavy(["CHANGELOG.md", "android/app/a.kt", "desktop/app/b.py"]), {"android": True, "desktop": True})
+
+
+class Postgres(unittest.TestCase):
+    def test_backend_python_runs_it(self):
+        self.assertTrue(ci.decide(["backend/xscript_server/db.py"])["postgres"])
+        self.assertTrue(ci.decide(["backend/tests/test_server.py", "README.md"])["postgres"])
+        self.assertTrue(ci.decide(["backend/pyproject.toml"])["postgres"])
+
+    def test_workflow_scripts_and_unknown_run_it(self):
+        for f in (".github/workflows/ci.yml", "scripts/ci_changes.py", "newdir/a.py"):
+            self.assertTrue(ci.decide([f])["postgres"], f)
+        self.assertTrue(ci.decide([])["postgres"])
+
+    def test_console_docs_and_clients_skip_it(self):
+        files = ["backend/web/src/App.tsx", "backend/README.md", "docs/部署.md", "android/app/a.kt",
+                 "desktop/app/b.py", "ide/mcp-server/x.py", "CHANGELOG.md"]
+        self.assertFalse(ci.decide(files)["postgres"])
 
 
 class Cli(unittest.TestCase):
@@ -52,7 +75,7 @@ class Cli(unittest.TestCase):
         return subprocess.run([sys.executable, str(REPO / "scripts" / "ci_changes.py"), *args], capture_output=True, text=True, check=True, cwd=REPO).stdout
 
     def test_all(self):
-        self.assertEqual(self.run_cli("--all"), "android=true\ndesktop=true\n")
+        self.assertEqual(self.run_cli("--all"), "android=true\ndesktop=true\npostgres=true\n")
 
     def test_reads_a_real_diff_with_a_chinese_path(self):
         import os
@@ -75,11 +98,11 @@ class Cli(unittest.TestCase):
             git("commit", "-qm", "docs")
             out = subprocess.run([sys.executable, str(REPO / "scripts" / "ci_changes.py"), base, "HEAD"], cwd=d,
                                  capture_output=True, text=True, check=True)
-            self.assertEqual(out.stdout, "android=false\ndesktop=true\n")
+            self.assertEqual(out.stdout, "android=false\ndesktop=true\npostgres=false\n")
             self.assertIn("docs/桌面端-测试方案.md", out.stderr)
 
     def test_a_bad_revision_runs_everything(self):
-        self.assertEqual(self.run_cli("0" * 40, "HEAD"), "android=true\ndesktop=true\n")
+        self.assertEqual(self.run_cli("0" * 40, "HEAD"), "android=true\ndesktop=true\npostgres=true\n")
 
 
 if __name__ == "__main__":

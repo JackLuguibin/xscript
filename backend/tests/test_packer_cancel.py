@@ -14,6 +14,10 @@ from pathlib import Path
 from unittest import mock
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+import pgtest  # noqa: E402
+
+pgtest.install()
 
 from xscript_server import packer as packermod  # noqa: E402
 from xscript_server.config import Config  # noqa: E402
@@ -29,7 +33,7 @@ class CancelBeforeSpawn(unittest.IsolatedAsyncioTestCase):
         script = tmp / "fake_pack.py"
         script.write_text("import time\ntime.sleep(30)\n")  # a build that only ends by being terminated
         self.cfg.pack_script = script
-        self.db = Database(self.cfg.db_path)
+        self.db = Database(self.cfg.db_url)
         self.db.create_all()
         self.packer = packermod.Packer(self.cfg, self.db)
         with self.db.session() as s:

@@ -1,8 +1,11 @@
 """Backups of the data directory and storage retention.
 
-A backup is one .tar.gz with a consistent copy of the database (SQLite online backup, safe
-while the server runs), the 卡密 signing key and the 小程序 sources. Pack outputs (APKs,
-build logs) are left out: they can be rebuilt and are large.
+A backup is one .tar.gz with a consistent copy of the database, the 卡密 signing key and the
+小程序 sources. The database is always stored as a SQLite file (xscript.db): SQLite's online
+backup, or a table-by-table copy in one REPEATABLE READ transaction from PostgreSQL; both are
+safe while the server runs. So a backup restores into either database, which is also how an
+install moves from SQLite to PostgreSQL. Pack outputs (APKs, build logs) are left out: they can
+be rebuilt and are large.
 """
 
 from __future__ import annotations
@@ -22,7 +25,7 @@ from sqlalchemy import delete, select
 
 from . import __version__
 from .config import Config
-from .db import Database
+from .db import Database, copy_database, is_empty, wipe
 from .migrate import LATEST
 from .models import AppUpdate, AuditLog, DeviceDay, DeviceLog, PackJob, ShareLink
 
@@ -41,7 +44,15 @@ def create_backup(cfg: Config, out: Path | None = None) -> Path:
     tmp = out.with_name(out.name + ".part")
     with tempfile.TemporaryDirectory(prefix="xs-backup-") as td:
         db_copy = Path(td) / "xscript.db"
-        _sqlite_copy(cfg.db_path, db_copy)
+        if cfg.database_url:
+            src, dst = Database(cfg.database_url), Database(db_copy)
+            try:
+                copy_database(src, dst)
+            finally:
+                src.dispose()
+                dst.dispose()
+        else:
+            _sqlite_copy(cfg.db_path, db_copy)
         fd = os.open(tmp, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)  # holds the signing key
         with os.fdopen(fd, "wb") as f, tarfile.open(fileobj=f, mode="w:gz") as tar:
             meta = {"version": __version__, "schema": LATEST, "created_at": int(time.time())}
@@ -77,11 +88,22 @@ def read_manifest(path: Path) -> dict[str, Any]:
 
 
 def restore_backup(cfg: Config, path: Path, force: bool = False) -> dict[str, Any]:
-    """Replace the database, signing key and 小程序 sources. The server must be stopped."""
+    """Replace the database, signing key and 小程序 sources. The server must be stopped.
+
+    With XSCRIPT_DATABASE_URL set the backup's SQLite database is copied into PostgreSQL (migrated
+    forward first), which also moves a SQLite install to PostgreSQL."""
     meta = read_manifest(path)
     if int(meta.get("schema", 0)) > LATEST:
         raise ValueError("备份来自更新的版本（schema %s），请先升级 xscript-server" % meta.get("schema"))
-    if cfg.db_path.exists() and not force:
+    target = Database(cfg.database_url) if cfg.database_url else None
+    try:
+        if target is not None and not force and not is_empty(target):
+            raise ValueError("数据库 %s 里已有数据；确认要覆盖请加 --force" % target.describe())
+    except Exception:
+        if target is not None:
+            target.dispose()
+        raise
+    if target is None and cfg.db_path.exists() and not force:
         raise ValueError("数据目录里已有数据库 %s；确认要覆盖请加 --force" % cfg.db_path)
     cfg.ensure_dirs()
     with tempfile.TemporaryDirectory(prefix="xs-restore-", dir=cfg.data_dir) as td:
@@ -90,9 +112,19 @@ def restore_backup(cfg: Config, path: Path, force: bool = False) -> dict[str, An
         root = Path(td)
         if not (root / "xscript.db").is_file():
             raise ValueError("备份里没有数据库")
-        for suffix in ("", "-wal", "-shm"):
-            Path(str(cfg.db_path) + suffix).unlink(missing_ok=True)
-        shutil.move(str(root / "xscript.db"), cfg.db_path)
+        if target is not None:
+            src = Database(root / "xscript.db")
+            try:
+                src.create_all()  # migrate an older backup forward before copying
+                wipe(target)
+                copy_database(src, target)
+            finally:
+                src.dispose()
+                target.dispose()
+        else:
+            for suffix in ("", "-wal", "-shm"):
+                Path(str(cfg.db_path) + suffix).unlink(missing_ok=True)
+            shutil.move(str(root / "xscript.db"), cfg.db_path)
         if (root / "keys/private.pem").is_file():
             cfg.key_path.parent.mkdir(parents=True, exist_ok=True)
             cfg.key_path.unlink(missing_ok=True)
@@ -101,7 +133,10 @@ def restore_backup(cfg: Config, path: Path, force: bool = False) -> dict[str, An
         if (root / "scripts").is_dir():
             shutil.rmtree(cfg.scripts_dir, ignore_errors=True)
             shutil.move(str(root / "scripts"), cfg.scripts_dir)
-    Database(cfg.db_path).create_all()  # migrate an older backup forward
+    if target is None:
+        db = Database(cfg.db_path)
+        db.create_all()  # migrate an older backup forward
+        db.dispose()
     return meta
 
 
@@ -196,8 +231,14 @@ def dir_size(path: Path) -> int:
     return sum(p.stat().st_size for p in path.rglob("*") if p.is_file())
 
 
-def disk_usage(cfg: Config) -> dict[str, int]:
-    db = sum(dir_size(Path(str(cfg.db_path) + s)) for s in ("", "-wal", "-shm"))
+def disk_usage(cfg: Config, db_obj: Database | None = None) -> dict[str, int]:
+    if cfg.database_url and db_obj is not None and not db_obj.is_sqlite:
+        from sqlalchemy import text
+
+        with db_obj.engine.connect() as c:
+            db = int(c.execute(text("SELECT pg_database_size(current_database())")).scalar() or 0)
+    else:
+        db = sum(dir_size(Path(str(cfg.db_path) + s)) for s in ("", "-wal", "-shm"))
     return {"database": db, "pack": dir_size(cfg.pack_dir), "scripts": dir_size(cfg.scripts_dir),
             "backups": dir_size(cfg.backup_dir)}
 

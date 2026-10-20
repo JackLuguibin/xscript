@@ -23,12 +23,12 @@ class User(Base):
     password_hash: Mapped[str] = mapped_column(String(255))
     role: Mapped[str] = mapped_column(String(16), default="viewer")  # viewer | operator | admin
     disabled: Mapped[bool] = mapped_column(Boolean, default=False)
-    created_at: Mapped[int] = mapped_column(Integer, default=now)
-    last_login_at: Mapped[int | None] = mapped_column(Integer, default=None)
+    created_at: Mapped[int] = mapped_column(BigInteger, default=now)
+    last_login_at: Mapped[int | None] = mapped_column(BigInteger, default=None)
     # 两步验证 (TOTP). The secret is pending until totp_enabled; totp_last_step blocks code replay.
     totp_secret: Mapped[str | None] = mapped_column(String(64), default=None)
     totp_enabled: Mapped[bool] = mapped_column(Boolean, default=False)
-    totp_last_step: Mapped[int | None] = mapped_column(Integer, default=None)
+    totp_last_step: Mapped[int | None] = mapped_column(BigInteger, default=None)
 
 
 class DeviceLog(Base):
@@ -59,9 +59,9 @@ class AuthToken(Base):
     token_hash: Mapped[str] = mapped_column(String(64), unique=True)
     kind: Mapped[str] = mapped_column(String(8), default="web")
     name: Mapped[str] = mapped_column(String(64), default="")
-    created_at: Mapped[int] = mapped_column(Integer, default=now)
-    expires_at: Mapped[int | None] = mapped_column(Integer, default=None)
-    last_used_at: Mapped[int | None] = mapped_column(Integer, default=None)
+    created_at: Mapped[int] = mapped_column(BigInteger, default=now)
+    expires_at: Mapped[int | None] = mapped_column(BigInteger, default=None)
+    last_used_at: Mapped[int | None] = mapped_column(BigInteger, default=None)
     ip: Mapped[str] = mapped_column(String(64), default="")
 
 
@@ -74,10 +74,10 @@ class DeviceKey(Base):
     name: Mapped[str] = mapped_column(String(64))
     token_hash: Mapped[str] = mapped_column(String(64), unique=True)
     hint: Mapped[str] = mapped_column(String(16), default="")
-    created_at: Mapped[int] = mapped_column(Integer, default=now)
+    created_at: Mapped[int] = mapped_column(BigInteger, default=now)
     created_by: Mapped[str] = mapped_column(String(64), default="")
     revoked: Mapped[bool] = mapped_column(Boolean, default=False)
-    last_used_at: Mapped[int | None] = mapped_column(Integer, default=None)
+    last_used_at: Mapped[int | None] = mapped_column(BigInteger, default=None)
 
 
 class Device(Base):
@@ -96,11 +96,11 @@ class Device(Base):
     status: Mapped[dict[str, Any]] = mapped_column(JSON, default=dict)
     data: Mapped[dict[str, Any]] = mapped_column(JSON, default=dict)
     remote: Mapped[str] = mapped_column(String(64), default="")
-    key_id: Mapped[int | None] = mapped_column(Integer, default=None)
+    key_id: Mapped[int | None] = mapped_column(BigInteger, default=None)
     # Last finished run reported by the device: {"project", "exit", "time", "crashed", "tail"}.
     last_run: Mapped[dict[str, Any] | None] = mapped_column(JSON, default=None)
-    first_seen: Mapped[int] = mapped_column(Integer, default=now)
-    last_seen: Mapped[int] = mapped_column(Integer, default=now)
+    first_seen: Mapped[int] = mapped_column(BigInteger, default=now)
+    last_seen: Mapped[int] = mapped_column(BigInteger, default=now)
 
 
 class DeviceDay(Base):
@@ -128,7 +128,7 @@ class Task(Base):
     last_run: Mapped[float] = mapped_column(Float, default=0.0)
     last_result: Mapped[dict[str, Any] | None] = mapped_column(JSON, default=None)
     created_by: Mapped[str] = mapped_column(String(64), default="")
-    created_at: Mapped[int] = mapped_column(Integer, default=now)
+    created_at: Mapped[int] = mapped_column(BigInteger, default=now)
 
 
 class Card(Base):
@@ -141,24 +141,24 @@ class Card(Base):
     days: Mapped[float] = mapped_column(Float, default=0.0)  # 0 = permanent
     app: Mapped[str] = mapped_column(String(128), default="*")
     note: Mapped[str] = mapped_column(String(255), default="")
-    created_at: Mapped[int] = mapped_column(Integer, default=now)
+    created_at: Mapped[int] = mapped_column(BigInteger, default=now)
     device: Mapped[str | None] = mapped_column(String(128), default=None, index=True)
     model: Mapped[str | None] = mapped_column(String(128), default=None)
-    activated_at: Mapped[int | None] = mapped_column(Integer, default=None)
-    expires_at: Mapped[int | None] = mapped_column(Integer, default=None)  # 0 = permanent
+    activated_at: Mapped[int | None] = mapped_column(BigInteger, default=None)
+    expires_at: Mapped[int | None] = mapped_column(BigInteger, default=None)  # 0 = permanent
     revoked: Mapped[bool] = mapped_column(Boolean, default=False)
-    last_verified_at: Mapped[int | None] = mapped_column(Integer, default=None)
+    last_verified_at: Mapped[int | None] = mapped_column(BigInteger, default=None)
     # 体验卡 (trial): one per device and app. Normal cards may stack onto a running one (续期叠加).
     kind: Mapped[str] = mapped_column(String(8), default="normal")  # normal | trial | count
     # 多设备卡: how many devices may share the card. `device` is the first one bound; the rest are in `extras`.
-    max_devices: Mapped[int] = mapped_column(Integer, default=1)
+    max_devices: Mapped[int] = mapped_column(BigInteger, default=1)
     stack: Mapped[bool] = mapped_column(Boolean, default=True)
     # 按次卡 (count): each app launch reports one use; the card stops working at 0 uses left.
-    uses_total: Mapped[int] = mapped_column(Integer, default=0)
-    uses_left: Mapped[int] = mapped_column(Integer, default=0)
+    uses_total: Mapped[int] = mapped_column(BigInteger, default=0)
+    uses_left: Mapped[int] = mapped_column(BigInteger, default=0)
     # 代理: the reseller account that generated the card (None = created by staff). Kept when the account
     # is deleted so sales history stays attributable.
-    owner_id: Mapped[int | None] = mapped_column(Integer, default=None, index=True)
+    owner_id: Mapped[int | None] = mapped_column(BigInteger, default=None, index=True)
     extras: Mapped[list["CardDevice"]] = relationship(cascade="all, delete-orphan", lazy="selectin",
                                                        order_by="CardDevice.id")
 
@@ -173,7 +173,7 @@ class CardDevice(Base):
     card: Mapped[str] = mapped_column(ForeignKey("cards.card", ondelete="CASCADE"), index=True)
     device: Mapped[str] = mapped_column(String(128), index=True)
     model: Mapped[str] = mapped_column(String(128), default="")
-    bound_at: Mapped[int] = mapped_column(Integer, default=now)
+    bound_at: Mapped[int] = mapped_column(BigInteger, default=now)
 
 
 class TrialUse(Base):
@@ -186,7 +186,7 @@ class TrialUse(Base):
     device: Mapped[str] = mapped_column(String(128))
     app: Mapped[str] = mapped_column(String(128))
     card: Mapped[str] = mapped_column(String(40), default="")
-    used_at: Mapped[int] = mapped_column(Integer, default=now)
+    used_at: Mapped[int] = mapped_column(BigInteger, default=now)
 
 
 class Announcement(Base):
@@ -200,11 +200,11 @@ class Announcement(Base):
     body: Mapped[str] = mapped_column(Text, default="")
     level: Mapped[str] = mapped_column(String(8), default="info")  # info | warning | urgent
     enabled: Mapped[bool] = mapped_column(Boolean, default=True)
-    starts_at: Mapped[int | None] = mapped_column(Integer, default=None)
-    ends_at: Mapped[int | None] = mapped_column(Integer, default=None)
+    starts_at: Mapped[int | None] = mapped_column(BigInteger, default=None)
+    ends_at: Mapped[int | None] = mapped_column(BigInteger, default=None)
     created_by: Mapped[str] = mapped_column(String(64), default="")
-    created_at: Mapped[int] = mapped_column(Integer, default=now)
-    updated_at: Mapped[int] = mapped_column(Integer, default=now)
+    created_at: Mapped[int] = mapped_column(BigInteger, default=now)
+    updated_at: Mapped[int] = mapped_column(BigInteger, default=now)
 
 
 class AppUpdate(Base):
@@ -213,16 +213,16 @@ class AppUpdate(Base):
     __tablename__ = "app_updates"
 
     app: Mapped[str] = mapped_column(String(128), primary_key=True)
-    latest_code: Mapped[int] = mapped_column(Integer, default=0)
+    latest_code: Mapped[int] = mapped_column(BigInteger, default=0)
     latest_name: Mapped[str] = mapped_column(String(32), default="")
-    min_code: Mapped[int] = mapped_column(Integer, default=0)  # clients below this must update (0 = nobody)
+    min_code: Mapped[int] = mapped_column(BigInteger, default=0)  # clients below this must update (0 = nobody)
     job_id: Mapped[int | None] = mapped_column(ForeignKey("pack_jobs.id", ondelete="SET NULL"), default=None)
     url: Mapped[str] = mapped_column(String(512), default="")  # external download page / file when no job
     sha256: Mapped[str] = mapped_column(String(64), default="")
-    size: Mapped[int] = mapped_column(Integer, default=0)
+    size: Mapped[int] = mapped_column(BigInteger, default=0)
     notes: Mapped[str] = mapped_column(Text, default="")
     updated_by: Mapped[str] = mapped_column(String(64), default="")
-    updated_at: Mapped[int] = mapped_column(Integer, default=now)
+    updated_at: Mapped[int] = mapped_column(BigInteger, default=now)
 
 
 class Reseller(Base):
@@ -232,22 +232,22 @@ class Reseller(Base):
     __tablename__ = "resellers"
 
     user_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), primary_key=True)
-    quota: Mapped[int] = mapped_column(Integer, default=0)
-    used: Mapped[int] = mapped_column(Integer, default=0)
+    quota: Mapped[int] = mapped_column(BigInteger, default=0)
+    used: Mapped[int] = mapped_column(BigInteger, default=0)
     apps: Mapped[list[str]] = mapped_column(JSON, default=list)        # allowed app packages; ["*"] = any
     kinds: Mapped[list[str]] = mapped_column(JSON, default=list)       # normal | trial | count
     max_days: Mapped[float] = mapped_column(Float, default=365.0)      # 0 = permanent cards allowed
-    max_devices: Mapped[int] = mapped_column(Integer, default=1)
-    max_uses: Mapped[int] = mapped_column(Integer, default=1000)       # 按次卡 uses per card
+    max_devices: Mapped[int] = mapped_column(BigInteger, default=1)
+    max_uses: Mapped[int] = mapped_column(BigInteger, default=1000)       # 按次卡 uses per card
     note: Mapped[str] = mapped_column(String(255), default="")
-    created_at: Mapped[int] = mapped_column(Integer, default=now)
+    created_at: Mapped[int] = mapped_column(BigInteger, default=now)
 
 
 class AuditLog(Base):
     __tablename__ = "audit_log"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
-    time: Mapped[int] = mapped_column(Integer, default=now, index=True)
+    time: Mapped[int] = mapped_column(BigInteger, default=now, index=True)
     actor: Mapped[str] = mapped_column(String(64), default="")
     action: Mapped[str] = mapped_column(String(64), index=True)
     target: Mapped[str] = mapped_column(String(255), default="")
@@ -263,15 +263,15 @@ class PackJob(Base):
     app_id: Mapped[str] = mapped_column(String(128))
     app_name: Mapped[str] = mapped_column(String(64), default="")
     version: Mapped[str] = mapped_column(String(32), default="1.0.0")
-    version_code: Mapped[int] = mapped_column(Integer, default=1)
+    version_code: Mapped[int] = mapped_column(BigInteger, default=1)
     project_name: Mapped[str] = mapped_column(String(64), default="")
     options: Mapped[dict[str, Any]] = mapped_column(JSON, default=dict)
     created_by: Mapped[str] = mapped_column(String(64), default="")
-    created_at: Mapped[int] = mapped_column(Integer, default=now)
-    started_at: Mapped[int | None] = mapped_column(Integer, default=None)
-    finished_at: Mapped[int | None] = mapped_column(Integer, default=None)
+    created_at: Mapped[int] = mapped_column(BigInteger, default=now)
+    started_at: Mapped[int | None] = mapped_column(BigInteger, default=None)
+    finished_at: Mapped[int | None] = mapped_column(BigInteger, default=None)
     apk_file: Mapped[str | None] = mapped_column(String(255), default=None)
-    apk_size: Mapped[int | None] = mapped_column(Integer, default=None)
+    apk_size: Mapped[int | None] = mapped_column(BigInteger, default=None)
     error: Mapped[str | None] = mapped_column(Text, default=None)
 
 
@@ -286,10 +286,10 @@ class Script(Base):
     description: Mapped[str] = mapped_column(Text, default="")
     protect: Mapped[bool] = mapped_column(Boolean, default=False)  # ship bytecode only
     channel: Mapped[str] = mapped_column(String(64), unique=True)
-    current_version_id: Mapped[int | None] = mapped_column(Integer, default=None)
+    current_version_id: Mapped[int | None] = mapped_column(BigInteger, default=None)
     created_by: Mapped[str] = mapped_column(String(64), default="")
-    created_at: Mapped[int] = mapped_column(Integer, default=now)
-    updated_at: Mapped[int] = mapped_column(Integer, default=now)
+    created_at: Mapped[int] = mapped_column(BigInteger, default=now)
+    updated_at: Mapped[int] = mapped_column(BigInteger, default=now)
 
 
 class ScriptVersion(Base):
@@ -299,14 +299,14 @@ class ScriptVersion(Base):
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
     script_id: Mapped[int] = mapped_column(ForeignKey("scripts.id", ondelete="CASCADE"), index=True)
     version: Mapped[str] = mapped_column(String(32))
-    version_code: Mapped[int] = mapped_column(Integer)
+    version_code: Mapped[int] = mapped_column(BigInteger)
     notes: Mapped[str] = mapped_column(Text, default="")
     sha256: Mapped[str] = mapped_column(String(64))  # of the stored source zip
-    size: Mapped[int] = mapped_column(Integer, default=0)
-    files: Mapped[int] = mapped_column(Integer, default=0)
-    downloads: Mapped[int] = mapped_column(Integer, default=0)  # 热更新 bundle fetches
+    size: Mapped[int] = mapped_column(BigInteger, default=0)
+    files: Mapped[int] = mapped_column(BigInteger, default=0)
+    downloads: Mapped[int] = mapped_column(BigInteger, default=0)  # 热更新 bundle fetches
     created_by: Mapped[str] = mapped_column(String(64), default="")
-    created_at: Mapped[int] = mapped_column(Integer, default=now)
+    created_at: Mapped[int] = mapped_column(BigInteger, default=now)
 
 
 class ShareLink(Base):
@@ -318,9 +318,9 @@ class ShareLink(Base):
     job_id: Mapped[int] = mapped_column(ForeignKey("pack_jobs.id", ondelete="CASCADE"), index=True)
     token: Mapped[str] = mapped_column(String(64), unique=True)
     created_by: Mapped[str] = mapped_column(String(64), default="")
-    created_at: Mapped[int] = mapped_column(Integer, default=now)
-    expires_at: Mapped[int | None] = mapped_column(Integer, default=None)
-    downloads: Mapped[int] = mapped_column(Integer, default=0)
+    created_at: Mapped[int] = mapped_column(BigInteger, default=now)
+    expires_at: Mapped[int | None] = mapped_column(BigInteger, default=None)
+    downloads: Mapped[int] = mapped_column(BigInteger, default=0)
     disabled: Mapped[bool] = mapped_column(Boolean, default=False)
 
 
@@ -361,4 +361,4 @@ class DeviceBan(Base):
     device: Mapped[str] = mapped_column(String(128), primary_key=True)
     reason: Mapped[str] = mapped_column(String(200), default="")
     created_by: Mapped[str] = mapped_column(String(64), default="")
-    created_at: Mapped[int] = mapped_column(Integer, default=now)
+    created_at: Mapped[int] = mapped_column(BigInteger, default=now)

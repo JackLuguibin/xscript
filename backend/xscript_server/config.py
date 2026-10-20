@@ -27,6 +27,8 @@ class Config:
     key_alias: str = "key0"
     store_pass: str = ""
     key_pass: str = ""
+    # XSCRIPT_DATABASE_URL: PostgreSQL (postgresql://user:pass@host:5432/db). "" = SQLite in the data dir.
+    database_url: str = ""
 
     @classmethod
     def load(cls, data_dir: str | os.PathLike | None = None, web_dir: str | None = None) -> "Config":
@@ -42,11 +44,18 @@ class Config:
             key_alias=os.environ.get("XSCRIPT_KEY_ALIAS", "key0"),
             store_pass=os.environ.get("XSCRIPT_STORE_PASS", ""),
             key_pass=os.environ.get("XSCRIPT_KEY_PASS", ""),
+            database_url=os.environ.get("XSCRIPT_DATABASE_URL", "").strip(),
         )
 
     @property
     def db_path(self) -> Path:
+        """The SQLite file (only used when database_url is empty)."""
         return self.data_dir / "xscript.db"
+
+    @property
+    def db_url(self) -> str:
+        """What Database() opens: the PostgreSQL URL, else the SQLite file path."""
+        return self.database_url or str(self.db_path)
 
     @property
     def key_path(self) -> Path:

@@ -13,9 +13,9 @@ from dataclasses import dataclass, field
 from typing import Any
 
 from sqlalchemy import delete, select
-from sqlalchemy.dialects.sqlite import insert as sqlite_insert
 from sqlalchemy.orm import Session
 
+from .db import dialect_insert
 from .models import AbuseEvent, AbuseReport
 
 WINDOW_S = 24 * 3600
@@ -120,10 +120,10 @@ class AbuseMonitor:
     def _persist(self, s: Session, writes: list, now: float) -> None:
         for kind, signal, subject, member, ts in writes:
             if kind == "event":
-                stmt = sqlite_insert(AbuseEvent).values(signal=signal, subject=subject, member=member, ts=ts)
+                stmt = dialect_insert(s, AbuseEvent).values(signal=signal, subject=subject, member=member, ts=ts)
                 s.execute(stmt.on_conflict_do_update(index_elements=["signal", "subject", "member"], set_={"ts": ts}))
             else:
-                stmt = sqlite_insert(AbuseReport).values(signal=signal, subject=subject, ts=ts)
+                stmt = dialect_insert(s, AbuseReport).values(signal=signal, subject=subject, ts=ts)
                 s.execute(stmt.on_conflict_do_update(index_elements=["signal", "subject"], set_={"ts": ts}))
         if now - self._last_prune > 600:  # keep the tables to the 24 h window
             self._last_prune = now
