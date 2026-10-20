@@ -45,6 +45,7 @@ class Context:
     # Public endpoints (/pub/*): 热更新 checks, bundles, share pages and APKs, per client IP.
     pub_limiter: Any = None
     apk_limiter: Any = None
+    ai_limiter: Any = None  # 后台 AI 写脚本, per user
 
 
 @dataclass

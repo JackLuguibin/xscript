@@ -29,3 +29,6 @@ xscript-server = "xscript_server.__main__:main"
 
 [tool.setuptools.packages.find]
 include = ["xscript_server*"]
+
+[tool.setuptools.package-data]
+xscript_server = ["api_catalog.json"]  # API list for 后台 AI 写脚本 (copy of ide/mcp-server's)

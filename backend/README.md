@@ -72,6 +72,15 @@ PYTHONPATH=backend .venv/bin/python -m unittest discover -s backend/tests
 - 所有代理操作都写入操作日志（`detail.reseller = true`）；代理在 `/api/reseller/audit` 只能看到自己的操作和管理员对自己额度、限制的调整。修改账号角色会立即注销它的所有会话和令牌。
 - 控制台：管理员在「代理」页看每个代理的额度用量、各状态卡数和近 30 天激活，充值 / 扣回额度、修改限制、打开销量趋势，或跳到按该代理筛选的卡密列表（卡密列表也多了「来源」列和筛选）。代理登录后只有「我的概览」（额度、发卡范围、销量趋势）、「我的卡密」（生成窗口只给出允许的应用、类型和范围，额度用完时禁用）和「操作记录」三页；管理员备注不会返回给代理。
 
+### AI 写脚本
+
+在后台描述任务，由大模型生成小程序入口 `__init__.py`，检查语法后保存为小程序的新版本，再用现有的「下发」装到设备上测试。
+
+- **模型配置**和设备脚本的 `ai.config` 是同一套：服务器环境变量 `XSCRIPT_AI_BASE_URL`（含 `/v1` 之类的前缀）、`XSCRIPT_AI_MODEL`、`XSCRIPT_AI_KEY`，任何 OpenAI 兼容接口都可以（`{base_url}/chat/completions`，本地模型可以不设密钥）。系统设置里可以覆盖接口地址和模型；**密钥只从环境变量读取**，不存数据库、不写日志、不在任何接口里返回（`GET /api/ai/status` 只给出 `key_set`）。不跟随重定向，避免密钥被转发。
+- `POST /api/ai/script`（操作员）：`{prompt, code?}`，带上 `code` 就是在现有代码上修改。系统提示里附带 API 目录（`xscript_server/api_catalog.json`，和 MCP 的 `api_catalog.json` 是同一份，测试会检查两份一致），返回 `{code, notes, syntax_error, model, usage, ms}`。只做语法检查，服务器不运行生成的代码。每人每 10 分钟最多 20 次。
+- `GET /api/ai/source/{小程序}/{版本}` 读出某个版本的 `__init__.py`；`POST /api/ai/save`（操作员；`publish` 需要管理员）把代码保存为下一个版本，给出 `base_version_id` 时保留该版本的其他文件（资源、`requirements.txt`），有语法错误时拒绝保存。
+- 操作日志记录 `ai.script`（模型、需求字数、是否成功、token 用量，不记需求原文）和带 `ai: true` 的 `script.version`。
+
 ## 部署与安全
 
 生产部署推荐用 Docker（后台 + Caddy 自动 HTTPS），见 [docs/部署.md](../docs/部署.md)。

@@ -10,6 +10,12 @@ class CatalogTest(unittest.TestCase):
     def setUpClass(cls):
         cls.catalog = json.loads(CATALOG.read_text(encoding="utf-8"))
 
+    def test_backend_copy_in_sync(self):
+        # 后台 AI 写脚本 grounds the model on a copy shipped inside the server package.
+        backend = CATALOG.parents[3] / "backend" / "xscript_server" / "api_catalog.json"
+        self.assertEqual(backend.read_bytes(), CATALOG.read_bytes(),
+                         "copy ide/mcp-server/xscript_mcp/api_catalog.json to backend/xscript_server/")
+
     def test_modules_well_formed(self):
         names = [m["name"] for m in self.catalog["modules"]]
         self.assertEqual(len(names), len(set(names)))
