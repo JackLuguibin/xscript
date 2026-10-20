@@ -14,7 +14,7 @@
 #                                            xscript-vX.Y.Z-release-arm64-v8a.apk (phones only, about half the size),
 #                                            xscript-vscode-X.Y.Z.vsix, SHA256SUMS covering all of them. Each APK is verified
 #                                            (verify-apk) before it is accepted.
-#   scripts/release.sh verify-apk <apk> [version]   signature valid, signer cert == the known release cert, versionName (and
+#   scripts/release.sh verify-apk <apk> [version] [package]   signature valid, signer cert == the known release cert, versionName (and
 #                                            16 KB readiness via check_16kb.py). Cert: $XSCRIPT_EXPECT_CERT_SHA256 or the default below.
 #   scripts/release.sh notes [vX.Y.Z]        prints the CHANGELOG section (the Release notes)
 #   scripts/release.sh publish [--yes]       LOCAL FALLBACK (CI normally does this): tag vX.Y.Z on the pushed HEAD and
@@ -43,8 +43,8 @@ sdk_tool() { # newest build-tools binary: sdk_tool apksigner | aapt2 | zipalign
   [ -n "$f" ] || { echo "release: $1 not found under $sdk/build-tools (set ANDROID_HOME)" >&2; return 1; }
   echo "$f"
 }
-verify_apk() { # verify_apk <apk> [expected versionName]
-  local apk="$1" want="${2:-}" signer out fp name
+verify_apk() { # verify_apk <apk> [expected versionName] [expected package]
+  local apk="$1" want="${2:-}" want_pkg="${3:-}" signer out fp name pkg
   [ -f "$apk" ] || { echo "release: no such APK: $apk" >&2; return 1; }
   signer="$(sdk_tool apksigner)"
   out="$("$signer" verify --print-certs "$apk")" || { echo "release: apksigner verify failed (unsigned or tampered APK?)" >&2; return 1; }
@@ -56,6 +56,10 @@ verify_apk() { # verify_apk <apk> [expected versionName]
   if [ -n "$want" ]; then
     name="$("$(sdk_tool aapt2)" dump badging "$apk" | sed -n "s/^package: .* versionName='\([^']*\)'.*/\1/p" | head -1)"
     [ "$name" = "$want" ] || { echo "release: APK versionName '$name' != '$want'" >&2; return 1; }
+  fi
+  if [ -n "$want_pkg" ]; then
+    pkg="$("$(sdk_tool aapt2)" dump badging "$apk" | sed -n "s/^package: name='\([^']*\)'.*/\1/p" | head -1)"
+    [ "$pkg" = "$want_pkg" ] || { echo "release: APK package '$pkg' != '$want_pkg'" >&2; return 1; }
   fi
   python3 scripts/check_16kb.py "$apk" >/dev/null || { echo "release: APK is not 16 KB ready (scripts/check_16kb.py)" >&2; return 1; }
   echo "apk ok: signed by the release certificate ($fp)${want:+, versionName $want}, 16 KB ready"
@@ -139,7 +143,7 @@ build)
   echo "built $DIST/"
   ;;
 verify-apk)
-  verify_apk "${1:?usage: $0 verify-apk <apk> [version]}" "${2:-}"
+  verify_apk "${1:?usage: $0 verify-apk <apk> [version] [package]}" "${2:-}" "${3:-}"
   ;;
 notes)
   TAG="${1:-v$(app_version)}"
