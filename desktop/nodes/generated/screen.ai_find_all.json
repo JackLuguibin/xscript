@@ -1,0 +1,64 @@
+{
+  "type": "screen.ai_find_all",
+  "category": "screen",
+  "title": {
+    "zh": "screen.ai_find_all",
+    "en": "screen.ai_find_all"
+  },
+  "doc": {
+    "zh": "ai_find_all",
+    "en": "ai_find_all"
+  },
+  "exec": {
+    "in": [
+      "exec"
+    ],
+    "out": [
+      "then"
+    ]
+  },
+  "inputs": [
+    {
+      "name": "target",
+      "type": "any"
+    },
+    {
+      "name": "rect",
+      "type": "any",
+      "default": null
+    },
+    {
+      "name": "image",
+      "type": "any",
+      "default": null
+    },
+    {
+      "name": "limit",
+      "type": "any",
+      "default": 5
+    },
+    {
+      "name": "confidence",
+      "type": "any",
+      "default": 0.0
+    }
+  ],
+  "outputs": [
+    {
+      "name": "result",
+      "type": "any"
+    }
+  ],
+  "py": {
+    "imports": [
+      "from xscript.android import screen"
+    ],
+    "stmt": "{id} = screen.ai_find_all({target}, rect={rect}, image={image}, limit={limit}, confidence={confidence})"
+  },
+  "dsl": {
+    "alias": "screen.ai_find_all"
+  },
+  "since": "0.2.6",
+  "origin": "xscript.android.screen.ai_find_all",
+  "availability": "ok"
+}

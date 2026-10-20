@@ -1,0 +1,59 @@
+{
+  "type": "ai.exists",
+  "category": "ai",
+  "title": {
+    "zh": "ai.exists",
+    "en": "ai.exists"
+  },
+  "doc": {
+    "zh": "exists",
+    "en": "exists"
+  },
+  "exec": {
+    "in": [
+      "exec"
+    ],
+    "out": [
+      "then"
+    ]
+  },
+  "inputs": [
+    {
+      "name": "target",
+      "type": "any"
+    },
+    {
+      "name": "rect",
+      "type": "any",
+      "default": null
+    },
+    {
+      "name": "image",
+      "type": "any",
+      "default": null
+    },
+    {
+      "name": "confidence",
+      "type": "any",
+      "default": 0.0
+    }
+  ],
+  "outputs": [
+    {
+      "name": "result",
+      "type": "any"
+    }
+  ],
+  "py": {
+    "imports": [
+      "from xscript.android import ai"
+    ],
+    "stmt": "{id} = ai.exists({target}, rect={rect}, image={image}, confidence={confidence})"
+  },
+  "dsl": {
+    "alias": "ai.exists"
+  },
+  "since": "0.2.6",
+  "origin": "xscript.android.ai.exists",
+  "availability": "ok"
+}

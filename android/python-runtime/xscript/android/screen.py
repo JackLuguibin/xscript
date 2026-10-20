@@ -1,4 +1,4 @@
-"""Screen capture, color and image search, OCR.
+"""Screen capture, color and image search, OCR, AI vision.
 
     from xscript.android import screen
     screen.capture()                                  # PNG path on device
@@ -155,3 +155,25 @@ def detect(model, rect=None, conf=0.25, iou=0.45, image=None, classes=None):
 def imread(path):
     """cv2.imread that handles non-ASCII paths."""
     return _img.imread(path)
+
+
+def ai_find(target, rect=None, image=None, confidence=0.0):
+    """Locate an element described in words via ai.config()'s endpoint; dict or None."""
+    from xscript.android import ai
+    return ai.find(target, rect, image, confidence)
+
+
+def ai_find_all(target, rect=None, image=None, limit=5, confidence=0.0):
+    from xscript.android import ai
+    return ai.find_all(target, rect, image, limit, confidence)
+
+
+def ai_ask(question, rect=None, image=None):
+    """Ask a vision model a question about the screen; returns text."""
+    from xscript.android import ai
+    return ai.ask(question, rect, image)
+
+
+def ai_click(target, timeout=0, rect=None):
+    from xscript.android import ai
+    return ai.click(target, timeout, rect)

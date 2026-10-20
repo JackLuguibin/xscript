@@ -1,0 +1,60 @@
+{
+  "type": "ai.click",
+  "category": "ai",
+  "title": {
+    "zh": "ai.click",
+    "en": "ai.click"
+  },
+  "doc": {
+    "zh": "click",
+    "en": "click"
+  },
+  "exec": {
+    "in": [
+      "exec"
+    ],
+    "out": [
+      "then"
+    ]
+  },
+  "inputs": [
+    {
+      "name": "target",
+      "type": "any"
+    },
+    {
+      "name": "timeout",
+      "type": "any",
+      "default": 0
+    },
+    {
+      "name": "rect",
+      "type": "any",
+      "default": null
+    },
+    {
+      "name": "confidence",
+      "type": "any",
+      "default": 0.0
+    }
+  ],
+  "outputs": [
+    {
+      "name": "result",
+      "type": "any"
+    }
+  ],
+  "py": {
+    "imports": [
+      "from xscript.android import ai"
+    ],
+    "stmt": "{id} = ai.click({target}, timeout={timeout}, rect={rect}, confidence={confidence})"
+  },
+  "dsl": {
+    "alias": "ai.click"
+  },
+  "since": "0.2.6",
+  "origin": "xscript.android.ai.click",
+  "availability": "ok",
+  "latent": true
+}

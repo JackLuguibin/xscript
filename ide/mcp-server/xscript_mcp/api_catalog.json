@@ -315,6 +315,72 @@
           "name": "detect",
           "signature": "detect(model, rect=None, conf=0.25, iou=0.45, image=None, classes=None) -> list[Detection]",
           "doc": "YOLO detections on the screen; model is an .onnx path or a yolo.Yolo."
+        },
+        {
+          "name": "ai_find",
+          "signature": "ai_find(target, rect=None, image=None, confidence=0.0) -> dict | None",
+          "doc": "Locate an element described in words with the vision model set by ai.config(); OCR-style dict."
+        },
+        {
+          "name": "ai_find_all",
+          "signature": "ai_find_all(target, rect=None, image=None, limit=5, confidence=0.0) -> list[dict]",
+          "doc": "All matches for a description."
+        },
+        {
+          "name": "ai_ask",
+          "signature": "ai_ask(question, rect=None, image=None) -> str",
+          "doc": "Ask the vision model about the screen; returns text."
+        },
+        {
+          "name": "ai_click",
+          "signature": "ai_click(target, timeout=0, rect=None) -> bool",
+          "doc": "ai_find then tap the center."
+        }
+      ]
+    },
+    {
+      "name": "xscript.android.ai",
+      "description": "Natural-language screen vision on any OpenAI-compatible /chat/completions endpoint (Qwen-VL, GPT-4o, local vLLM/Ollama). Bring your own key: config() or XSCRIPT_AI_BASE_URL / XSCRIPT_AI_KEY / XSCRIPT_AI_MODEL.",
+      "functions": [
+        {
+          "name": "config",
+          "signature": "config(base_url=None, api_key=None, model=None, timeout=60, coords='pixel', image_tokens=1024, json_mode=False, headers=None)",
+          "doc": "Select the endpoint; coords is pixel, norm1000, ratio or auto."
+        },
+        {
+          "name": "status",
+          "signature": "status() -> dict",
+          "doc": "configured/base_url/model/coords; never the key."
+        },
+        {
+          "name": "find",
+          "signature": "find(target, rect=None, image=None, confidence=0.0) -> dict | None",
+          "doc": "Best match: text, rect, center_x, center_y, confidence."
+        },
+        {
+          "name": "find_all",
+          "signature": "find_all(target, rect=None, image=None, limit=5, confidence=0.0) -> list[dict]",
+          "doc": "All matches."
+        },
+        {
+          "name": "ask",
+          "signature": "ask(question, rect=None, image=None, system=None) -> str",
+          "doc": "Free-text answer."
+        },
+        {
+          "name": "exists",
+          "signature": "exists(target, rect=None, image=None, confidence=0.0) -> bool",
+          "doc": ""
+        },
+        {
+          "name": "wait",
+          "signature": "wait(target, timeout=30, interval=1.0, rect=None, confidence=0.0) -> dict | None",
+          "doc": "Poll until found."
+        },
+        {
+          "name": "click",
+          "signature": "click(target, timeout=0, rect=None, confidence=0.0) -> bool",
+          "doc": "Find then tap the center."
         }
       ]
     },

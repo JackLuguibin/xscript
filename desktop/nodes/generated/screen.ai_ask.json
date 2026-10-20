@@ -1,0 +1,54 @@
+{
+  "type": "screen.ai_ask",
+  "category": "screen",
+  "title": {
+    "zh": "screen.ai_ask",
+    "en": "screen.ai_ask"
+  },
+  "doc": {
+    "zh": "Ask a vision model a question about the screen; returns text.",
+    "en": "Ask a vision model a question about the screen; returns text."
+  },
+  "exec": {
+    "in": [
+      "exec"
+    ],
+    "out": [
+      "then"
+    ]
+  },
+  "inputs": [
+    {
+      "name": "question",
+      "type": "any"
+    },
+    {
+      "name": "rect",
+      "type": "any",
+      "default": null
+    },
+    {
+      "name": "image",
+      "type": "any",
+      "default": null
+    }
+  ],
+  "outputs": [
+    {
+      "name": "result",
+      "type": "any"
+    }
+  ],
+  "py": {
+    "imports": [
+      "from xscript.android import screen"
+    ],
+    "stmt": "{id} = screen.ai_ask({question}, rect={rect}, image={image})"
+  },
+  "dsl": {
+    "alias": "screen.ai_ask"
+  },
+  "since": "0.2.6",
+  "origin": "xscript.android.screen.ai_ask",
+  "availability": "ok"
+}

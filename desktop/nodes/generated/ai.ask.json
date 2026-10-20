@@ -1,0 +1,59 @@
+{
+  "type": "ai.ask",
+  "category": "ai",
+  "title": {
+    "zh": "ai.ask",
+    "en": "ai.ask"
+  },
+  "doc": {
+    "zh": "Free-text answer about the screen (or rect / image).",
+    "en": "Free-text answer about the screen (or rect / image)."
+  },
+  "exec": {
+    "in": [
+      "exec"
+    ],
+    "out": [
+      "then"
+    ]
+  },
+  "inputs": [
+    {
+      "name": "question",
+      "type": "any"
+    },
+    {
+      "name": "rect",
+      "type": "any",
+      "default": null
+    },
+    {
+      "name": "image",
+      "type": "any",
+      "default": null
+    },
+    {
+      "name": "system",
+      "type": "any",
+      "default": null
+    }
+  ],
+  "outputs": [
+    {
+      "name": "result",
+      "type": "any"
+    }
+  ],
+  "py": {
+    "imports": [
+      "from xscript.android import ai"
+    ],
+    "stmt": "{id} = ai.ask({question}, rect={rect}, image={image}, system={system})"
+  },
+  "dsl": {
+    "alias": "ai.ask"
+  },
+  "since": "0.2.6",
+  "origin": "xscript.android.ai.ask",
+  "availability": "ok"
+}

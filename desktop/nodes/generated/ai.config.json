@@ -1,0 +1,81 @@
+{
+  "type": "ai.config",
+  "category": "ai",
+  "title": {
+    "zh": "ai.config",
+    "en": "ai.config"
+  },
+  "doc": {
+    "zh": "Select the endpoint. base_url includes the API prefix, e.g. http://host:8000/v1.",
+    "en": "Select the endpoint. base_url includes the API prefix, e.g. http://host:8000/v1."
+  },
+  "exec": {
+    "in": [
+      "exec"
+    ],
+    "out": [
+      "then"
+    ]
+  },
+  "inputs": [
+    {
+      "name": "base_url",
+      "type": "any",
+      "default": null
+    },
+    {
+      "name": "api_key",
+      "type": "any",
+      "default": null
+    },
+    {
+      "name": "model",
+      "type": "any",
+      "default": null
+    },
+    {
+      "name": "timeout",
+      "type": "any",
+      "default": 60
+    },
+    {
+      "name": "coords",
+      "type": "any",
+      "default": "pixel"
+    },
+    {
+      "name": "image_tokens",
+      "type": "any",
+      "default": 1024
+    },
+    {
+      "name": "json_mode",
+      "type": "any",
+      "default": false
+    },
+    {
+      "name": "headers",
+      "type": "any",
+      "default": null
+    }
+  ],
+  "outputs": [
+    {
+      "name": "result",
+      "type": "any"
+    }
+  ],
+  "py": {
+    "imports": [
+      "from xscript.android import ai"
+    ],
+    "stmt": "{id} = ai.config({base_url}, api_key={api_key}, model={model}, timeout={timeout}, coords={coords}, image_tokens={image_tokens}, json_mode={json_mode}, headers={headers})"
+  },
+  "dsl": {
+    "alias": "ai.config"
+  },
+  "since": "0.2.6",
+  "origin": "xscript.android.ai.config",
+  "availability": "ok",
+  "latent": true
+}
