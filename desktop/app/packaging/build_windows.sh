@@ -29,4 +29,7 @@ MSYS2_ARG_CONV_EXCL='*' "$ISCC" /Qp "/DAppVersion=$VERSION" "/DSourceDir=$(cygpa
   "$(cygpath -w "$APP_DIR/packaging/xscript.iss")"
 SETUP=dist/xscript-desktop-v$VERSION-windows-x64-setup.exe
 [ -f "$SETUP" ] || { echo "ISCC did not produce $SETUP" >&2; exit 1; }
+# Code signing (P5.3): there is no certificate, so nothing is signed. With one, sign dist/XScript/XScript.exe before ISCC
+# runs and the setup.exe after it (signtool sign /fd sha256 /tr <timestamp-url> /td sha256 ...), with the certificate
+# from GitHub Secrets only; check_windows_install.sh would then also run `signtool verify /pa`.
 echo "built $APP_DIR/$SETUP"
