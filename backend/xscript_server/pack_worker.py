@@ -22,6 +22,7 @@ import socket
 import subprocess
 import sys
 import tempfile
+import threading
 import time
 import urllib.error
 import urllib.request
@@ -99,6 +100,15 @@ class Worker:
         self.api, self.work_dir, self.pack_script, self.python = api, work_dir, pack_script, python
         self.signing, self.beat_s, self.say = signing, beat_s, log
         self.stopping = False
+        self._wake = threading.Event()
+
+    def stop(self) -> None:
+        """SIGTERM: finish now (a running build is stopped and reported failed)."""
+        self.stopping = True
+        self._wake.set()
+
+    def _sleep(self, seconds: float) -> None:
+        self._wake.wait(seconds)  # returns at once on stop()
 
     def capabilities(self) -> dict[str, Any]:
         return {"release": self.signing is not None, "version": __version__, "host": socket.gethostname()[:64]}
@@ -119,7 +129,7 @@ class Worker:
                 return 2
             except OSError as e:
                 self.say("连不上服务器（%s），%d 秒后重试" % (e, backoff))
-                time.sleep(backoff)
+                self._sleep(backoff)
                 backoff = min(backoff * 2, 60)
                 continue
             job = (reply or {}).get("job") if status == 200 else None
@@ -132,7 +142,7 @@ class Worker:
                 self.say("服务器是本机打包模式（XSCRIPT_PACK_MODE 不是 remote），先等着")
             if max_wait is not None and time.monotonic() - started > max_wait:
                 return 1
-            time.sleep(float((reply or {}).get("poll_s") or 5) if status == 200 else 5)
+            self._sleep(float((reply or {}).get("poll_s") or 5) if status == 200 else 5)
         return 0
 
     # ------------------------------------------------------------ one job
@@ -275,10 +285,7 @@ def main(server: str, work_dir: str, once: bool = False, max_wait: float | None 
     signing = (cfg.keystore, cfg.key_alias, cfg.store_pass, cfg.key_pass) if cfg.release_signing else None
     w = Worker(Api(server, token), Path(work_dir).expanduser().resolve(), script, signing=signing, beat_s=beat_s)
 
-    def stop(*_):
-        w.stopping = True
-
-    signal.signal(signal.SIGTERM, stop)
+    signal.signal(signal.SIGTERM, lambda *_: w.stop())
     try:
         return w.run(once=once, max_wait=max_wait)
     except KeyboardInterrupt:

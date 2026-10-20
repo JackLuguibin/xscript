@@ -34,6 +34,7 @@ import { useAuth } from "../auth";
 import { CopyText, JobStatusTag, PageHeader, usePageVisible } from "../components";
 import { fmtAgo, fmtDuration, fmtSize, fmtTime } from "../format";
 import { PackForm, type PackInfo } from "./pack/PackForm";
+import { WorkersCard } from "./pack/Workers";
 
 export default function PackPage() {
   const { can } = useAuth();
@@ -61,7 +62,10 @@ export default function PackPage() {
     <>
       <PageHeader
         title="APK 打包"
-        desc="把工程构建成独立 App，可内嵌卡密授权、云控连接、热更新和代码保护。构建在服务器上进行，一次一个。"
+        desc={
+          "把工程构建成独立 App，可内嵌卡密授权、云控连接、热更新和代码保护。" +
+          (info.data?.mode === "remote" ? "构建交给打包机，空闲的打包机按顺序领取。" : "构建在服务器上进行，一次一个。")
+        }
         extra={
           <span className="queue-chip">
             <span className={"dot" + (running ? " on" : "")} />
@@ -88,6 +92,7 @@ export default function PackPage() {
             onLog={setLogJob}
             onShare={setShareJob}
           />
+          {can("admin") && <WorkersCard mode={info.data?.mode} publicUrl={info.data?.public_url} />}
         </Col>
       </Row>
       <LogDrawer job={logJob} onClose={() => setLogJob(null)} />
@@ -159,9 +164,16 @@ function JobList({
                     </span>
                     <JobStatusTag status={j.status} />
                     {j.queue_position ? <span className="muted">第 {j.queue_position} 位</span> : null}
+                    {j.status === "running" && j.cancel_requested ? <span className="muted">正在取消…</span> : null}
                   </div>
                   <div className="mono muted job-sub">
                     #{j.id} · {j.app_id}
+                    {j.worker_name ? (
+                      <span className="job-worker">
+                        {" · "}打包机 {j.worker_name}
+                        {(j.attempts ?? 0) > 1 ? `（第 ${j.attempts} 次）` : ""}
+                      </span>
+                    ) : null}
                   </div>
                   {tags.length > 0 && (
                     <div className="job-tags">

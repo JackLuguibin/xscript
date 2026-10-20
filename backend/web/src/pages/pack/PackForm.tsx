@@ -36,6 +36,8 @@ export interface PackInfo {
   reason: string;
   release_signing: boolean;
   public_url: string;
+  /** local: built on this server; remote: claimed by 打包机. */
+  mode?: "local" | "remote";
 }
 
 /** Selectable tile for an on/off build feature (used as a Form.Item child with valuePropName="checked"). */
@@ -437,7 +439,17 @@ export function PackForm({
                       name="release"
                       valuePropName="checked"
                       label={
-                        <Tooltip title={info?.release_signing ? "使用服务器配置的签名证书" : "服务器未配置 XSCRIPT_KEYSTORE"}>
+                        <Tooltip
+                          title={
+                            info?.mode === "remote"
+                              ? info.release_signing
+                                ? "交给配置了签名证书的打包机构建"
+                                : "没有打包机配置 XSCRIPT_KEYSTORE"
+                              : info?.release_signing
+                                ? "使用服务器配置的签名证书"
+                                : "服务器未配置 XSCRIPT_KEYSTORE"
+                          }
+                        >
                           <span>正式签名</span>
                         </Tooltip>
                       }

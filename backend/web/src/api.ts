@@ -307,6 +307,28 @@ export interface PackJob {
   error: string | null;
   has_apk: boolean;
   queue_position: number | null;
+  /** 打包机 that claimed it (remote mode); "" when built on the server. */
+  worker_name?: string;
+  attempts?: number;
+  cancel_requested?: boolean;
+}
+
+/** A separate packaging machine (XSCRIPT_PACK_MODE=remote). The token is only returned on create. */
+export interface PackWorker {
+  id: number;
+  name: string;
+  hint: string;
+  created_at: number;
+  created_by: string;
+  disabled: boolean;
+  last_seen_at: number | null;
+  last_ip: string;
+  online: boolean;
+  release: boolean;
+  version: string;
+  host: string;
+  job_id: number | null;
+  token?: string;
 }
 
 export interface AuditEntry {

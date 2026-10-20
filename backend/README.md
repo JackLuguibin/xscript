@@ -65,7 +65,7 @@ python -m xscript_server pack-worker --server https://xscript.example.com [--wor
 - 只能操作自己领到、仍在运行的任务，否则返回 409（已取消、已转给别人或已删除），打包机随即停止构建。
 - 租约：90 秒没有心跳视为失联，任务重新排队一次（第二次失联则失败）；服务器重启不影响打包机上正在跑的任务。
 - 需要正式签名（`release`）的任务只分给上报了证书的打包机；没有这样的打包机时，后台不允许提交正式签名任务。
-- 管理（仅管理员）：`GET/POST /api/pack/workers`、`POST /api/pack/workers/{id}/disable|enable`、`DELETE /api/pack/workers/{id}`（先停用）。添加、停用、领取、失联重排都写操作日志。
+- 管理（仅管理员，后台「APK 打包」页的「打包机」卡片）：`GET/POST /api/pack/workers`、`POST /api/pack/workers/{id}/disable|enable`、`DELETE /api/pack/workers/{id}`（先停用）。添加、停用、领取、失联重排都写操作日志。
 
 ### PostgreSQL（可选）
 
