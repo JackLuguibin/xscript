@@ -61,6 +61,21 @@ export function cloudDemoHandlers(): Record<string, Handler> {
       const pageSize = Number(p.pageSize ?? 50);
       return { items: rows.slice((page - 1) * pageSize, page * pageSize), total: rows.length, page, pageSize };
     },
+    "cloud.command": (p) => {
+      needConn();
+      if (role === "viewer") fail("backend.forbidden", "当前账号没有权限：权限不足");
+      const ids = [...new Set((p.ids as string[]) ?? [])];
+      if (!ids.length) fail("backend.bad_request", "先在设备表里勾选设备");
+      if (p.action === "run" && !String(p.project ?? "").trim()) fail("backend.bad_request", "填写要运行的工程名");
+      const rows = ids.map((id) => {
+        const d = devices.find((x) => x.id === id);
+        if (!d?.online) return { id, ok: false, offline: true, msg: "离线，未下发" };
+        d.running = p.action === "run";
+        d.project = d.running ? String(p.project) : null;
+        return { id, ok: true, offline: false, msg: p.action === "run" ? "已启动" : "已停止" };
+      });
+      return { rows, ok: rows.filter((r) => r.ok).length, total: rows.length };
+    },
     "cloud.groups": () => {
       needConn();
       const names = [...new Set(devices.map((d) => d.group as string))].sort();

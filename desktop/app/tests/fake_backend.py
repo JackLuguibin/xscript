@@ -39,6 +39,7 @@ class FakeBackend:
             {"name": g, "total": sum(d["group"] == g for d in self.devices),
              "online": sum(d["group"] == g and d["online"] for d in self.devices)} for g in sorted({d["group"] for d in self.devices})]})
         self.route("GET", r"/apps", "viewer", lambda req, user, m: {"items": sorted({d["app"] for d in self.devices})})
+        self.route("POST", r"/command", "operator", self._command)
         self.route("GET", r"/auth/me", "viewer", lambda req, user, m: {"id": 1, "username": user[0], "role": user[1], "disabled": False})
 
     def _devices(self, req: httpx.Request, user: Any, m: Any) -> dict[str, Any]:
@@ -49,6 +50,17 @@ class FakeBackend:
                 and (qp.get("online") is None or d["online"] == (qp["online"] == "true"))]
         page, size = int(qp.get("page", 1)), int(qp.get("page_size", 50))
         return {"items": rows[(page - 1) * size: page * size], "total": len(rows)}
+
+    def _command(self, req: httpx.Request, user: Any, m: Any) -> dict[str, Any]:
+        body = json.loads(req.content)
+        ids = body["target"].split(",")
+        live = {d["id"]: d for d in self.devices if d["online"]}
+        res = {}
+        for i in ids:
+            if i in live:
+                ok = body["command"]["path"] == "app_stop" or body["command"].get("id") != "missing"
+                res[i] = {"code": 1 if ok else -1, "msg": "ok" if ok else "工程不存在"}
+        return {"results": res, "devices": len(res), "ok": sum(r["code"] == 1 for r in res.values())}
 
     def route(self, method: str, pattern: str, role: str, fn: Callable[..., Any]) -> None:
         """fn(request, (username, role), match) -> JSON body, or (status, body)."""

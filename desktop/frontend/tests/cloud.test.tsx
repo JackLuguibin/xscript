@@ -94,3 +94,50 @@ describe("CloudPage devices tab (P4.2)", () => {
     expect(screen.getByText(t.cloud.dev.needConnect)).toBeTruthy();
   });
 });
+
+describe("CloudPage batch commands (P4.3)", () => {
+  async function openDevices(token: string, user: string, role: "admin" | "operator" | "viewer") {
+    const m = mount();
+    await connect("https://cloud.example.com", token);
+    await screen.findByText(t.cloud.signedIn(user, t.cloud.roles[role]));
+    fireEvent.click(screen.getByRole("tab", { name: t.cloud.tabs.devices }));
+    await screen.findByText("farm-01");
+    return m;
+  }
+
+  it("runs a project on the selected devices and lists each result, offline ones too", async () => {
+    const { transport } = await openDevices("xsk_op_demo", "olga", "operator");
+    const run = screen.getByRole("button", { name: t.cloud.batch.run }) as HTMLButtonElement;
+    expect(run.disabled).toBe(true);
+    expect(screen.getByText(t.cloud.batch.noSelection)).toBeTruthy();
+    fireEvent.click(screen.getByLabelText(t.cloud.dev.selectRow("farm-01")));
+    fireEvent.click(screen.getByLabelText(t.cloud.dev.selectRow("farm-05"))); // offline in the demo
+    fireEvent.change(screen.getByLabelText(t.cloud.batch.project), { target: { value: "night-run" } });
+    fireEvent.click(run);
+    expect(await screen.findByText(t.cloud.batch.summary(1, 2))).toBeTruthy();
+    expect(screen.getByText("离线，未下发")).toBeTruthy();
+    expect(await screen.findByText(`${t.cloud.dev.running} · night-run`)).toBeTruthy(); // table reloaded
+    expect(transport.sent.find((m) => m.method === "cloud.command")?.params).toMatchObject({ ids: ["farm-01", "farm-05"], action: "run", project: "night-run" });
+  });
+
+  it("stop asks first", async () => {
+    const { transport } = await openDevices("xsk_admin", "alice", "admin");
+    fireEvent.click(screen.getByLabelText(t.cloud.dev.selectRow("farm-01")));
+    fireEvent.click(screen.getByRole("button", { name: t.cloud.batch.stop }));
+    await screen.findByRole("alertdialog");
+    fireEvent.click(screen.getAllByRole("button", { name: t.cloud.batch.stop }).at(-1)!);
+    expect(await screen.findByText(t.cloud.batch.summary(1, 1))).toBeTruthy();
+    expect(transport.sent.find((m) => m.method === "cloud.command")?.params).toMatchObject({ action: "stop" });
+  });
+
+  it("greys everything out for a viewer", async () => {
+    await openDevices("xsk_view_demo", "victor", "viewer");
+    fireEvent.click(screen.getByLabelText(t.cloud.dev.selectRow("farm-01")));
+    for (const name of [t.cloud.batch.run, t.cloud.batch.stop]) {
+      const b = screen.getByRole("button", { name }) as HTMLButtonElement;
+      expect(b.disabled).toBe(true);
+      expect(b.title).toBe(t.cloud.batch.viewerOnly);
+    }
+    expect((screen.getByLabelText(t.cloud.batch.project) as HTMLInputElement).disabled).toBe(true);
+  });
+});

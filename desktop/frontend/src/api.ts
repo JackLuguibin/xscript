@@ -289,6 +289,8 @@ export function createApi(rpc: RpcClient) {
     cloudConnect: (origin: string, token: string) => rpc.call<CloudStatus>("cloud.connect", { origin, token }, { timeoutMs: 20_000 }),
     cloudDisconnect: () => rpc.call<CloudStatus>("cloud.disconnect"),
     cloudDevices: (f: CloudDeviceFilter = {}) => rpc.call<CloudDevicePage>("cloud.devices", { ...f }, { timeoutMs: 20_000 }),
+    cloudCommand: (ids: string[], action: "run" | "stop", project = "", param?: Record<string, unknown>) =>
+      rpc.call<CloudBatchResult>("cloud.command", { ids, action, project, ...(param ? { param } : {}) }, { timeoutMs: 60_000 }),
     cloudGroups: () => rpc.call<{ groups: CloudGroup[]; apps: string[] }>("cloud.groups", {}, { timeoutMs: 20_000 }),
     copyText: (text: string) => rpc.call<{ ok: boolean }>("app.copyText", { text }),
     toolsOpen: (id: string, page: string) => rpc.call<{ url: string; page: string; warning: string }>("tools.open", { id, page }),
@@ -329,3 +331,5 @@ export interface CloudDevice {
 export interface CloudDeviceFilter { q?: string; group?: string; app?: string; online?: boolean; page?: number; pageSize?: number }
 export interface CloudDevicePage { items: CloudDevice[]; total: number; page: number; pageSize: number }
 export interface CloudGroup { name: string; total: number; online: number }
+export interface CloudBatchRow { id: string; ok: boolean; offline: boolean; msg: string }
+export interface CloudBatchResult { rows: CloudBatchRow[]; ok: number; total: number }

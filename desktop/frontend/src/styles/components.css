@@ -596,3 +596,7 @@ pre.logs.debug-console { min-height: 4rem; max-height: 10rem; }
 .cloud-table .mono { font-family: var(--font-mono); }
 .cloud-table .check { width: 2rem; }
 .cloud-pager { align-items: center; gap: var(--sp-2); }
+.cloud-batch { display: flex; flex-direction: column; gap: var(--sp-2); }
+.cloud-batch .row { align-items: center; gap: var(--sp-2); flex-wrap: wrap; }
+.cloud-batch .ui-input { max-width: 16rem; }
+.cloud-results { max-height: 12rem; }

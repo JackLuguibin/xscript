@@ -239,3 +239,48 @@ async def list_groups(c: BackendClient) -> list[dict[str, Any]]:
 async def list_apps(c: BackendClient) -> list[str]:
     r = await c.get("/apps")
     return [str(a) for a in (r or {}).get("items", []) if a]
+
+
+# ---- P4.3 batch commands -----------------------------------------------------------------------------------------
+MAX_BATCH = 500
+_PROJECT_RE = __import__("re").compile(r"^[\w\-. \u4e00-\u9fff]{1,64}$")
+
+
+def _targets(ids: list[str]) -> str:
+    clean = [i.strip() for i in ids if isinstance(i, str) and i.strip()]
+    if not clean:
+        raise BackendError("backend.bad_request", "先在设备表里勾选设备")
+    if len(clean) > MAX_BATCH:
+        raise BackendError("backend.bad_request", "一次最多 %d 台设备" % MAX_BATCH)
+    if any("," in i or ":" in i for i in clean):  # never let a selection turn into all / group: / app: targeting
+        raise BackendError("backend.bad_request", "设备 ID 不合法")
+    return ",".join(dict.fromkeys(clean))
+
+
+def summarize(ids: list[str], r: Any) -> dict[str, Any]:
+    """Per-device rows in the order the user selected them; ids the backend didn't reach are 'offline'."""
+    res = (r or {}).get("results") if isinstance(r, dict) else None
+    res = res if isinstance(res, dict) else {}
+    rows = []
+    for i in dict.fromkeys(ids):
+        x = res.get(i)
+        if not isinstance(x, dict):
+            rows.append({"id": i, "ok": False, "offline": True, "msg": "离线，未下发"})
+        else:
+            rows.append({"id": i, "ok": x.get("code") == 1, "offline": False, "msg": str(x.get("msg") or "")[:300]})
+    return {"rows": rows, "ok": sum(r["ok"] for r in rows), "total": len(rows)}
+
+
+async def batch_command(c: BackendClient, ids: list[str], action: str, project: str = "", param: dict[str, Any] | None = None) -> dict[str, Any]:
+    target = _targets(ids)
+    if action == "run":
+        project = project.strip()
+        if not _PROJECT_RE.match(project):
+            raise BackendError("backend.bad_request", "填写要运行的工程名")
+        cmd: dict[str, Any] = {"path": "app_run", "id": project, "param": param or {}}
+    elif action == "stop":
+        cmd = {"path": "app_stop"}
+    else:
+        raise BackendError("backend.bad_request", "未知操作：%s" % action)
+    r = await c.post("/command", {"target": target, "command": cmd, "timeout": 20})
+    return summarize(target.split(","), r)

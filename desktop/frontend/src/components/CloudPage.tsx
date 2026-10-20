@@ -3,6 +3,7 @@ import { useServices } from "../app-context";
 import type { CloudStatus } from "../api";
 import { errorLine } from "../errors";
 import { t } from "../strings";
+import { CloudBatch } from "./CloudBatch";
 import { CloudDevices } from "./CloudDevices";
 import { useConfirm } from "./ConfirmDialog";
 import { EmptyState } from "./EmptyState";
@@ -96,7 +97,12 @@ export function CloudPage() {
   if (tab !== "connect" && !connected) {
     body = <p className="muted">{t.cloud.dev.needConnect}</p>;
   } else if (tab === "devices") {
-    body = <CloudDevices selected={selected} onSelected={setSelected} reloadKey={reloadKey} />;
+    body = (
+      <>
+        {account && <CloudBatch account={account} selected={[...selected]} onDone={() => setReloadKey((k) => k + 1)} />}
+        <CloudDevices selected={selected} onSelected={setSelected} reloadKey={reloadKey} />
+      </>
+    );
   } else {
     body = (
       <div className="cloud-pane cloud-narrow">

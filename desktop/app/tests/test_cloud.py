@@ -166,3 +166,40 @@ async def test_device_list_maps_a_revoked_token(ctx, fb):
     del fb.tokens["xsk_view"]
     r, raw = await rpc(ctx, "cloud.devices")
     assert r["error"]["code"] == "backend.unauthorized" and "xsk_view" not in raw
+
+
+# ---- P4.3 batch commands ------------------------------------------------------------------------------------------
+
+async def test_batch_run_summarizes_per_device_and_marks_offline(ctx, fb):
+    await connected(ctx, "xsk_op")
+    r, _ = await rpc(ctx, "cloud.command", ids=["dev-c3", "dev-a1", "dev-b2", "dev-a1"], action="run", project="daily", param={"n": 2})
+    assert r["result"] == {"ok": 2, "total": 3, "rows": [
+        {"id": "dev-c3", "ok": False, "offline": True, "msg": "离线，未下发"},
+        {"id": "dev-a1", "ok": True, "offline": False, "msg": "ok"},
+        {"id": "dev-b2", "ok": True, "offline": False, "msg": "ok"}]}
+    assert fb.calls[-1] == ("POST", "/api/command", {"target": "dev-c3,dev-a1,dev-b2", "timeout": 20,
+                                                      "command": {"path": "app_run", "id": "daily", "param": {"n": 2}}})
+
+
+async def test_batch_stop_and_device_side_failure(ctx, fb):
+    await connected(ctx, "xsk_admin")
+    r, _ = await rpc(ctx, "cloud.command", ids=["dev-a1"], action="stop")
+    assert r["result"]["ok"] == 1 and fb.calls[-1][2]["command"] == {"path": "app_stop"}
+    r, _ = await rpc(ctx, "cloud.command", ids=["dev-a1"], action="run", project="missing")
+    assert r["result"]["rows"][0] == {"id": "dev-a1", "ok": False, "offline": False, "msg": "工程不存在"}
+
+
+async def test_viewer_is_refused_by_the_backend(ctx):
+    await connected(ctx, "xsk_view")
+    r, _ = await rpc(ctx, "cloud.command", ids=["dev-a1"], action="stop")
+    assert r["error"]["code"] == "backend.forbidden"
+
+
+@pytest.mark.parametrize("ids,action,project", [([], "stop", ""), (["all,dev-a1"], "stop", ""), (["group:farm-1"], "stop", ""),
+                                                (["dev-a1"], "run", ""), (["dev-a1"], "run", "../x"), (["dev-a1"], "wipe", ""),
+                                                (["d%d" % i for i in range(501)], "stop", "")])
+async def test_batch_rejects_bad_requests_before_calling_the_backend(ctx, fb, ids, action, project):
+    await connected(ctx, "xsk_admin")
+    n = len(fb.calls)
+    r, _ = await rpc(ctx, "cloud.command", ids=ids, action=action, project=project)
+    assert r["error"]["code"] == "backend.bad_request" and len(fb.calls) == n

@@ -907,6 +907,14 @@ class AppContext:
             c = await self.cloud.client()
             return {"groups": await backend_client.list_groups(c), "apps": await backend_client.list_apps(c)}
 
+        @d.method("cloud.command")
+        @_map_errors
+        async def cloud_command(params: dict[str, Any]) -> dict[str, Any]:
+            ids = param(params, "ids", list)
+            return await backend_client.batch_command(
+                await self.cloud.client(), ids, param(params, "action", str), param(params, "project", str, default=""),
+                param(params, "param", dict, default=None))
+
         @d.method("cloud.disconnect")
         @_map_errors
         async def cloud_disconnect(params: dict[str, Any]) -> dict[str, Any]:
