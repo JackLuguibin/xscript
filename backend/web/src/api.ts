@@ -239,6 +239,49 @@ export interface ResellerLimits {
   max_uses: number;
 }
 
+/** 批发价: one row of a reseller's price table (money is integer 分). */
+export interface ResellerPrice {
+  id?: number;
+  app: string;
+  kind: CardKind;
+  /** null = any validity */
+  days: number | null;
+  price_cents: number;
+}
+
+export interface ResellerPrices {
+  /** What happens to a batch with no matching price: free (记 0 元) or deny. */
+  unpriced: "free" | "deny";
+  items: ResellerPrice[];
+}
+
+export type LedgerKind = "charge" | "payment" | "adjust";
+
+export interface LedgerRow {
+  id: number;
+  time: number;
+  kind: LedgerKind;
+  amount_cents: number;
+  batch: string;
+  count: number;
+  unit_cents: number;
+  app: string;
+  card_kind: string;
+  days: number;
+  note: string;
+  actor: string;
+}
+
+/** balance > 0: the reseller owes that much. */
+export interface ResellerBalance {
+  charged: number;
+  paid: number;
+  adjusted: number;
+  balance: number;
+}
+
+export interface LedgerPage extends Page<LedgerRow>, ResellerBalance {}
+
 export interface ResellerMe extends ResellerLimits {
   username: string;
   cards: CardStats;

@@ -302,12 +302,34 @@
     assist.renderProblems();
     schedulePaint();
   }
+  // res/ui/<name>.ui.json opens in the form designer (tools/ui-designer.js, shared with the VS Code extension);
+  // the document text stays the source of truth, so save / undo-by-reload / dirty state work as for any file.
+  const uiForm = window.XSUiForm, designerBox = el("ui-designer");
+  const designer = window.XSUiDesigner && uiForm ? XSUiDesigner.mount(designerBox, {lang: "zh", post: m => {
+    if (m.type !== "edit" || !current || !isForm(current)) return;
+    const text = uiForm.serializeSpec(m.spec);
+    if (text === current.content) return;
+    model.edit(current, text); el("editor").value = text;
+    message(current.path + " · 未保存"); designer.receive(XSUiDesigner.messageFor(text, uiForm)); render();
+  }}) : null;
+  const isForm = doc => !!(designer && !doc.binary && uiForm.formName(doc.path));
+  function showDesigner(doc) {
+    const on = !!doc && isForm(doc) && doc.view !== "text";
+    el("ui-mode").hidden = !doc || !isForm(doc);
+    el("ui-mode").textContent = on ? "文本" : "设计";
+    el("ui-mode").setAttribute("aria-pressed", String(on));
+    designerBox.hidden = !on;
+    document.querySelector(".ide-edit-area").hidden = on;
+    if (on) designer.receive(XSUiDesigner.messageFor(doc.content, uiForm, "（切到「文本」修正）"));
+  }
+  el("ui-mode").onclick = () => { if (current && isForm(current)) { current.view = current.view === "text" ? "design" : "text"; showDesigner(current); } };
   function show(doc) {
     current = doc; selected = {type: "file", path: doc.path}; focusPath = doc.path; reveal(doc.path);
     el("editor").disabled = doc.binary;
     el("editor").value = doc.binary ? "此文件为二进制，请导出工程后查看。" : doc.content;
     message(doc.binary ? "二进制文件 · 只读" : doc.path + (model.dirty(doc) ? " · 未保存" : " · 已保存"));
     assist.setFile(doc.binary ? null : doc.path);
+    showDesigner(doc);
     cursor(); render();
   }
   async function load(path) {
@@ -332,7 +354,7 @@
     await debuggerClient.close(); el("debug-state").textContent = "未连接";
     el("debug-stack").replaceChildren(); el("debug-variables").textContent = "";
     ++generation; model.project = project; current = null; files = []; dirs = []; selected = null; search.reset();
-    el("editor").value = ""; el("editor").disabled = true; assist.setFile(null); render(); cursor();
+    el("editor").value = ""; el("editor").disabled = true; assist.setFile(null); showDesigner(null); render(); cursor();
     await refreshFiles();
     if (model.project !== project) return;
     const first = files.find(f => f.path === "__init__.py") || files[0];
@@ -359,7 +381,7 @@
     if (closingCurrent) {
       ++generation;
       if (next) show(next);
-      else { current = null; el("editor").value = ""; el("editor").disabled = true; assist.setFile(null); cursor(); message("没有打开的文件"); }
+      else { current = null; el("editor").value = ""; el("editor").disabled = true; assist.setFile(null); showDesigner(null); cursor(); message("没有打开的文件"); }
     }
     render();
     return true;
@@ -461,9 +483,11 @@
     });
   };
   el("refresh").onclick = () => operation(refreshFiles);
+  const generatedNote = doc => !doc.generated ? "" : doc.generated.error ? "（表单有问题，未生成代码：" + doc.generated.error + "）" : doc.generated.files.length ? "，已生成 " + doc.generated.files.join("、") : "";
   el("save").onclick = () => operation(async () => {
     const doc = current; if (!doc || doc.binary) return;
-    await model.save(doc); message(model.dirty(doc) ? "保存完成，仍有新编辑未保存" : "已保存 " + doc.path);
+    await model.save(doc); message(model.dirty(doc) ? "保存完成，仍有新编辑未保存" : "已保存 " + doc.path + generatedNote(doc));
+    if (doc.generated && doc.generated.files.length) await refreshFiles();
   });
   el("debug-run").onclick = () => operation(async () => {
     await debuggerClient.close();
@@ -504,7 +528,7 @@
     operation(async () => {
       await model.remove(doc);
       debuggerClient.breakpoints.delete(doc.project + ":" + doc.path);
-      if (current && current.project === doc.project && current.path === doc.path) { ++generation; current = null; el("editor").value = ""; el("editor").disabled = true; assist.setFile(null); cursor(); }
+      if (current && current.project === doc.project && current.path === doc.path) { ++generation; current = null; el("editor").value = ""; el("editor").disabled = true; assist.setFile(null); showDesigner(null); cursor(); }
       await refreshFiles();
       if (model.project !== doc.project) return;
       if (!current) {

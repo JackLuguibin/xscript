@@ -18,10 +18,14 @@ class Provider implements vscode.CustomTextEditorProvider {
     panel.webview.options = { enableScripts: true, localResourceRoots: [media] };
     const nonce = Math.random().toString(36).slice(2) + Date.now().toString(36);
     const script = panel.webview.asWebviewUri(vscode.Uri.joinPath(media, "uiDesigner.js"));
+    // Shared with the Web IDE; copied into media/ by scripts/copy-ui-form.js.
+    const form = panel.webview.asWebviewUri(vscode.Uri.joinPath(media, "ui-form.js"));
+    const view = panel.webview.asWebviewUri(vscode.Uri.joinPath(media, "ui-designer.js"));
     const css = panel.webview.asWebviewUri(vscode.Uri.joinPath(media, "uiDesigner.css"));
     panel.webview.html = `<!doctype html><html><head><meta charset="utf-8">
 <meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src ${panel.webview.cspSource} 'unsafe-inline'; script-src 'nonce-${nonce}'; frame-src 'self' data:;">
 <link rel="stylesheet" href="${css}"></head><body data-kinds="${FIELD_KINDS.join(",")}"><div id="app"></div>
+<script nonce="${nonce}" src="${form}"></script><script nonce="${nonce}" src="${view}"></script>
 <script nonce="${nonce}" src="${script}"></script></body></html>`;
 
     let lastSent = "";

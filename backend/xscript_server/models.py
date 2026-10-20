@@ -241,6 +241,45 @@ class Reseller(Base):
     max_uses: Mapped[int] = mapped_column(BigInteger, default=1000)       # 按次卡 uses per card
     note: Mapped[str] = mapped_column(String(255), default="")
     created_at: Mapped[int] = mapped_column(BigInteger, default=now)
+    # 批发价: what happens when a batch matches no price row. free = 0 元 (the old behaviour), deny = refused.
+    unpriced: Mapped[str] = mapped_column(String(8), default="free")
+
+
+class ResellerPrice(Base):
+    """代理批发价: the unit price (in 分) of one card for this reseller. app "*" matches any app and days None
+    any validity; the most specific row wins (see cards pricing)."""
+
+    __tablename__ = "reseller_prices"
+    __table_args__ = (UniqueConstraint("reseller_id", "app", "kind", "days", name="uq_reseller_price"),)
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    reseller_id: Mapped[int] = mapped_column(ForeignKey("resellers.user_id", ondelete="CASCADE"), index=True)
+    app: Mapped[str] = mapped_column(String(128), default="*")
+    kind: Mapped[str] = mapped_column(String(8), default="normal")
+    days: Mapped[float | None] = mapped_column(Float, nullable=True)          # None = any validity
+    price_cents: Mapped[int] = mapped_column(BigInteger, default=0)
+    updated_at: Mapped[int] = mapped_column(BigInteger, default=now)
+
+
+class ResellerLedger(Base):
+    """代理结算 entries in 分. charge (cards generated) and adjust raise what the reseller owes, payment lowers it;
+    balance = sum(charge) + sum(adjust) - sum(payment). Rows are never edited or deleted."""
+
+    __tablename__ = "reseller_ledger"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    reseller_id: Mapped[int] = mapped_column(ForeignKey("resellers.user_id", ondelete="CASCADE"), index=True)
+    time: Mapped[int] = mapped_column(BigInteger, default=now, index=True)
+    kind: Mapped[str] = mapped_column(String(8))                              # charge | payment | adjust
+    amount_cents: Mapped[int] = mapped_column(BigInteger)                     # charge/payment >= 0, adjust signed
+    batch: Mapped[str] = mapped_column(String(32), default="")
+    count: Mapped[int] = mapped_column(BigInteger, default=0)
+    unit_cents: Mapped[int] = mapped_column(BigInteger, default=0)
+    app: Mapped[str] = mapped_column(String(128), default="")
+    card_kind: Mapped[str] = mapped_column(String(8), default="")
+    days: Mapped[float] = mapped_column(Float, default=0.0)
+    note: Mapped[str] = mapped_column(String(255), default="")
+    actor: Mapped[str] = mapped_column(String(64), default="")
 
 
 class AuditLog(Base):

@@ -132,6 +132,17 @@ AScript 写法照常可用：`cloud_control.connect_to_ws(url)`、`cloud_control
 | `GET /pub/app-notices?app=&version_code=`、`GET /pub/app-update?app=&version_code=`、`GET /pub/app-update/apk?app=` | App 公告和 APK 更新检查 / 下载（不需要登录；`/api/app-notices`、`/api/app-updates` 管理）。打包的 App 在首页读取 |
 | `POST /license/activate`、`POST /license/verify` | 卡密激活 / 复核（App 调用，不需要登录，见 [PACKAGING.md](PACKAGING.md)） |
 
+代理的批发价与结算（金额一律为整数「分」，详见 [backend/README.md](../backend/README.md#批发价与结算)）：
+
+| 请求 | 说明 |
+| --- | --- |
+| `GET/PUT /api/resellers/<id>/prices` `{"unpriced","items":[{"app","kind","days","price_cents"}]}` | 某代理的批发价表（管理员）。`PUT` 整表替换；`days` 为 `null` 表示任意有效期，`app` 为 `*` 表示全部应用；`unpriced`：没有匹配价格时 `free`（记 0 元）或 `deny`（禁止生成） |
+| `POST /api/resellers/<id>/ledger` `{"kind","amount_cents","note"}` | 登记收款（`payment`，金额 > 0）或调整应付（`adjust`，正数加、负数减）（管理员） |
+| `GET /api/resellers/<id>/ledger?kind=&since=&until=&page=` | 账单流水，同时返回 `charged / paid / adjusted / balance`（管理员） |
+| `GET /api/resellers/balances` | 所有代理的应付、已收、调整和待结算（管理员） |
+| `GET /api/resellers/<id>/statement?since=&until=` | 对账单 CSV（期初、明细、期末，UTF-8 BOM，Excel 可直接打开）（管理员） |
+| `GET /api/reseller/balance`、`GET /api/reseller/ledger`、`GET /api/reseller/statement` | 代理自己的余额和价格表、账单流水、对账单，只含自己的数据 |
+
 ```bash
 curl -H "Authorization: Bearer $XS_TOKEN" -H "Content-Type: application/json" \
   -d '{"target":"group:farm-1","command":{"path":"app_run","id":"demo","param":{"level":3}}}' \

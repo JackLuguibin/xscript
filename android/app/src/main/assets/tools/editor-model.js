@@ -139,6 +139,33 @@
       const content = doc.content;
       await this.api("PUT", this.projectUrl(doc.project) + "/files", {path: doc.path, content, encoding: "utf-8"});
       doc.saved = content;
+      doc.generated = await this.generateUi(doc.project, doc.path, content);
+    }
+    /** res/ui/<name>.ui.json was saved: write res/ui/<name>.html and ui_<name>.py next to the project entry, like
+     *  the VS Code designer (shared generator tools/ui-form.js). Returns {files, error}; an invalid spec writes
+     *  nothing. Open, unedited tabs of the generated files are refreshed; ones with unsaved edits are left alone. */
+    async generateUi(project, path, text) {
+      const F = EditorModel.uiForm(), name = F && F.formName(path);
+      if (!name) return null;
+      let spec;
+      try { spec = F.parseSpec(text); } catch (e) { return {files: [], error: "不是有效的 JSON：" + e.message}; }
+      const errors = F.validateSpec(spec);
+      if (errors.length) return {files: [], error: errors.join("；")};
+      const m = /^(.*\/)?res\/ui\/[^/]+$/.exec(path);
+      const root = m ? m[1] || "" : path.slice(0, path.lastIndexOf("/") + 1);
+      const files = [];
+      for (const [rel, content] of Object.entries(F.outputs(spec, name))) {
+        const target = root + rel, open = this.documents.get(this.key(target, project));
+        if (open && this.dirty(open)) continue;
+        await this.api("PUT", this.projectUrl(project) + "/files", {path: target, content, encoding: "utf-8"});
+        if (open) { open.content = content; open.saved = content; }
+        files.push(target);
+      }
+      return {files, error: ""};
+    }
+    static uiForm() {
+      if (root.XSUiForm) return root.XSUiForm;
+      try { return typeof require === "function" ? require("./ui-form.js") : null; } catch (e) { return null; }
     }
     async saveAll(project = this.project) {
       for (const doc of this.documents.values()) if (doc.project === project && this.dirty(doc)) await this.save(doc);
