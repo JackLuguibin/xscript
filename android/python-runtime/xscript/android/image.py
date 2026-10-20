@@ -402,7 +402,7 @@ _CF_MIN_SRC_SHORT = 256
 _CF_DOWNSCALE = 4
 _CF_TOP_K = 5
 _CF_PEAKS_PER_SCALE = 2
-_CF_REFINE_SLACK = 0.5      # a candidate at the wrong scale can score this far below its true score
+_CF_REFINE_FLOOR = 0.2      # a candidate at the wrong scale can score far below its true score (0.3 -> 0.99)
 
 
 class _Tpl(object):
@@ -659,7 +659,7 @@ def _multi_cf(src, tpl, threshold, scale_range):
         r = _do_match(src[y0:y1, x0:x1], _resize(tpl.img, w, h), None)
         _, mv, _, ml = cv2.minMaxLoc(r)
         hit = (float(mv), x0 + ml[0], y0 + ml[1], w, h)
-        if hit[0] < threshold and hit[0] >= threshold - _CF_REFINE_SLACK:
+        if _CF_REFINE_FLOOR <= hit[0] < threshold:
             hit = _refine_scale(src, tpl, hit)
         if best is None or hit[0] > best[0]:
             best = hit

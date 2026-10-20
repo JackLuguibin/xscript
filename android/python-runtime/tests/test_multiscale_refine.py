@@ -63,6 +63,23 @@ class MultiScaleRefineTest(unittest.TestCase):
         self.assertTrue(hits)
         self.assertLessEqual(abs(hits[0]["center_x"] - cx), 8)
 
+    def test_smooth_template_scores_low_at_the_wrong_coarse_scale(self):
+        """A smooth banner scores ~0.3 at the nearest coarse scale and 0.99 at its true one: refine anyway."""
+        from xscript.android import image as I
+        rng = np.random.default_rng(11)
+        img = np.full((2400, 1080, 3), 245, np.uint8)
+        banner = rng.integers(0, 255, (40, 135, 3), dtype=np.uint8)
+        img[200:520] = cv2.GaussianBlur(cv2.resize(banner, (1080, 320), interpolation=cv2.INTER_CUBIC), (0, 0), 3)
+        tpl = img[200:480, 100:800].copy()
+        m = cv2.getRotationMatrix2D((540, 1200), 0, 0.75)
+        small = cv2.warpAffine(img, m, (1080, 2400), borderValue=(245, 245, 245))
+        cx, cy = m @ np.array([450.0, 340.0, 1.0])
+        hits = I.find_templates(tpl, None, 0.9, False, 1, (0.5, 2.0), small)
+        self.assertTrue(hits)
+        self.assertGreater(hits[0]["confidence"], 0.98)
+        self.assertLessEqual(abs(hits[0]["center_x"] - cx), 3)
+        self.assertLessEqual(abs(hits[0]["center_y"] - cy), 3)
+
     def test_absent_template_still_rejected(self):
         from xscript.android import image as I
         img, _, _ = self.scaled(0.8)
