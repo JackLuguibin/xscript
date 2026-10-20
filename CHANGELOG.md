@@ -4,6 +4,10 @@
 
 ## 未发布
 
+- 找图：多尺度找图（`scale_range`）在两个尺度之间的目标（例如 0.8 倍、置信度 0.8）以前可能找不到，现在会在最接近的几个候选附近细化尺度再判断（#109）。
+- 找图：`find_image` / `find_all_images` / `image.find_templates` 新增 `method=`：`"template"`、`"multiscale"`、`"feature"`（ORB，不行再 SIFT，MAGSAC 拟合）、`"hash"` 和推荐的 `"auto"`（先模板匹配，找不到再用特征点），能找到被缩放、旋转的目标；结果多了 `quad`、`angle`、`scale`、`method`。不传 `method` 时行为不变。AScript 的 `find_all_sift` / `find_surf` / `FindImages.find_sift` 现在真正使用特征点匹配（#110）。
+- 找色：`find_colors` / `compare_colors` 新增 `color_space="rgb" | "hsv" | "lab"` 和 `tolerance=`，HSV 在画面变暗时更稳；新增 `screen.count_color`、`screen.find_color_blobs`（连通色块）、`screen.dominant_colors`（主色）。不带 `#` 坐标的 `#rrggbb` 找色点现在按文档当作 (0, 0)（#111）。
+- OCR：新增 PP-OCRv6 引擎 `paddle_v6t`（tiny，约 6 MB）和 `paddle_v6s`（small），以及 `engine="auto"`（用 v6 tiny，模型不可用时退回 ML Kit）。模拟器上 v6 tiny 识别整屏约 138 ms，比 PP-OCRv5 快约 2.5 倍、错字约为四分之一；`paddle` 仍是 v5，默认引擎仍是 `mlkit`。`vision_test` 和 MCP 支持同样的引擎名（#112）。
 - 文档：按 v0.4.0 界面重拍说明文档截图（手机 App、桌面端、网页 IDE、VS Code 插件），新增配对码、新建模板和管理后台（概览趋势、设备、屏幕墙、卡密、代理、AI 写脚本、APK 打包与打包机）截图，均为演示数据。
 - 修复：手机 `/status` 上报的版本号一直是 0.2.0，现在与 App 版本一致；模拟设备与演示后端从同一处读取，版本不一致时测试会失败。
 - 修复：v0.4.0 桌面端 dmg 在别的 Mac 上下载后提示“XScript 已损坏，无法打开”。原因是打包脚本在签名之后又改了 Info.plist，签名失效。现在改完后重新签名并校验；v0.4.0 Release 里的 dmg 已替换（标签未动），首次打开说明已更新。
