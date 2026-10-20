@@ -11,6 +11,10 @@
 #      the dmg and SHA256SUMS (covering all of them).
 # Dry run: a pull request touching this workflow or desktop/app/packaging, or a manual run (workflow_dispatch), runs only
 # the "desktop" job: it builds and verifies the dmg and uploads it as an artifact; it never creates a Release or a tag.
+# Perf APK: a manual run with perf_apk=true skips the dmg and builds only the developer app as com.xscript.app.perf
+# (-Pxscript.appIdSuffix=.perf, arm64-v8a + x86_64), signed with the same secrets, verified (signer == release
+# certificate, package, 16 KB) and uploaded as the short-lived artifact "perf-apk" (1 day). It is for installing
+# next to the regular app on a test device; it never creates a Release or a tag and has no write permission.
 # Secrets (repository secrets, names only): RELEASE_KEYSTORE_BASE64 (base64 of the .p12 / .jks keystore),
 # RELEASE_STORE_PASSWORD, RELEASE_KEY_ALIAS, RELEASE_KEY_PASSWORD. They are only exposed to the "release" job.
 name: release
@@ -21,6 +25,11 @@ on:
   pull_request:
     paths: [".github/workflows/release.yml", "desktop/app/packaging/**"]
   workflow_dispatch:
+    inputs:
+      perf_apk:
+        description: "Build the signed com.xscript.app.perf APK as a 1-day artifact (no dmg, never a Release)"
+        type: boolean
+        default: false
 
 permissions:
   contents: read
@@ -39,6 +48,7 @@ jobs:
 
   desktop:
     name: desktop dmg (macOS arm64)
+    if: ${{ !inputs.perf_apk }}
     runs-on: macos-14
     timeout-minutes: 45
     permissions:
@@ -70,6 +80,79 @@ jobs:
           path: desktop/app/dist/*.dmg
           if-no-files-found: error
           retention-days: 14
+
+  perf-apk:
+    name: signed perf APK (artifact only)
+    if: github.event_name == 'workflow_dispatch' && inputs.perf_apk
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    permissions:
+      contents: read   # read-only token: this job cannot create a Release, a tag or push anything
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Signing secrets are present
+        env:
+          KS: ${{ secrets.RELEASE_KEYSTORE_BASE64 }}
+          SP: ${{ secrets.RELEASE_STORE_PASSWORD }}
+          KA: ${{ secrets.RELEASE_KEY_ALIAS }}
+          KP: ${{ secrets.RELEASE_KEY_PASSWORD }}
+        run: |
+          missing=""
+          [ -n "$KS" ] || missing="$missing RELEASE_KEYSTORE_BASE64"
+          [ -n "$SP" ] || missing="$missing RELEASE_STORE_PASSWORD"
+          [ -n "$KA" ] || missing="$missing RELEASE_KEY_ALIAS"
+          [ -n "$KP" ] || missing="$missing RELEASE_KEY_PASSWORD"
+          if [ -n "$missing" ]; then echo "::error::missing repository secrets:$missing"; exit 1; fi
+      - name: Write the signing files (outside the checkout, never printed)
+        env:
+          KS: ${{ secrets.RELEASE_KEYSTORE_BASE64 }}
+          SP: ${{ secrets.RELEASE_STORE_PASSWORD }}
+          KA: ${{ secrets.RELEASE_KEY_ALIAS }}
+          KP: ${{ secrets.RELEASE_KEY_PASSWORD }}
+        run: |
+          umask 077
+          mkdir -p "$RUNNER_TEMP/keys"
+          printf '%s' "$KS" | base64 --decode > "$RUNNER_TEMP/keys/release.keystore"
+          {
+            echo "storeFile=release.keystore"
+            printf 'storePassword=%s\n' "$SP"
+            printf 'keyAlias=%s\n' "$KA"
+            printf 'keyPassword=%s\n' "$KP"
+          } > "$RUNNER_TEMP/keys/release.properties"
+          echo "XSCRIPT_SIGNING_FILE=$RUNNER_TEMP/keys/release.properties" >> "$GITHUB_ENV"
+      - uses: actions/setup-java@b843ebf9b913146b38da2eaa7aeddf76074ae1ad # v6.1.0
+        with:
+          distribution: temurin
+          java-version: "21"
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: "3.10"
+      - uses: android-actions/setup-android@be39fa834029ff78f1a44aa3bb0819b8fc2bd8fd # v4.0.4
+      - run: sdkmanager "platforms;android-37.0" "build-tools;36.0.0"
+      - uses: gradle/actions/setup-gradle@3f5f9adaf7d9fecd50b5935e54106014257a94e6 # v6.4.0
+        with:
+          gradle-version: wrapper
+      - name: Build and verify com.xscript.app.perf
+        run: |
+          V="$(sed -n 's/.*versionName = if (packed) packProp("version_name", "[^"]*") else "\([^"]*\)".*/\1/p' android/app/build.gradle.kts)"
+          XSCRIPT_GRADLE_TASK=:app:assembleRelease bash android/build.sh "-Pxscript.signingFile=$XSCRIPT_SIGNING_FILE" \
+            -Pxscript.appIdSuffix=.perf --console=plain
+          mkdir -p dist/perf
+          OUT="dist/perf/xscript-perf-$V-${GITHUB_SHA::7}.apk"
+          cp android/app/build/outputs/apk/release/app-release.apk "$OUT"
+          bash scripts/release.sh verify-apk "$OUT" "$V" com.xscript.app.perf
+          (cd dist/perf && sha256sum *.apk | tee SHA256SUMS)
+      - name: Remove the signing files
+        if: always()
+        run: rm -rf "$RUNNER_TEMP/keys"
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: perf-apk
+          path: dist/perf/
+          if-no-files-found: error
+          retention-days: 1
 
   release:
     name: build, verify and publish

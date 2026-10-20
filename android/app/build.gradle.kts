@@ -34,6 +34,12 @@ fun packProp(key: String, default: String = ""): String = pack.getProperty(key, 
 // universal one), else phones (arm64-v8a) plus x86_64 PC emulators.
 val abiList: String = packProp("abis").ifEmpty { (project.findProperty("xscript.abis") as String?)?.trim().orEmpty() }
     .ifEmpty { "arm64-v8a,x86_64" }
+// -Pxscript.appIdSuffix=.perf: the developer app under another id (com.xscript.app.perf), installed next to the
+// regular app for benchmarks and device tests. Developer builds only; a packed app sets its own app_id.
+val appIdSuffix: String = ((project.findProperty("xscript.appIdSuffix") as String?) ?: "").trim().also {
+    require(it.isEmpty() || Regex("^(\\.[a-z][a-z0-9_]*)+$").matches(it)) { "xscript.appIdSuffix must look like .perf, got '$it'" }
+    require(it.isEmpty() || !packed) { "xscript.appIdSuffix is for the developer app; a packed app sets app_id" }
+}
 fun String.kotlinQuoted(): String = "\"" + replace("\\", "\\\\").replace("\"", "\\\"").replace("$", "\\$") + "\""
 
 // Generated resources and assets for a packed build: the bundled project, app name, icon.
@@ -45,7 +51,7 @@ android {
     compileSdk = 37
 
     defaultConfig {
-        applicationId = if (packed) packProp("app_id") else "com.xscript.app"
+        applicationId = if (packed) packProp("app_id") else "com.xscript.app$appIdSuffix"
         minSdk = 26
         targetSdk = 34
         versionCode = if (packed) packProp("version_code", "1").toInt() else 10
