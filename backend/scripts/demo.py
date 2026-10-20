@@ -196,6 +196,35 @@ def seed_scripts(cfg: Config, s) -> None:
     s.commit()
 
 
+def seed_history(s) -> None:
+    """60 days of activations, expirations and online devices so the 概览 趋势 chart has a shape."""
+    from xscript_server import cards
+    from xscript_server.models import Card, Device, DeviceDay
+
+    rnd = random.Random(7)
+    now = time.time()
+    batches = [("com.me.game", "演示月卡"), ("com.me.farm", "农场周卡"), ("com.me.game", "活动卡")]
+    n = 0
+    for back in range(59, -1, -1):
+        day = now - back * 86400
+        lt = time.localtime(day)
+        label = time.strftime("%Y-%m-%d", lt)
+        weekend = lt.tm_wday >= 5
+        online = int(18 + (59 - back) * 0.35 + (6 if weekend else 0) + rnd.randint(-3, 3))
+        for i in range(online):
+            s.add(DeviceDay(day=label, device="hist-%02d" % i))
+        for _ in range(max(0, int(4 + (59 - back) * 0.08 + (3 if weekend else 0) + rnd.randint(-2, 3)))):
+            app, note = rnd.choice(batches)
+            act = int(day - rnd.randint(0, 36000))
+            n += 1
+            s.add(Card(card="HIST-%05d" % n, app=app, batch=note, note=note, days=30, activated_at=act,
+                       expires_at=act + 30 * 86400, device="hist-%02d" % rnd.randint(0, 40)))
+    for i in range(45):
+        s.add(Device(id="hist-%02d" % i, device_id="hist-%02d" % i, app="com.me.game",
+                     first_seen=int(now - rnd.randint(0, 59) * 86400), last_seen=int(now - rnd.randint(0, 3) * 86400)))
+    del cards
+
+
 def main() -> None:
     data = Path(tempfile.gettempdir()) / "xscript-demo"
     cfg = Config.load(data)
@@ -214,6 +243,7 @@ def main() -> None:
         if not s.query(cards.Card).count():
             cards.create_batch(s, 25, 30, "com.me.game", "演示月卡")
             cards.create_batch(s, 10, 0, "*", "永久卡")
+            seed_history(s)
         s.commit()
         seed_scripts(cfg, s)
     server = uvicorn.Server(uvicorn.Config(app, host="127.0.0.1", port=PORT, log_level="warning", ws="websockets-sansio"))

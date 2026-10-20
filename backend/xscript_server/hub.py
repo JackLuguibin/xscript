@@ -18,7 +18,7 @@ from starlette.websockets import WebSocket
 
 from .audit import audit
 from .db import Database, values_in
-from .models import Device, DeviceLog, Task
+from .models import Device, DeviceDay, DeviceLog, Task
 
 log = logging.getLogger("xscript.hub")
 
@@ -54,6 +54,7 @@ class Conn:
         self.data: dict[str, Any] = {}
         # status / data changed since the row was last written; Hub.flush() writes it in a batch.
         self.dirty = False
+        self.day_marked = ""  # server-local day already written to device_days
 
     async def send(self, frame: dict[str, Any]) -> None:
         async with self._send_lock:
@@ -121,6 +122,24 @@ class Hub:
                 # Script data belongs to the current connection: {} right after hello.
                 row.data = conn.data
             s.commit()
+        self._mark_days(conns)
+
+    def _mark_days(self, conns: list[Conn]) -> None:
+        """Record that these devices were online today (device_days), once per connection per day."""
+        day = time.strftime("%Y-%m-%d", time.localtime())
+        todo = [c for c in conns if c.day_marked != day]
+        if not todo:
+            return
+        with self.db.session() as s:
+            have = set(s.scalars(select(DeviceDay.device).where(
+                DeviceDay.day == day, DeviceDay.device.in_(values_in(c.id for c in todo)))))
+            for c in todo:
+                if c.id not in have:
+                    s.add(DeviceDay(day=day, device=c.id))
+                    have.add(c.id)
+            s.commit()
+        for c in todo:
+            c.day_marked = day
 
     @staticmethod
     def _merge_data(conn: Conn, payload: Any) -> None:
@@ -131,6 +150,13 @@ class Hub:
     async def flush(self) -> int:
         """Write the rows of connections whose status / data changed since the last flush."""
         dirty = [c for c in self.conns.values() if c.dirty]
+        # Devices that stay connected past midnight count as online on the new day too.
+        unmarked = [c for c in self.conns.values() if not c.dirty and c.day_marked != time.strftime("%Y-%m-%d", time.localtime())]
+        if unmarked:
+            try:
+                await run_in_threadpool(self._mark_days, unmarked)
+            except Exception:  # pragma: no cover - retried on the next flush
+                log.exception("recording device_days")
         if not dirty:
             return 0
         for c in dirty:

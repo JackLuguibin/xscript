@@ -103,6 +103,16 @@ class Device(Base):
     last_seen: Mapped[int] = mapped_column(Integer, default=now)
 
 
+class DeviceDay(Base):
+    """One row per device per server-local day it was online: the 在线设备 trend (概览 趋势图).
+
+    Written once per connection per day by the hub; pruned with the audit retention."""
+
+    __tablename__ = "device_days"
+    day: Mapped[str] = mapped_column(String(10), primary_key=True)  # YYYY-MM-DD, server local time
+    device: Mapped[str] = mapped_column(String(200), primary_key=True)
+
+
 class Task(Base):
     """Server-side 定时任务: send a command to a target daily at HH:MM or every N minutes."""
 

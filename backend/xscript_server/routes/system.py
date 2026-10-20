@@ -8,14 +8,14 @@ from typing import Any
 from typing import Literal
 
 from anyio import from_thread
-from fastapi import APIRouter, Depends, HTTPException, Request
+from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from fastapi.responses import FileResponse
 from pydantic import BaseModel, Field, field_validator
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 from starlette.concurrency import run_in_threadpool
 
-from .. import __version__, maintenance, netcheck
+from .. import __version__, maintenance, netcheck, stats
 from .. import cards as cardsvc
 from ..audit import ALERT_EVENTS, get_settings, set_setting
 from ..deps import Principal, admin, client_ip, ctx, db_session, like_contains, like_escape, paginate, record, viewer
@@ -55,6 +55,14 @@ def overview(request: Request, p: Principal = Depends(viewer), s: Session = Depe
         "alerts_24h": sum(1 for a in c.alerts.recent if a["time"] >= day_ago) if c.alerts else 0,
         "last_backup": c.maint.last_backup if c.maint else None,
     }
+
+
+@router.get("/stats/daily")
+def stats_daily(days: int = Query(30, ge=7, le=365), app: str = Query("", max_length=128),
+                batch: str = Query("", max_length=32), p: Principal = Depends(viewer),
+                s: Session = Depends(db_session)):
+    """按天趋势: 激活、到期、新设备、在线设备 for the last `days` server-local days."""
+    return stats.daily(s, days, app, batch)
 
 
 def _recent_crashes(s: Session, since: int) -> list[dict[str, Any]]:

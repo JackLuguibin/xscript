@@ -21,7 +21,7 @@ from xscript_server import audit as auditmod, maintenance, migrate  # noqa: E402
 from xscript_server.alerts import RateLimiter, build_request  # noqa: E402
 from xscript_server.config import Config  # noqa: E402
 from xscript_server.db import Database  # noqa: E402
-from xscript_server.models import AuditLog, DeviceLog, PackJob, ShareLink, User  # noqa: E402
+from xscript_server.models import AuditLog, DeviceDay, DeviceLog, PackJob, ShareLink, User  # noqa: E402
 
 
 def fresh_cfg() -> Config:
@@ -134,6 +134,8 @@ class RetentionTest(unittest.TestCase):
             s.add(PackJob(status="running", app_id="com.b"))
             s.add(AuditLog(time=int(now - 400 * 86400), action="old"))
             s.add(AuditLog(time=int(now), action="new"))
+            s.add(DeviceDay(day=time.strftime("%Y-%m-%d", time.localtime(now - 400 * 86400)), device="old"))
+            s.add(DeviceDay(day=time.strftime("%Y-%m-%d", time.localtime(now - 200 * 86400)), device="kept"))
             s.add(ShareLink(job_id=1, token="t1", expires_at=int(now - 30 * 86400)))
             s.add(ShareLink(job_id=1, token="t2", expires_at=None))
             s.add(DeviceLog(device="d1", seq=1, ts=int((now - 8 * 86400) * 1000), line="old"))
@@ -147,6 +149,7 @@ class RetentionTest(unittest.TestCase):
             self.assertIsNone(s.get(PackJob, 1).apk_file)
             self.assertEqual(s.get(PackJob, 4).apk_file, "a.apk")
             self.assertEqual([a.action for a in s.query(AuditLog)], ["new"])
+            self.assertEqual([d.device for d in s.query(DeviceDay)], ["kept"])
             self.assertEqual([l.token for l in s.query(ShareLink)], ["t2"])
             self.assertEqual([l.line for l in s.query(DeviceLog)], ["new"])
         # 0 keeps everything.

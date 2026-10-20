@@ -24,7 +24,7 @@ from . import __version__
 from .config import Config
 from .db import Database
 from .migrate import LATEST
-from .models import AppUpdate, AuditLog, DeviceLog, PackJob, ShareLink
+from .models import AppUpdate, AuditLog, DeviceDay, DeviceLog, PackJob, ShareLink
 
 MANIFEST = "xscript-backup.json"
 
@@ -226,6 +226,12 @@ def run_retention(cfg: Config, db: Database, policy: dict[str, Any], now: float 
         if audit_days > 0:
             res = s.execute(delete(AuditLog).where(AuditLog.time < int(now - audit_days * 86400)))
             out["audit"] = res.rowcount or 0
+        # 趋势图 history (one row per device per day): the audit retention, never under the 365 days
+        # the chart can show; with audit kept forever, a year.
+        keep = max(int(audit_days), 365) if audit_days > 0 else 365
+        res = s.execute(delete(DeviceDay).where(
+            DeviceDay.day < time.strftime("%Y-%m-%d", time.localtime(now - keep * 86400))))
+        out["device_days"] = res.rowcount or 0
         # 设备运行日志: ts is in ms. 0 days means "don't keep", so anything left over goes.
         log_days = int(policy.get("device_log_days") or 0)
         cutoff_ms = int((now - log_days * 86400) * 1000)
