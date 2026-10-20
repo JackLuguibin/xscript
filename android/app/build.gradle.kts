@@ -197,9 +197,9 @@ chaquopy {
         pip {
             install("numpy==1.23.3")
             install("opencv-python==4.5.1.48")
-            install("pillow==9.2.0")
+            install("pillow==11.0.0")
             install("pyyaml==6.0.3")
-            install("requests==2.32.3")
+            install("requests==2.33.1")
             // Version parsing / markers for the runtime installer (xscript.android.pip).
             install("packaging==24.2")
             // Upstream universal wheel: no Android native extensions or adapter subprocess.

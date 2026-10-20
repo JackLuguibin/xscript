@@ -25,7 +25,7 @@ adb install android/app/build/outputs/apk/debug/app-debug.apk
 
 卸载前请先导出需要的工程（脚本 IDE → **导出 ZIP**，或 `GET /projects/<name>/zip`），重装后重新授予下面的权限。
 
-APK 内置 numpy 1.23.3、opencv 4.5.1.48、pillow 9.2.0、pyyaml、requests、OkHttp 和 ML Kit 中文 OCR，体积约 100 MB。
+APK 内置 numpy 1.23.3、opencv 4.5.1.48、pillow 11.0.0、pyyaml、requests 2.33、OkHttp 和 ML Kit 中文 OCR，体积约 100 MB。
 
 ## 设备设置
 

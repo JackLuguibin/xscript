@@ -10,6 +10,7 @@ contours), Pillow (_imaging, _imagingft/FreeType, _imagingmath, _imagingmorph) a
 Prints the page size and whether the app runs in 16 KB backcompat mode. Creates/deletes project `_native_e2e`.
 """
 import base64, json, os, sys, time, urllib.request
+import devauth  # scripts/devauth.py: pairing code (XSCRIPT_TOKEN or adb)
 
 os.environ.setdefault("no_proxy", "127.0.0.1,localhost")
 BASE = (sys.argv[1] if len(sys.argv) > 1 else "http://127.0.0.1:9860").rstrip("/")
@@ -127,7 +128,7 @@ print("NATIVE_RESULT " + json.dumps(res), flush=True)
 
 def api(method, path, body=None, timeout=60):
     req = urllib.request.Request(BASE + path, method=method, data=None if body is None else json.dumps(body).encode(),
-                                 headers={"Content-Type": "application/json"})
+                                 headers=devauth.headers(BASE, {"Content-Type": "application/json"}))
     with OPENER.open(req, timeout=timeout) as r:
         return json.load(r)
 

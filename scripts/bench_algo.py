@@ -17,13 +17,14 @@ import sys
 import time
 import urllib.request
 import zipfile
+import devauth  # scripts/devauth.py: pairing code (XSCRIPT_TOKEN or adb)
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 ROOT = os.path.dirname(HERE)
 
 
 def _http(base, method, path, data=None, ctype="application/json"):
-    req = urllib.request.Request(base + path, data=data, method=method, headers={"content-type": ctype})
+    req = urllib.request.Request(base + path, data=data, method=method, headers=devauth.headers(base, {"content-type": ctype}))
     with urllib.request.urlopen(req, timeout=60) as r:
         return r.read().decode("utf-8", "replace")
 

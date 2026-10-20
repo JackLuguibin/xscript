@@ -194,6 +194,9 @@ def _prepare_packages(project_dir):
     from xscript.runtime import sitepkgs
 
     sitepkgs.activate()
+    from xscript.runtime import pil_compat
+
+    pil_compat.install()  # AScript-era Pillow names (Image.ANTIALIAS, textsize, getsize) on Pillow 10+
     if os.path.isfile(os.path.join(project_dir, "requirements.txt")):
         from xscript.android import pip
 

@@ -8,6 +8,9 @@ def run(code):
         from xscript.runtime import sitepkgs
 
         sitepkgs.activate()
+        from xscript.runtime import pil_compat
+
+        pil_compat.install()
     except Exception:
         pass
     try:

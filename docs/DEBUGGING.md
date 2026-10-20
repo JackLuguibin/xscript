@@ -110,6 +110,8 @@ python3 scripts/device_cvfont_e2e.py http://127.0.0.1:19861                     
 python3 scripts/device_ml_e2e.py http://127.0.0.1:19861 --models /path/to/models  # 运行时 pip、PaddleOCR v5、YOLO11n（模型目录放 yolo11n.onnx 和 bus.jpg）
 ```
 
+设备接口默认需要配对码：这些脚本（`scripts/devauth.py`）先读环境变量 `XSCRIPT_TOKEN`，没有就通过 adb 从 App 的 USB 配对通道读取（多台设备时设 `ANDROID_SERIAL`）。
+
 两个脚本都建立并删除自己的工程；需要设备上的 numpy / OpenCV；16KB 和 4KB 页面的模拟器都能跑（App 在清单里打开了 Android 的 16KB 兼容模式，见 docs/功能对照.md「16KB 页面设备」）。`scripts/device_native_e2e.py <设备地址>` 逐个调用 numpy / OpenCV / Pillow 的原生模块，页面大小不同的设备上都可以用来快速确认；`scripts/check_16kb.py app-release.apk` 检查安装包的 16KB 对齐情况。`device_ml_e2e.py` 的 pip 和 OCR 步骤要求设备能上网（OCR 模型由设备自己下载并校验 SHA-256）。
 
 ## 在手机自带的 Chrome 里测试网页 IDE

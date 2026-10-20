@@ -19,6 +19,7 @@ import os
 import sys
 import time
 import urllib.request
+import devauth  # scripts/devauth.py: pairing code (XSCRIPT_TOKEN or adb)
 
 os.environ.setdefault("no_proxy", "127.0.0.1,localhost")
 ap = argparse.ArgumentParser()
@@ -32,7 +33,7 @@ OPENER = urllib.request.build_opener(urllib.request.ProxyHandler({}))
 
 def api(method, path, body=None, raw=None, timeout=60, ctype="application/json"):
     data = raw if raw is not None else (None if body is None else json.dumps(body).encode())
-    req = urllib.request.Request(BASE + path, method=method, data=data, headers={"Content-Type": ctype})
+    req = urllib.request.Request(BASE + path, method=method, data=data, headers=devauth.headers(BASE, {"Content-Type": ctype}))
     try:
         with OPENER.open(req, timeout=timeout) as r:
             return json.load(r)

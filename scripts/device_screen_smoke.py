@@ -12,13 +12,14 @@ import os
 import struct
 import sys
 import urllib.request
+import devauth  # scripts/devauth.py: pairing code (XSCRIPT_TOKEN or adb)
 
 os.environ.setdefault("no_proxy", "127.0.0.1,localhost")
 base = (sys.argv[1] if len(sys.argv) > 1 else "http://127.0.0.1:9860").rstrip("/")
 
 
 def get(path):
-    with urllib.request.urlopen(base + path, timeout=30) as r:
+    with urllib.request.urlopen(urllib.request.Request(base + path, headers=devauth.headers(base)), timeout=30) as r:
         return r.headers.get("Content-Type", ""), r.read()
 
 

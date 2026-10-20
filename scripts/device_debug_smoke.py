@@ -6,6 +6,7 @@ import time
 import urllib.error
 import urllib.request
 import uuid
+import devauth  # scripts/devauth.py: pairing code (XSCRIPT_TOKEN or adb)
 
 
 class Device:
@@ -19,7 +20,7 @@ class Device:
     def api(self, method, path, body=None):
         request = urllib.request.Request(self.base + path, method=method,
             data=None if body is None else json.dumps(body).encode(),
-            headers={"Content-Type": "application/json"})
+            headers=devauth.headers(self.base, {"Content-Type": "application/json"}))
         with self.opener.open(request, timeout=8) as response:
             return json.load(response)
 
