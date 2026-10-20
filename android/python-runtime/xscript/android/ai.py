@@ -1,7 +1,7 @@
 """Natural-language screen vision on any OpenAI-compatible chat endpoint.
 
     from xscript.android import ai, screen
-    ai.config("http://192.168.1.10:8000/v1", model="qwen2.5-vl-7b")   # key from XSCRIPT_AI_KEY
+    ai.config(BASE_URL, model="qwen2.5-vl-7b")   # BASE_URL ends with /v1; key from XSCRIPT_AI_KEY
     hit = screen.ai_find("红色的关闭按钮")        # {"text", "rect", "center_x", "center_y", "confidence"} or None
     screen.ai_ask("当前是不是登录页？")           # plain text answer
 
@@ -53,7 +53,7 @@ class _NoRedirect(urllib.request.HTTPRedirectHandler):
 
 def config(base_url=None, api_key=None, model=None, timeout=60, coords="pixel",
            image_tokens=1024, json_mode=False, headers=None):
-    """Select the endpoint. base_url includes the API prefix, e.g. http://host:8000/v1.
+    """Select the endpoint. base_url includes the API prefix, e.g. .../v1.
 
     Defaults come from XSCRIPT_AI_BASE_URL / XSCRIPT_AI_KEY / XSCRIPT_AI_MODEL.
     api_key may be empty for local servers that need none. json_mode adds

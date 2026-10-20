@@ -6,8 +6,8 @@
     "en": "ai.config"
   },
   "doc": {
-    "zh": "Select the endpoint. base_url includes the API prefix, e.g. http://host:8000/v1.",
-    "en": "Select the endpoint. base_url includes the API prefix, e.g. http://host:8000/v1."
+    "zh": "Select the endpoint. base_url includes the API prefix, e.g. .../v1.",
+    "en": "Select the endpoint. base_url includes the API prefix, e.g. .../v1."
   },
   "exec": {
     "in": [
