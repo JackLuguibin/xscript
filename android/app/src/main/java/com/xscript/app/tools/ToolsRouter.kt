@@ -23,7 +23,8 @@ import java.io.File
  *   DELETE /tools/snapshots[/<id>]       delete one snapshot, or all of them
  *   GET  /tools/snapshots/<id>.png       snapshot image
  *   POST /tools/snapshots/<id>/crop      save a region into a project (res/img/...)
- *   POST /tools/vision                   pixel / find_colors / compare_colors / find_image / ocr
+ *   POST /tools/vision                   pixel / find_colors / compare_colors / count_color / find_color_blobs /
+ *                                        dominant_colors / find_image / ocr / yolo
  *   /tools/datasets/...                  标注 datasets, see [datasets]
  *
  * The MJPEG 投屏 stream (`GET /screen/stream`) needs a streaming response, so it lives
@@ -143,7 +144,7 @@ class ToolsRouter(private val context: Context) {
             req.put("model", f.absolutePath)
         }
         // Model ops load (and PaddleOCR may download) models on the first call.
-        val heavy = body.optString("op") == "yolo" || body.optString("engine").startsWith("paddle")
+        val heavy = body.optString("op") == "yolo" || body.optString("engine").let { it.startsWith("paddle") || it == "auto" }
         val timeout = body.optLong("timeout_ms", if (heavy) 60_000L else 12_000L).coerceIn(500L, if (heavy) 120_000L else 20_000L)
         val result = EvalRunner.vision(req, timeout)
         return when {

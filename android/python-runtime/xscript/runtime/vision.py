@@ -6,8 +6,10 @@ would get on the same frame. The device passes a JSON request:
     {"op": "find_colors", "image": "/abs/snapshot.png", "colors": "x,y,#RRGGBB|...",
      "rect": [l, t, r, b], "sim": 0.9}
 
-Ops: pixel, find_colors, compare_colors (count_sim), find_image (ori), ocr (pattern,
-binary, confidence). All coordinates are screen pixels of the snapshot.
+Ops: pixel, find_colors, compare_colors (count_sim), count_color, find_color_blobs
+(min_area, max_num), dominant_colors (k), find_image (ori, method), ocr (pattern, binary,
+confidence, engine), yolo. The colour ops take `color_space` (rgb | hsv | lab) and an
+optional `tolerance` like the script API. All coordinates are screen pixels of the snapshot.
 """
 
 import base64
@@ -37,6 +39,12 @@ def run(req):
         out = _find_colors(src, req, rect)
     elif op == "compare_colors":
         out = _compare_colors(src, req)
+    elif op == "count_color":
+        out = _count_color(src, req, rect)
+    elif op == "find_color_blobs":
+        out = _find_color_blobs(src, req, rect)
+    elif op == "dominant_colors":
+        out = _dominant_colors(src, req, rect)
     elif op == "find_image":
         out = _find_image(src, req, rect)
     elif op == "ocr":
@@ -90,7 +98,7 @@ def _find_colors(src, req, rect):
     limit = int(req.get("max_num") or MAX_POINTS)
     pts = _img.find_colors(
         req["colors"], rect, float(req.get("sim", 0.9)), int(req.get("space", 5)),
-        int(req.get("ori", 2)), limit + 1, image=src,
+        int(req.get("ori", 2)), limit + 1, image=src, **_space_args(req),
     )
     return {"points": [[p.x, p.y] for p in pts[:limit]], "truncated": len(pts) > limit}
 
@@ -127,23 +135,36 @@ def _yolo(src, req, rect):
     return {"detections": [d.to_dict() for d in hits], "names": m.names, "imgsz": list(m.imgsz)}
 
 
+def _space_args(req):
+    """`color_space` / `tolerance` passed through to the script API (validated there)."""
+    out = {}
+    if req.get("color_space"):
+        out["color_space"] = str(req["color_space"]).lower()
+    if req.get("tolerance") is not None:
+        out["tolerance"] = req["tolerance"]
+    return out
+
+
 def _compare_colors(src, req):
     """Per-point detail so the tool can show which point failed and by how much.
 
-    `count_sim` (0..1) is AScript's 数量相似度: the share of points that must match.
+    `count_sim` (0..1) is AScript's 数量相似度: the share of points that must match. Each point is
+    checked with the script's own `compare_colors`, so color_space / tolerance behave identically.
     """
-    tol = _img.diff_from_similarity(float(req.get("sim", 0.9)))
+    sim = float(req.get("sim", 0.9))
+    space = _space_args(req)
     h, w = src.shape[:2]
     details = []
     for x, y, rgb, pdiff in _img.parse_color_points(req["colors"]):
-        inside = 0 <= x < w and 0 <= y < h
         actual = None
         ok = False
-        if inside:
+        if 0 <= x < w and 0 <= y < h:
             b, g, r = [int(v) for v in src[y, x][:3]]
             actual = _hex((r, g, b))
-            t = pdiff or tol
-            ok = abs(r - rgb[0]) <= t[0] and abs(g - rgb[1]) <= t[1] and abs(b - rgb[2]) <= t[2]
+            point = "%d,%d,%s" % (x, y, _hex(rgb))
+            if pdiff:
+                point += "-" + _hex(pdiff)
+            ok = bool(_img.compare_colors(point, sim, image=src, **space))
         details.append({"x": x, "y": y, "expected": _hex(rgb), "actual": actual, "ok": ok})
     need = max(1, int(round(len(details) * float(req.get("count_sim", 1.0)))))
     hits = sum(1 for d in details if d["ok"])
@@ -173,7 +194,7 @@ def _find_image(src, req, rect):
     hits = _img.find_templates(
         tpl, rect, float(req.get("confidence", 0.8)), bool(req.get("rgb", False)),
         int(req.get("maxcnt", 10)), scale if scale else None, image=src,
-        ori=int(ori) if ori else None,
+        ori=int(ori) if ori else None, method=req.get("method") or None,
     )
     out = []
     for h in hits:
@@ -183,4 +204,32 @@ def _find_image(src, req, rect):
             "center_y": int(h["center_y"]),
             "confidence": round(float(h["confidence"]), 4),
         })
+        if h.get("method"):
+            out[-1]["method"] = h["method"]
     return {"hits": out}
+
+
+def _count_color(src, req, rect):
+    n = _img.count_color(req["color"], rect, float(req.get("sim", 0.9)), image=src, **_space_args(req))
+    h, w = src.shape[:2]
+    area = (rect[2] - rect[0]) * (rect[3] - rect[1]) if rect else w * h
+    return {"count": n, "ratio": round(n / float(area), 4) if area else 0.0}
+
+
+def _find_color_blobs(src, req, rect):
+    """Defaults to HSV like the script API; `max_num` caps the list (largest first)."""
+    space = _space_args(req)
+    space.setdefault("color_space", "hsv")
+    limit = int(req.get("max_num") or MAX_POINTS)
+    blobs = _img.find_color_blobs(
+        req["color"], rect, float(req.get("sim", 0.9)), min_area=int(req.get("min_area", 50)),
+        max_num=limit + 1, image=src, **space
+    )
+    out = [{k: b[k] for k in ("rect", "center_x", "center_y", "area", "fill")} for b in blobs[:limit]]
+    return {"blobs": out, "truncated": len(blobs) > limit}
+
+
+def _dominant_colors(src, req, rect):
+    colors = _img.dominant_colors(rect, int(req.get("k", 3)), image=src,
+                                  color_space=str(req.get("color_space") or "lab").lower())
+    return {"colors": [{"color": c["color"], "ratio": round(float(c["ratio"]), 4)} for c in colors]}
