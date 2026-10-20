@@ -95,6 +95,9 @@ object Bridge {
     fun ocr(bitmap: Bitmap, offsetX: Int, offsetY: Int, level: String): String =
         OcrEngine.recognize(XscriptApp.instance, bitmap, offsetX, offsetY, level)
 
+    @JvmStatic
+    fun ocrWarmup() = OcrEngine.warmUp(XscriptApp.instance)
+
     // ---- ONNX (YOLO / PaddleOCR; sessions live in this process) ----
     @JvmStatic
     fun onnxLoad(path: String, optsJson: String): String = com.xscript.app.ml.OnnxEngine.load(path, optsJson)
