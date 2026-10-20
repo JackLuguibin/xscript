@@ -2,6 +2,8 @@
 
 XScript 的 PC / 服务器端。这里的内容都不在手机上运行。
 
+![管理后台概览：在线设备、卡密、定时任务统计和近 30 天激活 / 新设备趋势图（演示数据）](../docs/images/admin-overview.png)
+
 **Python 版本**：后台、MCP 服务和构建机统一要求 Python 3.10+（设备上内置的也是 3.10，`ide/python-stubs` 类型存根 3.8 起可用）。3.11 及以上使用 `websockets 17` / `sqlalchemy 2.1`，3.10 由 `pyproject.toml` 的环境标记自动装 `websockets 16.1.1` / `sqlalchemy 2.0.54`；两条路径的后台和 MCP 测试都通过。`scripts/verify.sh` 会在 `.venv310`（uv 自动创建）里用 3.10 再跑一遍。
 
 | 路径 | 作用 |
@@ -43,6 +45,8 @@ XScript 的 PC / 服务器端。这里的内容都不在手机上运行。
 - **数据保留** 随每日备份一起执行：已完成的打包任务中，除最新的 `keep_pack_jobs` 个以外，其余的 APK 都会删除（任务记录保留）；早于 `audit_days` 的操作日志会删除；过期超过一周的分享链接会删除。设为 0 则全部保留。
 
 ### 打包机（远程打包）
+
+![APK 打包页：左侧选择工程、应用信息和功能，右侧打包记录和打包机列表（两台在线，演示数据）](../docs/images/admin-pack.png)
 
 默认（`XSCRIPT_PACK_MODE=local`）服务器自己一次打一个包。设 `XSCRIPT_PACK_MODE=remote` 后，任务留在数据库里，由单独的打包机领取：
 
@@ -107,6 +111,10 @@ PYTHONPATH=backend .venv/bin/python -m unittest discover -s backend/tests
 
 ### 代理
 
+| 管理员：「代理」页 | 代理登录后：「我的概览」 |
+| :---: | :---: |
+| ![代理列表：额度用量、各状态卡数、发卡限制和近 30 天激活（演示数据）](../docs/images/admin-resellers.png) | ![代理的我的概览：剩余额度、发卡范围和销量趋势（演示数据）](../docs/images/admin-reseller-home.png) |
+
 - 管理员在「用户」里创建角色为「代理」的账号；新代理没有额度。`PUT /api/resellers/{id}` 设置限制：允许的应用包名（`*` = 任意）、卡类型、最长有效期（0 = 允许永久卡）、每张卡最多设备数、按次卡最多次数；`POST /api/resellers/{id}/quota`（`delta` 为正充值、为负扣回，不能低于已生成数）调整额度。
 - 额度是「累计可生成的卡数」：生成时原子扣减（并发请求不会超额），作废或删除卡密不退回。
 - 代理生成的卡密记录 `owner_id`；管理员的卡密列表、导出和趋势可以按代理筛选（`owner=<用户 id>`，`owner=-1` 只看员工生成的）。`GET /api/resellers` 列出每个代理的额度、各状态卡数和近 30 天激活数，`GET /api/resellers/{id}/stats/daily` 是该代理的每日生成 / 激活 / 到期。
@@ -116,6 +124,8 @@ PYTHONPATH=backend .venv/bin/python -m unittest discover -s backend/tests
 ### AI 写脚本
 
 在后台描述任务，由大模型生成小程序入口 `__init__.py`，检查语法后保存为小程序的新版本，再用现有的「下发」装到设备上测试。
+
+![AI 写脚本：左侧描述需求，右侧是生成的代码、语法检查结果和模型说明（演示用的本地假模型）](../docs/images/admin-ai.png)
 
 - **模型配置**和设备脚本的 `ai.config` 是同一套：服务器环境变量 `XSCRIPT_AI_BASE_URL`（含 `/v1` 之类的前缀）、`XSCRIPT_AI_MODEL`、`XSCRIPT_AI_KEY`，任何 OpenAI 兼容接口都可以（`{base_url}/chat/completions`，本地模型可以不设密钥）。系统设置里可以覆盖接口地址和模型；**密钥只从环境变量读取**，不存数据库、不写日志、不在任何接口里返回（`GET /api/ai/status` 只给出 `key_set`）。不跟随重定向，避免密钥被转发。
 - `POST /api/ai/script`（操作员）：`{prompt, code?}`，带上 `code` 就是在现有代码上修改。系统提示里附带 API 目录（`xscript_server/api_catalog.json`，和 MCP 的 `api_catalog.json` 是同一份，测试会检查两份一致），返回 `{code, notes, syntax_error, model, usage, ms}`。只做语法检查，服务器不运行生成的代码。每人每 10 分钟最多 20 次。

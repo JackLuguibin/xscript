@@ -75,19 +75,22 @@ XScript 将设备端 Python 运行时、自动化 API、浏览器开发工具和
 
 | 首页 | 小程序列表 | 小程序详情 |
 | :---: | :---: | :---: |
-| <img src="docs/images/phone-home.png" width="220" alt="首页：开发者地址、当前小程序和各项权限状态"> | <img src="docs/images/phone-projects.png" width="220" alt="小程序列表：新建、导入"> | <img src="docs/images/phone-project.png" width="220" alt="小程序详情：运行、日志、开机自启、定时任务、文件"> |
-| 开发者地址、权限状态，一键运行上次的小程序 | **新建** / **导入**，点进某个小程序 | **运行** / **日志**、开机自启、停止后重新运行、定时任务 |
+| <img src="docs/images/phone-home.png" width="220" alt="首页：当前小程序、开发者地址、配对码、AI 编程和云控连接状态、各项权限"> | <img src="docs/images/phone-projects.png" width="220" alt="小程序列表：四个示例小程序，右上角新建、导入"> | <img src="docs/images/phone-project.png" width="220" alt="小程序详情：运行、日志、开机自启、定时任务、文件"> |
+| 开发者地址、配对码、权限状态，一键运行上次的小程序 | **新建** / **导入**，点进某个小程序 | **运行** / **日志**、开机自启、停止后重新运行、定时任务 |
 | **查看代码** | **运行日志** | **定时任务** |
 | <img src="docs/images/phone-editor.png" width="220" alt="手机上查看和修改 __init__.py"> | <img src="docs/images/phone-run-log.png" width="220" alt="运行日志：print 输出实时显示，可停止、清空"> | <img src="docs/images/phone-schedule.png" width="220" alt="添加定时任务：每天定时、每隔 N 分钟、只运行一次"> |
 | 详情页点文件即可查看和简单修改 | `print` 输出实时显示，可 **停止** / **清空** | 每天定时、每隔 N 分钟、只运行一次 |
+| **配对码** | **新建（模板）** | |
+| <img src="docs/images/phone-pairing.png" width="220" alt="配对码弹窗：电脑首次连接时输入的配对码，可重新生成、复制或关闭"> | <img src="docs/images/phone-templates.png" width="220" alt="新建小程序：填名称并选择模板（空白、Hello、AScript 风格、每日签到、找图、OCR、悬浮窗界面）"> | |
+| 首页「配对码」：电脑端首次连接时输入，可重新生成；USB 连接的桌面客户端自动配对 | 七个模板，与网页 IDE、VS Code 插件的「新建工程」相同 | |
 
 **4. 后台悬浮窗**：脚本运行时把 XScript 切到后台，屏幕边上会出现一个悬浮窗（绿点 + 工程名 + 已运行时间），几秒不碰就缩成半透明小球；拖动会带缓动吸附到左右边（避开状态栏和导航条）并记住位置，横竖屏各一份；点一下展开 **停止 / 日志 / 打开 / 隐藏**（图标在上、小字在下，随深浅色换配色）和脚本用 `FloatWindow.add_menu` 加的按钮，不用回到 App 就能停脚本；脚本出错结束时会标红保留几秒。首页 **悬浮窗显示** 可选 运行时显示（默认）/ 后台一直显示 / 已关闭，需要 **悬浮窗权限**，没授权时不显示也不影响运行。回到 App 或脚本结束就收起。
 
 <img src="docs/images/phone-floating.png" width="240" alt="在别的 App 上方显示的悬浮窗：展开后有停止、日志、打开、隐藏四个按钮">
 
-**5. 在电脑上写脚本**：首页 **开发者地址** 就是电脑要访问的地址。同一局域网直接打开 `http://<开发者地址>/tools/`；USB 或模拟器先 `adb forward tcp:19860 tcp:9860`，再打开 `http://127.0.0.1:19860/tools/`，进入 **脚本 IDE**。
+**5. 在电脑上写脚本**：首页 **开发者地址** 就是电脑要访问的地址。同一局域网直接打开 `http://<开发者地址>/tools/`；USB 或模拟器先 `adb forward tcp:19860 tcp:9860`，再打开 `http://127.0.0.1:19860/tools/`，进入 **脚本 IDE**。第一次打开会要求输入手机首页的 **配对码**。
 
-![脚本 IDE：左侧目录树，右侧带 Python 高亮的编辑器，下方运行日志](docs/images/ide-overview.png)
+![脚本 IDE：左侧工程和目录树，中间带 Python 高亮的编辑器，下方断点调试和运行日志](docs/images/ide-overview.png)
 
 - **新建** 工程时可选模板（空工程、Hello、AScript 兼容、签到、找图点击、OCR 读数、悬浮窗 UI，手机 App 的「新建」也一样）；新建文件 / 文件夹：文件路径如 `utils/net.py`，默认放在目录树选中的文件夹里；目录树用法同 VS Code。
 - ⌘/Ctrl+S 保存，**保存并运行**（F6）在手机上运行，**停止**（Shift+F6）结束；**保存并调试** 支持断点、单步和变量查看。
