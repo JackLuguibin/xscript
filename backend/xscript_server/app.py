@@ -23,6 +23,7 @@ from .hub import Hub, Scheduler
 from .maintenance import Maintainer
 from .packer import Packer
 from .routes import ai, appops, auth, cards, devices, pack, reseller, scripts, system, tasks, users
+from .routes import workers as pack_workers
 
 log = logging.getLogger("xscript.server")
 
@@ -117,7 +118,7 @@ def create_app(config: Config, start_workers: bool = True) -> FastAPI:
 
     for r in (appops.router, appops.update_router, appops.public, auth.router, users.router, devices.router, tasks.router, cards.router, cards.public, pack.router,
               pack.public, scripts.router, scripts.public, system.router,
-              reseller.router, reseller.me, ai.router):
+              reseller.router, reseller.me, ai.router, pack_workers.router, pack_workers.protocol):
         app.include_router(r)
     app.include_router(devices.ws_router)
 

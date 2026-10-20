@@ -20,6 +20,8 @@ services:
       XSCRIPT_SESSION_HOURS: ${XSCRIPT_SESSION_HOURS:-12}
       # Empty = the SQLite file in the data volume. Set in .env to use PostgreSQL (docs/部署.md).
       XSCRIPT_DATABASE_URL: ${XSCRIPT_DATABASE_URL:-}
+      # local = 在这台服务器上打包（full 镜像）；remote = 交给单独的打包机（docs/部署.md「打包机」）
+      XSCRIPT_PACK_MODE: ${XSCRIPT_PACK_MODE:-local}
       # 只信任同一 compose 网络里的 Caddy 转发的客户端 IP
       XSCRIPT_FORWARDED_ALLOW_IPS: "*"
       # 正式签名（可选，full 镜像打包用）：把 jks 放进 ./secrets 后取消注释

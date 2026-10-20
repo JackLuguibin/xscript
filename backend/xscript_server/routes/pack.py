@@ -70,14 +70,15 @@ def job_out(j: PackJob, position: int | None = None) -> dict[str, Any]:
             "version_code": j.version_code, "project_name": j.project_name, "options": opts,
             "created_by": j.created_by, "created_at": j.created_at, "started_at": j.started_at,
             "finished_at": j.finished_at, "apk_size": j.apk_size, "error": j.error,
-            "has_apk": bool(j.apk_file), "queue_position": position}
+            "has_apk": bool(j.apk_file), "queue_position": position, "worker_name": j.worker_name or "",
+            "attempts": j.attempts or 0, "cancel_requested": bool(j.cancel_requested)}
 
 
 @router.get("/info")
 def pack_info(request: Request, p: Principal = Depends(viewer), s: Session = Depends(db_session)):
     c = ctx(request)
     ok, why = c.packer.available()
-    return {"available": ok, "reason": why, "release_signing": c.config.release_signing,
+    return {"available": ok, "reason": why, "release_signing": c.packer.release_signing(), "mode": c.config.pack_mode,
             "public_url": get_settings(s)["public_url"]}
 
 
@@ -237,8 +238,9 @@ async def create_job(request: Request, options: str = Form(...), project: Upload
     except (ValueError, ValidationError) as e:
         msg = e.errors()[0]["msg"] if isinstance(e, ValidationError) else "options 不是合法 JSON"
         raise HTTPException(400, msg) from None
-    if o.release and not c.config.release_signing:
-        raise HTTPException(400, "服务器没有配置签名证书（XSCRIPT_KEYSTORE / XSCRIPT_STORE_PASS）")
+    if o.release and not c.packer.release_signing():
+        raise HTTPException(400, "打包机没有配置签名证书（XSCRIPT_KEYSTORE / XSCRIPT_STORE_PASS）" if c.packer.remote
+                            else "服务器没有配置签名证书（XSCRIPT_KEYSTORE / XSCRIPT_STORE_PASS）")
     from_script = o.script_id is not None
     if not from_script and (project is None or not (project.filename or "").lower().endswith(".zip")):
         raise HTTPException(400, "工程需要上传 .zip，或选择一个小程序版本")

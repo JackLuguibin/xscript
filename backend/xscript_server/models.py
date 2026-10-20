@@ -273,6 +273,31 @@ class PackJob(Base):
     apk_file: Mapped[str | None] = mapped_column(String(255), default=None)
     apk_size: Mapped[int | None] = mapped_column(BigInteger, default=None)
     error: Mapped[str | None] = mapped_column(Text, default=None)
+    # 打包机 (XSCRIPT_PACK_MODE=remote): who is building it, its last heartbeat, how many times it was
+    # handed out (a lost worker's job is queued again once) and a cancel the worker picks up.
+    worker_id: Mapped[int | None] = mapped_column(BigInteger, default=None)
+    worker_name: Mapped[str] = mapped_column(String(64), default="")
+    heartbeat_at: Mapped[int | None] = mapped_column(BigInteger, default=None)
+    attempts: Mapped[int] = mapped_column(BigInteger, default=0)
+    cancel_requested: Mapped[bool] = mapped_column(Boolean, default=False)
+
+
+class PackWorker(Base):
+    """A separate 打包机 that claims pack jobs over HTTP. Only the token's hash is stored."""
+
+    __tablename__ = "pack_workers"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    name: Mapped[str] = mapped_column(String(64))
+    token_hash: Mapped[str] = mapped_column(String(64), unique=True)
+    hint: Mapped[str] = mapped_column(String(16), default="")
+    created_at: Mapped[int] = mapped_column(BigInteger, default=now)
+    created_by: Mapped[str] = mapped_column(String(64), default="")
+    disabled: Mapped[bool] = mapped_column(Boolean, default=False)
+    last_seen_at: Mapped[int | None] = mapped_column(BigInteger, default=None)
+    last_ip: Mapped[str] = mapped_column(String(64), default="")
+    # What the worker reported on its last claim: {"release": bool, "version": str, "host": str}
+    capabilities: Mapped[dict[str, Any]] = mapped_column(JSON, default=dict)
 
 
 class Script(Base):

@@ -29,6 +29,9 @@ class Config:
     key_pass: str = ""
     # XSCRIPT_DATABASE_URL: PostgreSQL (postgresql://user:pass@host:5432/db). "" = SQLite in the data dir.
     database_url: str = ""
+    # XSCRIPT_PACK_MODE: "local" (default) builds here, one job at a time; "remote" leaves jobs in the
+    # database for separate 打包机 (`python -m xscript_server pack-worker`) to claim.
+    pack_mode: str = "local"
 
     @classmethod
     def load(cls, data_dir: str | os.PathLike | None = None, web_dir: str | None = None) -> "Config":
@@ -45,6 +48,7 @@ class Config:
             store_pass=os.environ.get("XSCRIPT_STORE_PASS", ""),
             key_pass=os.environ.get("XSCRIPT_KEY_PASS", ""),
             database_url=os.environ.get("XSCRIPT_DATABASE_URL", "").strip(),
+            pack_mode="remote" if os.environ.get("XSCRIPT_PACK_MODE", "").strip().lower() == "remote" else "local",
         )
 
     @property

@@ -8,6 +8,7 @@
     python -m xscript_server reset-password --data ./xscript-data admin
     python -m xscript_server backup --data ./xscript-data [--out file.tar.gz]
     python -m xscript_server restore --data ./xscript-data file.tar.gz [--force]
+    XSCRIPT_WORKER_TOKEN=xsw_… python -m xscript_server pack-worker --server https://host   # 打包机
 """
 
 from __future__ import annotations
@@ -216,6 +217,12 @@ def cmd_serve(cfg: Config, a) -> int:
     return 0
 
 
+def cmd_pack_worker(cfg: Config, a) -> int:
+    from .pack_worker import main as worker_main
+
+    return worker_main(a.server, a.work_dir, once=a.once, max_wait=a.max_wait, beat_s=a.beat_s)
+
+
 def main(argv: list[str] | None = None) -> int:
     ap = argparse.ArgumentParser(prog="xscript-server", description="XScript 管理后台（云控 / 卡密 / 打包）")
     ap.add_argument("--data", help="数据目录（数据库、签名密钥、打包产物），默认 $XSCRIPT_DATA 或 ./xscript-data")
@@ -256,6 +263,13 @@ def main(argv: list[str] | None = None) -> int:
     rs.add_argument("file")
     rs.add_argument("--force", action="store_true", help="覆盖已有的数据库")
 
+    pw = sub.add_parser("pack-worker", help="打包机：替服务器打包 APK（服务器设 XSCRIPT_PACK_MODE=remote）")
+    pw.add_argument("--server", required=True, help="服务器地址，如 https://xscript.example.com")
+    pw.add_argument("--work-dir", default="xscript-worker", help="临时构建目录，默认 ./xscript-worker")
+    pw.add_argument("--once", action="store_true", help="做完一个任务就退出")
+    pw.add_argument("--max-wait", type=float, default=None, help=argparse.SUPPRESS)  # tests: give up when idle
+    pw.add_argument("--beat-s", type=float, default=3.0, help=argparse.SUPPRESS)  # heartbeat interval
+
     # --data is accepted before or after the subcommand.
     for p in (sv, i, rp, ra, dk, il, bk, rs):
         p.add_argument("--data", default=argparse.SUPPRESS, help=argparse.SUPPRESS)
@@ -264,7 +278,7 @@ def main(argv: list[str] | None = None) -> int:
     cfg = Config.load(getattr(a, "data", None), getattr(a, "web", None))
     handlers = {"serve": cmd_serve, "init": cmd_init, "reset-password": cmd_reset_password, "reset-allowlist": cmd_reset_allowlist,
                 "device-key": cmd_device_key, "import-legacy": cmd_import_legacy, "backup": cmd_backup,
-                "restore": cmd_restore}
+                "restore": cmd_restore, "pack-worker": cmd_pack_worker}
     try:
         return handlers[a.cmd](cfg, a)
     except (ValueError, RuntimeError) as e:
