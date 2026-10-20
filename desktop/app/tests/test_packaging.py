@@ -61,3 +61,12 @@ def test_windows_build_names_match():
     assert "--name XScript" in sh and "--windowed" in sh and "MSYS2_ARG_CONV_EXCL" in sh
     chk = (PKG / "check_windows_install.sh").read_text()
     assert "/VERYSILENT" in chk and "--selftest" in chk and "--report" in chk and "unins000.exe" in chk
+
+
+def test_dmg_check_never_touches_applications_or_the_user_profile():
+    s = (PKG / "check_macos_dmg.sh").read_text()
+    assert "verify_macos_app.sh" in s and "open -n -W" in s and "--selftest" in s
+    # every launch gets a temp --data-dir, and the bundle is copied to a temp folder, not installed
+    launches = [ln for ln in s.splitlines() if ("XScript\" --" in ln or ln.strip().startswith("open -n")) and "--" in ln]
+    assert launches and all("--data-dir" in ln for ln in launches)
+    assert "/Applications/XScript" not in s and "pwd -P" in s
