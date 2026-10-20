@@ -29,9 +29,11 @@ def _json(data) -> str:
 
 
 @mcp.tool()
-def connect_device(ip: str, port: int = DEFAULT_PORT) -> str:
-    """Connect to an XScript device. Use a LAN IP, or 127.0.0.1 after adb forward."""
-    target = _client.set_target(ip, int(port))
+def connect_device(ip: str, port: int = DEFAULT_PORT, token: str = "") -> str:
+    """Connect to an XScript device. Use a LAN IP, or 127.0.0.1 after adb forward.
+
+    `token` is the pairing code shown on the phone (开发与连接 → 配对码); empty keeps XSCRIPT_TOKEN."""
+    target = _client.set_target(ip, int(port), token=token or None)
     try:
         status = _client.status()
     except Exception as exc:

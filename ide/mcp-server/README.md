@@ -37,4 +37,4 @@ Cursor 配置：
 - `list_datasets`、`export_dataset`（标注：下载 YOLO zip）
 - `get_module_apis`、`search_api`
 
-设备 API 没有认证。`XSCRIPT_DEVICE` 只应指向可信网络中的手机，或通过 `adb forward` 指向 `127.0.0.1`。
+设备 API 默认需要配对码：把手机 XScript 首页「开发与连接 → 配对码」设置为环境变量 `XSCRIPT_TOKEN`（如 `ABCD-EFGH`），或调用 `connect_device(ip, port, token)`。缺少或错误时工具会返回 401 和提示。`XSCRIPT_DEVICE` 只应指向可信网络中的手机，或通过 `adb forward` 指向 `127.0.0.1`。

@@ -1,7 +1,7 @@
 import * as fs from "fs";
 import * as path from "path";
 import * as vscode from "vscode";
-import { DeviceClient, currentSeq as latestSeq, describeError, followTick, parseTarget } from "./client";
+import { DeviceClient, DeviceTarget, currentSeq as latestSeq, describeError, followTick, isPairingError, normalizeCode, parseTarget, validateCode } from "./client";
 import { collectFiles, findProjectRoot, isProjectDir } from "./project";
 import { registerDebugger, startDebugging } from "./debugAdapter";
 import { execFile } from "child_process";
@@ -24,8 +24,70 @@ function config() {
   return vscode.workspace.getConfiguration("xscript");
 }
 
+// Pairing codes per device address ("host:port"), kept in VS Code's SecretStorage (OS keychain).
+const PAIRING_SECRET = "xscript.pairing";
+let pairing: Record<string, string> = {};
+
+function addressOf(t: DeviceTarget): string {
+  return (t.host.includes(":") ? "[" + t.host + "]" : t.host) + ":" + t.port;
+}
+
+function tokenFor(t: DeviceTarget): string {
+  return pairing[addressOf(t)] ?? "";
+}
+
+async function loadPairing(): Promise<void> {
+  try {
+    const raw = await extCtx.secrets.get(PAIRING_SECRET);
+    pairing = raw ? (JSON.parse(raw) as Record<string, string>) : {};
+  } catch {
+    pairing = {};
+  }
+}
+
+async function savePairing(t: DeviceTarget, code: string): Promise<void> {
+  if (code) pairing[addressOf(t)] = code;
+  else delete pairing[addressOf(t)];
+  await extCtx.secrets.store(PAIRING_SECRET, JSON.stringify(pairing));
+}
+
+function deviceClient(t: DeviceTarget, timeoutMs?: number): DeviceClient {
+  return new DeviceClient(t, timeoutMs, tokenFor(t));
+}
+
 function makeClient(): DeviceClient {
-  return new DeviceClient(parseTarget(config().get<string>("device", "127.0.0.1:9860")));
+  return deviceClient(parseTarget(config().get<string>("device", "127.0.0.1:9860")));
+}
+
+/**
+ * Asks for the pairing code shown on the phone and checks it against the device. True once paired
+ * (or when the device has pairing switched off).
+ */
+async function pairDevice(): Promise<boolean> {
+  const t = client.target;
+  const code = await vscode.window.showInputBox({
+    title: "XScript: Pair with " + addressOf(t),
+    prompt: "Pairing code shown in the XScript app (开发与连接 → 配对码)",
+    placeHolder: "ABCD-EFGH",
+    ignoreFocusOut: true,
+    validateInput: validateCode,
+  });
+  if (code === undefined) return false;
+  const probe = new DeviceClient(t, 5000, normalizeCode(code));
+  try {
+    await probe.listProjects();
+  } catch (err) {
+    vscode.window.showErrorMessage(
+      isPairingError(err) ? "XScript: wrong pairing code for " + addressOf(t) : "XScript: pairing failed (" + describe(err) + ")",
+    );
+    return false;
+  }
+  await savePairing(t, normalizeCode(code));
+  client.token = normalizeCode(code);
+  tree?.refresh();
+  void refreshStatus();
+  vscode.window.showInformationMessage("XScript: paired with " + addressOf(t));
+  return true;
 }
 
 const describe = describeError;
@@ -34,6 +96,22 @@ async function guard<T>(what: string, fn: () => PromiseLike<T>): Promise<T | und
   try {
     return await fn();
   } catch (err) {
+    if (isPairingError(err)) {
+      output.appendLine("XScript: " + what + " needs pairing with " + client.baseUrl);
+      const pick = await vscode.window.showWarningMessage(
+        "XScript: " + addressOf(client.target) + " needs the pairing code shown in the app (开发与连接 → 配对码).",
+        "Enter Pairing Code",
+      );
+      if (pick && (await pairDevice())) {
+        try {
+          return await fn();
+        } catch (again) {
+          err = again;
+        }
+      } else {
+        return undefined;
+      }
+    }
     const msg = "XScript: " + what + " failed (" + describe(err) + ") at " + client.baseUrl;
     output.appendLine(msg);
     const pick = await vscode.window.showErrorMessage(msg, "Change Device");
@@ -50,6 +128,15 @@ async function refreshStatus(): Promise<void> {
     const s = await client.status(3000);
     isRunning = !!s.running;
     void vscode.commands.executeCommand("setContext", "xscript.running", isRunning);
+    if (s.pairing && !s.paired) {
+      isRunning = false;
+      void vscode.commands.executeCommand("setContext", "xscript.running", false);
+      statusItem.text = "$(lock) XScript: pair " + String(s.model || s.name || "device");
+      statusItem.tooltip = "XScript device " + addr + " needs the pairing code (click to pair)";
+      statusItem.command = "xscript.pair";
+      return;
+    }
+    statusItem.command = "xscript.connect";
     const running = s.running ? " $(play) " + String(s.project ?? "") : "";
     statusItem.text = "$(device-mobile) " + String(s.model || s.name || "XScript") + running;
     statusItem.tooltip = "XScript device " + addr + " (click to change)";
@@ -408,6 +495,8 @@ const commands: Record<string, (...args: any[]) => unknown> = {
     }
   },
 
+  "xscript.pair": () => pairDevice(),
+
   "xscript.newUiForm": (arg?: { root?: string; name?: string }) => newUiForm(arg),
 
   "xscript.status": async () => {
@@ -620,13 +709,13 @@ export function activate(context: vscode.ExtensionContext): XScriptApi {
     probe: async (address) => {
       const t = parseTarget(address);
       try {
-        const s = await new DeviceClient(t, 1500).status(1500);
+        const s = await deviceClient(t, 1500).status(1500);
         return { online: true, running: !!s.running, project: s.project ? String(s.project) : undefined, model: s.model ? String(s.model) : undefined };
       } catch {
         return { online: false, running: false };
       }
     },
-    listProjects: (address) => new DeviceClient(parseTarget(address), 3000).listProjects(),
+    listProjects: (address) => deviceClient(parseTarget(address), 3000).listProjects(),
   });
   statusItem = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Left, 50);
   statusItem.command = "xscript.connect";
@@ -641,7 +730,7 @@ export function activate(context: vscode.ExtensionContext): XScriptApi {
   }
   context.subscriptions.push(vscode.window.createTreeView("xscript.devices", { treeDataProvider: tree, showCollapseAll: false }));
   registerUiDesigner(context, output);
-  registerDebugger(context, output, () => config().get<string>("device", "127.0.0.1:9860"));
+  registerDebugger(context, output, () => config().get<string>("device", "127.0.0.1:9860"), tokenFor);
   context.subscriptions.push(
     vscode.workspace.onDidChangeConfiguration((e) => {
       if (e.affectsConfiguration("xscript.device")) {
@@ -669,7 +758,11 @@ export function activate(context: vscode.ExtensionContext): XScriptApi {
   };
   loop();
   context.subscriptions.push({ dispose: () => { disposed = true; if (timer) clearTimeout(timer); } });
-  void refreshStatus();
+  void loadPairing().then(() => {
+    client.token = tokenFor(client.target);
+    tree.refresh();
+    return refreshStatus();
+  });
   return { store, tree, refreshStatus, statusText: () => statusItem.text };
 }
 

@@ -153,8 +153,24 @@ interface RequestOptions {
   passStatuses?: number[];
 }
 
+/** "abcd-efgh" → "ABCDEFGH": the pairing code as the device compares it. */
+export function normalizeCode(code: string): string {
+  return (code || "").replace(/[^0-9a-z]/gi, "").toUpperCase();
+}
+
+/** Input-box check for a pairing code: 8 letters/digits, dash optional. */
+export function validateCode(code: string): string | undefined {
+  return /^[A-Z0-9]{8}$/.test(normalizeCode(code)) ? undefined : "8 letters or digits, e.g. ABCD-EFGH";
+}
+
+/** True for the device's "pairing required" reply. */
+export function isPairingError(err: unknown): boolean {
+  return err instanceof HttpError && err.status === 401;
+}
+
 export class DeviceClient {
-  constructor(public target: DeviceTarget, private timeoutMs = 15000) {}
+  /** `token` is the pairing code shown on the phone (开发与连接 → 配对码); empty when pairing is off. */
+  constructor(public target: DeviceTarget, private timeoutMs = 15000, public token = "") {}
 
   get baseUrl(): string {
     return baseUrl(this.target);
@@ -164,6 +180,7 @@ export class DeviceClient {
     const url = new URL(this.baseUrl + route);
     for (const [k, v] of Object.entries(opts.query ?? {})) url.searchParams.set(k, String(v));
     const headers: Record<string, string> = { ...CLIENT_HEADER };
+    if (this.token) headers["Authorization"] = "Bearer " + normalizeCode(this.token);
     let body: string | undefined;
     if (opts.json !== undefined) {
       headers["Content-Type"] = "application/json";
