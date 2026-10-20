@@ -13,6 +13,7 @@
 - 修复：手机 `/status` 上报的版本号一直是 0.2.0，现在与 App 版本一致；模拟设备与演示后端从同一处读取，版本不一致时测试会失败。
 - 修复：v0.4.0 桌面端 dmg 在别的 Mac 上下载后提示“XScript 已损坏，无法打开”。原因是打包脚本在签名之后又改了 Info.plist，签名失效。现在改完后重新签名并校验；v0.4.0 Release 里的 dmg 已替换（标签未动），首次打开说明已更新。
 - 发布流程：release 工作流在 macOS 运行器上构建并校验桌面端 dmg，与 APK 一起附到 Release 并写入 `SHA256SUMS`。
+- MCP / 后台 AI 写脚本的 API 目录改由 `scripts/gen_api_catalog.py` 从 stub 生成（签名不再手抄），CI 检查两份副本和运行时是否一致；顺带修正了 `yolo.decode`、`pip.install_requirements`、`cloud.on_message` 等过时签名，补上 `system.open_app_setting`、`ui.float_add_menu`、`onnx.available`、`cloud.connected` / `cloud.off`。
 
 ## v0.4.0（2026-10-20）
 

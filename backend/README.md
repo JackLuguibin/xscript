@@ -128,7 +128,7 @@ PYTHONPATH=backend .venv/bin/python -m unittest discover -s backend/tests
 ![AI 写脚本：左侧描述需求，右侧是生成的代码、语法检查结果和模型说明（演示用的本地假模型）](../docs/images/admin-ai.png)
 
 - **模型配置**和设备脚本的 `ai.config` 是同一套：服务器环境变量 `XSCRIPT_AI_BASE_URL`（含 `/v1` 之类的前缀）、`XSCRIPT_AI_MODEL`、`XSCRIPT_AI_KEY`，任何 OpenAI 兼容接口都可以（`{base_url}/chat/completions`，本地模型可以不设密钥）。系统设置里可以覆盖接口地址和模型；**密钥只从环境变量读取**，不存数据库、不写日志、不在任何接口里返回（`GET /api/ai/status` 只给出 `key_set`）。不跟随重定向，避免密钥被转发。
-- `POST /api/ai/script`（操作员）：`{prompt, code?}`，带上 `code` 就是在现有代码上修改。系统提示里附带 API 目录（`xscript_server/api_catalog.json`，和 MCP 的 `api_catalog.json` 是同一份，测试会检查两份一致），返回 `{code, notes, syntax_error, model, usage, ms}`。只做语法检查，服务器不运行生成的代码。每人每 10 分钟最多 20 次。
+- `POST /api/ai/script`（操作员）：`{prompt, code?}`，带上 `code` 就是在现有代码上修改。系统提示里附带 API 目录（`xscript_server/api_catalog.json`，和 MCP 的 `api_catalog.json` 是同一份，由 `scripts/gen_api_catalog.py` 从 `ide/python-stubs` 和 `scripts/api_catalog_src.json` 生成，CI 用 `--check` 检查），返回 `{code, notes, syntax_error, model, usage, ms}`。只做语法检查，服务器不运行生成的代码。每人每 10 分钟最多 20 次。
 - `GET /api/ai/source/{小程序}/{版本}` 读出某个版本的 `__init__.py`；`POST /api/ai/save`（操作员；`publish` 需要管理员）把代码保存为下一个版本，给出 `base_version_id` 时保留该版本的其他文件（资源、`requirements.txt`），有语法错误时拒绝保存。
 - 控制台：侧边栏「发布 → AI 写脚本」（操作员）。左侧写需求（写新脚本，或从小程序版本载入后修改），右侧是可编辑的代码、语法检查结果、模型说明和撤销；「保存为版本」后管理员可以直接「下发到设备测试」。小程序版本列表里的机器人按钮会带着该版本打开这个页面。管理员在「系统设置 → AI 写脚本」查看当前生效的模型和密钥是否已设置，并可覆盖接口地址和模型。
 - 操作日志记录 `ai.script`（模型、需求字数、是否成功、token 用量，不记需求原文）和带 `ai: true` 的 `script.version`。
