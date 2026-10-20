@@ -132,7 +132,7 @@ class AiWriterTest(unittest.TestCase):
     def test_catalog_copy_matches_mcp(self):
         mcp = HERE.parents[1] / "ide" / "mcp-server" / "xscript_mcp" / "api_catalog.json"
         self.assertEqual(aiwriter.CATALOG.read_bytes(), mcp.read_bytes(),
-                         "backend/xscript_server/api_catalog.json 要和 MCP 的 api_catalog.json 保持一致（复制过去）")
+                         "backend/xscript_server/api_catalog.json 要和 MCP 的 api_catalog.json 保持一致（运行 scripts/gen_api_catalog.py）")
         ref = aiwriter.api_reference()
         self.assertIn("xscript.android.action", ref)
         self.assertIn("click(x, y=None, dur=20)", ref)

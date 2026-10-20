@@ -1,0 +1,1201 @@
+{
+  "notes": [
+    "Scripts run in the XScript app (Chaquopy Python 3.10, numpy, opencv, pillow, requests, pyyaml, packaging). Extra PyPI packages install at runtime: list them in the project's requirements.txt, or use pip_install / xscript.android.pip.",
+    "Two API families: xscript.android.* (native) and ascript.android.* (drop-in for AScript scripts; `from ascript.android import ...` works unchanged).",
+    "Coordinates are screen pixels in the current orientation.",
+    "Channel: accessibility or root, chosen by the run mode (auto / accessibility / root).",
+    "Device /eval runs in a separate :eval process that is killed on timeout; assign the answer to `_result`.",
+    "YOLO (v5/v8/v11 ONNX) and PaddleOCR (PP-OCRv6 tiny/small, v5, v4 ONNX) run on-device through ONNX Runtime: xscript.android.yolo / paddle, or screen.detect / screen.ocr(engine='paddle_v6t' | 'auto' | 'paddle'). AScript's YoLov5, plug.load('Yolov8Ncnn') and Ocr.paddleocr map onto them (ONNX files instead of NCNN).",
+    "云控: xscript.android.cloud (send / on_message / connect); AScript cloud_control and system.channel work. Launch parameters from 云控 app_run are system.params()."
+  ],
+  "modules": [
+    {
+      "name": "xscript.android.action",
+      "description": "Gestures, touch, keys and text input through the current channel (accessibility or root).",
+      "functions": [
+        {
+          "name": "click",
+          "returns": "bool",
+          "doc": "Tap (x, y). x may also be a Point/tuple/node."
+        },
+        {
+          "name": "long_click",
+          "returns": "bool",
+          "doc": "Long press."
+        },
+        {
+          "name": "swipe",
+          "returns": "bool",
+          "doc": "Straight swipe."
+        },
+        {
+          "name": "path",
+          "returns": "bool",
+          "doc": "One stroke through [(x, y), ...]."
+        },
+        {
+          "name": "gesture",
+          "returns": "bool",
+          "doc": "Multi-finger gesture: [{'points': [(x, y), ...], 'start': ms, 'duration': ms}, ...]; strokes run in parallel."
+        },
+        {
+          "name": "input",
+          "returns": "bool",
+          "doc": "Set text on the focused / first editable node."
+        },
+        {
+          "names": [
+            [
+              "back",
+              "bool"
+            ],
+            [
+              "home",
+              "bool"
+            ],
+            [
+              "recents",
+              "bool"
+            ]
+          ],
+          "doc": "Global keys."
+        },
+        {
+          "name": "sleep",
+          "doc": "time.sleep that honours stop requests."
+        }
+      ],
+      "classes": [
+        {
+          "name": "Touch",
+          "doc": "Low-level touch stream.",
+          "methods": [
+            "down(x, y, dur=20)",
+            "move(x, y, dur=20)",
+            "up(x, y, dur=20)"
+          ]
+        },
+        {
+          "name": "Key",
+          "doc": "Global actions.",
+          "methods": [
+            "back()",
+            "home()",
+            "recents()",
+            "notifications()",
+            "quick_settings()",
+            "lock_screen()",
+            "screenshot()",
+            "power_dialog()",
+            "code(keycode)  # root only"
+          ]
+        }
+      ]
+    },
+    {
+      "name": "xscript.android.ime",
+      "description": "XScript 输入法: a keyboard-less input method that types straight into the focused field. Root switches to it silently; without root the user enables and selects it once in system settings. Calls raise ImeNotActive when it is not the active input method.",
+      "functions": [
+        {
+          "name": "status",
+          "returns": "dict",
+          "doc": "Enabled / active / focused-field state of the XScript input method."
+        },
+        {
+          "name": "is_active",
+          "returns": "bool",
+          "doc": "True when XScript 输入法 is the current input method."
+        },
+        {
+          "name": "switch",
+          "returns": "bool",
+          "doc": "Make XScript 输入法 current (silent with root; otherwise opens the picker)."
+        },
+        {
+          "name": "restore",
+          "returns": "bool",
+          "doc": "Switch back to the input method that was active before switch()."
+        },
+        {
+          "name": "commit",
+          "returns": "bool",
+          "doc": "Type text at the cursor."
+        },
+        {
+          "name": "set_text",
+          "returns": "bool",
+          "doc": "Replace the whole field with text."
+        },
+        {
+          "name": "delete",
+          "returns": "bool",
+          "doc": "Delete characters around the cursor."
+        },
+        {
+          "name": "clear",
+          "returns": "bool",
+          "doc": "Empty the focused field."
+        },
+        {
+          "name": "enter",
+          "returns": "bool",
+          "doc": "Send the editor action (search / go / send) or Enter."
+        },
+        {
+          "name": "key",
+          "returns": "bool",
+          "doc": "Send one Android key code through the input method."
+        }
+      ],
+      "classes": [
+        {
+          "name": "ImeNotActive",
+          "doc": "Raised when XScript 输入法 is not the active input method.",
+          "methods": []
+        }
+      ]
+    },
+    {
+      "name": "xscript.android.node",
+      "description": "Accessibility node selector (text/id/desc/type/state filters, relations) and XPath 1.0 queries.",
+      "functions": [
+        {
+          "name": "dump",
+          "returns": "dict",
+          "doc": "Raw tree. mode 0 simple, 1 full."
+        }
+      ],
+      "classes": [
+        {
+          "name": "Selector",
+          "signature": "Selector(mode=0, xpath=None)",
+          "doc": "Chain filters then find(). String filters are exact unless regex() or *_contains is used. xpath: //TextView[@text='设置'], contains()/starts-with()/matches(), and/or/not(), [1]/[last()], (//Button)[1], ancestor::/following-sibling::, //A | //B, //LinearLayout[.//Switch]. Attributes: text, resource-id, content-desc, class, package, hint, bounds, index, clickable, checked, ...",
+          "methods": [
+            "regex(enabled=True)",
+            "text(v)",
+            "text_contains(v)",
+            "text_matches(pattern)",
+            "id(v)",
+            "desc(v)",
+            "desc_contains(v)",
+            "type(v)",
+            "hint(v)",
+            "package(v)",
+            "class_path(v)",
+            "path(v)",
+            "clickable() long_clickable() editable() enabled() visible() checkable() checked() focusable() focused() scrollable() selected()",
+            "depth(*v)",
+            "child_count(*v)",
+            "filter(fn)",
+            "parent(*which)",
+            "child(*which)",
+            "brother(*which)",
+            "descendant()",
+            "within(node)",
+            "find(timeout=5, interval=0.25) -> Node | None",
+            "find_all(timeout=0, limit=0, interval=0.25) -> list[Node]",
+            "exists(timeout=0, interval=0.25) -> bool",
+            "wait_gone(timeout=10, interval=0.25) -> bool",
+            "click()",
+            "long_click()",
+            "input(text)",
+            "scroll(forward=True)"
+          ]
+        },
+        {
+          "name": "Node",
+          "doc": "Fields: path, id, text, desc, type, rect, clickable, editable, enabled; left/top/right/bottom/width/height/center_x/center_y.",
+          "methods": [
+            "click()",
+            "long_click()",
+            "set_text(text)",
+            "scroll(forward=True)",
+            "children()",
+            "find(selector)",
+            "find_all(selector)",
+            "to_dict()"
+          ]
+        }
+      ]
+    },
+    {
+      "name": "xscript.android.screen",
+      "description": "Screenshots, colour search, template (image) search and OCR. Rects are [l, t, r, b].",
+      "functions": [
+        {
+          "name": "capture",
+          "returns": "str | None",
+          "doc": "Save a PNG on the device and return its path."
+        },
+        {
+          "name": "capture_cv",
+          "returns": "ndarray",
+          "doc": "BGR numpy image."
+        },
+        {
+          "name": "capture_pil",
+          "returns": "PIL.Image",
+          "doc": "RGB PIL image."
+        },
+        {
+          "name": "capture_bitmap",
+          "doc": "android.graphics.Bitmap."
+        },
+        {
+          "name": "cache",
+          "doc": "Freeze one frame for the following searches."
+        },
+        {
+          "name": "size",
+          "returns": "(w, h)",
+          "doc": "Screen size in the current orientation."
+        },
+        {
+          "name": "get_color",
+          "returns": "'#rrggbb'",
+          "doc": "Pixel colour."
+        },
+        {
+          "name": "compare_colors",
+          "returns": "bool",
+          "doc": "Multi-point check. colors: 'x,y,#rrggbb|x,y,#rrggbb-101010|...'. color_space: 'rgb' (default) | 'hsv' (robust to brightness changes) | 'lab' (perceptual, ΔE); tolerance overrides sim: rgb int, hsv (h, s, v), lab ΔE."
+        },
+        {
+          "name": "find_colors",
+          "returns": "Point | None",
+          "doc": "First point matching a colour pattern (first colour absolute, rest relative offsets). `space` is the minimum distance between results (not the colour space). color_space: 'rgb' (default) | 'hsv' (robust to brightness changes) | 'lab' (perceptual, ΔE); tolerance overrides sim: rgb int, hsv (h, s, v), lab ΔE."
+        },
+        {
+          "name": "find_all_colors",
+          "returns": "list[Point]",
+          "doc": "All matches."
+        },
+        {
+          "name": "find_image",
+          "returns": "dict | None",
+          "doc": "Template match. Template may be a path, ndarray or list. Returns {result:(cx,cy), rect:[l,t,r,b], center_x, center_y, confidence, index}. Transparent PNG pixels are masked. method: None/'template' (default, unchanged) | 'multiscale' (scale_range defaults to (0.5, 2.0)) | 'feature' (ORB then SIFT keypoints + homography: scaled/rotated targets) | 'hash' (dHash of rect vs template: 'is this the screen?') | 'auto' (template first, then features; recommended when size or angle may change). Hits also carry quad (4 corners), angle, scale and method."
+        },
+        {
+          "name": "find_all_images",
+          "returns": "list[dict]",
+          "doc": "All template matches."
+        },
+        {
+          "name": "count_color",
+          "returns": "int",
+          "doc": "Pixels in rect matching color ('#rrggbb', several joined by '|'). Same color_space / tolerance as find_colors."
+        },
+        {
+          "name": "find_color_blobs",
+          "returns": "list[dict]",
+          "doc": "Connected regions of a colour → [{rect, center_x, center_y, area, fill}], largest first (e.g. a red badge, a health bar)."
+        },
+        {
+          "name": "dominant_colors",
+          "returns": "list[dict]",
+          "doc": "Main colours of a region (k-means in Lab) → [{color: '#rrggbb', rgb, ratio}], most common first."
+        },
+        {
+          "name": "imread",
+          "returns": "ndarray",
+          "doc": "Unicode-safe cv2 read (keeps alpha)."
+        },
+        {
+          "name": "ocr",
+          "returns": "list[OcrResult]",
+          "doc": "Text lines with rect / center / confidence. engine: 'mlkit' (default, built in) | 'auto' (PP-OCRv6 tiny, ML Kit if its models cannot load) | 'paddle_v6t' (PP-OCRv6 tiny, ~6 MB, fastest and most accurate on Chinese UI text) | 'paddle_v6s' (PP-OCRv6 small) | 'paddle' (PP-OCRv5) | 'paddle_v4'. Paddle models download on first use."
+        },
+        {
+          "name": "set_ocr_engine",
+          "doc": "Default engine for every ocr* call: 'mlkit' | 'auto' | 'paddle_v6t' | 'paddle_v6s' | 'paddle' | 'paddle_v4'."
+        },
+        {
+          "name": "ocr_find",
+          "returns": "OcrResult | None",
+          "doc": "First line matching a regex."
+        },
+        {
+          "name": "ocr_find_all",
+          "returns": "list[OcrResult]",
+          "doc": "All matching lines."
+        },
+        {
+          "name": "ocr_wait",
+          "returns": "OcrResult | None",
+          "doc": "Poll until text appears."
+        },
+        {
+          "name": "ocr_click",
+          "returns": "bool",
+          "doc": "Find text and tap its center."
+        },
+        {
+          "name": "detect",
+          "returns": "list[Detection]",
+          "doc": "YOLO detections on the screen; model is an .onnx path or a yolo.Yolo."
+        },
+        {
+          "name": "ai_find",
+          "returns": "dict | None",
+          "doc": "Locate an element described in words with the vision model set by ai.config(); OCR-style dict."
+        },
+        {
+          "name": "ai_find_all",
+          "returns": "list[dict]",
+          "doc": "All matches for a description."
+        },
+        {
+          "name": "ai_ask",
+          "returns": "str",
+          "doc": "Ask the vision model about the screen; returns text."
+        },
+        {
+          "name": "ai_click",
+          "returns": "bool",
+          "doc": "ai_find then tap the center."
+        }
+      ]
+    },
+    {
+      "name": "xscript.android.ai",
+      "description": "Natural-language screen vision on any OpenAI-compatible /chat/completions endpoint (Qwen-VL, GPT-4o, local vLLM/Ollama). Bring your own key: config() or XSCRIPT_AI_BASE_URL / XSCRIPT_AI_KEY / XSCRIPT_AI_MODEL.",
+      "functions": [
+        {
+          "name": "config",
+          "doc": "Select the endpoint; coords is pixel, norm1000, ratio or auto."
+        },
+        {
+          "name": "status",
+          "returns": "dict",
+          "doc": "configured/base_url/model/coords; never the key."
+        },
+        {
+          "name": "find",
+          "returns": "dict | None",
+          "doc": "Best match: text, rect, center_x, center_y, confidence."
+        },
+        {
+          "name": "find_all",
+          "returns": "list[dict]",
+          "doc": "All matches."
+        },
+        {
+          "name": "ask",
+          "returns": "str",
+          "doc": "Free-text answer."
+        },
+        {
+          "name": "exists",
+          "returns": "bool",
+          "doc": ""
+        },
+        {
+          "name": "wait",
+          "returns": "dict | None",
+          "doc": "Poll until found."
+        },
+        {
+          "name": "click",
+          "returns": "bool",
+          "doc": "Find then tap the center."
+        }
+      ],
+      "omit": [
+        "reset"
+      ],
+      "omit_classes": [
+        "AiError"
+      ]
+    },
+    {
+      "name": "xscript.android.agent",
+      "description": "Goal-driven agent loop on the ai.config() endpoint: screenshot -> model -> one allowlisted action, with step limit, timeout and stop control.",
+      "functions": [
+        {
+          "name": "run",
+          "returns": "AgentResult",
+          "doc": "status is done, failed, max_steps, timeout or aborted; steps lists every action with reason, ok and error. Default actions: click, long_click, swipe, back, wait; pass agent.ACTIONS to also allow input, home, recents. Agent(goal, ...) takes the same arguments and adds .stop() to end the loop before the next action."
+        },
+        {
+          "name": "stop_all",
+          "returns": "int",
+          "doc": "Stop every running agent; returns how many."
+        }
+      ],
+      "omit_classes": [
+        "AgentResult",
+        "Agent"
+      ]
+    },
+    {
+      "name": "xscript.android.system",
+      "description": "Apps, device info, shell (root), clipboard, key-value store, resources (R), toast/vibrate/tts, run options and 定时任务.",
+      "functions": [
+        {
+          "name": "open",
+          "returns": "bool",
+          "doc": "Launch an app by label or package."
+        },
+        {
+          "name": "browser",
+          "doc": "Open a URL."
+        },
+        {
+          "name": "stop_app",
+          "doc": "Force-stop (root)."
+        },
+        {
+          "names": [
+            [
+              "apps",
+              "list[dict]"
+            ],
+            [
+              "current_app",
+              "dict"
+            ],
+            [
+              "app_name",
+              "str | None"
+            ]
+          ],
+          "doc": "Installed and foreground apps."
+        },
+        {
+          "name": "wait_for_package",
+          "returns": "bool",
+          "doc": "Wait until the package is in front."
+        },
+        {
+          "names": [
+            [
+              "device",
+              "dict"
+            ],
+            [
+              "battery",
+              "dict"
+            ],
+            [
+              "memory",
+              "dict"
+            ],
+            [
+              "status",
+              "dict"
+            ]
+          ],
+          "doc": "Device info."
+        },
+        {
+          "names": [
+            [
+              "is_screen_on",
+              "bool"
+            ],
+            [
+              "wake_up",
+              "bool"
+            ]
+          ],
+          "doc": "Screen state."
+        },
+        {
+          "names": [
+            [
+              "clipboard_set",
+              ""
+            ],
+            [
+              "clipboard_get",
+              "str"
+            ]
+          ],
+          "doc": "Clipboard."
+        },
+        {
+          "name": "shell",
+          "returns": "ShellResult",
+          "doc": "ShellResult: code, out, err, ok (AScript aliases res, error). timeout in seconds."
+        },
+        {
+          "name": "has_root",
+          "returns": "bool",
+          "doc": "Root available."
+        },
+        {
+          "names": [
+            [
+              "vibrate",
+              ""
+            ],
+            [
+              "speak",
+              "bool"
+            ],
+            [
+              "toast",
+              ""
+            ]
+          ],
+          "doc": "Feedback."
+        },
+        {
+          "name": "project_dir",
+          "returns": "str",
+          "doc": "Running project folder."
+        },
+        {
+          "name": "exit",
+          "doc": "Stop the script."
+        },
+        {
+          "name": "reboot",
+          "doc": "End this run and start the project again in a fresh script process after delay seconds."
+        },
+        {
+          "name": "params",
+          "returns": "dict",
+          "doc": "Launch parameters of this run (云控 app_run 'param')."
+        },
+        {
+          "name": "license_status",
+          "returns": "dict",
+          "doc": "Packaged apps: 卡密 state {required, activated, card, card_full, expires, error}."
+        },
+        {
+          "name": "open_app_setting",
+          "returns": "bool",
+          "doc": "Open the system settings page of an app."
+        }
+      ],
+      "classes": [
+        {
+          "name": "KeyValue",
+          "doc": "Persistent key-value store.",
+          "methods": [
+            "save(key, value)",
+            "get(key, default=None)",
+            "remove(key)"
+          ]
+        },
+        {
+          "name": "R",
+          "doc": "Project paths.",
+          "methods": [
+            "root(*parts)",
+            "res(*parts)",
+            "img(*parts)",
+            "ui(*parts)",
+            "sd(*parts)"
+          ]
+        },
+        {
+          "name": "Config",
+          "doc": "Run options of a project (default: the running one), same as the switches on the project screen.",
+          "methods": [
+            "get(project=None) -> dict",
+            "set_auto_run(on=True, project=None)  # 开机自启, one boot project per device",
+            "set_stop_re_run(on=True, project=None)  # 停止后重新运行, not after a user stop"
+          ]
+        },
+        {
+          "name": "Schedule",
+          "doc": "定时任务 (device-local time). One script runs at a time; if_running='skip' | 'restart'.",
+          "methods": [
+            "daily(time, weekdays=None, project=None, if_running='skip', wake=True)  # '08:30', weekdays 1=Mon..7=Sun",
+            "every(minutes, window='', project=None, if_running='skip', wake=True)  # window '08:00-23:00'",
+            "once(at, project=None, ...)  # epoch seconds, datetime or 'yyyy-MM-dd HH:mm'",
+            "list(project=None)  # project='*' for all",
+            "update(schedule_id, **fields)",
+            "remove(schedule_id)",
+            "clear(project=None)"
+          ]
+        }
+      ],
+      "omit_classes": [
+        "ShellResult"
+      ]
+    },
+    {
+      "name": "xscript.android.ui",
+      "description": "Overlays: toast, dialogs, HTML web windows with a JS bridge, drawing canvas, image window, floating stop button.",
+      "functions": [
+        {
+          "name": "can_overlay",
+          "returns": "bool",
+          "doc": "悬浮窗 permission granted."
+        },
+        {
+          "name": "toast",
+          "doc": "Toast."
+        },
+        {
+          "names": [
+            [
+              "alert",
+              "bool"
+            ],
+            [
+              "confirm",
+              "bool"
+            ],
+            [
+              "prompt",
+              "str | None"
+            ],
+            [
+              "select",
+              "str | None"
+            ]
+          ],
+          "doc": "Blocking dialogs."
+        },
+        {
+          "name": "show_image",
+          "doc": "Preview an image in an overlay."
+        },
+        {
+          "names": [
+            [
+              "float_show",
+              ""
+            ],
+            [
+              "float_hide",
+              ""
+            ]
+          ],
+          "doc": "Floating stop button."
+        },
+        {
+          "name": "float_add_menu",
+          "returns": ""
+        }
+      ],
+      "classes": [
+        {
+          "name": "Window",
+          "signature": "Window(html, width=None, height=None, **opts)",
+          "doc": "HTML overlay. JS calls window.xscript.call(key, value) (alias window.airscript.call) and window.xscript.close().",
+          "methods": [
+            "on(key)",
+            "listen(fn)",
+            "size(w, h)",
+            "position(gravity, x, y)",
+            "draggable()",
+            "background(color)",
+            "dim(amount)",
+            "focusable()",
+            "show(wait=False)",
+            "wait(timeout)",
+            "js(code)",
+            "close()"
+          ]
+        },
+        {
+          "name": "Canvas",
+          "doc": "Debug drawing layer (touch pass-through, opacity <= 0.8).",
+          "methods": [
+            "rect",
+            "region",
+            "circle",
+            "oval",
+            "line",
+            "arrow",
+            "text",
+            "point",
+            "cross",
+            "polygon",
+            "remove(id)",
+            "clear()",
+            "close()"
+          ]
+        }
+      ]
+    },
+    {
+      "name": "xscript.android.event",
+      "description": "Event listeners: physical keys, view click/long_click/scroll, notifications, toasts, raw accessibility events. Handlers run one at a time on a daemon thread; keep the script alive with a loop or event.loop(). Keys/touch/toast/a11y need 无障碍; notifications use 通知使用权 when granted (else accessibility, less data).",
+      "functions": [
+        {
+          "name": "on",
+          "returns": "token",
+          "doc": "event_type: key | touch | notification | toast | a11y. Filters match fields (value, list of values, or callable). Decorator without fn."
+        },
+        {
+          "name": "off",
+          "doc": "Remove one handler, a type, or everything."
+        },
+        {
+          "name": "wait",
+          "returns": "Event | None",
+          "doc": "Block for the next matching event."
+        },
+        {
+          "name": "loop",
+          "doc": "Sleep while handlers are registered."
+        },
+        {
+          "name": "on_key",
+          "decorator": true,
+          "doc": "e.key_code (24 vol+, 25 vol-, 4 back), e.action 'down'/'up'. Observed, never consumed."
+        },
+        {
+          "name": "on_touch",
+          "decorator": true,
+          "doc": "e.action click/long_click/scroll, e.x, e.y (view center), e.package, e.text."
+        },
+        {
+          "name": "on_notification",
+          "decorator": true,
+          "doc": "e.package, e.title, e.text, e.time; e.send() opens it."
+        },
+        {
+          "name": "on_toast",
+          "decorator": true,
+          "doc": "e.package, e.text."
+        },
+        {
+          "name": "on_accessibility",
+          "decorator": true,
+          "doc": "e.event_type, e.event_name, e.package, e.class, e.text."
+        },
+        {
+          "name": "status",
+          "returns": "dict",
+          "doc": "Subscribed types and whether 通知使用权 is connected."
+        }
+      ],
+      "classes": [
+        {
+          "name": "Event",
+          "doc": "Fields as attributes and keys; e.type is the kind.",
+          "methods": [
+            "get(key, default=None)",
+            "to_dict()",
+            "send()  # notifications"
+          ]
+        }
+      ],
+      "omit": [
+        "dispatch"
+      ]
+    },
+    {
+      "name": "xscript.android.yolo",
+      "description": "YOLO object detection on ONNX (Ultralytics v5 / v8 / v11 / end-to-end exports). Train on the 标注工具 export, then `yolo export model=best.pt format=onnx`. Class names are read from the model metadata.",
+      "functions": [
+        {
+          "name": "load",
+          "returns": "Yolo",
+          "doc": "Load and cache a model. names: list / {id: name} / data.yaml path when the model has none. accel='nnapi' tries NNAPI."
+        },
+        {
+          "name": "decode",
+          "returns": "(boxes, scores, class_ids)",
+          "doc": "Raw output → boxes in network pixels (for custom pipelines)."
+        }
+      ],
+      "classes": [
+        {
+          "name": "Yolo",
+          "methods": [
+            "detect(image=None, rect=None, conf=0.25, iou=0.45, classes=None) -> list[Detection]",
+            "find(label=None, **kw) -> Detection | None",
+            "names",
+            "imgsz"
+          ]
+        },
+        {
+          "name": "Detection",
+          "methods": [
+            "label",
+            "class_id",
+            "confidence",
+            "rect [l,t,r,b]",
+            "center_x",
+            "center_y",
+            "click()",
+            "to_dict()"
+          ]
+        }
+      ],
+      "omit": [
+        "letterbox",
+        "nms"
+      ]
+    },
+    {
+      "name": "xscript.android.paddle",
+      "description": "PaddleOCR PP-OCRv5 / v4 (det + rec + optional orientation) on ONNX. Models download on first use (~22 MB, SHA-256 checked) into the model directory. Results are the same OcrResult type as ML Kit.",
+      "functions": [
+        {
+          "name": "ocr",
+          "returns": "list[OcrResult]",
+          "doc": "Recognise text lines. version: 'v5' | 'v4' | 'v6t' | 'v6s'."
+        },
+        {
+          "name": "ocr_find",
+          "returns": "OcrResult | None",
+          "doc": "First line matching a regex."
+        },
+        {
+          "name": "ocr_find_all",
+          "returns": "list[OcrResult]",
+          "doc": "All matching lines."
+        },
+        {
+          "name": "engine",
+          "returns": "PaddleOcr",
+          "doc": "The shared engine (kw: limit_side_len, box_thresh, unclip_ratio, threads). version 'v6t' / 'v6s' (PP-OCRv6) use their own detection defaults (thresh 0.2, box_thresh 0.4, unclip_ratio 1.4); kwargs override."
+        }
+      ],
+      "classes": [
+        {
+          "name": "PaddleOcr",
+          "methods": [
+            "PaddleOcr(det, rec, keys=None, cls=None, threads=4, limit_side_len=960)",
+            "ocr(image=None, rect=None, confidence=0.5)",
+            "detect(img)",
+            "recognize(crops)"
+          ]
+        }
+      ],
+      "omit": [
+        "detect_boxes",
+        "sort_boxes",
+        "crop_box",
+        "ctc_decode",
+        "ctc_decode_argmax",
+        "load_chars"
+      ]
+    },
+    {
+      "name": "xscript.android.onnx",
+      "description": "Generic ONNX Runtime sessions (Android ORT on the device, onnxruntime on a PC). Float32 inputs; pre/post-processing in numpy.",
+      "functions": [
+        {
+          "name": "load",
+          "returns": "Session",
+          "doc": "Cached session. Session.run(tensor) -> {name: ndarray}; run_argmax(tensor) -> (idx, max) over the last axis; inputs / outputs / metadata."
+        },
+        {
+          "name": "available",
+          "returns": "bool"
+        }
+      ],
+      "omit_classes": [
+        "OnnxError",
+        "Session"
+      ]
+    },
+    {
+      "name": "xscript.android.models",
+      "description": "Model directory shared by all projects (upload with the MCP upload_model tool or PUT /models/<path>).",
+      "functions": [
+        {
+          "name": "directory",
+          "returns": "str",
+          "doc": "Absolute model directory."
+        },
+        {
+          "name": "path",
+          "returns": "str",
+          "doc": "Path inside the model directory, e.g. models.path('best.onnx')."
+        },
+        {
+          "name": "fetch",
+          "returns": "str",
+          "doc": "Download once into the model directory (checksum verified)."
+        },
+        {
+          "name": "paddle",
+          "returns": "dict",
+          "doc": "PaddleOCR files {det, rec, cls}, downloading if missing. version: 'v5' | 'v4' | 'v6t' | 'v6s'; returns {det, rec, cls?, keys?} (v6 keys.txt comes from the rec model's inference.yml)."
+        },
+        {
+          "name": "installed",
+          "returns": "list[dict]",
+          "doc": "Files in the model directory."
+        }
+      ],
+      "omit": [
+        "sha256",
+        "keys_from_yml"
+      ]
+    },
+    {
+      "name": "xscript.android.pip",
+      "description": "Install PyPI packages at runtime. Pure-Python wheels from PyPI; native packages from Chaquopy's Android index. Bundled packages are never replaced. requirements.txt in a project installs before its first run.",
+      "functions": [
+        {
+          "name": "install",
+          "returns": "dict",
+          "hide": [
+            "log",
+            "target",
+            "finder"
+          ],
+          "doc": "Requirement strings like 'schedule', 'pymysql==1.1.1'."
+        },
+        {
+          "name": "uninstall",
+          "returns": "dict",
+          "hide": [
+            "log"
+          ],
+          "doc": "Remove runtime-installed packages."
+        },
+        {
+          "name": "list",
+          "returns": "list[dict]",
+          "doc": "Runtime-installed packages."
+        },
+        {
+          "name": "install_requirements",
+          "returns": "dict",
+          "hide": [
+            "log"
+          ],
+          "doc": "Install a requirements.txt."
+        }
+      ],
+      "omit": [
+        "site_dir",
+        "normalize",
+        "installed",
+        "resolve",
+        "parse_requirements",
+        "missing",
+        "ensure_project",
+        "run_request",
+        "run_b64"
+      ],
+      "omit_classes": [
+        "PipError",
+        "Target",
+        "Candidate",
+        "Finder",
+        "Plan"
+      ]
+    },
+    {
+      "name": "xscript.android.cloud",
+      "description": "云控 from scripts. The app keeps the WebSocket connection (reconnects on its own); see docs/CLOUD.md.",
+      "functions": [
+        {
+          "name": "send",
+          "returns": "bool",
+          "doc": "Report JSON data to the server dashboard (per device)."
+        },
+        {
+          "name": "on_message",
+          "returns": "token",
+          "doc": "fn(data) for each server 'message' frame / custom command. Decorator."
+        },
+        {
+          "name": "wait_message",
+          "doc": "Block for the next server message."
+        },
+        {
+          "name": "connect",
+          "returns": "dict",
+          "doc": "Connect the app to a ws:// / wss:// server (saved)."
+        },
+        {
+          "name": "close",
+          "doc": "Disconnect and forget the URL."
+        },
+        {
+          "name": "status",
+          "returns": "dict",
+          "doc": "{state, url, device_id, group, error}."
+        },
+        {
+          "name": "connected",
+          "returns": "bool",
+          "doc": "True while the cloud control channel is connected."
+        },
+        {
+          "name": "off",
+          "returns": "",
+          "doc": "Remove the handler whose token on_message returned; with no token, remove every cloud message handler."
+        }
+      ]
+    },
+    {
+      "name": "ascript.android",
+      "description": "AScript compatibility package (modelled on ascript-tip 1.3.0). Existing AScript projects run unchanged; import with `from ascript.android import action, node, screen, system, ui, media`. Also implemented: sms (read-only), location (incl. mock location), sensor, bluetooth, plug.load_apk (external APK/JAR via reflection), media.recode / send_email, and FindImages method='smart' / find_sift (keypoint matching, template fallback).",
+      "functions": [
+        {
+          "name": "action.click / swipe / slide / input",
+          "signature": "click(x, y=None, dur=20); slide(x, y, x1, y1, dur=20)",
+          "doc": "Same as AScript."
+        },
+        {
+          "name": "action.Touch / Key / Path / gesture / Ime / catch_click",
+          "signature": "gesture(paths, listener=None)",
+          "doc": "Path supports moveTo/lineTo/quadTo/cubicTo/arcTo/addCircle/addRect/..."
+        },
+        {
+          "name": "node.Selector",
+          "signature": "Selector(mode=0).text(..).id(..).find() / find_all()",
+          "doc": "AScript method names (hintText, packageName, childCount, longClickable, ...)."
+        },
+        {
+          "name": "node.WebSelector / WebNode",
+          "signature": "WebSelector(web_window).tag(..).text(..).value(..).attr(k, v).child(*i).brother(*i).parent(*i).click().long_click().input(s).find() / find_all(find_num=0)",
+          "doc": "DOM elements in a shown WebWindow via the JS bridge; '/re/' strings are JS regexes. WebNode: tag_name, text, value, attributes, bounds, child/brother/parent/click/long_click/input."
+        },
+        {
+          "name": "screen.capture / capture_cv / capture_pil / cache / get_color",
+          "signature": "capture(x=None, y=None, x1=None, y1=None)",
+          "doc": "Screenshots and bitmap helpers (bitmap_to_file, bitmap_crop, bitmap_base64, ...)."
+        },
+        {
+          "name": "screen.FindColors / CompareColors / Colors / FindBlock",
+          "signature": "FindColors.find(colors, rect=None, space=5, ori=2, diff=0.98)",
+          "doc": "Colour search; returns android.graphics.Point-like objects."
+        },
+        {
+          "name": "screen.FindImages",
+          "signature": "FindImages.find_template(part_img, rect=None, confidence=0.9, ...) / find_all_template",
+          "doc": "Masked multi-scale template matching (ascv-derived). find/find_all with method='smart' and find_sift fall back to template matching."
+        },
+        {
+          "name": "screen.Ocr",
+          "signature": "Ocr.mlkitocr_v2(rect=None, pattern=None, confidence=0.5) / paddleocr(...) / find / wait / click",
+          "doc": "mlkitocr_v2 = ML Kit; paddleocr / paddleocr_v2 / v3 and Ocr.set_engine(Ocr.MODE_PADDLE_V5) = PP-OCRv5 on ONNX (models download on first use). tess maps to ML Kit. Results are dict-like OcrResult objects."
+        },
+        {
+          "name": "screen.Ocr.matrix",
+          "signature": "Ocr.matrix(font_lib, rect=None, region=0.9, image=None) / Ocr.matrix_detail(...) / OcrX(font_lib, rect=None, region=0.9) / OcrX.find_all(font_lib, ...) / MatrixFont(colors=None, threshold=128, invert=False).add(char, image, rect).save(path)",
+          "doc": "点阵字库: binarise the area with the library's ink rule (colours 'RRGGBB-DDDDDD' or a gray threshold) and match each glyph bitmap (CvFontLib underneath); region = similarity 0-1. The library is XScript's JSON format (res/font.t by convention) built with MatrixFont; AScript's binary font.t files cannot be read."
+        },
+        {
+          "name": "screen.CodeScanner",
+          "signature": "CodeScanner.scan(rect=None)",
+          "doc": "QR codes via OpenCV."
+        },
+        {
+          "name": "system.*",
+          "signature": "system.open(pkg); system.shell(cmd); system.R.img('a.png')",
+          "doc": "Device, Clipboard, KeyValue, R, Config, shell, open, browser, get_foreground_app, ..."
+        },
+        {
+          "name": "ui.*",
+          "signature": "ui.WebWindow(html).show(); ui.Dialog.toast(msg)",
+          "doc": "WebWindow, Dialog, Loger, FloatWindow, ImageWindow, Canvas."
+        },
+        {
+          "name": "event.KeyEvent / TouchEvent / NotificationEvent",
+          "signature": "@KeyEvent.on(key_code=24) / @NotificationEvent.on(package=...) / X.stop()",
+          "doc": "Same fields as AScript; NotificationEvent event.send() opens the notification, event.raw is None."
+        },
+        {
+          "name": "node.Selector.on_event / system.Notification.listen",
+          "signature": "Selector.on_event(fn) / Notification.listen(fn)",
+          "doc": "Accessibility events (getEventType/getPackageName/getText) and notifications; pass None to stop."
+        },
+        {
+          "name": "system.Config / reboot",
+          "signature": "Config.set_auto_run(True); Config.set_stop_re_run(True); reboot(delay_ms)",
+          "doc": "开机自启, 停止后重新运行, and re-running the project in a fresh process."
+        },
+        {
+          "name": "node.Selector(xpath=...)",
+          "signature": "Selector(xpath=\"//TextView[contains(@text,'设置')]\").find()",
+          "doc": "XPath 1.0 subset, see xscript.android.node."
+        },
+        {
+          "name": "screen.YoLov5",
+          "signature": "YoLov5(path='res/best.onnx').find_all(bitmap=None, confidence=0.25)",
+          "doc": "YOLO on ONNX (v5/v8/v11 exports). Returns [{'label','prob','x','y','w','h','rect'}]. NCNN .param/.bin need an ONNX export next to them."
+        },
+        {
+          "name": "cloud_control.connect_to_ws / send / close / channel",
+          "signature": "cloud_control.connect_to_ws('ws://host:port/ws?token=..'); cloud_control.send({'gold': 1})",
+          "doc": "On XScript's 云控. connect_to_as (AScript's official server) is not available."
+        },
+        {
+          "name": "system.channel / Control.send / R.get_card",
+          "signature": "system.channel(fun)",
+          "doc": "Server messages to fun(msg); Control.send reports data; R.get_card() returns a packaged app's 卡密."
+        },
+        {
+          "name": "media.*",
+          "signature": "media.vibrate(200); media.talk(msg); media.recode(path, time=None); media.send_email(to, subject, body, cc=None)",
+          "doc": "Volume, brightness, vibrate, TTS, play, image_to_gallery. recode records the mic (AAC/AMR/Opus by extension; time in ms blocks, None records in the background until stop_recode(); recode_status()). Android 11+ only records while XScript is in the foreground. send_email opens the mail app with a prefilled draft; the user taps send."
+        },
+        {
+          "name": "location.mock",
+          "signature": "location.mock.start(lon, lat, accuracy=5.0, interval=1000, coord_type='bd09') / stop() / status()",
+          "doc": "System mock location (MockLocationApi). bd09/gcj02 are converted to GPS (to_wgs84, gcj02_to_wgs84, bd09_to_gcj02). XScript must be the mock-location app in developer options (granted automatically with root)."
+        },
+        {
+          "name": "plug.load_apk / load_apk_dir",
+          "signature": "plug.load_apk(path).load_class(name).new(*args).call(method, *args)",
+          "doc": "Load an .apk/.jar/.dex from the app's own storage with DexClassLoader and call it by reflection (JavaClass.call_static/get_static, JavaObject.call/get/set). plug.load() keeps the built-in yolo/ncnn replacements."
+        },
+        {
+          "name": "bluetooth.*",
+          "signature": "bluetooth.scan(timeout=10, ble=False); bluetooth.connect(address).write(b'..'); bluetooth.ble_connect(address).notify(service, char, cb)",
+          "doc": "state / is_enabled / enable / bonded / scan; classic SPP serial (HC-05 style) via connect() -> Connection.read/read_text/write/close; BLE via ble_connect() -> read/write/notify/close. Raises BluetoothError. Interface is XScript's own, not checked against AScript."
+        },
+        {
+          "name": "action.Ime",
+          "signature": "Ime.is_active() / switch() / restore() / input(info) / input_clear() / delete(count=1) / keys(keys, duration=20) / enter()",
+          "doc": "Typing through XScript 输入法 (see xscript.android.ime), with accessibility / key fallback when it is not active."
+        },
+        {
+          "name": "screen.gp",
+          "signature": "gp.run(gp_file, cv_img=None, allow_python=True); gp.register_task(task_id, task_class); gp.unregister_task(task_id)",
+          "doc": "Run AScript GP packages: legacy pure-Python ZIP or directory packages via their gp(cv_img) entry (paths escaping the package are rejected, 64 MiB unpack limit), and cloud-plugin tasks from classes registered with register_task or imported from loaded plugins. allow_python=False refuses to execute the package's own Python code. There is no plugin server, so an unknown task id raises."
+        }
+      ],
+      "unsupported": [
+        "action.Hid hardware (ESP32 / PC virtual mouse): falls back to normal gestures",
+        "Encrypted AScript V4 projects (run the source project instead)",
+        "NCNN models (.param/.bin): export the same weights to ONNX",
+        "plug.load of AScript cloud plugins other than the built-in YOLO ones; plug.inject; plug.load_module_dynamically",
+        "Cloud GP tasks with no local plugin (register one with gp.register_task)",
+        "cloud_control.connect_to_as (AScript's official cloud): use connect_to_ws with your own server",
+        "media.AliTts: use media.talk()"
+      ],
+      "stub": false
+    },
+    {
+      "name": "devtools",
+      "description": "Device-hosted developer tools at http://<device>:<port>/tools/ (图色工具, 标注工具, 投屏) and the matching MCP tools. Not importable from scripts.",
+      "functions": [
+        {
+          "name": "take_snapshot",
+          "signature": "take_snapshot() -> {id, width, height}",
+          "doc": "Freeze the screen; all checks below run on this frame."
+        },
+        {
+          "name": "vision_test",
+          "signature": "vision_test(snapshot_id, op, colors='', rect=None, sim=0.9, x=0, y=0, template='', template_rect=None, confidence=0.8)",
+          "doc": "op = pixel | find_colors | compare_colors | find_image | ocr. Same engine as xscript.android.screen and ascript FindColors / CompareColors / FindImages / Ocr. Tune colors, sim and rects here before writing code."
+        },
+        {
+          "name": "crop_template",
+          "signature": "crop_template(snapshot_id, rect, project_name, path='res/img/tpl.png')",
+          "doc": "Save a snapshot region as a PNG template in a project, for FindImages / screen.find_image."
+        },
+        {
+          "name": "list_datasets / export_dataset",
+          "signature": "list_datasets() / export_dataset(name, local_path)",
+          "doc": "标注 datasets; export writes a YOLO zip (images/{train,val}, labels/{train,val}, data.yaml)."
+        },
+        {
+          "name": "screen stream",
+          "signature": "GET /screen/stream?fps=5&scale=0.5&quality=50",
+          "doc": "MJPEG 投屏 for browsers (max 2 viewers). Each part carries X-Screen-Size with the full resolution."
+        }
+      ],
+      "stub": false
+    }
+  ]
+}

@@ -45,7 +45,7 @@
         },
         {
           "name": "back / home / recents",
-          "signature": "back() / home() / recents() -> bool",
+          "signature": "back() -> bool; home() -> bool; recents() -> bool",
           "doc": "Global keys."
         },
         {
@@ -431,7 +431,7 @@
         },
         {
           "name": "apps / current_app / app_name",
-          "signature": "apps() -> list; current_app() -> dict",
+          "signature": "apps() -> list[dict]; current_app() -> dict; app_name(package) -> str | None",
           "doc": "Installed and foreground apps."
         },
         {
@@ -441,17 +441,17 @@
         },
         {
           "name": "device / battery / memory / status",
-          "signature": "device() -> dict",
+          "signature": "device() -> dict; battery() -> dict; memory() -> dict; status() -> dict",
           "doc": "Device info."
         },
         {
           "name": "is_screen_on / wake_up",
-          "signature": "wake_up()",
+          "signature": "is_screen_on() -> bool; wake_up() -> bool",
           "doc": "Screen state."
         },
         {
           "name": "clipboard_set / clipboard_get",
-          "signature": "clipboard_set(text)",
+          "signature": "clipboard_set(text); clipboard_get() -> str",
           "doc": "Clipboard."
         },
         {
@@ -466,7 +466,7 @@
         },
         {
           "name": "vibrate / speak / toast",
-          "signature": "toast(msg, dur=2000)",
+          "signature": "vibrate(ms=200); speak(text) -> bool; toast(msg, dur=2000)",
           "doc": "Feedback."
         },
         {
@@ -493,6 +493,11 @@
           "name": "license_status",
           "signature": "license_status() -> dict",
           "doc": "Packaged apps: 卡密 state {required, activated, card, card_full, expires, error}."
+        },
+        {
+          "name": "open_app_setting",
+          "signature": "open_app_setting(package) -> bool",
+          "doc": "Open the system settings page of an app."
         }
       ],
       "classes": [
@@ -556,7 +561,7 @@
         },
         {
           "name": "alert / confirm / prompt / select",
-          "signature": "confirm(msg, title=None) -> bool",
+          "signature": "alert(msg, title=None, submit='确认') -> bool; confirm(msg, title=None, submit='确认', cancel='取消') -> bool; prompt(msg='请输入信息', title=None, value=None, hint=None, submit='确认', cancel='取消') -> str | None; select(items, msg='请选择', title=None, cancel='取消') -> str | None",
           "doc": "Blocking dialogs."
         },
         {
@@ -566,8 +571,13 @@
         },
         {
           "name": "float_show / float_hide",
-          "signature": "float_show()",
+          "signature": "float_show(x=None, y=None, dim=1.0); float_hide()",
           "doc": "Floating stop button."
+        },
+        {
+          "name": "float_add_menu",
+          "signature": "float_add_menu(menu_id, icon, callback, remove_system=False)",
+          "doc": "Add a round button to the floating window's panel (AScript ``FloatWindow.add_menu``)."
         }
       ],
       "classes": [
@@ -689,7 +699,7 @@
         },
         {
           "name": "decode",
-          "signature": "decode(output, conf=0.25, iou=0.45, classes=None, max_det=300, nc=None) -> (boxes, scores, class_ids)",
+          "signature": "decode(output, conf=0.25, iou=0.45, classes=None, max_det=300, nc=None, agnostic=False) -> (boxes, scores, class_ids)",
           "doc": "Raw output → boxes in network pixels (for custom pipelines)."
         }
       ],
@@ -739,7 +749,7 @@
         },
         {
           "name": "engine",
-          "signature": "engine(version='v5', **kw) -> PaddleOcr",
+          "signature": "engine(version='v5', **kwargs) -> PaddleOcr",
           "doc": "The shared engine (kw: limit_side_len, box_thresh, unclip_ratio, threads). version 'v6t' / 'v6s' (PP-OCRv6) use their own detection defaults (thresh 0.2, box_thresh 0.4, unclip_ratio 1.4); kwargs override."
         }
       ],
@@ -763,6 +773,11 @@
           "name": "load",
           "signature": "load(path, threads=4, accel='') -> Session",
           "doc": "Cached session. Session.run(tensor) -> {name: ndarray}; run_argmax(tensor) -> (idx, max) over the last axis; inputs / outputs / metadata."
+        },
+        {
+          "name": "available",
+          "signature": "available() -> bool",
+          "doc": "True when a backend can run models here (always on the device; PC needs onnxruntime)."
         }
       ]
     },
@@ -818,7 +833,7 @@
         },
         {
           "name": "install_requirements",
-          "signature": "install_requirements(path) -> dict",
+          "signature": "install_requirements(path, index_url=None) -> dict",
           "doc": "Install a requirements.txt."
         }
       ]
@@ -834,7 +849,7 @@
         },
         {
           "name": "on_message",
-          "signature": "on_message(fn) -> token",
+          "signature": "on_message(fn=None) -> token",
           "doc": "fn(data) for each server 'message' frame / custom command. Decorator."
         },
         {
@@ -856,6 +871,16 @@
           "name": "status",
           "signature": "status() -> dict",
           "doc": "{state, url, device_id, group, error}."
+        },
+        {
+          "name": "connected",
+          "signature": "connected() -> bool",
+          "doc": "True while the cloud control channel is connected."
+        },
+        {
+          "name": "off",
+          "signature": "off(token=None)",
+          "doc": "Remove the handler whose token on_message returned; with no token, remove every cloud message handler."
         }
       ]
     },

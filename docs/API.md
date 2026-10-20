@@ -5,7 +5,7 @@
 - `xscript.android.*`：原生 API，见下文。
 - `ascript.android.*`：AScript 脚本的直接替换层。见 [AScript 兼容](#ascript-兼容)。
 
-坐标为当前屏幕方向下的像素。矩形为 `[left, top, right, bottom]`。PC 端自动补全位于 `ide/python-stubs/`。MCP 工具 `get_module_apis` / `search_api` 提供同一份 API 目录（`ide/mcp-server/xscript_mcp/api_catalog.json`）。
+坐标为当前屏幕方向下的像素。矩形为 `[left, top, right, bottom]`。PC 端自动补全位于 `ide/python-stubs/`。MCP 工具 `get_module_apis` / `search_api` 提供同一份 API 目录（`ide/mcp-server/xscript_mcp/api_catalog.json`，由 `scripts/gen_api_catalog.py` 生成：签名取自 stub，说明、返回类型和类方法写在 `scripts/api_catalog_src.json`；运行时新增或删除公开函数后，要在该文件里登记或列入 `omit`，否则 CI 的 `--check` 失败）。
 
 ## 运行模式
 

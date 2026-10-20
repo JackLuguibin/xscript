@@ -33,7 +33,7 @@ xscript-server = "xscript_server.__main__:main"
 include = ["xscript_server*"]
 
 [tool.setuptools.package-data]
-xscript_server = ["api_catalog.json"]  # API list for 后台 AI 写脚本 (copy of ide/mcp-server's)
+xscript_server = ["api_catalog.json"]  # API list for 后台 AI 写脚本 (same file as ide/mcp-server's; scripts/gen_api_catalog.py)
 
 # Coverage of the server (CI: backend + MCP on Python 3.12; run from the repo root with --rcfile=backend/pyproject.toml).
 [tool.coverage.run]
