@@ -34,10 +34,13 @@ async function attach(endpoint) {
 /** Start a headless Chrome and drive it. A start that fails (no "DevTools listening" line within `startupMs`, an early
  *  exit, a refused DevTools socket) kills that Chrome and removes its profile before retrying with a fresh one, up to
  *  `attempts` starts in all. An orphaned Chrome would otherwise keep the test process alive until the CI job limit. */
-async function launch(bin, {startupMs = 15000, attempts = 2} = {}) {
+// onStart(child, profile) is called synchronously for every Chrome spawned (tests count attempts with it: a process killed
+// at the startup deadline may never have run a single instruction, so it cannot be counted from inside).
+async function launch(bin, {startupMs = 15000, attempts = 2, onStart} = {}) {
   let last;
   for (let i = 0; i < attempts; i++) {
     const {child, profile, wsUrl} = startChrome(bin, startupMs);
+    if (onStart) onStart(child, profile);
     try {
       return await session(await wsUrl, child, profile);
     } catch (e) {
