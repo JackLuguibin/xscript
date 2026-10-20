@@ -25,6 +25,7 @@ from .services.mirror import MirrorProxy, MirrorTimings
 from .services.secrets import MemoryBackend, NameIndex, SecretError, SecretStore
 from .services.store import AppStore, SavedDevice, StoreError, StoreSyncCache
 from .services.tool_pages import TITLES, paired_url, tool_url
+from .services.updater import UpdateError, UpdateService
 
 ACTION_TYPES = ("click", "swipe", "input", "key")
 MAX_FILE_CHARS = 2 * 1024 * 1024  # stays under the bridge's 4 MiB request cap even after JSON escaping
@@ -87,6 +88,8 @@ def _map_errors(fn: Callable[..., Awaitable[Any]]) -> Callable[..., Awaitable[An
             raise RpcError(e.code, e.message, retryable=e.retryable, details={"status": e.status}) from e
         except KeyError as e:
             raise RpcError("device.not_found", "no such connected device: %s" % e.args[0]) from e
+        except UpdateError as e:
+            raise RpcError("update." + e.kind, str(e)) from e
         except ValueError as e:
             raise RpcError("rpc.bad_params", str(e)) from e
 
@@ -123,6 +126,11 @@ class AppContext:
             get=lambda k: self.store.aexec(self.store._get_setting, k),
             set=lambda k, v: self.store.aexec(self.store._set_setting, k, v),
             delete=lambda k: self.store.aexec(self.store._delete_setting, k)))
+        # Desktop auto-update (P5.4). Downloads go to <data dir>/updates (a temp folder without a data dir).
+        self._data_dir = data_dir
+        self.updates = UpdateService(__version__, self._update_dir)
+        # set by the Qt shell: quit the app from any thread (the update helper finishes once this process is gone)
+        self.quit_app: Callable[[], None] | None = None
         self.ui_ready = threading.Event()
         # Set by the page (app.setUnsaved), read by MainWindow.closeEvent on the GUI thread: plain attribute writes.
         self.unsaved = False
@@ -131,6 +139,23 @@ class AppContext:
         self._adb_ready: set[str] | None = None  # serials in state "device" at the last device.adb.list (None: no baseline yet)
         self._hotplug_tasks: set[asyncio.Task] = set()
         self._register()
+
+    def _update_dir(self) -> Path:
+        if self._data_dir is None:
+            import tempfile
+
+            self._data_dir_tmp = getattr(self, "_data_dir_tmp", None) or Path(tempfile.mkdtemp(prefix="xscript-updates-"))
+            return self._data_dir_tmp
+        return self._data_dir / "updates"
+
+    async def install_update(self) -> dict[str, Any]:
+        """Stage the verified download, start the helper, then quit so it can swap/upgrade and relaunch."""
+        if self.unsaved:
+            raise RpcError("update.unsaved", "save or discard the open edits before installing the update")
+        r = await asyncio.to_thread(self.updates.prepare_install)
+        if self.quit_app:
+            self.quit_app()
+        return r
 
     def _mirror_client(self, device_id: str):
         return self.devices.get(device_id).client
@@ -978,6 +1003,31 @@ class AppContext:
             return await backend_client.rollback_flow(
                 await self.cloud.client(), script_id=param(params, "scriptId", int), version_id=param(params, "versionId", int),
                 group=param(params, "group", str), run=param(params, "run", bool, default=True))
+
+        @d.method("update.info")
+        def update_info(params: dict[str, Any]) -> dict[str, Any]:
+            """Version, platform, whether a trusted update key and feed are configured, and the current update state."""
+            return self.updates.info()
+
+        @d.method("update.status")
+        def update_status(params: dict[str, Any]) -> dict[str, Any]:
+            return self.updates.status()
+
+        @d.method("update.check")
+        @_map_errors
+        async def update_check(params: dict[str, Any]) -> dict[str, Any]:
+            return await self.updates.check()
+
+        @d.method("update.download")
+        @_map_errors
+        async def update_download(params: dict[str, Any]) -> dict[str, Any]:
+            return await self.updates.download()
+
+        @d.method("update.install")
+        @_map_errors
+        async def update_install(params: dict[str, Any]) -> dict[str, Any]:
+            """Only after the user confirmed in the UI: the app quits and restarts as the new version."""
+            return await self.install_update()
 
         @d.method("cloud.console")
         @_map_errors

@@ -260,3 +260,305 @@ def test_feed_builder_cli(tmp_path, capsys):
         F.load_key(base64.b64encode(b"short").decode())
     with pytest.raises(SystemExit):
         F.build("0.5.0", [])
+
+
+# ---- applying ------------------------------------------------------------------------------------------------------
+import os  # noqa: E402
+import subprocess  # noqa: E402
+import types  # noqa: E402
+
+from xscript_desktop.context import AppContext  # noqa: E402
+
+
+def test_current_install(tmp_path):
+    exe = tmp_path / "Apps" / "XScript.app" / "Contents" / "MacOS" / "XScript"
+    exe.parent.mkdir(parents=True)
+    exe.write_text("")
+    assert U.current_install(str(exe), frozen=True, plat="darwin") == exe.parents[2].resolve()
+    assert U.current_install(str(exe), frozen=False, plat="darwin") is None
+    assert U.current_install(str(tmp_path / "python3"), frozen=True, plat="darwin") is None
+    w = tmp_path / "XScript" / "XScript.exe"
+    w.parent.mkdir()
+    w.write_text("")
+    assert U.current_install(str(w), frozen=True, plat="win32") is None  # not installed by Inno (no uninstaller)
+    (w.parent / "unins000.exe").write_text("")
+    assert U.current_install(str(w), frozen=True, plat="win32") == w.parent.resolve()
+    assert U.current_install(str(w), frozen=True, plat="linux") is None
+    assert U.current_install() is None  # the test run is a source checkout
+
+
+def test_relaunch_args_keep_only_data_dir_and_adb():
+    assert U.relaunch_args(["--update-now", "--data-dir", "/d x", "--selftest", "--adb=/a/adb", "--size", "1x1"]) == \
+        ["--data-dir", "/d x", "--adb", "/a/adb"]
+    assert U.relaunch_args(["--data-dir"]) == []
+
+
+class FakeRun:
+    """hdiutil/ditto/codesign/PlistBuddy stand-ins working on real folders."""
+
+    def __init__(self, version="0.5.0", bundle_id=U.BUNDLE_ID, fail=None, has_app=True):
+        self.version, self.bundle_id, self.fail, self.has_app, self.calls = version, bundle_id, fail, has_app, []
+
+    def __call__(self, cmd, **kw):
+        self.calls.append(cmd)
+        tool = Path(cmd[0]).name
+        if tool == "hdiutil" and cmd[1] == "attach":
+            if self.fail == "attach":
+                return types.SimpleNamespace(returncode=1, stdout="", stderr="corrupt image")
+            mnt = Path(cmd[cmd.index("-mountpoint") + 1])
+            if self.has_app:
+                (mnt / "XScript.app" / "Contents").mkdir(parents=True)
+        elif tool == "ditto":
+            if self.fail == "ditto":
+                return types.SimpleNamespace(returncode=1, stdout="", stderr="no space")
+            import shutil
+            shutil.copytree(cmd[-2], cmd[-1])
+        elif tool == "hdiutil" and cmd[1] == "detach":
+            import shutil
+            shutil.rmtree(Path(cmd[-1]) / "XScript.app", ignore_errors=True)
+        elif tool == "codesign" and self.fail == "codesign":
+            return types.SimpleNamespace(returncode=1, stdout="", stderr="a sealed resource is missing")
+        elif tool == "PlistBuddy":
+            v = self.bundle_id if cmd[2].endswith("CFBundleIdentifier") else self.version
+            return types.SimpleNamespace(returncode=0, stdout=v + "\n", stderr="")
+        return types.SimpleNamespace(returncode=0, stdout="", stderr="")
+
+
+def test_stage_macos(tmp_path):
+    bundle = tmp_path / "XScript.app"
+    bundle.mkdir()
+    dmg = tmp_path / DMG
+    dmg.write_bytes(b"x")
+    run = FakeRun()
+    staged = U.stage_macos(dmg, bundle, "0.5.0", run=run)
+    assert staged == tmp_path / ".XScript.app.update" and staged.is_dir()
+    assert [Path(c[0]).name for c in run.calls] == ["hdiutil", "ditto", "hdiutil", "codesign", "PlistBuddy", "PlistBuddy"]
+    assert run.calls[0][:5] == ["hdiutil", "attach", "-nobrowse", "-readonly", "-noautoopen"]
+    assert run.calls[3] == ["codesign", "--verify", "--deep", "--strict", str(staged)]
+    for fail, kw, msg in (("attach", {}, "cannot open the dmg"), ("ditto", {}, "cannot copy"), ("codesign", {}, "signature"),
+                          (None, {"version": "0.4.9"}, "expected"), (None, {"bundle_id": "evil"}, "expected"),
+                          (None, {"has_app": False}, "no XScript.app")):
+        with pytest.raises(U.UpdateError) as e:
+            U.stage_macos(dmg, bundle, "0.5.0", run=FakeRun(fail=fail, **kw))
+        assert msg in str(e.value) and e.value.kind == "install"
+        assert not (tmp_path / ".XScript.app.update").exists()  # never leaves a half-staged app
+
+
+@pytest.mark.skipif(sys.platform == "win32", reason="bash helper")
+def test_stage_macos_needs_a_writable_folder(tmp_path):
+    ro = tmp_path / "ro"
+    (ro / "XScript.app").mkdir(parents=True)
+    ro.chmod(0o555)
+    try:
+        with pytest.raises(U.UpdateError) as e:
+            U.stage_macos(tmp_path / DMG, ro / "XScript.app", "0.5.0", run=FakeRun())
+        assert "cannot write" in str(e.value)
+    finally:
+        ro.chmod(0o755)
+
+
+def _fake_open(tmp_path):
+    bin_ = tmp_path / "bin"
+    bin_.mkdir(exist_ok=True)
+    (bin_ / "open").write_text('#!/bin/sh\necho "open $*" >> "%s"\n' % (tmp_path / "opened.txt"))
+    (bin_ / "open").chmod(0o755)
+    return dict(os.environ, PATH="%s:%s" % (bin_, os.environ["PATH"]))
+
+
+@pytest.mark.skipif(sys.platform == "win32", reason="bash helper")
+def test_macos_swap_script_swaps_and_relaunches(tmp_path):
+    apps = tmp_path / "Apps dir"
+    (apps / "XScript.app").mkdir(parents=True)
+    (apps / "XScript.app" / "v").write_text("old")
+    (apps / ".XScript.app.update").mkdir()
+    (apps / ".XScript.app.update" / "v").write_text("new")
+    p = subprocess.Popen(["true"])
+    p.wait()  # a pid that has exited
+    script = U.macos_swap_script(apps / "XScript.app", apps / ".XScript.app.update", p.pid, ["--data-dir", "/d x"])
+    r = subprocess.run(["/bin/bash", "-c", script], env=_fake_open(tmp_path), capture_output=True, text=True, timeout=30)
+    assert r.returncode == 0, r.stdout + r.stderr
+    assert (apps / "XScript.app" / "v").read_text() == "new"
+    assert sorted(x.name for x in apps.iterdir()) == ["XScript.app"]  # old copy removed, nothing staged left
+    assert (tmp_path / "opened.txt").read_text().strip() == "open -n %s --args --data-dir /d x" % (apps / "XScript.app")
+
+
+@pytest.mark.skipif(sys.platform == "win32", reason="bash helper")
+def test_macos_swap_script_waits_and_restores(tmp_path):
+    apps = tmp_path / "a"
+    (apps / "XScript.app").mkdir(parents=True)
+    script = U.macos_swap_script(apps / "XScript.app", apps / ".XScript.app.update", os.getpid(), [])
+    # this test process never exits: shorten the 120 s wait and check the helper gives up without touching anything
+    script = script.replace("seq 1 240", "seq 1 2")
+    r = subprocess.run(["/bin/bash", "-c", script], env=_fake_open(tmp_path), capture_output=True, text=True, timeout=30)
+    assert r.returncode == 1 and "still running" in r.stdout and (apps / "XScript.app").is_dir()
+    p = subprocess.Popen(["true"])
+    p.wait()
+    script = U.macos_swap_script(apps / "XScript.app", apps / ".XScript.app.update", p.pid, [])  # staged copy missing
+    r = subprocess.run(["/bin/bash", "-c", script], env=_fake_open(tmp_path), capture_output=True, text=True, timeout=30)
+    assert r.returncode == 1 and "old app restored" in r.stdout
+    assert sorted(x.name for x in apps.iterdir()) == ["XScript.app"] and not (tmp_path / "opened.txt").exists()
+
+
+def test_windows_install_script_text(tmp_path):
+    s = U.windows_install_script(Path(r"C:\U\updates\x.exe"), Path(r"C:\U\Programs\XScript"), 4242, ["--data-dir", r'D:\d "x"'],
+                                 Path(r"C:\U\updates\setup.log"))
+    assert 'tasklist /FI "PID eq 4242"' in s and "if %n% gtr 240" in s
+    assert r'"C:\U\updates\x.exe" /VERYSILENT /SUPPRESSMSGBOXES /NORESTART /CLOSEAPPLICATIONS /DIR="C:\U\Programs\XScript"' in s
+    assert r'start "" "C:\U\Programs\XScript\XScript.exe" "--data-dir" "D:\d x"' in s  # quotes cannot break out
+
+
+def test_launch_helper_detaches(tmp_path):
+    calls = []
+    U.launch_helper(tmp_path / "s.sh", tmp_path / "log", plat="darwin", popen=lambda *a, **k: calls.append((a, k)))
+    U.launch_helper(tmp_path / "s.cmd", tmp_path / "log", plat="win32", popen=lambda *a, **k: calls.append((a, k)))
+    (mac_a, mac_k), (win_a, win_k) = calls
+    assert mac_a[0] == ["/bin/bash", str(tmp_path / "s.sh")] and mac_k["start_new_session"]
+    assert win_a[0][:3] == ["cmd.exe", "/d", "/c"] and win_k["creationflags"] & 0x08000000
+
+
+def _service(tmp_path, files, *, install=None, plat="darwin", env=None, current="0.4.0"):
+    return U.UpdateService(current, lambda: tmp_path / "updates", client_factory=lambda: client_for(files),
+                           env=env, install=install, argv=["--data-dir", "/d"], plat=plat)
+
+
+async def test_update_service_flow(tmp_path, key, monkeypatch):
+    ktext, pub = key
+    data, sig, payload = make_feed(tmp_path, ktext)
+    env = {"XSCRIPT_UPDATE_PUBKEY": base64.b64encode(pub).decode(), "XSCRIPT_UPDATE_FEED": FEED}
+    files = {"desktop-update.json": data, "desktop-update.json.sig": sig, DMG: payload}
+    monkeypatch.setattr(U, "platform_key", lambda *a: "macos-arm64")
+    bundle = tmp_path / "Apps" / "XScript.app"
+    bundle.mkdir(parents=True)
+    s = _service(tmp_path, files, install=bundle, env=env)
+    info = s.info()
+    assert info["configured"] and info["canInstall"] and info["feed"] == FEED and info["state"] == "idle"
+    with pytest.raises(U.UpdateError):
+        await s.download()  # nothing checked yet
+    with pytest.raises(U.UpdateError):
+        s.prepare_install()
+    st = await s.check()
+    assert st["state"] == "available" and st["update"]["version"] == "0.5.0"
+    st = await s.download()
+    assert st["state"] == "ready" and st["progress"] == {"done": len(payload), "total": len(payload)}
+    assert s.file == tmp_path / "updates" / DMG
+    assert (await s.check())["state"] == "available"  # a re-check starts over
+    await s.download()
+    calls = []
+    r = s.prepare_install(pid=4242, popen=lambda *a, **k: calls.append(a), run=FakeRun())
+    assert r["state"] == "installing" and r["helperLog"].endswith("update-helper.log")
+    script = (tmp_path / "updates" / "apply-update.sh").read_text()
+    assert "kill -0 4242" in script and "--args --data-dir /d" in script and calls
+    assert (await s.check())["state"] == "installing"  # no new check while installing
+
+
+async def test_update_service_errors(tmp_path, key, monkeypatch):
+    ktext, pub = key
+    monkeypatch.setattr(U, "platform_key", lambda *a: "macos-arm64")
+    assert _service(tmp_path, {}).info()["configured"] is False
+    bad = _service(tmp_path, {}, env={"XSCRIPT_UPDATE_PUBKEY": "!!"}).info()
+    assert bad["configured"] is False and "public key" in bad["configError"]
+    st = await _service(tmp_path, {}, env={}).check()
+    assert st["state"] == "error" and st["error"]["kind"] == "config"
+
+    data, sig, payload = make_feed(tmp_path, ktext)
+    env = {"XSCRIPT_UPDATE_PUBKEY": base64.b64encode(pub).decode(), "XSCRIPT_UPDATE_FEED": FEED}
+    same = _service(tmp_path, {"desktop-update.json": data, "desktop-update.json.sig": sig}, env=env, current="0.5.0")
+    assert (await same.check())["state"] == "none"
+    with pytest.raises(U.UpdateError):
+        await same.download()
+    broken = _service(tmp_path, {"desktop-update.json": data, "desktop-update.json.sig": sig, DMG: b"tampered"}, env=env)
+    await broken.check()
+    st = await broken.download()
+    assert st["state"] == "error" and st["error"]["kind"] == "integrity"
+
+    files = {"desktop-update.json": data, "desktop-update.json.sig": sig, DMG: payload}
+    src = _service(tmp_path, files, env=env, install=None)  # a source checkout cannot replace itself
+    await src.check()
+    await src.download()
+    with pytest.raises(U.UpdateError) as e:
+        src.prepare_install()
+    assert e.value.kind == "install" and DMG in str(e.value)
+
+    b = tmp_path / "B" / "XScript.app"
+    b.mkdir(parents=True)
+    changed = _service(tmp_path, files, env=env, install=b)
+    await changed.check()
+    await changed.download()
+    changed.file.write_bytes(b"swapped on disk")
+    with pytest.raises(U.UpdateError) as e:
+        changed.prepare_install(popen=lambda *a, **k: None, run=FakeRun())
+    assert e.value.kind == "integrity"
+
+    staging = _service(tmp_path, files, env=env, install=b)
+    await staging.check()
+    await staging.download()
+    with pytest.raises(U.UpdateError):
+        staging.prepare_install(popen=lambda *a, **k: None, run=FakeRun(version="0.4.9"))
+    assert staging.state == "error"
+
+    linux = _service(tmp_path, files, env=env, install=b, plat="linux")
+    await linux.check()
+    await linux.download()
+    with pytest.raises(U.UpdateError) as e:
+        linux.prepare_install(popen=lambda *a, **k: None)
+    assert e.value.kind == "platform"
+
+
+async def test_update_service_windows_helper(tmp_path, key, monkeypatch):
+    ktext, pub = key
+    monkeypatch.setattr(U, "platform_key", lambda *a: "windows-x64")
+    f = tmp_path / EXE
+    f.write_bytes(b"setup" * 50)
+    data = F.build("0.5.0", [f])
+    sig = F.sign(data, ktext)
+    env = {"XSCRIPT_UPDATE_PUBKEY": base64.b64encode(pub).decode(), "XSCRIPT_UPDATE_FEED": FEED}
+    inst = tmp_path / "Programs" / "XScript"
+    inst.mkdir(parents=True)
+    s = _service(tmp_path, {"desktop-update.json": data, "desktop-update.json.sig": sig, EXE: f.read_bytes()}, env=env,
+                 install=inst, plat="win32")
+    await s.check()
+    await s.download()
+    calls = []
+    s.prepare_install(pid=7, popen=lambda *a, **k: calls.append((a, k)))
+    cmd = (tmp_path / "updates" / "apply-update.cmd").read_text(encoding="utf-8")
+    assert '/DIR="%s"' % inst in cmd and "PID eq 7" in cmd and calls[0][0][0][0] == "cmd.exe"
+
+
+async def _rpc(ctx, method):
+    return json.loads(await ctx.dispatcher.handle(json.dumps({"id": 1, "method": method, "params": {}})))
+
+
+async def test_rpc_update_methods(tmp_path, monkeypatch):
+    monkeypatch.delenv("XSCRIPT_UPDATE_PUBKEY", raising=False)
+    monkeypatch.delenv("XSCRIPT_UPDATE_FEED", raising=False)
+    ctx = AppContext(data_dir=tmp_path)
+    info = (await _rpc(ctx, "update.info"))["result"]
+    assert info["configured"] is False and info["feed"] == U.DEFAULT_FEED and info["canInstall"] is False
+    st = (await _rpc(ctx, "update.check"))["result"]
+    assert st["state"] == "error" and st["error"]["kind"] == "config"
+    assert (await _rpc(ctx, "update.status"))["result"]["state"] == "error"
+    r = await _rpc(ctx, "update.download")
+    assert r["error"]["code"] == "update.state"
+    ctx.unsaved = True
+    r = await _rpc(ctx, "update.install")
+    assert r["error"]["code"] == "update.unsaved"
+    ctx.unsaved = False
+    quits = []
+    ctx.quit_app = lambda: quits.append(1)
+    r = await _rpc(ctx, "update.install")
+    assert r["error"]["code"] == "update.state" and not quits
+    assert ctx._update_dir() == tmp_path / "updates"
+    tmp_ctx = AppContext(data_dir=None)
+    assert tmp_ctx._update_dir() == tmp_ctx._update_dir() and tmp_ctx._update_dir().is_dir()
+    ctx.updates.state, ctx.updates.prepare_install = "ready", lambda: {"state": "installing"}
+    r = await _rpc(ctx, "update.install")
+    assert r["result"] == {"state": "installing"} and quits == [1]
+
+
+
+def test_default_client_bypasses_proxies_only_for_a_loopback_feed(tmp_path):
+    local = U.UpdateService("0.4.0", lambda: tmp_path, env={"XSCRIPT_UPDATE_FEED": "http://127.0.0.1:1/f.json"}, install=None)
+    remote = U.UpdateService("0.4.0", lambda: tmp_path, env={}, install=None)
+    bad = U.UpdateService("0.4.0", lambda: tmp_path, env={"XSCRIPT_UPDATE_FEED": "http://evil.example/f"}, install=None)
+    assert local.client_factory()._trust_env is False
+    assert remote.client_factory()._trust_env is True and bad.client_factory()._trust_env is True
