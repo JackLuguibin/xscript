@@ -28,7 +28,7 @@ XScript 的 PC / 服务器端。这里的内容都不在手机上运行。
 
 | 文件 | 内容 |
 | --- | --- |
-| `xscript.db` | SQLite：用户、会话与 API 令牌（哈希存储）、设备密钥（哈希存储）、设备、任务、卡密、打包任务、操作日志、设置 |
+| `xscript.db` | SQLite（默认；用 PostgreSQL 时没有这个文件）：用户、会话与 API 令牌（哈希存储）、设备密钥（哈希存储）、设备、任务、卡密、打包任务、操作日志、设置 |
 | `keys/private.pem` | 卡密签名私钥，首次启动时生成。**务必备份**：每个启用卡密打包的应用都内置了它的公钥 |
 | `pack/<job>/` | 每个打包任务上传的项目、构建日志和 APK |
 | `scripts/<id>/<version>/` | 小程序版本：上传的 `source.zip`，以及由它构建、用于部署 / 热更新的包 |
@@ -37,10 +37,26 @@ XScript 的 PC / 服务器端。这里的内容都不在手机上运行。
 
 ### 备份、升级与存储
 
-- **备份**（`backups/xscript-<time>.tar.gz`，权限 0600）包含数据库的一致性副本（SQLite 在线备份，服务运行中也安全）、`keys/private.pem` 以及所有小程序的 `source.zip`。不包含 APK 和构建日志。服务器每天在 `backup_hour` 自动备份一次，保留 `keep_backups` 份（在 系统设置 → 备份与存储 中配置；也可在那里“立即备份”和下载）。请把备份拷贝到其他机器：其中包含签名私钥。
-- **恢复**：先停止服务器，再执行 `python -m xscript_server --data <dir> restore <file>`（`--force` 覆盖已有数据库）。旧版本的备份会自动迁移到新结构。
-- **升级**：表结构变更是 `xscript_server/migrate.py` 中编号的步骤，启动时自动应用（`PRAGMA user_version`）。来自更新版本的数据库会被拒绝，而不会被损坏。升级前请先备份。
+- **备份**（`backups/xscript-<time>.tar.gz`，权限 0600）包含数据库的一致性副本（SQLite 在线备份；PostgreSQL 在一个可重复读事务里整库复制成同样的 SQLite 文件。服务运行中都安全）、`keys/private.pem` 以及所有小程序的 `source.zip`。不包含 APK 和构建日志。服务器每天在 `backup_hour` 自动备份一次，保留 `keep_backups` 份（在 系统设置 → 备份与存储 中配置；也可在那里“立即备份”和下载）。请把备份拷贝到其他机器：其中包含签名私钥。
+- **恢复**：先停止服务器，再执行 `python -m xscript_server --data <dir> restore <file>`（`--force` 覆盖已有数据库）。旧版本的备份会自动迁移到新结构。设置了 `XSCRIPT_DATABASE_URL` 时恢复到 PostgreSQL。
+- **升级**：表结构变更是 `xscript_server/migrate.py` 中编号的步骤，启动时自动应用（版本号在 SQLite 的 `PRAGMA user_version`，PostgreSQL 的 `xscript_schema` 表）。来自更新版本的数据库会被拒绝，而不会被损坏。升级前请先备份。
 - **数据保留** 随每日备份一起执行：已完成的打包任务中，除最新的 `keep_pack_jobs` 个以外，其余的 APK 都会删除（任务记录保留）；早于 `audit_days` 的操作日志会删除；过期超过一周的分享链接会删除。设为 0 则全部保留。
+
+### PostgreSQL（可选）
+
+默认的 SQLite 文件不用任何配置，几千台设备以内足够。设备上万、写入频繁时可以改用 PostgreSQL（12 及以上，CI 测的是 16）：
+
+```bash
+.venv/bin/python -m pip install -e "./backend[postgres]"      # psycopg 3 驱动；Docker 镜像已经自带
+export XSCRIPT_DATABASE_URL='postgresql://xscript:密码@127.0.0.1:5432/xscript'
+.venv/bin/python -m xscript_server init  --data xscript-data   # 在空库里建表并创建管理员
+.venv/bin/python -m xscript_server serve --data xscript-data
+```
+
+- 数据库要事先建好（`CREATE DATABASE xscript OWNER xscript;`），表由服务器创建和升级。签名私钥、小程序、打包产物和备份仍在数据目录里，数据目录照样要持久化。
+- 地址写 `postgresql://` 或 `postgres://` 都行；日志和 系统设置 → 接入信息 里只显示去掉密码的地址。连接池 10 + 20，断线自动重连。
+- **从 SQLite 迁移**：停掉服务器，`backup` 出一份备份，设置 `XSCRIPT_DATABASE_URL` 后对同一个数据目录（或新目录）执行 `restore <备份>`：数据整库复制进 PostgreSQL，自增编号接着原来的。目标库已有数据时要加 `--force`（先清空）。反过来，不设这个变量恢复，就回到 SQLite。
+- 备份格式不变，始终是 SQLite 文件，两种数据库之间可以互相恢复。
 
 ### 告警通知
 
