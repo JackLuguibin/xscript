@@ -1,7 +1,12 @@
 #!/usr/bin/env python3
 """xscript:// scheme links from a real Chrome page on an emulator/phone.
 
-usage: scripts/device_scheme_e2e.py SERIAL DEVICE_URL   e.g. emulator-5556 http://127.0.0.1:19861
+usage: scripts/device_scheme_e2e.py SERIAL DEVICE_URL [PACKAGE]   e.g. emulator-5556 http://127.0.0.1:19861
+       PACKAGE defaults to com.xscript.app; pass another build's id (e.g. com.xscript.app.perf) to test that one.
+       When more than one installed app handles xscript:// (e.g. com.xscript.app next to a .perf build), Android
+       shows an "Open with" chooser whose entries carry only the app label. Give the target's label in
+       XS_APP_LABEL (give that build a distinct label) and the script picks it "Just once"; without it the script
+       stops instead of guessing, so it never opens a different app.
 (needs `adb forward` to the device API; the emulator reaches this Mac as 10.0.2.2)
 
 Serves a small page, opens it in Chrome with an adb VIEW intent, and taps real links (uiautomator
@@ -15,6 +20,8 @@ import base64, html, http.server, json, os, re, subprocess, sys, threading, time
 import devauth  # scripts/devauth.py: pairing code (XSCRIPT_TOKEN or adb)
 
 SERIAL, BASE = sys.argv[1], sys.argv[2].rstrip("/")
+PKG = sys.argv[3] if len(sys.argv) > 3 else "com.xscript.app"
+APP_LABEL = os.environ.get("XS_APP_LABEL", "")
 PORT = int(os.environ.get("XS_PAGE_PORT", "8089"))
 ADB = os.path.expanduser("~/Library/Android/sdk/platform-tools/adb")
 PAGE = """<!doctype html><html><head><meta name=viewport content="width=device-width,initial-scale=1"><title>xscript link test</title>
@@ -58,11 +65,9 @@ def api(method, path, body=None):
 
 
 def nodes():
-    for _ in range(3):
-        adb("shell", "uiautomator", "dump", "/sdcard/ui.xml")
-        x = adb("shell", "cat", "/sdcard/ui.xml", out=True)
-        if "<node" in x:
-            break
+    x = dump()
+    if 'resource-id="android:id/button_once"' in x:  # "Open with" chooser: several apps handle the link
+        x = pick_handler(x)
     res = []
     for m in re.finditer(r"<node [^>]*>", x):
         n = m.group(0)
@@ -71,6 +76,39 @@ def nodes():
         b = list(map(int, re.search(r'bounds="\[(\d+),(\d+)\]\[(\d+),(\d+)\]"', n).groups()))
         res.append((pk, t, ((b[0] + b[2]) // 2, (b[1] + b[3]) // 2)))
     return res
+
+
+def _center(n):
+    b = list(map(int, re.search(r'bounds="\[(\d+),(\d+)\]\[(\d+),(\d+)\]"', n).groups()))
+    return str((b[0] + b[2]) // 2), str((b[1] + b[3]) // 2)
+
+
+def pick_handler(x):
+    """Choose PKG in the system chooser by its label, "Just once"; never guess between identical labels."""
+    labels = [(html.unescape(re.search(r'text="([^"]*)"', n).group(1)), n) for n in re.findall(r"<node [^>]*>", x)
+              if 'resource-id="android:id/text1"' in n]
+    names = [t for t, _ in labels]
+    if not APP_LABEL or names.count(APP_LABEL) != 1:
+        adb("shell", "input", "keyevent", "KEYCODE_BACK")  # close the chooser without opening anything
+        sys.exit("several apps handle the link (chooser shows %s); give %s a distinct app label and pass it in "
+                 "XS_APP_LABEL (got %r) so the right one is picked" % (names, PKG, APP_LABEL))
+    adb("shell", "input", "tap", *_center(dict(labels)[APP_LABEL]))
+    time.sleep(0.8)
+    once = re.search(r'<node [^>]*resource-id="android:id/button_once"[^>]*>', dump())
+    if once:
+        adb("shell", "input", "tap", *_center(once.group(0)))
+    time.sleep(1.5)
+    return dump()
+
+
+def dump():
+    x = ""
+    for _ in range(3):
+        adb("shell", "uiautomator", "dump", "/sdcard/ui.xml")
+        x = adb("shell", "cat", "/sdcard/ui.xml", out=True)
+        if "<node" in x:
+            break
+    return x
 
 
 def texts(pkg=None):
@@ -139,14 +177,14 @@ def stop_if_running():
 
 
 def set_mode(label):
-    adb("shell", "am", "start", "-n", "com.xscript.app/.LauncherActivity")
+    adb("shell", "am", "start", "-n", PKG + "/com.xscript.app.LauncherActivity")
     time.sleep(2)
     for _ in range(4):  # the app may be on a sub screen (project list...): back out to the home screen
-        if any("链接启动" in t for t in texts("com.xscript.app")):
+        if any("链接启动" in t for t in texts(PKG)):
             break
         adb("shell", "input", "keyevent", "KEYCODE_BACK")
         time.sleep(1)
-        adb("shell", "am", "start", "-n", "com.xscript.app/.LauncherActivity")
+        adb("shell", "am", "start", "-n", PKG + "/com.xscript.app.LauncherActivity")
         time.sleep(1.5)
     assert tap("链接启动"), "链接启动 row"
     time.sleep(1)
@@ -180,8 +218,8 @@ def main():
         # 1. confirm dialog: project, caller, cancel
         open_page()
         check(tap("RUNLINK"), "tap RUNLINK in Chrome")
-        msg = wait_text("linkdemo", "com.xscript.app")
-        check(msg is not None and "10.0.2.2" in "\n".join(texts("com.xscript.app")), "confirm dialog names the project and the caller (10.0.2.2)", (msg or "")[:40])
+        msg = wait_text("linkdemo", PKG)
+        check(msg is not None and "10.0.2.2" in "\n".join(texts(PKG)), "confirm dialog names the project and the caller (10.0.2.2)", (msg or "")[:40])
         check(not running(), "nothing runs while the dialog is open")
         check(tap("取消", exact=True), "tap 取消")
         time.sleep(2)
@@ -189,7 +227,7 @@ def main():
 
         # 2. confirm -> run
         open_page()
-        tap("RUNLINK"); wait_text("linkdemo", "com.xscript.app")
+        tap("RUNLINK"); wait_text("linkdemo", PKG)
         check(tap("运行", exact=True), "tap 运行")
         time.sleep(4)
         lines, mark = logs_since(mark)
@@ -197,7 +235,7 @@ def main():
 
         # 3. already running: second run link is refused
         open_page()
-        tap("RUNLINK"); wait_text("linkdemo", "com.xscript.app"); tap("运行", exact=True)
+        tap("RUNLINK"); wait_text("linkdemo", PKG); tap("运行", exact=True)
         check(wait_toast("busy") and running(), "second run while busy: a toast is shown and the first script keeps running")
 
         # 4. stop link: no dialog, stops
@@ -205,11 +243,11 @@ def main():
         tap("STOPLINK")
         toast = wait_toast("stop")
         time.sleep(2)
-        check(not running() and not any("运行小程序" in t for t in texts("com.xscript.app")), "xscript://stop stops without a dialog", "toast=%s" % toast)
+        check(not running() and not any("运行小程序" in t for t in texts(PKG)), "xscript://stop stops without a dialog", "toast=%s" % toast)
 
         # 5. params
         open_page()
-        tap("PARAMLINK"); wait_text("linkdemo", "com.xscript.app"); tap("运行", exact=True)
+        tap("PARAMLINK"); wait_text("linkdemo", PKG); tap("运行", exact=True)
         time.sleep(4)
         lines, mark = logs_since(mark)
         check(any(l == "LINK_RAN k=v" for l in lines), "params {\"k\":\"v\"} reach the script", str(lines[-3:]))
@@ -218,9 +256,9 @@ def main():
         # 6. invalid / missing
         open_page(); tap("BADLINK")
         toast = wait_toast("bad")
-        check(toast and not running() and not any("运行小程序" in t for t in texts("com.xscript.app")), "invalid name is refused with a toast and no dialog")
+        check(toast and not running() and not any("运行小程序" in t for t in texts(PKG)), "invalid name is refused with a toast and no dialog")
         open_page(); tap("MISSINGLINK")
-        check(wait_text("nosuchproj", "com.xscript.app") is not None, "unknown project still asks first (dialog names it)")
+        check(wait_text("nosuchproj", PKG) is not None, "unknown project still asks first (dialog names it)")
         tap("运行", exact=True)
         toast = wait_toast("missing")
         check(toast and not running(), "unknown project is refused with a toast after confirming")
@@ -233,12 +271,12 @@ def main():
 def main2(mark):
     # 7. JS button (user gesture)
     open_page(); check(tap("JSBUTTON"), "tap JSBUTTON")
-    msg = wait_text("linkdemo", "com.xscript.app")
+    msg = wait_text("linkdemo", PKG)
     check(msg is not None, "location.href from a tapped button opens the confirm dialog")
     tap("取消", exact=True); time.sleep(1)
     # a page that navigates by itself (no tap): Chrome may pass it on, so the confirm dialog is the protection
     open_page("/auto")
-    msg = wait_text("linkdemo", "com.xscript.app", 12)
+    msg = wait_text("linkdemo", PKG, 12)
     check(not running(), "gesture-less JS redirect never runs anything (Chrome %s)" % ("handed it over, the app only asked" if msg else "blocked it"))
     tap("取消", exact=True); time.sleep(1)
     check(not running(), "cancelling that dialog runs nothing")
@@ -247,7 +285,7 @@ def main2(mark):
     set_mode("直接运行")
     open_page(); tap("RUNLINK"); time.sleep(4)
     lines, mark = logs_since(mark)
-    check(running() and any(l.startswith("LINK_RAN") for l in lines) and not any("运行小程序" in t for t in texts("com.xscript.app")),
+    check(running() and any(l.startswith("LINK_RAN") for l in lines) and not any("运行小程序" in t for t in texts(PKG)),
           "直接运行 mode: starts without a dialog")
     stop_if_running()
     set_mode("已关闭")
@@ -257,7 +295,7 @@ def main2(mark):
     check(toast and not running(), "已关闭 mode: refused with a toast, nothing runs")
     set_mode("每次确认")
     open_page(); tap("RUNLINK")
-    check(wait_text("运行小程序", "com.xscript.app") is not None, "back to 每次确认: dialog is shown again")
+    check(wait_text("运行小程序", PKG) is not None, "back to 每次确认: dialog is shown again")
     tap("取消", exact=True)
 
 

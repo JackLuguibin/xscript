@@ -67,7 +67,7 @@ def run_project(files, wait=300):
                     result = json.loads(e["line"][len("ML_RESULT "):])
             break
         time.sleep(0.5)
-    api("POST", "/stop", {})
+    api("POST", "/projects/%s/stop" % PROJECT, {})
     return result, lines
 
 
