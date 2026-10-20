@@ -255,3 +255,63 @@ async def test_viewer_can_list_but_not_edit_tasks(ctx):
     assert (await rpc(ctx, "cloud.tasks"))[0]["ok"]
     r, _ = await rpc(ctx, "cloud.taskUpdate", id=1, enabled=False)
     assert r["error"]["code"] == "backend.forbidden"
+
+
+# ---- P4.5 deploy a flow to a group, with rollback -----------------------------------------------------------------
+import io  # noqa: E402
+import zipfile  # noqa: E402
+
+PLAN = [{"path": "flows/daily.py", "content": "print('hi')\n"}, {"path": "flows/daily.xflow", "content": "flow daily\n"},
+        {"path": "__init__.py", "content": "# xscript-desktop flow entry\nfrom .flows import daily\n"}]
+
+
+async def test_first_deploy_creates_the_script_uploads_a_zip_and_installs_on_the_group(ctx, fb):
+    await connected(ctx, "xsk_admin")
+    r, _ = await rpc(ctx, "cloud.flowVersions", project="daily")
+    assert r["result"] == {"scriptId": None, "versions": []}
+    r, _ = await rpc(ctx, "cloud.flowDeploy", project="daily", files=PLAN, group="farm-1", notes="first")
+    res = r["result"]
+    assert res["scriptId"] == 1 and res["version"] == "1.0.0" and res["ok"] == 2 and res["total"] == 2
+    assert {x["id"] for x in res["rows"]} == {"dev-a1", "dev-b2"}
+    name, blob, form = fb.uploads[-1]
+    assert name == "daily.zip" and form == {"version": "", "notes": "first", "publish": "false"}
+    zf = zipfile.ZipFile(io.BytesIO(blob))
+    assert sorted(zf.namelist()) == ["daily/__init__.py", "daily/flows/daily.py", "daily/flows/daily.xflow"]
+    assert fb.calls[-1][2] == {"target": "group:farm-1", "version_id": 101, "run": True, "timeout": 60}
+    # second deploy reuses the script; rollback re-installs version 1
+    r, _ = await rpc(ctx, "cloud.flowDeploy", project="daily", files=PLAN, group="farm-1", version="1.1.0", run=False)
+    assert r["result"]["version"] == "1.1.0" and len(fb.scripts) == 1 and r["result"]["rows"][0]["msg"] == "已安装"
+    r, _ = await rpc(ctx, "cloud.flowVersions", project="daily")
+    assert r["result"]["scriptId"] == 1 and [v["version"] for v in r["result"]["versions"]] == ["1.1.0", "1.0.0"]
+    r, _ = await rpc(ctx, "cloud.flowRollback", scriptId=1, versionId=101, group="farm-1")
+    assert r["result"]["version"] == "1.0.0" and r["result"]["ok"] == 2
+    assert fb.calls[-1] == ("POST", "/api/scripts/1/deploy", {"target": "group:farm-1", "version_id": 101, "run": True, "timeout": 60})
+
+
+async def test_operator_cannot_deploy(ctx, fb):
+    await connected(ctx, "xsk_op")
+    fb.scripts[1] = {"id": 1, "name": "daily", "project_name": "daily"}
+    r, _ = await rpc(ctx, "cloud.flowDeploy", project="daily", files=PLAN, group="farm-1")
+    assert r["error"]["code"] == "backend.forbidden"
+
+
+@pytest.mark.parametrize("project,files,group,version", [
+    ("1bad", PLAN, "farm-1", ""), ("daily", [], "farm-1", ""), ("daily", PLAN[:2], "farm-1", ""),
+    ("daily", PLAN + [{"path": "../evil.py", "content": ""}], "farm-1", ""),
+    ("daily", PLAN + [{"path": "/abs.py", "content": ""}], "farm-1", ""),
+    ("daily", PLAN + [{"path": "a/./b.py", "content": ""}], "farm-1", ""),
+    ("daily", PLAN + [PLAN[0]], "farm-1", ""), ("daily", PLAN, "", ""), ("daily", PLAN, "a,b", ""),
+    ("daily", PLAN, "farm-1", "bad version!")])
+async def test_deploy_rejects_bad_plans_before_uploading(ctx, fb, project, files, group, version):
+    await connected(ctx, "xsk_admin")
+    n = len(fb.calls)
+    r, _ = await rpc(ctx, "cloud.flowDeploy", project=project, files=files, group=group, version=version)
+    assert r["error"]["code"] == "backend.bad_request", r
+    assert len(fb.calls) == n and not fb.uploads
+
+
+async def test_duplicate_version_is_reported(ctx, fb):
+    await connected(ctx, "xsk_admin")
+    await rpc(ctx, "cloud.flowDeploy", project="daily", files=PLAN, group="farm-1", version="2.0")
+    r, _ = await rpc(ctx, "cloud.flowDeploy", project="daily", files=PLAN, group="farm-1", version="2.0")
+    assert r["error"]["code"] == "backend.http" and "2.0" in r["error"]["message"]

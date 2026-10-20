@@ -202,3 +202,45 @@ describe("CloudPage logs and tasks (P4.4)", () => {
     expect(screen.getByText(t.cloud.tasks.viewerOnly)).toBeTruthy();
   });
 });
+
+describe("CloudPage deploy (P4.5)", () => {
+  async function confirmLast() {
+    await screen.findByRole("alertdialog");
+    fireEvent.click(screen.getAllByRole("button", { name: t.cloud.deploy.deploy }).at(-1)!);
+  }
+
+  it("deploys the editor's flow to a group as a new version and rolls back", async () => {
+    const { transport } = await openTab("xsk_admin", "alice", "admin", t.cloud.tabs.deploy);
+    expect(await screen.findByText(t.cloud.deploy.noVersions)).toBeTruthy();
+    expect(screen.getByText("daily_signin")).toBeTruthy();
+    const deploy = screen.getByRole("button", { name: t.cloud.deploy.deploy }) as HTMLButtonElement;
+    expect(deploy.disabled).toBe(true);
+    await waitFor(() => expect(screen.getAllByRole("option").some((o) => o.textContent?.startsWith("farm-2"))).toBe(true));
+    fireEvent.change(screen.getByLabelText(t.cloud.deploy.group), { target: { value: "farm-2" } });
+    fireEvent.change(screen.getByLabelText(t.cloud.deploy.notes), { target: { value: "first" } });
+    fireEvent.click(deploy);
+    await confirmLast();
+    expect(await screen.findByText(t.cloud.deploy.done("1.0.0", 3, 3))).toBeTruthy();
+    const sent = transport.sent.find((m) => m.method === "cloud.flowDeploy")?.params as { project: string; files: Array<{ path: string }>; group: string };
+    expect(sent.project).toBe("daily_signin");
+    expect(sent.group).toBe("farm-2");
+    expect(sent.files.map((f) => f.path)).toContain("__init__.py");
+    fireEvent.change(screen.getByLabelText(t.cloud.deploy.version), { target: { value: "1.1.0" } });
+    fireEvent.click(screen.getByRole("button", { name: t.cloud.deploy.deploy }));
+    await confirmLast();
+    expect(await screen.findByText(t.cloud.deploy.done("1.1.0", 3, 3))).toBeTruthy();
+    fireEvent.click(await screen.findByRole("button", { name: t.cloud.deploy.rollback }));
+    await screen.findByText(t.cloud.deploy.rollbackConfirm("1.0.0", "farm-2"));
+    await confirmLast();
+    expect(await screen.findByText(t.cloud.deploy.done("1.0.0", 3, 3))).toBeTruthy();
+    expect(transport.sent.find((m) => m.method === "cloud.flowRollback")?.params).toMatchObject({ group: "farm-2", versionId: 101 });
+  });
+
+  it("operators see deploy greyed out", async () => {
+    await openTab("xsk_op_demo", "olga", "operator", t.cloud.tabs.deploy);
+    expect(await screen.findByText(t.cloud.deploy.adminOnly)).toBeTruthy();
+    const b = screen.getByRole("button", { name: t.cloud.deploy.deploy }) as HTMLButtonElement;
+    expect(b.disabled).toBe(true);
+    expect((screen.getByLabelText(t.cloud.deploy.group) as HTMLSelectElement).disabled).toBe(true);
+  });
+});

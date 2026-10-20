@@ -955,6 +955,26 @@ class AppContext:
         async def cloud_task_delete(params: dict[str, Any]) -> dict[str, Any]:
             return await backend_client.delete_task(await self.cloud.client(), param(params, "id", int))
 
+        @d.method("cloud.flowVersions")
+        @_map_errors
+        async def cloud_flow_versions(params: dict[str, Any]) -> dict[str, Any]:
+            return await backend_client.flow_versions(await self.cloud.client(), param(params, "project", str))
+
+        @d.method("cloud.flowDeploy")
+        @_map_errors
+        async def cloud_flow_deploy(params: dict[str, Any]) -> dict[str, Any]:
+            return await backend_client.deploy_flow(
+                await self.cloud.client(), project=param(params, "project", str), files=param(params, "files", list),
+                group=param(params, "group", str), version=param(params, "version", str, default=""),
+                notes=param(params, "notes", str, default=""), run=param(params, "run", bool, default=True))
+
+        @d.method("cloud.flowRollback")
+        @_map_errors
+        async def cloud_flow_rollback(params: dict[str, Any]) -> dict[str, Any]:
+            return await backend_client.rollback_flow(
+                await self.cloud.client(), script_id=param(params, "scriptId", int), version_id=param(params, "versionId", int),
+                group=param(params, "group", str), run=param(params, "run", bool, default=True))
+
         @d.method("cloud.disconnect")
         @_map_errors
         async def cloud_disconnect(params: dict[str, Any]) -> dict[str, Any]:

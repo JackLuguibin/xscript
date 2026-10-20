@@ -1,4 +1,4 @@
-import type { CloudDevice, CloudLogLine, CloudRole, CloudStatus, CloudTask } from "./api";
+import type { CloudDevice, CloudLogLine, CloudRole, CloudStatus, CloudTask, CloudVersion } from "./api";
 
 // Demo admin backend for plain-browser mode (`npm run dev`, screenshots). Same shapes as the Python cloud.* RPCs.
 // Any `xsk_…` token works: one containing "view" signs in as a viewer, "op" as an operator, anything else as admin.
@@ -56,6 +56,11 @@ export function cloudDemoHandlers(): Record<string, Handler> {
     { id: 1, name: "早班签到", target: "group:farm-1", path: "app_run", project: "daily-signin", daily: "08:30", every: null, enabled: true, lastRun: 1_791_990_000, nextRun: 1_792_076_400, lastResult: null, createdBy: "alice" },
     { id: 2, name: "夜间停止", target: "all", path: "app_stop", project: "", daily: "23:00", every: null, enabled: false, lastRun: null, nextRun: null, lastResult: null, createdBy: "alice" },
   ];
+  const scripts = new Map<string, { id: number; versions: CloudVersion[] }>();
+  const installOn = (group: string, run: boolean) => {
+    const rows = devices.filter((d) => d.online && d.group === group).map((d) => ({ id: d.id, ok: true, offline: false, msg: run ? "已安装并启动" : "已安装" }));
+    return { rows, ok: rows.length, total: rows.length };
+  };
   const needConn = () => {
     if (!role) fail("backend.not_configured", "还没有连接后台");
   };
@@ -134,6 +139,29 @@ export function cloudDemoHandlers(): Record<string, Handler> {
       if (i < 0) fail("backend.not_found", "任务不存在");
       tasks.splice(i, 1);
       return { ok: true };
+    },
+    "cloud.flowVersions": (p) => {
+      needConn();
+      const s = scripts.get(String(p.project));
+      return s ? { scriptId: s.id, versions: [...s.versions].reverse() } : { scriptId: null, versions: [] };
+    },
+    "cloud.flowDeploy": (p) => {
+      needConn();
+      if (role !== "admin") fail("backend.forbidden", "当前账号没有权限：权限不足");
+      const project = String(p.project);
+      const s = scripts.get(project) ?? { id: scripts.size + 1, versions: [] as CloudVersion[] };
+      scripts.set(project, s);
+      const version = String(p.version || "") || `1.0.${s.versions.length}`;
+      if (s.versions.some((v) => v.version === version)) fail("backend.http", `后台返回 409：版本 ${version} 已存在`);
+      const v: CloudVersion = { id: s.id * 100 + s.versions.length + 1, version, code: s.versions.length + 1, notes: String(p.notes ?? ""), createdBy: "alice", createdAt: 1_792_000_000 + s.versions.length * 600, current: false };
+      s.versions.push(v);
+      return { ...installOn(String(p.group), p.run !== false), scriptId: s.id, versionId: v.id, version };
+    },
+    "cloud.flowRollback": (p) => {
+      needConn();
+      if (role !== "admin") fail("backend.forbidden", "当前账号没有权限：权限不足");
+      const v = [...scripts.values()].flatMap((s) => s.versions).find((x) => x.id === p.versionId) ?? fail("backend.not_found", "版本不存在");
+      return { ...installOn(String(p.group), p.run !== false), scriptId: Number(p.scriptId), versionId: v.id, version: v.version };
     },
     "cloud.groups": () => {
       needConn();

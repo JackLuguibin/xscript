@@ -55,9 +55,14 @@ class BackendClient:
     async def aclose(self) -> None:
         await self._http.aclose()
 
-    async def request(self, method: str, path: str, *, params: dict[str, Any] | None = None, json: Any = None) -> Any:
+    async def request(self, method: str, path: str, *, params: dict[str, Any] | None = None, json: Any = None,
+                      files: Any = None, data: dict[str, str] | None = None, timeout: float | None = None) -> Any:
         try:
-            r = await self._http.request(method, path, params=params, json=json)
+            if files is not None:  # multipart upload (script versions)
+                r = await self._http.request(method, path, params=params, files=files, data=data,
+                                             timeout=timeout or self._http.timeout)
+            else:
+                r = await self._http.request(method, path, params=params, json=json, timeout=timeout or self._http.timeout)
         except httpx.TimeoutException:
             raise BackendError("backend.timeout", "后台响应超时：" + self.origin, retryable=True) from None
         except httpx.HTTPError as e:
@@ -368,3 +373,108 @@ async def run_task(c: BackendClient, task_id: int) -> dict[str, Any]:
 async def delete_task(c: BackendClient, task_id: int) -> dict[str, Any]:
     await c.delete("/tasks/%d" % task_id)
     return {"ok": True}
+
+
+# ---- P4.5 deploy a flow to a group, with rollback ----------------------------------------------------------------
+import io  # noqa: E402
+import posixpath  # noqa: E402
+import re as _re  # noqa: E402
+import zipfile  # noqa: E402
+
+PROJECT_NAME = _re.compile(r"^[^\W\d]\w*$", _re.UNICODE)  # same rule as backend packer.PROJECT_NAME
+VERSION_RE = _re.compile(r"^[0-9A-Za-z.\-_+]{1,32}$")
+MAX_FILES = 200
+MAX_ZIP = 8 * 1024 * 1024  # under the backend's 11 MB deploy bundle cap
+
+
+def flow_zip(project: str, files: list[dict[str, Any]]) -> bytes:
+    """The flow's deploy plan (traced build, .xflow, layout, entry stub) as a project zip under `<project>/`."""
+    if not PROJECT_NAME.match(project or ""):
+        raise BackendError("backend.bad_request", "流程名必须是合法的 Python 标识符，例如 daily_signin")
+    if not files or len(files) > MAX_FILES:
+        raise BackendError("backend.bad_request", "部署内容为空或文件太多")
+    buf = io.BytesIO()
+    seen: set[str] = set()
+    with zipfile.ZipFile(buf, "w", zipfile.ZIP_DEFLATED) as zf:
+        for f in files:
+            path = str(f.get("path") or "") if isinstance(f, dict) else ""
+            content = f.get("content") if isinstance(f, dict) else None
+            norm = posixpath.normpath(path)
+            if not path or not isinstance(content, str) or norm != path or norm.startswith(("/", "..")) or "\\" in path or norm in seen:
+                raise BackendError("backend.bad_request", "部署文件路径不合法：%s" % path[:80])
+            seen.add(norm)
+            info = zipfile.ZipInfo(project + "/" + norm, date_time=(2020, 1, 1, 0, 0, 0))
+            info.compress_type = zipfile.ZIP_DEFLATED
+            info.external_attr = 0o644 << 16
+            zf.writestr(info, content.encode("utf-8"))
+    if "__init__.py" not in seen:
+        raise BackendError("backend.bad_request", "部署内容缺少入口 __init__.py")
+    data = buf.getvalue()
+    if len(data) > MAX_ZIP:
+        raise BackendError("backend.bad_request", "流程工程太大（%.1f MB）" % (len(data) / 1e6))
+    return data
+
+
+def _group_target(group: str) -> str:
+    group = (group or "").strip()
+    if not group or len(group) > 64 or "," in group:
+        raise BackendError("backend.bad_request", "选择要部署到的分组")
+    return "group:" + group
+
+
+def version_view(v: dict[str, Any]) -> dict[str, Any]:
+    return {"id": int(v.get("id") or 0), "version": str(v.get("version") or ""), "code": int(v.get("version_code") or 0),
+            "notes": str(v.get("notes") or ""), "createdBy": str(v.get("created_by") or ""),
+            "createdAt": v.get("created_at"), "current": bool(v.get("current"))}
+
+
+async def find_script(c: BackendClient, project: str) -> dict[str, Any] | None:
+    r = await c.get("/scripts")
+    for sc in (r or {}).get("items", []):
+        if isinstance(sc, dict) and sc.get("project_name") == project:
+            return sc
+    return None
+
+
+async def flow_versions(c: BackendClient, project: str) -> dict[str, Any]:
+    """The backend 小程序 that holds this flow (matched by project name) and its versions, newest first."""
+    if not PROJECT_NAME.match(project or ""):
+        raise BackendError("backend.bad_request", "流程名必须是合法的 Python 标识符")
+    sc = await find_script(c, project)
+    if sc is None:
+        return {"scriptId": None, "versions": []}
+    r = await c.get("/scripts/%d/versions" % int(sc["id"]))
+    return {"scriptId": int(sc["id"]), "versions": [version_view(v) for v in (r or {}).get("items", []) if isinstance(v, dict)]}
+
+
+async def _deploy(c: BackendClient, script_id: int, version_id: int, target: str, run: bool) -> dict[str, Any]:
+    r = await c.request("POST", "/scripts/%d/deploy" % script_id, json={"target": target, "version_id": version_id, "run": run,
+                                                                        "timeout": 60}, timeout=120)
+    res = (r or {}).get("results") if isinstance(r, dict) else None
+    rows = [{"id": str(k), "ok": isinstance(v, dict) and v.get("code") == 1, "offline": False,
+             "msg": str((v or {}).get("msg") or "")[:300] if isinstance(v, dict) else ""} for k, v in (res or {}).items()]
+    return {"rows": rows, "ok": sum(x["ok"] for x in rows), "total": len(rows), "version": str((r or {}).get("version") or "")}
+
+
+async def deploy_flow(c: BackendClient, *, project: str, files: list[dict[str, Any]], group: str, version: str = "",
+                      notes: str = "", run: bool = True) -> dict[str, Any]:
+    """Upload the flow as the next version of its 小程序 (created on first deploy), then install it on the group."""
+    target = _group_target(group)
+    if version and not VERSION_RE.match(version):
+        raise BackendError("backend.bad_request", "版本号只能包含字母、数字和 . - _ +")
+    blob = flow_zip(project, files)
+    sc = await find_script(c, project)
+    if sc is None:
+        sc = await c.post("/scripts", {"name": project, "project_name": project,
+                                       "description": "由桌面端流程编辑器部署"})
+    sid = int(sc["id"])
+    v = await c.request("POST", "/scripts/%d/versions" % sid, files={"file": (project + ".zip", blob, "application/zip")},
+                        data={"version": version, "notes": notes[:4000], "publish": "false"}, timeout=120)
+    out = await _deploy(c, sid, int(v["id"]), target, run)
+    return {**out, "scriptId": sid, "versionId": int(v["id"]), "version": str(v.get("version") or out["version"])}
+
+
+async def rollback_flow(c: BackendClient, *, script_id: int, version_id: int, group: str, run: bool = True) -> dict[str, Any]:
+    """Install an earlier version on the group again (the backend keeps every uploaded version)."""
+    out = await _deploy(c, script_id, version_id, _group_target(group), run)
+    return {**out, "scriptId": script_id, "versionId": version_id}

@@ -52,6 +52,15 @@ class FakeBackend:
         self.route("PATCH", r"/tasks/(?P<id>\d+)", "operator", self._task_patch)
         self.route("DELETE", r"/tasks/(?P<id>\d+)", "operator", lambda req, user, m: (200, {"ok": True}) if self.tasks.pop(int(m["id"]), None) else (404, {"detail": "任务不存在"}))
         self.route("POST", r"/tasks/(?P<id>\d+)/run", "operator", lambda req, user, m: {"results": {}, "devices": 2, "ok": 2} if int(m["id"]) in self.tasks else (404, {"detail": "任务不存在"}))
+        self.scripts: dict[int, dict[str, Any]] = {}
+        self.versions: dict[int, list[dict[str, Any]]] = {}
+        self.uploads: list[tuple[str, bytes, dict[str, str]]] = []
+        self.route("GET", r"/scripts", "viewer", lambda req, user, m: {"items": list(self.scripts.values())})
+        self.route("POST", r"/scripts", "operator", self._script_create)
+        self.route("GET", r"/scripts/(?P<id>\d+)/versions", "viewer",
+                   lambda req, user, m: {"items": sorted(self.versions.get(int(m["id"]), []), key=lambda v: -v["version_code"])})
+        self.route("POST", r"/scripts/(?P<id>\d+)/versions", "operator", self._version_upload)
+        self.route("POST", r"/scripts/(?P<id>\d+)/deploy", "admin", self._deploy)
         self.route("GET", r"/auth/me", "viewer", lambda req, user, m: {"id": 1, "username": user[0], "role": user[1], "disabled": False})
 
     def _devices(self, req: httpx.Request, user: Any, m: Any) -> dict[str, Any]:
@@ -99,6 +108,44 @@ class FakeBackend:
         t.update(json.loads(req.content))
         return t
 
+    def _script_create(self, req: httpx.Request, user: Any, m: Any) -> Any:
+        b = json.loads(req.content)
+        sid = max(self.scripts, default=0) + 1
+        self.scripts[sid] = {"id": sid, "name": b["name"], "project_name": b["project_name"], "versions": 0}
+        return self.scripts[sid]
+
+    def _version_upload(self, req: httpx.Request, user: Any, m: Any) -> Any:
+        import email.parser
+        import email.policy
+        import io
+        import zipfile
+        sid = int(m["id"])
+        msg = email.parser.BytesParser(policy=email.policy.default).parsebytes(
+            b"Content-Type: " + req.headers["content-type"].encode() + b"\r\n\r\n" + req.content)
+        parts = {p.get_param("name", header="content-disposition"): p for p in msg.iter_parts()}
+        blob = parts["file"].get_payload(decode=True)
+        form = {k: p.get_content() for k, p in parts.items() if k != "file"}
+        zipfile.ZipFile(io.BytesIO(blob)).testzip()
+        self.uploads.append((parts["file"].get_filename(), blob, form))
+        vs = self.versions.setdefault(sid, [])
+        code = len(vs) + 1
+        v = {"id": sid * 100 + code, "version": form.get("version") or "1.0.%d" % (code - 1), "version_code": code,
+             "notes": form.get("notes", ""), "created_by": user[0], "created_at": code, "current": False}
+        if any(x["version"] == v["version"] for x in vs):
+            return 409, {"detail": "版本 %s 已存在" % v["version"]}
+        vs.append(v)
+        return v
+
+    def _deploy(self, req: httpx.Request, user: Any, m: Any) -> Any:
+        b = json.loads(req.content)
+        group = b["target"][6:]
+        v = next((x for x in self.versions.get(int(m["id"]), []) if x["id"] == b["version_id"]), None)
+        if v is None:
+            return 404, {"detail": "版本不存在"}
+        hit = [d for d in self.devices if d["online"] and d["group"] == group]
+        return {"results": {d["id"]: {"code": 1, "msg": "已安装并启动" if b["run"] else "已安装"} for d in hit},
+                "devices": len(hit), "ok": len(hit), "version": v["version"]}
+
     def route(self, method: str, pattern: str, role: str, fn: Callable[..., Any]) -> None:
         """fn(request, (username, role), match) -> JSON body, or (status, body)."""
         self.routes.append((method, re.compile("^/api" + pattern + "$"), role, fn))
@@ -109,7 +156,7 @@ class FakeBackend:
     def handle(self, request: httpx.Request) -> httpx.Response:
         if self.down:
             raise httpx.ConnectError("connection refused", request=request)
-        body = json.loads(request.content) if request.content else None
+        body = json.loads(request.content) if request.content and "json" in request.headers.get("content-type", "") else None
         self.calls.append((request.method, request.url.raw_path.decode().split("?")[0], body))
         auth = request.headers.get("authorization", "")
         token = auth[7:] if auth.lower().startswith("bearer ") else ""

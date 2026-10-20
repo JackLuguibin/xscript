@@ -298,6 +298,11 @@ export function createApi(rpc: RpcClient) {
     cloudTaskUpdate: (id: number, patch: { enabled?: boolean; name?: string }) => rpc.call<CloudTask>("cloud.taskUpdate", { id, ...patch }, { timeoutMs: 20_000 }),
     cloudTaskRun: (id: number) => rpc.call<{ devices: number; ok: number }>("cloud.taskRun", { id }, { timeoutMs: 120_000 }),
     cloudTaskDelete: (id: number) => rpc.call<{ ok: boolean }>("cloud.taskDelete", { id }, { timeoutMs: 20_000 }),
+    cloudFlowVersions: (project: string) => rpc.call<{ scriptId: number | null; versions: CloudVersion[] }>("cloud.flowVersions", { project }, { timeoutMs: 20_000 }),
+    cloudFlowDeploy: (d: { project: string; files: Array<{ path: string; content: string }>; group: string; version?: string; notes?: string; run?: boolean }) =>
+      rpc.call<CloudDeployResult>("cloud.flowDeploy", { ...d }, { timeoutMs: 180_000 }),
+    cloudFlowRollback: (scriptId: number, versionId: number, group: string, run = true) =>
+      rpc.call<CloudDeployResult>("cloud.flowRollback", { scriptId, versionId, group, run }, { timeoutMs: 180_000 }),
     cloudGroups: () => rpc.call<{ groups: CloudGroup[]; apps: string[] }>("cloud.groups", {}, { timeoutMs: 20_000 }),
     copyText: (text: string) => rpc.call<{ ok: boolean }>("app.copyText", { text }),
     toolsOpen: (id: string, page: string) => rpc.call<{ url: string; page: string; warning: string }>("tools.open", { id, page }),
@@ -357,3 +362,5 @@ export interface CloudTask {
   createdBy: string;
 }
 export interface CloudTaskInput { name: string; target: string; path: "app_run" | "app_stop"; project?: string; daily?: string; every?: number; enabled?: boolean }
+export interface CloudVersion { id: number; version: string; code: number; notes: string; createdBy: string; createdAt: number | null; current: boolean }
+export interface CloudDeployResult extends CloudBatchResult { scriptId: number; versionId: number; version: string }
