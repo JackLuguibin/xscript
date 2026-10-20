@@ -247,7 +247,7 @@ sequenceDiagram
 | `SnapshotStore` | 把当前屏幕冻结为 PNG（`filesDir/tools/snapshots`，保留最近 20 张），取色、裁剪、测试都基于同一帧，数值前后一致 |
 | `vision.py`（`:eval` 进程） | `POST /tools/vision` 经 `IEval.vision` 在 `:eval` 进程执行 pixel / 找色 / 比色 / 找图 / OCR，复用脚本使用的 `xscript.android.image`，所以工具里测出来的结果与脚本运行时一致；超时同样杀进程 |
 | `DatasetStore` | 标注数据集（外部存储 `datasets/<name>/`：`meta.json`、`images/`、`labels/<id>.json`，框以像素存储）；导出 Ultralytics 格式 zip（`images/`、`labels/` 的 train/val 划分 + `data.yaml`） |
-| 脚本 IDE（`editor*.js`） | `editor-model.js`：工程/文件状态、草稿与保存、目录树构建与键盘导航（纯函数，Node 可测）；`editor.js`：页面与目录树渲染；`editor-syntax.js`：本地 Python 词法高亮（盖在 `<textarea>` 下面的着色层）；`editor-complete.js`：补全（纯函数 `suggest(text, caret)`，认识 import 路径、别名、`x = Class()` 实例，不在字符串/注释里触发）；`editor-check.js`：本地语法检查（括号/引号/冒号/缩进，保守、不执行代码）；`editor-assist.js`：补全弹窗与波浪线/问题按钮的浏览器端胶水；`editor-api.js`：生成的补全索引；`editor-search.js`：工程内搜索/替换（正则编译与嵌套重复检查、匹配、替换展开、文件过滤、带超时的 Worker 守卫，Node 可测）；`editor-search-worker.js`：正则搜索/替换的 Worker，超时由页面终止；`editor-panels.js`：搜索面板和截图面板的页面代码；`editor-debug.js`：DAP 客户端。全部原生 JS，无第三方依赖 |
+| 脚本 IDE（`editor*.js`） | `editor-model.js`：工程/文件状态、草稿与保存、目录树构建与键盘导航（纯函数，Node 可测）；`editor.js`：页面与目录树渲染；`editor-syntax.js`：本地 Python 词法高亮（盖在 `<textarea>` 下面的着色层）；`editor-complete.js`：补全（纯函数 `suggest(text, caret)`，认识 import 路径、别名、`x = Class()` 实例，不在字符串/注释里触发）；`editor-check.js`：本地语法检查（括号/引号/冒号/缩进，保守、不执行代码）；`editor-complete.js` 还有 `symbolAt`（悬停）和 `callAt`（参数提示：最内层有文档的调用、按位置/关键字/`*args` 算当前参数）；`editor-assist.js`：补全弹窗、悬停文档、参数提示与波浪线/问题按钮的浏览器端胶水；`editor-api.js`：生成的补全索引；`editor-docs.js`：生成的悬停/参数提示索引（来自 `ide/python-stubs`）；`editor-search.js`：工程内搜索/替换（正则编译与嵌套重复检查、匹配、替换展开、文件过滤、带超时的 Worker 守卫，Node 可测）；`editor-search-worker.js`：正则搜索/替换的 Worker，超时由页面终止；`editor-panels.js`：搜索面板和截图面板的页面代码；`editor-debug.js`：DAP 客户端。全部原生 JS，无第三方依赖 |
 | `ScreenStream` | 投屏：生产线程截图、缩放、JPEG 编码后写入管道，HTTP 以 chunked `multipart/x-mixed-replace` 推给浏览器；客户端断开时写入失败，线程退出；最多 2 路 |
 
 投屏页的点击和拖动按画面比例映射回屏幕像素，再调用 `/action`，因此走的是和脚本相同的自动化通道（无障碍或 root）。帧率取决于截图来源：MuMu 上 root `screencap` 约 2.5 fps，授予图色权限（MediaProjection）后更快。
@@ -441,6 +441,7 @@ TypeScript 插件，用 Node 自带的 `fetch` 调设备 HTTP API，请求头 `X
 ### 6.4 存根与校验
 
 - `scripts/gen_completions.py`：同样从 `android/python-runtime/` 的 `xscript`、`ascript` 包（跳过 `runtime/` 和私有成员）生成网页 IDE 的补全索引 `assets/tools/editor-api.js`（模块 → 类/函数/常量 → 签名和文档第一段）；`--check` 由 `verify.sh` 调用，防止索引过期。
+- `scripts/gen_editor_docs.py`：从 `ide/python-stubs` 的 `xscript`、`ascript` 存根生成网页 IDE 的悬停文档和参数提示索引 `assets/tools/editor-docs.js`（限定名 → `[签名, 完整文档字符串]`，类的签名取构造函数，存根里 `from ... import` 的再导出指向原条目）；`--check` 由 CI 和 `verify.sh` 调用。
 - `scripts/gen_stubs.py`：用 `ast` 从 `android/python-runtime/` 生成 `.pyi`，保留签名、docstring 和常量，去掉函数体和私有成员；`--check` 用于检查存根是否过期。
 - `scripts/mock_device.py`：按 `openapi.yaml` 实现的进程内 HTTP mock。
 - `scripts/vertical_slice.py`：端到端走一遍 status → tree → upload → run → logs → screenshot，可以对 mock 或真机运行。

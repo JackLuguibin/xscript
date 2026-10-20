@@ -86,11 +86,12 @@ jobs:
           fi
       - name: MCP tests
         run: PYTHONPATH=ide/mcp-server python -m unittest discover -s ide/mcp-server/tests
-      - name: Generated files are up to date (stubs, Web IDE completion index, node specs, API catalog)
+      - name: Generated files are up to date (stubs, Web IDE completion and hover/signature indexes, node specs, API catalog)
         if: matrix.python == '3.12'
         run: |
           python scripts/gen_stubs.py --check
           python scripts/gen_completions.py --check
+          python scripts/gen_editor_docs.py --check
           python scripts/gen_nodespecs.py --check
           python scripts/gen_api_catalog.py --check
       - name: Vertical slice against the mock device

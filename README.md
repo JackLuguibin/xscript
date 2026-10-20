@@ -266,6 +266,7 @@ python3.10 -m venv .venv-desktop
 ```bash
 python3 scripts/gen_stubs.py
 python3 scripts/gen_completions.py   # 网页 IDE 的补全索引
+python3 scripts/gen_editor_docs.py   # 网页 IDE 的悬停文档和参数提示（来自 ide/python-stubs，先跑 gen_stubs）
 ```
 
 设备调试回归测试会创建并清理自己的临时工程，执行前应确保没有其他脚本正在运行：

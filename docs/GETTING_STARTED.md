@@ -160,7 +160,7 @@ c.run_project("my_proj")
 ./scripts/verify.sh
 ```
 
-它会运行以下检查。修改 `android/python-runtime/` 后，请运行 `python3 scripts/gen_stubs.py` 和 `python3 scripts/gen_completions.py`（后者更新网页 IDE 的补全索引）。
+它会运行以下检查。修改 `android/python-runtime/` 后，请运行 `python3 scripts/gen_stubs.py` 和 `python3 scripts/gen_completions.py`（更新网页 IDE 的补全索引），再运行 `python3 scripts/gen_editor_docs.py`（从新存根更新网页 IDE 的悬停文档和参数提示）。
 
 - **运行时测试**（`android/python-runtime/tests`）：如果存在 `.venv-rt` 则使用它。需要 numpy、opencv-python 和 pillow，版本与手机内置的一致（见 README「开发与测试」，CI 用同样的版本）；YOLO / PaddleOCR / pip 测试还需要 `onnxruntime==1.22.1` 和 `packaging==24.2`。
 - **后端测试**（`backend/tests`）：管理后台测试需要在 `.venv` 中执行 `pip install -e backend`，否则跳过。如果已在 `backend/web` 中运行过 `npm ci`，还会运行 Web 控制台的单元测试（`npm test`，vitest + Testing Library，位于 `backend/web/tests`）并构建控制台。
