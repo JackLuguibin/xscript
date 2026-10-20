@@ -201,3 +201,41 @@ class CloudService:
                 await self._client.aclose()
                 self._client = None
         return {"state": "not_configured", "origin": ""}
+
+
+# ---- P4.2 device fleet (read-only) -------------------------------------------------------------------------------
+DEVICE_FIELDS = ("id", "model", "brand", "app", "group", "note", "online", "running", "project", "version", "release",
+                 "width", "height", "last_seen")
+PAGE_SIZES = (25, 50, 100, 200)
+
+
+def device_view(d: dict[str, Any]) -> dict[str, Any]:
+    """The columns the device table shows; drops `data`, `remote` and other bulky / sensitive fields."""
+    out = {k: d.get(k) for k in DEVICE_FIELDS}
+    out["id"] = str(out["id"] or "")
+    out["online"] = bool(out["online"])
+    out["running"] = bool(out["running"])
+    return out
+
+
+async def list_devices(c: BackendClient, *, q: str = "", group: str = "", app: str = "", online: bool | None = None,
+                       page: int = 1, page_size: int = 50) -> dict[str, Any]:
+    page_size = page_size if page_size in PAGE_SIZES else 50
+    r = await c.get("/devices", q=q.strip()[:200], group=group, app=app,
+                    online=None if online is None else str(online).lower(), page=max(1, page), page_size=page_size)
+    items = r.get("items") if isinstance(r, dict) else None
+    if not isinstance(items, list):
+        raise BackendError("backend.bad_response", "后台设备列表格式不对")
+    return {"items": [device_view(d) for d in items if isinstance(d, dict)], "total": int(r.get("total") or 0),
+            "page": max(1, page), "pageSize": page_size}
+
+
+async def list_groups(c: BackendClient) -> list[dict[str, Any]]:
+    r = await c.get("/groups")
+    return [{"name": str(g.get("name", "")), "total": int(g.get("total") or 0), "online": int(g.get("online") or 0)}
+            for g in (r or {}).get("items", []) if isinstance(g, dict)]
+
+
+async def list_apps(c: BackendClient) -> list[str]:
+    r = await c.get("/apps")
+    return [str(a) for a in (r or {}).get("items", []) if a]

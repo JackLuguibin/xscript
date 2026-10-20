@@ -575,11 +575,24 @@ pre.logs.debug-console { min-height: 4rem; max-height: 10rem; }
 .watch-list > li { align-items: center; }
 
 /* Cloud control (P4): same page/panel/toolbar language as the wall and flows pages. */
-.cloud-page { display: flex; flex-direction: column; gap: 12px; }
-.cloud-head { align-items: center; gap: 8px; flex-wrap: wrap; }
-.cloud-head .grow { flex: 1; }
-.cloud-origin { font-family: var(--font-mono, ui-monospace, monospace); font-size: 12px; }
-.cloud-tabs { display: flex; gap: 6px; }
-.cloud-pane { display: flex; flex-direction: column; gap: 12px; max-width: 720px; }
-.cloud-account p { margin: 0 0 6px; }
-.cloud-connect .hint { font-size: 12px; color: var(--muted-fg, inherit); }
+.cloud-page { display: flex; flex-direction: column; gap: var(--sp-3); min-height: 0; }
+.cloud-head { align-items: center; gap: var(--sp-2); flex-wrap: wrap; }
+.cloud-head .grow, .cloud-filters .grow { flex: 1; }
+.cloud-origin { font-family: var(--font-mono); font-size: var(--fs-xs); }
+.cloud-tabs { display: flex; gap: var(--sp-2); flex-wrap: wrap; }
+.cloud-pane { display: flex; flex-direction: column; gap: var(--sp-3); min-height: 0; }
+.cloud-narrow { max-width: 45rem; }
+.cloud-account p { margin: 0 0 var(--sp-2); }
+.cloud-connect .hint { font-size: var(--fs-xs); color: var(--text-muted); }
+.cloud-filters { align-items: center; gap: var(--sp-2); flex-wrap: wrap; }
+.cloud-filters > .ui-input { max-width: 16rem; }
+.cloud-filters > .ui-select { width: auto; }
+.cloud-table-wrap { overflow: auto; border: 1px solid var(--border); border-radius: var(--r-sm); background: var(--surface); }
+.cloud-table { width: 100%; border-collapse: collapse; font-size: var(--fs-xs); }
+.cloud-table th, .cloud-table td { text-align: left; padding: var(--sp-2) var(--sp-3); border-bottom: 1px solid var(--border); white-space: nowrap; }
+.cloud-table thead th { position: sticky; top: 0; background: var(--surface); font-weight: 600; color: var(--text-muted); }
+.cloud-table tbody tr:last-child td { border-bottom: 0; }
+.cloud-table tbody tr[aria-selected="true"] { background: var(--primary-soft); }
+.cloud-table .mono { font-family: var(--font-mono); }
+.cloud-table .check { width: 2rem; }
+.cloud-pager { align-items: center; gap: var(--sp-2); }

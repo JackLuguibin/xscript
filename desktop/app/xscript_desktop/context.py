@@ -15,6 +15,7 @@ from typing import Any, Awaitable, Callable
 from . import __version__
 from .rpc import Dispatcher, RpcError, param
 from .services.adb import AdbError, AdbService
+from .services import backend_client
 from .services.backend_client import BackendError, CloudService, _Settings
 from .services.device_client import DeviceError, DeviceTarget, summarize_status
 from .services.device_manager import LAN_WARNING, DeviceManager, DeviceRecord, lan_hosts
@@ -888,6 +889,23 @@ class AppContext:
         @_map_errors
         async def cloud_connect(params: dict[str, Any]) -> dict[str, Any]:
             return await self.cloud.connect(param(params, "origin", str), param(params, "token", str))
+
+        @d.method("cloud.devices")
+        @_map_errors
+        async def cloud_devices(params: dict[str, Any]) -> dict[str, Any]:
+            online = params.get("online")
+            if online is not None and not isinstance(online, bool):
+                raise RpcError("rpc.bad_params", "parameter online has the wrong type")
+            return await backend_client.list_devices(
+                await self.cloud.client(), q=param(params, "q", str, default=""), group=param(params, "group", str, default=""),
+                app=param(params, "app", str, default=""), online=online, page=param(params, "page", int, default=1),
+                page_size=param(params, "pageSize", int, default=50))
+
+        @d.method("cloud.groups")
+        @_map_errors
+        async def cloud_groups(params: dict[str, Any]) -> dict[str, Any]:
+            c = await self.cloud.client()
+            return {"groups": await backend_client.list_groups(c), "apps": await backend_client.list_apps(c)}
 
         @d.method("cloud.disconnect")
         @_map_errors

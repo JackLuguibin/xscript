@@ -3,6 +3,7 @@ import { useServices } from "../app-context";
 import type { CloudStatus } from "../api";
 import { errorLine } from "../errors";
 import { t } from "../strings";
+import { CloudDevices } from "./CloudDevices";
 import { useConfirm } from "./ConfirmDialog";
 import { EmptyState } from "./EmptyState";
 import { IconCloud } from "./icons";
@@ -11,8 +12,8 @@ import { Badge, type BadgeTone } from "./ui/badge";
 import { Button } from "./ui/button";
 import { Input } from "./ui/input";
 
-export type CloudTab = "connect";
-const TABS: CloudTab[] = ["connect"];
+export type CloudTab = "connect" | "devices";
+const TABS: CloudTab[] = ["connect", "devices"];
 const TONE: Record<CloudStatus["state"], BadgeTone> = { connected: "ok", expired: "warn", unreachable: "bad", error: "bad", not_configured: "neutral" };
 
 /** Backend address + API token. The token is sent once (to the OS keyring) and the field is cleared. */
@@ -73,10 +74,13 @@ export function CloudPage() {
   const [tab, setTab] = useState<CloudTab>("connect");
   const [editing, setEditing] = useState(false);
   const [err, setErr] = useState("");
+  const [selected, setSelected] = useState<Set<string>>(new Set());
+  const [reloadKey, setReloadKey] = useState(0);
   const { confirm, dialog } = useConfirm();
 
   const refresh = useCallback(() => {
     setErr("");
+    setReloadKey((k) => k + 1);
     void api.cloudStatus().then(setStatus, (e) => setErr(errorLine(e)));
   }, [api]);
   useEffect(refresh, [refresh]);
@@ -89,9 +93,13 @@ export function CloudPage() {
   const showForm = !connected || editing;
 
   let body: ReactNode = null;
-  if (tab === "connect") {
+  if (tab !== "connect" && !connected) {
+    body = <p className="muted">{t.cloud.dev.needConnect}</p>;
+  } else if (tab === "devices") {
+    body = <CloudDevices selected={selected} onSelected={setSelected} reloadKey={reloadKey} />;
+  } else {
     body = (
-      <>
+      <div className="cloud-pane cloud-narrow">
         {status.state === "expired" && <Alert tone="warn">{t.cloud.expired}</Alert>}
         {status.state === "unreachable" && <Alert tone="error">{t.cloud.unreachable}</Alert>}
         {status.state === "error" && status.message && <Alert tone="error">{status.message}</Alert>}
@@ -120,7 +128,7 @@ export function CloudPage() {
             {t.cloud.subtitle}
           </EmptyState>
         )}
-      </>
+      </div>
     );
   }
 
@@ -147,6 +155,7 @@ export function CloudPage() {
               if (!(await confirm({ message: t.cloud.disconnectConfirm, confirmLabel: t.cloud.disconnect, danger: true }))) return;
               void api.cloudDisconnect().then((s) => {
                 setEditing(false);
+                setSelected(new Set());
                 setStatus(s);
               }, (e) => setErr(errorLine(e)));
             }}

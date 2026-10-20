@@ -116,3 +116,53 @@ async def test_client_maps_http_failures_without_leaking_the_token(fb):
     assert e.value.code == "backend.timeout" and e.value.retryable
     for x in (c, c2, html, slow):
         await x.aclose()
+
+
+# ---- P4.2 device fleet --------------------------------------------------------------------------------------------
+
+async def connected(ctx, token="xsk_view"):
+    r, _ = await rpc(ctx, "cloud.connect", origin=ORIGIN, token=token)
+    assert r["ok"], r
+
+
+async def test_devices_need_a_connection(ctx):
+    r, _ = await rpc(ctx, "cloud.devices")
+    assert r["error"]["code"] == "backend.not_configured"
+
+
+async def test_device_list_filters_and_drops_bulky_fields(ctx, fb):
+    await connected(ctx)
+    r, raw = await rpc(ctx, "cloud.devices")
+    res = r["result"]
+    assert res["total"] == 3 and res["page"] == 1 and res["pageSize"] == 50
+    a1 = res["items"][0]
+    assert a1["id"] == "dev-a1" and a1["online"] and a1["running"] and a1["group"] == "farm-1" and a1["note"] == "rack A"
+    assert "data" not in a1 and "remote" not in a1 and "10.0.0.5" not in raw
+    r, _ = await rpc(ctx, "cloud.devices", q="mi", online=True, group="farm-1", app="com.xscript.app", pageSize=25)
+    assert [d["id"] for d in r["result"]["items"]] == ["dev-b2"]
+    path, _ = fb.calls[-1][1], None
+    assert path == "/api/devices"
+    r, _ = await rpc(ctx, "cloud.devices", online=False)
+    assert [d["id"] for d in r["result"]["items"]] == ["dev-c3"]
+
+
+async def test_device_list_rejects_bad_params_and_odd_page_size(ctx):
+    await connected(ctx)
+    r, _ = await rpc(ctx, "cloud.devices", online="yes")
+    assert r["error"]["code"] == "rpc.bad_params"
+    r, _ = await rpc(ctx, "cloud.devices", pageSize=10_000)
+    assert r["result"]["pageSize"] == 50
+
+
+async def test_groups_and_apps(ctx):
+    await connected(ctx)
+    r, _ = await rpc(ctx, "cloud.groups")
+    assert r["result"] == {"groups": [{"name": "farm-1", "total": 2, "online": 2}, {"name": "farm-2", "total": 1, "online": 0}],
+                           "apps": ["com.other.app", "com.xscript.app"]}
+
+
+async def test_device_list_maps_a_revoked_token(ctx, fb):
+    await connected(ctx)
+    del fb.tokens["xsk_view"]
+    r, raw = await rpc(ctx, "cloud.devices")
+    assert r["error"]["code"] == "backend.unauthorized" and "xsk_view" not in raw
