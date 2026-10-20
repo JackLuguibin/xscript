@@ -6,6 +6,13 @@ declaratively (its Python is never executed). Legacy packages without data.gp
 are AScript code exports (``as_gp_<name>/__init__.py`` defining ``gp(cv_img)``);
 like AScript they are extracted and imported, unless ``allow_python=False``.
 
+Project 图色插件: an id starting with "." (``.MyPlug``, ``.user.MyPlug``) names a
+GPTask class in the running project, and must be declared in the project's
+build.as ``gp`` array, as in AScript. Only the project's own modules are imported.
+
+``data.params`` may call ``R.img / R.res / R.ui / R.root / R.sd`` with literal
+arguments (what the GP UI exports for template images); nothing else is evaluated.
+
 Cloud entries (``type`` containing 云端, ``nv`` = plugin spec) first run
 ``plug.load(nv)``; the task id then resolves through :func:`register_task`, or
 a module importable once the plugin is loaded. There is no plugin server.
@@ -80,6 +87,45 @@ def _task_types():
     return tasks
 
 
+_R_PATHS = ("img", "res", "ui", "root", "sd")
+_PROJECT_ID = re.compile(r"^\.(?:[A-Za-z_][A-Za-z0-9_]*\.)*[A-Za-z_][A-Za-z0-9_]*$")
+
+
+def _safe_value(node, task_class):
+    """Literal values, the task's UPPERCASE constants and R path helpers; nothing executable."""
+    if isinstance(node, ast.Constant) and isinstance(node.value, (str, int, float, bool, type(None))):
+        return node.value
+    if isinstance(node, (ast.List, ast.Tuple, ast.Set)):
+        items = [_safe_value(n, task_class) for n in node.elts]
+        return items if isinstance(node, ast.List) else tuple(items) if isinstance(node, ast.Tuple) else set(items)
+    if isinstance(node, ast.Dict):
+        if any(k is None for k in node.keys):
+            raise ValueError("Dict unpacking is not supported")
+        return {_safe_value(k, task_class): _safe_value(v, task_class) for k, v in zip(node.keys, node.values)}
+    if isinstance(node, ast.UnaryOp) and isinstance(node.op, (ast.USub, ast.UAdd)):
+        value = _safe_value(node.operand, task_class)
+        if isinstance(value, bool) or not isinstance(value, (int, float)):
+            raise ValueError("Unary sign needs a number")
+        return -value if isinstance(node.op, ast.USub) else value
+    if isinstance(node, ast.Attribute) and isinstance(node.value, ast.Name):
+        # UI exports constants such as Canny.RETR_TREE. Never resolve arbitrary attributes.
+        if node.value.id == task_class.__name__ and node.attr.isupper() and hasattr(task_class, node.attr):
+            value = getattr(task_class, node.attr)
+            if isinstance(value, (str, int, float, bool)):
+                return value
+        raise ValueError("Unsupported attribute in GP params")
+    if (isinstance(node, ast.Call) and isinstance(node.func, ast.Attribute)
+            and isinstance(node.func.value, ast.Name) and node.func.value.id == "R"
+            and node.func.attr in _R_PATHS and not node.keywords):
+        # R.img("btn.png") / R.res("img", "a.png"): project-relative path strings only.
+        parts = [_safe_value(n, task_class) for n in node.args]
+        if not all(isinstance(p, str) for p in parts):
+            raise ValueError("R.%s takes string path parts" % node.func.attr)
+        from ascript.android.system import R
+        return getattr(R, node.func.attr)(*parts)
+    raise ValueError("Unsupported expression in GP params")
+
+
 def _arguments(params, task_class):
     if not isinstance(params, str):
         raise ValueError("data.params must be an argument string; use args/kwargs for structured input")
@@ -87,25 +133,59 @@ def _arguments(params, task_class):
         call = ast.parse("task(" + params + ")", mode="eval").body
         if not isinstance(call, ast.Call) or not isinstance(call.func, ast.Name) or call.func.id != "task":
             raise ValueError("Expected a task argument list")
-
-        def literal(node):
-            # UI exports constants such as Canny.RETR_TREE. Never resolve arbitrary attributes.
-            if isinstance(node, ast.Attribute) and isinstance(node.value, ast.Name):
-                if node.value.id == task_class.__name__ and node.attr.isupper() and hasattr(task_class, node.attr):
-                    value = getattr(task_class, node.attr)
-                    if isinstance(value, (str, int, float, bool)):
-                        return value
-            return ast.literal_eval(node)
-
-        args = [literal(node) for node in call.args]
+        args = []
+        for node in call.args:
+            if isinstance(node, ast.Starred):
+                raise ValueError("Expanded arguments are not supported")
+            args.append(_safe_value(node, task_class))
         kwargs = {}
         for keyword in call.keywords:
             if keyword.arg is None or keyword.arg in kwargs:
                 raise ValueError("Expanded or duplicate keyword arguments are not supported")
-            kwargs[keyword.arg] = literal(keyword.value)
+            kwargs[keyword.arg] = _safe_value(keyword.value, task_class)
         return args, kwargs
-    except (SyntaxError, ValueError, TypeError) as exc:
-        raise ValueError("GP params must contain literals or supported task constants") from exc
+    except (SyntaxError, ValueError, TypeError, RecursionError) as exc:
+        raise ValueError("GP params must contain literals, supported task constants or R paths") from exc
+
+
+def _declared_project_tasks(root):
+    """Ids in the project's build.as "gp" array (AScript 图色插件 registration)."""
+    path = Path(root) / "build.as"
+    try:
+        config = json.loads(path.read_text(encoding="utf-8-sig"))
+    except (OSError, ValueError):
+        return set()
+    entries = config.get("gp") if isinstance(config, dict) else None
+    out = set()
+    for entry in entries if isinstance(entries, list) else []:
+        task_id = entry.get("id") if isinstance(entry, dict) else entry
+        if isinstance(task_id, str):
+            out.add(task_id.strip())
+    return out
+
+
+def _project_task(task_id):
+    """Resolve ``.module.Class`` inside the running project; only declared tasks, only project modules."""
+    from xscript.runtime import runner
+    root, name = runner.project_dir(), runner.project_name()
+    if not root or not name:
+        raise NotImplementedError("Project GP task %r needs a running project" % task_id)
+    if not _PROJECT_ID.match(task_id):
+        raise ValueError("Project GP task id must look like .module.Class: %r" % task_id)
+    if task_id not in _declared_project_tasks(root):
+        raise NotImplementedError("Project GP task %r is not declared in build.as \"gp\"" % task_id)
+    module_path, _, cls_name = task_id[1:].rpartition(".")
+    try:
+        module = importlib.import_module(name + ("." + module_path if module_path else ""))
+    except ImportError as exc:
+        raise NotImplementedError("Project GP task %r: cannot import its module (%s)" % (task_id, exc)) from exc
+    origin = Path(getattr(module, "__file__", "") or "").resolve()
+    if Path(root).resolve() not in origin.parents:
+        raise ValueError("Project GP task %r does not resolve inside the project" % task_id)
+    task_class = getattr(module, cls_name, None)
+    if not isinstance(task_class, type) or not callable(getattr(task_class, "run", None)):
+        raise NotImplementedError("Project GP task %r is not a GPTask class" % task_id)
+    return task_class
 
 
 class GPStack:
@@ -129,10 +209,12 @@ class GPStack:
                 if not job.get("nv"):
                     raise NotImplementedError("Cloud GP task %r has no plugin (nv)" % task_id)
                 task_class = _cloud_task(task_id, str(job["nv"]))
-            elif not isinstance(task_id, str) or task_id not in types:
-                raise NotImplementedError("Unsupported GP task: %r" % task_id)
-            else:
+            elif isinstance(task_id, str) and task_id in types:
                 task_class = types[task_id]
+            elif isinstance(task_id, str) and task_id.startswith("."):
+                task_class = _project_task(task_id)
+            else:
+                raise NotImplementedError("Unsupported GP task: %r" % task_id)
             if "args" in job or "kwargs" in job:
                 args, kwargs = job.get("args", []), job.get("kwargs", {})
                 if not isinstance(args, list) or not isinstance(kwargs, dict):

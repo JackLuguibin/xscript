@@ -332,6 +332,18 @@ ui.float_add_menu("rec", "/sdcard/rec.png", on_click, remove_system=False)  # �
   ```
 
   AScript 图色助手生成的 `font.t` 是未公开的二进制格式，读不了，会报错并提示用 `MatrixFont` 重做。
+- **GP 图色流水线：** `gp.run(path)` 读取图色工具导出的 JSON `.gp`、目录或 ZIP 里的 `data.gp`（只做声明式解释，不执行包内代码）；没有 `data.gp` 的旧版 Python 导出包与 AScript 一样导入并调用 `gp(cv_img)`，`allow_python=False` 可拒绝。`data.params` 里可以写字面量、任务常量（如 `Canny.RETR_TREE`）和 `R.img / R.res / R.ui / R.root / R.sd` 路径（图色工具导出模板图时就是这种写法），其他表达式一律报错。工程里自己写的图色插件（继承 `GPTask`）在 `build.as` 的 `gp` 数组里登记后（`{"id": ".user.MyPlug", "des": "…"}`，与 AScript 相同），任务 id 写 `.user.MyPlug` 即可在流水线里使用；只会导入当前运行工程里已登记的模块。
+
+  ```python
+  # build.as: {"gp": [{"id": ".tasks.Brightness", "des": "亮度过滤"}]}
+  from ascript.android.screen.gp import GPStack
+  GPStack.run_json([
+      {"id": "ascript.android.screen.gp_tasks.Crop", "data": {"params": "0, 300, 1080, 900"}},
+      {"id": ".tasks.Brightness", "data": {"params": "threshold=200"}},
+      {"id": "ascript.android.screen.gp_tasks.CvFontLib",
+       "data": {"params": "[R.img('0.png'), R.img('1.png')], ['0', '1']"}},
+  ])
+  ```
 - **YOLO：** `screen.YoLov5(path=...)` 和 `plug.load("yolov5" | "Yolov8Ncnn" | "Yolov11Ncnn")` 运行 ONNX 检测器，并返回 AScript 的结果结构。AScript 自带的是 NCNN 模型（`.param` / `.bin`）；请把同一份权重导出为 ONNX（`format=onnx`），再让 `load()` 指向 `.onnx` 文件。类别名称取自模型、同目录下的 `data.yaml` 或 `classes.txt`，或 `nc`。
 - **云控：** `cloud_control.connect_to_ws / send / close`、`system.channel` 和 `system.Control.send` 使用 XScript 的云控连接。启动参数也会像 AScript 一样设置到 `builtins` 上。`R.get_card()` 返回打包应用的卡密。
 - **模板匹配：** `FindImages.find` / `find_all` 默认使用置信度为 0.9 的模板匹配。`method="smart"` 和 `find_sift` 会回退为模板匹配。结果采用 AScript 的字典结构（`result`、`rect`、`center_x`、`center_y`、`confidence`）。
@@ -349,7 +361,7 @@ ui.float_add_menu("rec", "/sdcard/rec.png", on_click, remove_system=False)  # �
 - `action.Hid`
 - NCNN 模型文件（请使用同一模型的 ONNX 导出）
 - AScript 图色助手生成的二进制点阵字库（`font.t`）：`Ocr.matrix` / `OcrX` 已支持，但字库要用 `MatrixFont` 重新制作（见上文 AScript 兼容的「点阵字库」）
-- AScript 图色工具生成的 gp 文件
+- 云端 GP 插件（`type` 含「云端」的任务；没有插件服务器，可用 `gp.register_task` 映射到本地实现）
 - `node.WebSelector`
 - 内置 YOLO 插件以外的 `plug.load` 插件，`plug.inject` / `load_module_dynamically`
 - `cloud_control.connect_to_as`（AScript 官方云服务）

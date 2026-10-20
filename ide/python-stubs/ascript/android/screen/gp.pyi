@@ -7,6 +7,13 @@ declaratively (its Python is never executed). Legacy packages without data.gp
 are AScript code exports (``as_gp_<name>/__init__.py`` defining ``gp(cv_img)``);
 like AScript they are extracted and imported, unless ``allow_python=False``.
 
+Project 图色插件: an id starting with "." (``.MyPlug``, ``.user.MyPlug``) names a
+GPTask class in the running project, and must be declared in the project's
+build.as ``gp`` array, as in AScript. Only the project's own modules are imported.
+
+``data.params`` may call ``R.img / R.res / R.ui / R.root / R.sd`` with literal
+arguments (what the GP UI exports for template images); nothing else is evaluated.
+
 Cloud entries (``type`` containing 云端, ``nv`` = plugin spec) first run
 ``plug.load(nv)``; the task id then resolves through :func:`register_task`, or
 a module importable once the plugin is loaded. There is no plugin server.
