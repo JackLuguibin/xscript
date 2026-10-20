@@ -739,18 +739,42 @@ class Ocr(GPTask):
 
     @staticmethod
     def matrix(font_lib, rect=None, region=0.9, image=None):
-        raise NotImplementedError("Ocr.matrix (dot-matrix font library) is not supported by XScript")
+        """点阵字库: text recognised in ``rect`` with the font library file ``font_lib`` (e.g. ``R.res("font.t")``),
+        or None. ``region`` is the match similarity (0-1). The library is XScript's JSON format, built with
+        ``MatrixFont`` (AScript's binary font.t cannot be read). Lines are read top to bottom, left to right."""
+        from ascript.android.screen import matrix as _matrix
 
-    matrix_detail = matrix
+        return _matrix.text(font_lib, rect, region, image)
+
+    @staticmethod
+    def matrix_detail(font_lib, rect=None, region=0.9, image=None):
+        """Like ``matrix`` but returns ``{"text", "chars": [{text, rect, center_x, center_y, confidence}], "lines"}``."""
+        from ascript.android.screen import matrix as _matrix
+
+        return _matrix.detail(font_lib, rect, region, image)
 
 
 class OcrX(GPTask):
-    def __init__(self, *a, **k):
-        raise NotImplementedError("OcrX font library OCR is not supported by XScript")
+    """点阵字库 as a GP task: ``Result.data`` is ``Ocr.matrix_detail``'s dict (or None)."""
+
+    name = "点阵字库"
+
+    def __init__(self, font_lib, rect=None, region=0.9):
+        from ascript.android.screen.matrix import MatrixFont
+
+        self.font = MatrixFont.load(font_lib)
+        self.rect, self.region = rect, region
+
+    def run(self, cv_image, offset_x=0, offset_y=0, data=None):
+        from ascript.android.screen import matrix as _matrix
+
+        return Result(cv_image, offset_x, offset_y, _matrix.detail(self.font, self.rect, self.region, cv_image))
 
     @staticmethod
-    def find_all(*a, **k):
-        raise NotImplementedError("OcrX font library OCR is not supported by XScript")
+    def find_all(font_lib, rect=None, region=0.9, image=None):
+        """The recognised characters ([{text, rect, center_x, center_y, confidence}]) or None."""
+        d = Ocr.matrix_detail(font_lib, rect, region, image)
+        return d["chars"] if d else None
 
 
 class Eraser(GPTask):
@@ -768,3 +792,12 @@ class Eraser(GPTask):
         img[t:b, l:r] = bgr
         return img
 
+
+
+def __getattr__(name):
+    # MatrixFont (点阵字库 builder) lives in .matrix; imported on first use so `screen` stays light
+    if name == "MatrixFont":
+        from ascript.android.screen.matrix import MatrixFont
+
+        return MatrixFont
+    raise AttributeError("module %r has no attribute %r" % (__name__, name))
