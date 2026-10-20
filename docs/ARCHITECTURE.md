@@ -94,7 +94,7 @@ flowchart LR
 | --- | --- |
 | Android | Kotlin、JDK 17、`minSdk 26` / `targetSdk 34` / `compileSdk 37`，ABI 仅 `arm64-v8a`、`x86_64` |
 | 嵌入式 Python | Chaquopy 17，CPython 3.10（选 3.10 是因为 Chaquopy 的 OpenCV wheel 最高只到 3.10） |
-| Python 依赖（APK 内） | `numpy 1.23.3`、`opencv-python 4.5.1.48`、`pillow 9.2.0`、`pyyaml 6.0.3`、`requests 2.32.3`、`packaging 24.2`；其它包运行时安装（5.3） |
+| Python 依赖（APK 内） | `numpy 1.23.3`、`opencv-python 4.5.1.48`、`pillow 11.0.0`、`pyyaml 6.0.3`、`requests 2.33.1`、`packaging 24.2`；其它包运行时安装（5.3） |
 | 端侧推理 | ONNX Runtime Android 1.22.0（YOLO、PaddleOCR PP-OCRv5，见 4.10） |
 | HTTP 服务 | NanoHTTPD 2.3.1 |
 | 云控 / 网络 | OkHttp 4.12.0（WebSocket） |

@@ -193,7 +193,7 @@ pip.list(); pip.uninstall("schedule")
 - **纯 Python 包：** 来自 PyPI 的 wheel（`py3-none-any`），清华镜像作为备用，也可通过 `index_url=` 指定。
 - **含 C 扩展的包：** 只能来自 Chaquopy 的 Android 索引（约 140 个包，包括 pandas、scipy、lxml、cryptography、cffi 和 pycryptodome）。其共享库会自动加载。
 - **仅提供源码的包：** 无法在手机上构建。
-- **内置包：** APK 自带的包（numpy、opencv、pillow、requests、pyyaml、packaging）永远不会被替换。
+- **内置包：** APK 自带的包（numpy、opencv、pillow、requests、pyyaml、packaging）永远不会被替换。Pillow 是 11.0.0；为兼容旧脚本，`Image.ANTIALIAS`、`ImageDraw.textsize()`、`font.getsize()` 等 Pillow 10 删掉的写法仍然可用。
 - **存放位置：** 包存放在应用私有存储中，应用更新后仍会保留。HTTP：`GET /packages`、`POST /packages`。MCP：`pip_install`、`pip_list`、`pip_uninstall`。
 
 ## cloud（云控）

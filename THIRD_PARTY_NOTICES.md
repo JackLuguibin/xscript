@@ -35,9 +35,9 @@ The standard MIT terms apply:
 | Chaquopy (Python on Android) | MIT (since Chaquopy 12; confirm for your version) |
 | numpy 1.23.3 | BSD-3-Clause |
 | opencv-python 4.5.1.48 | Apache-2.0 (OpenCV 4.5+) |
-| Pillow 9.2.0 | HPND |
+| Pillow 11.0.0 | HPND (MIT-CMU) |
 | PyYAML | MIT |
-| requests | Apache-2.0 |
+| requests 2.33.1 | Apache-2.0 |
 | packaging 24.2 | Apache-2.0 / BSD-2-Clause |
 | OkHttp 4.12.0 | Apache-2.0 |
 | Google ML Kit Text Recognition (Chinese) | ML Kit Terms of Service |
