@@ -19,6 +19,7 @@ import {
   MenuOutlined,
   MenuUnfoldOutlined,
   MobileOutlined,
+  RobotOutlined,
   SafetyCertificateOutlined,
   SettingOutlined,
   ShopOutlined,
@@ -39,6 +40,7 @@ const CardsPage = lazy(() => import("./pages/Cards"));
 const AppOpsPage = lazy(() => import("./pages/AppOps"));
 const PackPage = lazy(() => import("./pages/Pack"));
 const ScriptsPage = lazy(() => import("./pages/Scripts"));
+const AiWriterPage = lazy(() => import("./pages/AiWriter"));
 const DownloadPage = lazy(() => import("./pages/Download"));
 const WallPage = lazy(() => import("./pages/Wall"));
 const UsersPage = lazy(() => import("./pages/Users"));
@@ -69,6 +71,7 @@ const NAV: NavItem[] = [
   { path: "/resellers", label: "代理", icon: <ShopOutlined />, role: "admin", group: "授权" },
   { path: "/app-ops", label: "应用运营", icon: <NotificationOutlined />, role: "viewer", group: "发布" },
   { path: "/scripts", label: "小程序", icon: <AppstoreOutlined />, role: "viewer", group: "发布" },
+  { path: "/ai", label: "AI 写脚本", icon: <RobotOutlined />, role: "operator", group: "发布" },
   { path: "/pack", label: "APK 打包", icon: <BuildOutlined />, role: "viewer", group: "发布" },
   { path: "/users", label: "用户", icon: <TeamOutlined />, role: "admin", group: "系统" },
   { path: "/audit", label: "操作日志", icon: <AuditOutlined />, role: "admin", group: "系统" },
@@ -317,6 +320,14 @@ export default function App() {
                   <Route path="/devices" element={<DevicesPage />} />
                   <Route path="/tasks" element={<TasksPage />} />
                   <Route path="/scripts" element={<ScriptsPage />} />
+                  <Route
+                    path="/ai"
+                    element={
+                      <Guard role="operator">
+                        <AiWriterPage />
+                      </Guard>
+                    }
+                  />
                   <Route
                     path="/wall"
                     element={

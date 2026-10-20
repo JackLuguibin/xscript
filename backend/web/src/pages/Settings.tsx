@@ -1,8 +1,8 @@
 import { useEffect, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import { Alert, App, Button, Card, Descriptions, Form, Input, InputNumber, Space, Switch, Tabs, Tag, Typography } from "antd";
-import { api, type Settings } from "../api";
+import { api, type AiStatus, type Settings } from "../api";
 import { useAuth } from "../auth";
 import { CopyText, PageHeader } from "../components";
 import { AlertSettings, MaintenanceSettings } from "../ops";
@@ -51,6 +51,83 @@ function SecuritySettings({ settings }: { settings?: Settings }) {
           }
         />
       )}
+    </Card>
+  );
+}
+
+/** 后台 AI 写脚本: endpoint and model (overriding XSCRIPT_AI_*); the key stays in the server environment. */
+function AiSettings({ settings }: { settings?: Settings }) {
+  const { message } = App.useApp();
+  const qc = useQueryClient();
+  const [form] = Form.useForm();
+  const status = useQuery({ queryKey: ["ai-status"], queryFn: () => api.get<AiStatus>("/api/ai/status") });
+  useEffect(() => {
+    if (settings) form.setFieldsValue({ ai_base_url: settings.ai_base_url, ai_model: settings.ai_model });
+  }, [settings, form]);
+  const save = useMutation({
+    mutationFn: (v: { ai_base_url: string; ai_model: string }) =>
+      api.put<Settings>("/api/settings", { ai_base_url: v.ai_base_url.trim(), ai_model: v.ai_model.trim() }),
+    onSuccess: (s) => {
+      qc.setQueryData(["settings"], s);
+      qc.invalidateQueries({ queryKey: ["ai-status"] });
+      message.success("已保存");
+    },
+    onError: (e) => message.error((e as Error).message),
+  });
+  const st = status.data;
+  return (
+    <Card title="AI 写脚本" style={{ maxWidth: 880 }} loading={!settings}>
+      <Typography.Paragraph type="secondary">
+        「AI 写脚本」页面使用的模型，任何 OpenAI 兼容接口都可以（请求 <span className="mono">接口地址/chat/completions</span>）。
+        和设备脚本的 <span className="mono">ai.config</span> 是同一套配置：留空时使用服务器环境变量{" "}
+        <span className="mono">XSCRIPT_AI_BASE_URL</span> / <span className="mono">XSCRIPT_AI_MODEL</span>。
+        密钥只能通过环境变量 <span className="mono">XSCRIPT_AI_KEY</span> 设置，不会保存到数据库，也不会在页面上显示。
+      </Typography.Paragraph>
+      {st && (
+        <Descriptions
+          column={1}
+          bordered
+          size="small"
+          style={{ marginBottom: 16 }}
+          styles={{ label: { width: 180 } }}
+          items={[
+            {
+              label: "当前生效",
+              children: st.configured ? (
+                <Space size={6} wrap>
+                  <Tag color="green">已配置</Tag>
+                  <span className="mono">{st.model}</span>
+                  <Typography.Text type="secondary">
+                    {st.base_url}（来自{st.source === "settings" ? "系统设置" : "环境变量"}）
+                  </Typography.Text>
+                </Space>
+              ) : (
+                <Tag>未配置</Tag>
+              ),
+            },
+            {
+              label: "密钥 XSCRIPT_AI_KEY",
+              children: st.key_set ? <Tag color="green">已设置</Tag> : <Tag>未设置（本地模型可以不设）</Tag>,
+            },
+          ]}
+        />
+      )}
+      <Form form={form} layout="vertical" onFinish={save.mutate}>
+        <Form.Item
+          name="ai_base_url"
+          label="接口地址"
+          extra="包含 API 前缀，例如 https://api.example.com/v1 或 http://127.0.0.1:11434/v1；留空 = 使用环境变量。"
+          rules={[{ pattern: /^(|https?:\/\/[^\s/?#@]+(:\d+)?(\/[^\s?#]*)?)$/, message: "以 http:// 或 https:// 开头，不能带账号、参数" }]}
+        >
+          <Input placeholder={st?.source === "env" && st.base_url ? st.base_url : "https://api.example.com/v1"} />
+        </Form.Item>
+        <Form.Item name="ai_model" label="模型" extra="留空 = 使用环境变量。写代码建议用代码能力强的模型。">
+          <Input placeholder={st?.source === "env" && st.model ? st.model : "模型名称"} maxLength={128} />
+        </Form.Item>
+        <Button type="primary" htmlType="submit" loading={save.isPending}>
+          保存
+        </Button>
+      </Form>
     </Card>
   );
 }
@@ -152,6 +229,7 @@ export default function SettingsPage() {
   const qc = useQueryClient();
   const [form] = Form.useForm();
   const q = useQuery({ queryKey: ["settings"], queryFn: () => api.get<Settings>("/api/settings") });
+  const [params, setParams] = useSearchParams();
   useEffect(() => {
     if (q.data) form.setFieldsValue(q.data);
   }, [q.data, form]);
@@ -242,6 +320,8 @@ export default function SettingsPage() {
     <>
       <PageHeader title="系统设置" desc="站点信息、接入地址、告警通知、备份与存储清理。" />
       <Tabs
+        activeKey={params.get("tab") ?? "basic"}
+        onChange={(k) => setParams(k === "basic" ? {} : { tab: k }, { replace: true })}
         items={[
           { key: "basic", label: "基本", children: basic },
           ...(can("admin")
@@ -265,6 +345,11 @@ export default function SettingsPage() {
                       <AbuseSettings settings={s} />
                     </Space>
                   ),
+                },
+                {
+                  key: "ai",
+                  label: "AI 写脚本",
+                  children: <AiSettings settings={s} />,
                 },
                 {
                   key: "storage",
