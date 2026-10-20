@@ -21,7 +21,7 @@ The project provides a native `xscript.android.*` API and an `ascript.android.*`
 - **Script development and debugging**: multi-file editing in the browser, save-and-run, logs, breakpoints (conditional, hit-count and logpoints plus watch expressions in the desktop client), step execution, call stack and variable inspection; a VS Code / Cursor extension, an MCP server and Python type stubs.
 - **Device services**: permission requests, read-only SMS queries, location, sensors, event listeners, notifications, clipboard, KeyValue storage, and HTML / floating UI.
 - **Project and run management**: project import/export, installing Python dependencies at runtime, run on boot, scheduled tasks, restart-on-error control, and launch links (`xscript://`, also AScript's `ascript://run?local=…`).
-- **Self-hosted admin backend**: device groups, batch tasks, remote operation, screen wall, logs, alerts, account roles and operation audit.
+- **Self-hosted admin backend**: device groups, batch tasks, remote operation, screen wall, logs, alerts, account roles and operation audit; the overview page charts daily activations, online devices, new devices and expirations.
 - **App distribution**: script release and rollback, standalone APK packaging, signed updates and activation-code (license) management.
 
 The visual AI client supports explicitly configured inference services of your own; the project does not include a vision large-model service. YOLO models are supplied by the user. See the [third-party notices](THIRD_PARTY_NOTICES.md) for the licenses and terms of specific models and third-party dependencies.

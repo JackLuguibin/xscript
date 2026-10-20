@@ -856,6 +856,42 @@ class ServerTest(unittest.IsolatedAsyncioTestCase):
             self.assertNotIn("devices.data", q)
         self.assertEqual(sum(1 for q in seen if "FROM cards" in q), 1)
 
+    async def test_daily_stats_endpoint_counts_connected_devices(self):
+        """概览 趋势图: a connecting device is recorded in device_days; viewers can read the series."""
+        from xscript_server.models import DeviceDay
+
+        url, _ = await self.device_url()
+        today = time.strftime("%Y-%m-%d")
+        async with FakeDevice(url, "trend-dev", app="com.trend"):
+            await self.wait_listed_online("trend-dev@com.trend")
+            with self.srv.app.state.ctx.db.session() as s:
+                for _ in range(100):
+                    if s.get(DeviceDay, (today, "trend-dev@com.trend")):
+                        break
+                    s.expire_all()
+                    await asyncio.sleep(0.02)
+                self.assertIsNotNone(s.get(DeviceDay, (today, "trend-dev@com.trend")))
+            # Saving the row again the same day does not duplicate it.
+            await self.srv.app.state.ctx.hub.flush()
+        viewer = await self.make_user("trendviewer", "viewer")
+        try:
+            r = await viewer.get("/api/stats/daily", params={"days": 7, "app": "com.trend"})
+            self.assertEqual(r.status_code, 200)
+            d = r.json()
+            self.assertEqual((len(d["days"]), d["days"][-1]), (7, today))
+            self.assertEqual(d["series"]["online_devices"][-1], 1)
+            self.assertEqual(d["series"]["new_devices"][-1], 1)
+            self.assertEqual(set(d["series"]), {"activations", "expirations", "new_devices", "online_devices"})
+            for bad in ({"days": 3}, {"days": 400}, {"batch": "x" * 40}):
+                self.assertEqual((await viewer.get("/api/stats/daily", params=bad)).status_code, 422, bad)
+        finally:
+            await viewer.aclose()
+        anon = httpx.AsyncClient(base_url=self.srv.base)
+        try:
+            self.assertEqual((await anon.get("/api/stats/daily")).status_code, 401)
+        finally:
+            await anon.aclose()
+
     async def test_scheduled_script_deploy(self):
         sc = (await self.admin.post("/api/scripts", json={"name": "定时", "project_name": "timed"})).json()
         await self.upload_version(self.admin, sc["id"], "print('t')\n", publish="true")

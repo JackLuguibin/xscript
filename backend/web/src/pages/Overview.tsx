@@ -22,6 +22,7 @@ import { api, type Overview } from "../api";
 import { useAuth } from "../auth";
 import { CARD_STATUS, toneColor, type Tone } from "../components";
 import { fmtAgo, fmtTime } from "../format";
+import TrendCard from "./overview/TrendCard";
 
 function StatTile({
   label,
@@ -243,6 +244,10 @@ export default function OverviewPage() {
           />
         </Col>
       </Row>
+
+      <div style={{ marginTop: 16 }}>
+        <TrendCard />
+      </div>
 
       <Row gutter={[16, 16]} style={{ marginTop: 16 }}>
         <Col xs={24} xl={15}>
