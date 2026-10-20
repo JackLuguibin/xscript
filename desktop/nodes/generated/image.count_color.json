@@ -6,8 +6,8 @@
     "en": "image.count_color"
   },
   "doc": {
-    "zh": "count_color",
-    "en": "count_color"
+    "zh": "Number of pixels in `rect` matching `color` ('#rrggbb', or several joined by '|').",
+    "en": "Number of pixels in `rect` matching `color` ('#rrggbb', or several joined by '|')."
   },
   "exec": {
     "in": [
@@ -36,6 +36,16 @@
       "name": "image",
       "type": "any",
       "default": null
+    },
+    {
+      "name": "color_space",
+      "type": "any",
+      "default": "rgb"
+    },
+    {
+      "name": "tolerance",
+      "type": "any",
+      "default": null
     }
   ],
   "outputs": [
@@ -48,7 +58,7 @@
     "imports": [
       "from xscript.android import image"
     ],
-    "stmt": "{id} = image.count_color({color}, rect={rect}, sim={sim}, image={image})"
+    "stmt": "{id} = image.count_color({color}, rect={rect}, sim={sim}, image={image}, color_space={color_space}, tolerance={tolerance})"
   },
   "dsl": {
     "alias": "image.count_color"

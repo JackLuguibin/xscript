@@ -6,8 +6,8 @@
     "en": "screen.find_colors"
   },
   "doc": {
-    "zh": "First match of a multi-point color pattern → Point or None.",
-    "en": "First match of a multi-point color pattern → Point or None."
+    "zh": "First match of a multi-point color pattern → Point or None. `space` = min distance between results.",
+    "en": "First match of a multi-point color pattern → Point or None. `space` = min distance between results."
   },
   "exec": {
     "in": [
@@ -46,6 +46,16 @@
       "name": "image",
       "type": "any",
       "default": null
+    },
+    {
+      "name": "color_space",
+      "type": "any",
+      "default": "rgb"
+    },
+    {
+      "name": "tolerance",
+      "type": "any",
+      "default": null
     }
   ],
   "outputs": [
@@ -58,7 +68,7 @@
     "imports": [
       "from xscript.android import screen"
     ],
-    "stmt": "{id} = screen.find_colors({colors}, rect={rect}, sim={sim}, space={space}, ori={ori}, image={image})"
+    "stmt": "{id} = screen.find_colors({colors}, rect={rect}, sim={sim}, space={space}, ori={ori}, image={image}, color_space={color_space}, tolerance={tolerance})"
   },
   "dsl": {
     "alias": "screen.find_colors"

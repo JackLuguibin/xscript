@@ -1,0 +1,69 @@
+{
+  "type": "screen.count_color",
+  "category": "screen",
+  "title": {
+    "zh": "screen.count_color",
+    "en": "screen.count_color"
+  },
+  "doc": {
+    "zh": "Pixels in `rect` matching `color` ('#rrggbb', several joined by '|').",
+    "en": "Pixels in `rect` matching `color` ('#rrggbb', several joined by '|')."
+  },
+  "exec": {
+    "in": [
+      "exec"
+    ],
+    "out": [
+      "then"
+    ]
+  },
+  "inputs": [
+    {
+      "name": "color",
+      "type": "any"
+    },
+    {
+      "name": "rect",
+      "type": "any",
+      "default": null
+    },
+    {
+      "name": "sim",
+      "type": "any",
+      "default": 0.9
+    },
+    {
+      "name": "image",
+      "type": "any",
+      "default": null
+    },
+    {
+      "name": "color_space",
+      "type": "any",
+      "default": "rgb"
+    },
+    {
+      "name": "tolerance",
+      "type": "any",
+      "default": null
+    }
+  ],
+  "outputs": [
+    {
+      "name": "result",
+      "type": "any"
+    }
+  ],
+  "py": {
+    "imports": [
+      "from xscript.android import screen"
+    ],
+    "stmt": "{id} = screen.count_color({color}, rect={rect}, sim={sim}, image={image}, color_space={color_space}, tolerance={tolerance})"
+  },
+  "dsl": {
+    "alias": "screen.count_color"
+  },
+  "since": "0.2.6",
+  "origin": "xscript.android.screen.count_color",
+  "availability": "ok"
+}

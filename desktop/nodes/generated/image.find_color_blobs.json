@@ -1,0 +1,79 @@
+{
+  "type": "image.find_color_blobs",
+  "category": "image",
+  "title": {
+    "zh": "image.find_color_blobs",
+    "en": "image.find_color_blobs"
+  },
+  "doc": {
+    "zh": "Connected regions of `color` → [{rect, center_x, center_y, area, fill, ...}], largest first.",
+    "en": "Connected regions of `color` → [{rect, center_x, center_y, area, fill, ...}], largest first."
+  },
+  "exec": {
+    "in": [
+      "exec"
+    ],
+    "out": [
+      "then"
+    ]
+  },
+  "inputs": [
+    {
+      "name": "color",
+      "type": "any"
+    },
+    {
+      "name": "rect",
+      "type": "any",
+      "default": null
+    },
+    {
+      "name": "sim",
+      "type": "any",
+      "default": 0.9
+    },
+    {
+      "name": "color_space",
+      "type": "any",
+      "default": "hsv"
+    },
+    {
+      "name": "tolerance",
+      "type": "any",
+      "default": null
+    },
+    {
+      "name": "min_area",
+      "type": "any",
+      "default": 50
+    },
+    {
+      "name": "max_num",
+      "type": "any",
+      "default": 0
+    },
+    {
+      "name": "image",
+      "type": "any",
+      "default": null
+    }
+  ],
+  "outputs": [
+    {
+      "name": "result",
+      "type": "any"
+    }
+  ],
+  "py": {
+    "imports": [
+      "from xscript.android import image"
+    ],
+    "stmt": "{id} = image.find_color_blobs({color}, rect={rect}, sim={sim}, color_space={color_space}, tolerance={tolerance}, min_area={min_area}, max_num={max_num}, image={image})"
+  },
+  "dsl": {
+    "alias": "image.find_color_blobs"
+  },
+  "since": "0.2.6",
+  "origin": "xscript.android.image.find_color_blobs",
+  "availability": "ok"
+}

@@ -93,6 +93,11 @@ screen.get_color(100, 200)           # '#rrggbb'
 screen.compare_colors("100,200,#ff0000|120,200,#00ff00-101010", sim=0.9)
 p = screen.find_colors("#ff0000|20,0,#00ff00", rect=[0, 0, 1080, 1200])   # Point(x, y) 或 None
 screen.find_all_colors("#ff0000", max_num=10)
+screen.find_colors("#1a66e0", color_space="hsv")               # 屏幕变暗 / 夜间模式也能找到
+screen.find_colors("#1a66e0", color_space="lab", tolerance=6)  # 按人眼色差（ΔE）找
+screen.count_color("#1a66e0|#2a70e8", rect=[0, 0, 1080, 400])  # 区域内匹配的像素数
+screen.find_color_blobs("#e03c1a", min_area=200)                # 色块：[{rect, center_x, center_y, area, fill}]，大的在前
+screen.dominant_colors(rect=[0, 0, 1080, 400], k=3)             # 主色：[{color: '#rrggbb', rgb, ratio}]
 
 hit = screen.find_image("res/img/btn.png", confidence=0.85)
 # {'result': (cx, cy), 'rect': [l, t, r, b], 'center_x': .., 'center_y': .., 'confidence': .., 'index': 0,
@@ -112,7 +117,17 @@ screen.ocr_wait("登录", timeout=10)                # 默认每 0.3 秒识别�
 screen.ocr_click("同意")
 ```
 
-颜色模式：第一项为绝对颜色（`#rrggbb`）或 `x,y,#rrggbb`。后续各项为 `dx,dy,#rrggbb`，相对于第一项。可选的 `-rrggbb` 设置每个通道的容差。
+颜色模式：第一项为绝对颜色（`#rrggbb`）或 `x,y,#rrggbb`。后续各项为 `dx,dy,#rrggbb`，相对于第一项。可选的 `-rrggbb` 设置每个通道的容差（只在 `color_space="rgb"` 时生效）。
+
+颜色空间：`compare_colors`、`find_colors`、`find_all_colors`、`count_color` 都有 `color_space` 和 `tolerance` 参数，默认 `"rgb"`，行为和以前一样。`find_colors` 原有的 `space` 参数仍是结果之间的最小距离（AScript），颜色空间用 `color_space`。
+
+| color_space | tolerance | 不传 tolerance 时由 `sim` 换算（sim=0.9） | 适合 | 全屏耗时（模拟器，1080×2400） |
+|---|---|---|---|---|
+| `"rgb"`（默认） | 每通道 ±（整数，或 `(dr, dg, db)`） | ±25 | 颜色固定的界面 | 1 点约 1.5ms |
+| `"hsv"` | `(dh 度, ds, dv)`，色相首尾相接，S/V 为 0–255；灰色（饱和度很低）时不看色相 | `(10, 60, 80)` | 亮度会变：变暗、夜间模式、渐变按钮 | 约 3ms |
+| `"lab"` | ΔE（CIE76，约 2.3 人眼刚能分辨） | 12 | 按人眼色差找，误匹配最少 | 约 9ms |
+
+`find_color_blobs(color, rect=None, sim=0.9, color_space="hsv", tolerance=None, min_area=50, max_num=0)` 用连通域找色块，`color` 可用 `|` 连接多个颜色，`fill` 为面积占外接矩形的比例（1.0 为实心矩形）；全屏约 5ms。`dominant_colors(rect=None, k=3)` 在 Lab 空间用 k-means 取主色（区域抽样到约 2 万像素，随机种子固定，结果稳定）；全屏约 13ms。
 
 模板匹配默认使用灰度，`rgb=True` 时使用 H+S。透明 PNG 像素会被屏蔽。`scale_range` 先在按对数间隔（约 12%）取值的缩放比例上粗搜，再在最佳几个候选附近细搜比例（精确到模板长边约 1 像素），所以落在两个粗搜步长之间的比例（如 0.8 倍）也能以高置信度找到，并保留最佳结果。大模板会经过由粗到精的匹配流程。模板可以是路径（相对路径基于项目解析）、numpy 数组，或二者组成的列表。
 

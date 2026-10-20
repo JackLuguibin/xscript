@@ -72,26 +72,61 @@ def hex_to_rgb(value):
     ...
 
 def parse_color_points(colors):
-    """'x,y,#RRGGBB[-#DDDDDD]|x2,y2,#RRGGBB|...' -> [(x, y, (r,g,b), (dr,dg,db)|None)]."""
+    """'x,y,#RRGGBB[-#DDDDDD]|x2,y2,#RRGGBB|...' -> [(x, y, (r,g,b), (dr,dg,db)|None)]. A bare '#RRGGBB' is 0,0."""
     ...
 
 def diff_from_similarity(sim):
     """AScript similarity 0..1 → per-channel tolerance (1 → exact, 0.9 → ±25)."""
+    ...
+COLOR_SPACES = ('rgb', 'hsv', 'lab')
+
+def color_tolerance(color_space='rgb', sim=0.9, tolerance=None):
+    """Tolerance for a colour space, from an explicit `tolerance` or derived from AScript's `sim` (0..1).
+
+    rgb: (dr, dg, db) per channel, 0..255 (an int applies to all three); sim 0.9 -> 25.
+    hsv: (dh, ds, dv): hue in degrees (0..180, wraps around), saturation / value 0..255; sim 0.9 -> (10, 60, 80).
+         Brightness changes move V and keep H, so HSV survives night mode and dimming.
+    lab: CIE76 delta E (perceptual distance; ~2.3 = just noticeable); sim 0.9 -> 12.
+    """
     ...
 
 def get_pixel(x, y, image=None):
     """(r, g, b) at screen/image (x, y) or None."""
     ...
 
-def compare_colors(colors, sim=0.9, image=None, count_sim=1.0):
-    """True if the color points match at their absolute positions."""
+def compare_colors(colors, sim=0.9, image=None, count_sim=1.0, color_space='rgb', tolerance=None):
+    """True if the color points match at their absolute positions.
+
+    `color_space` / `tolerance`: see `color_tolerance` (a point's own "-rrggbb" diff applies to rgb only).
+    """
     ...
 
-def find_colors(colors, rect=None, sim=0.9, space=5, ori=2, max_num=0, image=None):
-    """Multi-point color search. Returns Points of the first color point (screen coords)."""
+def find_colors(colors, rect=None, sim=0.9, space=5, ori=2, max_num=0, image=None, color_space='rgb', tolerance=None):
+    """Multi-point color search. Returns Points of the first color point (screen coords).
+
+    `space` is the minimum distance between results (AScript); the colour space is `color_space`
+    ("rgb" default, "hsv", "lab") with `tolerance` (see `color_tolerance`; default derived from `sim`).
+    """
     ...
 
-def count_color(color, rect=None, sim=0.9, image=None):
+def count_color(color, rect=None, sim=0.9, image=None, color_space='rgb', tolerance=None):
+    """Number of pixels in `rect` matching `color` ('#rrggbb', or several joined by '|')."""
+    ...
+
+def find_color_blobs(color, rect=None, sim=0.9, color_space='hsv', tolerance=None, min_area=50, max_num=0, image=None):
+    """Connected regions of `color` → [{rect, center_x, center_y, area, fill, ...}], largest first.
+
+    `fill` is area / bounding-box area (1.0 = solid rectangle). Default color space is HSV so a button
+    is found whole even with a gradient or a dimmed screen.
+    """
+    ...
+
+def dominant_colors(rect=None, k=3, image=None, color_space='lab'):
+    """Main colours of a region by k-means → [{color: '#rrggbb', rgb: (r, g, b), ratio}], most common first.
+
+    Clusters in Lab by default (perceptual distances); the region is subsampled to ~20k pixels and the
+    k-means seed is fixed, so the same image always gives the same answer.
+    """
     ...
 
 def match_template(source, part, rect=None, confidence=0.9, rgb=False, maxcnt=0, scale_range=None, index=0, offset=(0, 0), fast=True):

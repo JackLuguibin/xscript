@@ -58,19 +58,40 @@ def get_color(x, y, image=None):
     return None if px is None else "#%02x%02x%02x" % px
 
 
-def compare_colors(colors, sim=0.9, image=None):
-    """True if all color points match at their positions. `colors` = 'x,y,#RRGGBB|...'."""
-    return _img.compare_colors(colors, sim=sim, image=image)
+def compare_colors(colors, sim=0.9, image=None, color_space="rgb", tolerance=None):
+    """True if all color points match at their positions. `colors` = 'x,y,#RRGGBB|...'.
+
+    color_space: "rgb" (default, per-channel ±tolerance), "hsv" (survives dimming / night mode) or "lab"
+    (perceptual delta E). `tolerance` defaults from `sim`; see docs/API.md.
+    """
+    return _img.compare_colors(colors, sim=sim, image=image, color_space=color_space, tolerance=tolerance)
 
 
-def find_colors(colors, rect=None, sim=0.9, space=5, ori=2, image=None):
-    """First match of a multi-point color pattern → Point or None."""
-    hits = _img.find_colors(colors, rect, sim, space, ori, 1, image)
+def find_colors(colors, rect=None, sim=0.9, space=5, ori=2, image=None, color_space="rgb", tolerance=None):
+    """First match of a multi-point color pattern → Point or None. `space` = min distance between results."""
+    hits = _img.find_colors(colors, rect, sim, space, ori, 1, image, color_space, tolerance)
     return hits[0] if hits else None
 
 
-def find_all_colors(colors, rect=None, sim=0.9, space=5, ori=2, max_num=0, image=None):
-    return _img.find_colors(colors, rect, sim, space, ori, max_num, image)
+def find_all_colors(colors, rect=None, sim=0.9, space=5, ori=2, max_num=0, image=None, color_space="rgb",
+                    tolerance=None):
+    return _img.find_colors(colors, rect, sim, space, ori, max_num, image, color_space, tolerance)
+
+
+def count_color(color, rect=None, sim=0.9, image=None, color_space="rgb", tolerance=None):
+    """Pixels in `rect` matching `color` ('#rrggbb', several joined by '|')."""
+    return _img.count_color(color, rect, sim, image, color_space, tolerance)
+
+
+def find_color_blobs(color, rect=None, sim=0.9, color_space="hsv", tolerance=None, min_area=50, max_num=0,
+                     image=None):
+    """Connected regions of a colour → [{rect, center_x, center_y, area, fill}], largest first."""
+    return _img.find_color_blobs(color, rect, sim, color_space, tolerance, min_area, max_num, image)
+
+
+def dominant_colors(rect=None, k=3, image=None):
+    """Main colours of a region (k-means in Lab) → [{color: '#rrggbb', rgb, ratio}], most common first."""
+    return _img.dominant_colors(rect, k, image)
 
 
 def find_image(template, rect=None, confidence=0.9, rgb=False, scale_range=None, image=None, method=None):

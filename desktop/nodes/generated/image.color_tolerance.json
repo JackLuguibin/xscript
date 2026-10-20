@@ -1,0 +1,55 @@
+{
+  "type": "image.color_tolerance",
+  "category": "image",
+  "title": {
+    "zh": "image.color_tolerance",
+    "en": "image.color_tolerance"
+  },
+  "doc": {
+    "zh": "Tolerance for a colour space, from an explicit `tolerance` or derived from AScript's `sim` (0..1).",
+    "en": "Tolerance for a colour space, from an explicit `tolerance` or derived from AScript's `sim` (0..1)."
+  },
+  "exec": {
+    "in": [
+      "exec"
+    ],
+    "out": [
+      "then"
+    ]
+  },
+  "inputs": [
+    {
+      "name": "color_space",
+      "type": "any",
+      "default": "rgb"
+    },
+    {
+      "name": "sim",
+      "type": "any",
+      "default": 0.9
+    },
+    {
+      "name": "tolerance",
+      "type": "any",
+      "default": null
+    }
+  ],
+  "outputs": [
+    {
+      "name": "result",
+      "type": "any"
+    }
+  ],
+  "py": {
+    "imports": [
+      "from xscript.android import image"
+    ],
+    "stmt": "{id} = image.color_tolerance({color_space}, sim={sim}, tolerance={tolerance})"
+  },
+  "dsl": {
+    "alias": "image.color_tolerance"
+  },
+  "since": "0.2.6",
+  "origin": "xscript.android.image.color_tolerance",
+  "availability": "ok"
+}

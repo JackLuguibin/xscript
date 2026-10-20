@@ -39,15 +39,31 @@ def get_color(x, y, image=None):
     """'#rrggbb' at (x, y) or None."""
     ...
 
-def compare_colors(colors, sim=0.9, image=None):
-    """True if all color points match at their positions. `colors` = 'x,y,#RRGGBB|...'."""
+def compare_colors(colors, sim=0.9, image=None, color_space='rgb', tolerance=None):
+    """True if all color points match at their positions. `colors` = 'x,y,#RRGGBB|...'.
+
+    color_space: "rgb" (default, per-channel ±tolerance), "hsv" (survives dimming / night mode) or "lab"
+    (perceptual delta E). `tolerance` defaults from `sim`; see docs/API.md.
+    """
     ...
 
-def find_colors(colors, rect=None, sim=0.9, space=5, ori=2, image=None):
-    """First match of a multi-point color pattern → Point or None."""
+def find_colors(colors, rect=None, sim=0.9, space=5, ori=2, image=None, color_space='rgb', tolerance=None):
+    """First match of a multi-point color pattern → Point or None. `space` = min distance between results."""
     ...
 
-def find_all_colors(colors, rect=None, sim=0.9, space=5, ori=2, max_num=0, image=None):
+def find_all_colors(colors, rect=None, sim=0.9, space=5, ori=2, max_num=0, image=None, color_space='rgb', tolerance=None):
+    ...
+
+def count_color(color, rect=None, sim=0.9, image=None, color_space='rgb', tolerance=None):
+    """Pixels in `rect` matching `color` ('#rrggbb', several joined by '|')."""
+    ...
+
+def find_color_blobs(color, rect=None, sim=0.9, color_space='hsv', tolerance=None, min_area=50, max_num=0, image=None):
+    """Connected regions of a colour → [{rect, center_x, center_y, area, fill}], largest first."""
+    ...
+
+def dominant_colors(rect=None, k=3, image=None):
+    """Main colours of a region (k-means in Lab) → [{color: '#rrggbb', rgb, ratio}], most common first."""
     ...
 
 def find_image(template, rect=None, confidence=0.9, rgb=False, scale_range=None, image=None, method=None):

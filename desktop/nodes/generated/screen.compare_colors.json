@@ -31,6 +31,16 @@
       "name": "image",
       "type": "any",
       "default": null
+    },
+    {
+      "name": "color_space",
+      "type": "any",
+      "default": "rgb"
+    },
+    {
+      "name": "tolerance",
+      "type": "any",
+      "default": null
     }
   ],
   "outputs": [
@@ -43,7 +53,7 @@
     "imports": [
       "from xscript.android import screen"
     ],
-    "stmt": "{id} = screen.compare_colors({colors}, sim={sim}, image={image})"
+    "stmt": "{id} = screen.compare_colors({colors}, sim={sim}, image={image}, color_space={color_space}, tolerance={tolerance})"
   },
   "dsl": {
     "alias": "screen.compare_colors"

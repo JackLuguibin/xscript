@@ -1,0 +1,55 @@
+{
+  "type": "screen.dominant_colors",
+  "category": "screen",
+  "title": {
+    "zh": "screen.dominant_colors",
+    "en": "screen.dominant_colors"
+  },
+  "doc": {
+    "zh": "Main colours of a region (k-means in Lab) → [{color: '#rrggbb', rgb, ratio}], most common first.",
+    "en": "Main colours of a region (k-means in Lab) → [{color: '#rrggbb', rgb, ratio}], most common first."
+  },
+  "exec": {
+    "in": [
+      "exec"
+    ],
+    "out": [
+      "then"
+    ]
+  },
+  "inputs": [
+    {
+      "name": "rect",
+      "type": "any",
+      "default": null
+    },
+    {
+      "name": "k",
+      "type": "any",
+      "default": 3
+    },
+    {
+      "name": "image",
+      "type": "any",
+      "default": null
+    }
+  ],
+  "outputs": [
+    {
+      "name": "result",
+      "type": "any"
+    }
+  ],
+  "py": {
+    "imports": [
+      "from xscript.android import screen"
+    ],
+    "stmt": "{id} = screen.dominant_colors({rect}, k={k}, image={image})"
+  },
+  "dsl": {
+    "alias": "screen.dominant_colors"
+  },
+  "since": "0.2.6",
+  "origin": "xscript.android.screen.dominant_colors",
+  "availability": "ok"
+}

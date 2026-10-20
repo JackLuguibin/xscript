@@ -1,0 +1,60 @@
+{
+  "type": "image.dominant_colors",
+  "category": "image",
+  "title": {
+    "zh": "image.dominant_colors",
+    "en": "image.dominant_colors"
+  },
+  "doc": {
+    "zh": "Main colours of a region by k-means → [{color: '#rrggbb', rgb: (r, g, b), ratio}], most common first.",
+    "en": "Main colours of a region by k-means → [{color: '#rrggbb', rgb: (r, g, b), ratio}], most common first."
+  },
+  "exec": {
+    "in": [
+      "exec"
+    ],
+    "out": [
+      "then"
+    ]
+  },
+  "inputs": [
+    {
+      "name": "rect",
+      "type": "any",
+      "default": null
+    },
+    {
+      "name": "k",
+      "type": "any",
+      "default": 3
+    },
+    {
+      "name": "image",
+      "type": "any",
+      "default": null
+    },
+    {
+      "name": "color_space",
+      "type": "any",
+      "default": "lab"
+    }
+  ],
+  "outputs": [
+    {
+      "name": "result",
+      "type": "any"
+    }
+  ],
+  "py": {
+    "imports": [
+      "from xscript.android import image"
+    ],
+    "stmt": "{id} = image.dominant_colors({rect}, k={k}, image={image}, color_space={color_space})"
+  },
+  "dsl": {
+    "alias": "image.dominant_colors"
+  },
+  "since": "0.2.6",
+  "origin": "xscript.android.image.dominant_colors",
+  "availability": "ok"
+}
