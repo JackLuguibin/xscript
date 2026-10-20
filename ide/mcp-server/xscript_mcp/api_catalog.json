@@ -807,6 +807,11 @@
           "doc": "mlkitocr_v2 = ML Kit; paddleocr / paddleocr_v2 / v3 and Ocr.set_engine(Ocr.MODE_PADDLE_V5) = PP-OCRv5 on ONNX (models download on first use). tess maps to ML Kit. Results are dict-like OcrResult objects."
         },
         {
+          "name": "screen.Ocr.matrix",
+          "signature": "Ocr.matrix(font_lib, rect=None, region=0.9, image=None) / Ocr.matrix_detail(...) / OcrX(font_lib, rect=None, region=0.9) / OcrX.find_all(font_lib, ...) / MatrixFont(colors=None, threshold=128, invert=False).add(char, image, rect).save(path)",
+          "doc": "点阵字库: binarise the area with the library's ink rule (colours 'RRGGBB-DDDDDD' or a gray threshold) and match each glyph bitmap (CvFontLib underneath); region = similarity 0-1. The library is XScript's JSON format (res/font.t by convention) built with MatrixFont; AScript's binary font.t files cannot be read."
+        },
+        {
           "name": "screen.CodeScanner",
           "signature": "CodeScanner.scan(rect=None)",
           "doc": "QR codes via OpenCV."
@@ -890,7 +895,6 @@
       "unsupported": [
         "action.Hid (hardware HID)",
         "screen.YoLov5",
-        "screen.OcrX and Ocr.matrix (font libraries)",
         "screen.gp files from AScript's 图色工具",
         "FindImages method='smart' (falls back to template)",
         "node.WebSelector",

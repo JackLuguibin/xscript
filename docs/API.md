@@ -302,6 +302,21 @@ ui.float_add_menu("rec", "/sdcard/rec.png", on_click, remove_system=False)  # �
 行为差异：
 
 - **OCR：** `Ocr.mlkitocr_v2` 使用 ML Kit。`paddleocr` / `paddleocr_v2` / `paddleocr_v3`，以及在 `Ocr.set_engine(Ocr.MODE_PADDLE_V5)` 之后调用的 `find` / `find_all`，使用 PP-OCRv5。`tess` 映射到 ML Kit。结果为 `OcrResult` 对象，支持属性访问（`.text`、`.rect`、`.center_x`、`.region_position`）和字典访问（`r["text"]`、`r.get(...)`）。
+- **点阵字库：** `Ocr.matrix(font_lib, rect=None, region=0.9, image=None)` 返回识别出的文字（无则 `None`），`Ocr.matrix_detail(...)` 返回 `{"text", "chars": [{text, rect, center_x, center_y, confidence}], "lines"}`；`OcrX(font_lib, rect, region)` 是同样功能的 GP 任务，`OcrX.find_all(...)` 返回逐字列表。识别时先按字库的「墨色」规则二值化（颜色 `"RRGGBB-DDDDDD"`，或灰度阈值），再逐字模板匹配（底层是 `CvFontLib`），`region` 是相似度。字库是 XScript 的 JSON 文件（习惯放 `res/font.t`），用 `MatrixFont` 制作：
+
+  ```python
+  from ascript.android.screen import MatrixFont, Ocr, capture
+  from ascript.android.system import R
+
+  font = MatrixFont(colors=["FAC828-282828"])      # 字的颜色 ± 偏差；或 MatrixFont(threshold=128, invert=False)
+  img = capture()
+  font.add("1", img, rect=[100, 500, 112, 520])    # 框住单个字，自动裁到字的笔画
+  font.add("2", img, rect=[116, 500, 128, 520])
+  font.save(R.res("font.t"))
+  print(Ocr.matrix(R.res("font.t"), rect=[90, 490, 340, 530]))
+  ```
+
+  AScript 图色助手生成的 `font.t` 是未公开的二进制格式，读不了，会报错并提示用 `MatrixFont` 重做。
 - **YOLO：** `screen.YoLov5(path=...)` 和 `plug.load("yolov5" | "Yolov8Ncnn" | "Yolov11Ncnn")` 运行 ONNX 检测器，并返回 AScript 的结果结构。AScript 自带的是 NCNN 模型（`.param` / `.bin`）；请把同一份权重导出为 ONNX（`format=onnx`），再让 `load()` 指向 `.onnx` 文件。类别名称取自模型、同目录下的 `data.yaml` 或 `classes.txt`，或 `nc`。
 - **云控：** `cloud_control.connect_to_ws / send / close`、`system.channel` 和 `system.Control.send` 使用 XScript 的云控连接。启动参数也会像 AScript 一样设置到 `builtins` 上。`R.get_card()` 返回打包应用的卡密。
 - **模板匹配：** `FindImages.find` / `find_all` 默认使用置信度为 0.9 的模板匹配。`method="smart"` 和 `find_sift` 会回退为模板匹配。结果采用 AScript 的字典结构（`result`、`rect`、`center_x`、`center_y`、`confidence`）。
@@ -318,7 +333,7 @@ ui.float_add_menu("rec", "/sdcard/rec.png", on_click, remove_system=False)  # �
 
 - `action.Hid`
 - NCNN 模型文件（请使用同一模型的 ONNX 导出）
-- `OcrX` / `Ocr.matrix`
+- AScript 图色助手生成的二进制点阵字库（`font.t`）：`Ocr.matrix` / `OcrX` 已支持，但字库要用 `MatrixFont` 重新制作（见上文 AScript 兼容的「点阵字库」）
 - AScript 图色工具生成的 gp 文件
 - `node.WebSelector`
 - 内置 YOLO 插件以外的 `plug.load` 插件，`plug.inject` / `load_module_dynamically`
