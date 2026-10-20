@@ -126,6 +126,7 @@ class ServerTest(unittest.IsolatedAsyncioTestCase):
         cls.tmp = tempfile.mkdtemp()
         cls.cfg = Config.load(os.path.join(cls.tmp, "data"), web_dir=os.path.join(cls.tmp, "noweb"))
         cls.cfg.scheduler_interval = 0.2
+        cls.cfg.pack_mode = "local"  # whatever XSCRIPT_PACK_MODE says (remote mode: test_pack_worker.py)
         # A fake pack script: writes an APK into --out, or fails when the app id says so.
         script = Path(cls.tmp) / "fake_pack.py"
         script.write_text(

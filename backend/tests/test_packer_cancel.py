@@ -33,6 +33,7 @@ class CancelBeforeSpawn(unittest.IsolatedAsyncioTestCase):
         script = tmp / "fake_pack.py"
         script.write_text("import time\ntime.sleep(30)\n")  # a build that only ends by being terminated
         self.cfg.pack_script = script
+        self.cfg.pack_mode = "local"
         self.db = Database(self.cfg.db_url)
         self.db.create_all()
         self.packer = packermod.Packer(self.cfg, self.db)
