@@ -25,6 +25,17 @@ class DeviceScriptsTest(unittest.TestCase):
         bad = [p.name for p in [*PY, *SCRIPTS.glob("*.sh")] if "/.LauncherActivity" in p.read_text(encoding="utf-8")]
         self.assertEqual(bad, [], "use PKG/com.xscript.app.LauncherActivity")
 
+    def test_scheme_e2e_no_browser_links(self):
+        # --no-browser sends the page's hrefs as intents: every *LINK must be found, exactly as written (a naive
+        # html.unescape turns "&params" into "¶ms")
+        src = (SCRIPTS / "device_scheme_e2e.py").read_text(encoding="utf-8")
+        ns = {"re": re}
+        exec(src[src.index('PAGE = """'):src.index("AUTO = ")], ns)
+        page_labels = re.findall(r">([A-Z]+LINK)</a>", ns["PAGE"])
+        self.assertEqual(sorted(ns["LINKS"]), sorted(page_labels))
+        self.assertEqual(ns["LINKS"]["PARAMLINK"], 'xscript://run?name=linkdemo&params={"k":"v"}')
+        self.assertIn('"--no-browser" in sys.argv', src)
+
 
 if __name__ == "__main__":
     unittest.main()
