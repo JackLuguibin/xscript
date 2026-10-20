@@ -15,7 +15,7 @@ from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 from starlette.concurrency import run_in_threadpool
 
-from .. import __version__, maintenance, netcheck, stats
+from .. import __version__, aiwriter, maintenance, netcheck, stats
 from .. import cards as cardsvc
 from ..audit import ALERT_EVENTS, get_settings, set_setting
 from ..deps import Principal, admin, client_ip, ctx, db_session, like_contains, like_escape, paginate, record, viewer
@@ -152,11 +152,16 @@ class SettingsIn(BaseModel):
     abuse_ip_devices: int | None = Field(default=None, ge=0, le=10000)
     abuse_ip_failures: int | None = Field(default=None, ge=0, le=10000)
     login_ip_allowlist: list[str] | None = Field(default=None, max_length=100)
+    # No key field on purpose: XSCRIPT_AI_KEY lives in the server environment only.
+    ai_base_url: str | None = Field(default=None, max_length=255, pattern=aiwriter.URL_RE)
+    ai_model: str | None = Field(default=None, max_length=128, pattern=r"^[^\s]*$")
 
 
 @router.put("/settings")
 def write_settings(body: SettingsIn, request: Request, p: Principal = Depends(admin), s: Session = Depends(db_session)):
     changes = body.model_dump(exclude_none=True)
+    if "ai_base_url" in changes:
+        changes["ai_base_url"] = changes["ai_base_url"].rstrip("/")
     if "public_url" in changes:
         changes["public_url"] = changes["public_url"].rstrip("/")
     if "alert_webhooks" in changes:

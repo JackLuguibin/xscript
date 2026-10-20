@@ -156,6 +156,45 @@ def list_versions(script_id: int, p: Principal = Depends(viewer), s: Session = D
     return {"items": [version_out(v, sc.current_version_id) for v in rows]}
 
 
+def store_version(c, request: Request, p: Principal, script_id: int, src, size: int, version: str = "",
+                  notes: str = "", publish: bool = False, extra: dict[str, Any] | None = None) -> dict[str, Any]:
+    """Validate a project zip at `src` and add it as the next version (moves the file). Blocking."""
+    if publish and not p.at_least("admin"):
+        raise HTTPException(403, "发布需要管理员权限")
+    if version and not re.match(VERSION_RE, version):
+        raise HTTPException(400, "版本号只能包含字母、数字和 . - _ +")
+    # The archive's top folder is stripped on install; the 小程序's project_name decides the
+    # package name on devices, so any folder name works.
+    try:
+        _top, files = store.inspect_zip(src)
+    except Exception as e:  # BadZipFile, unsafe paths, no entry
+        raise HTTPException(400, "工程压缩包无效: %s" % e) from None
+    digest = store.sha256_file(src)
+
+    with c.db.session() as s:
+        sc = _get(s, script_id)
+        last = s.scalar(select(ScriptVersion).where(ScriptVersion.script_id == sc.id)
+                        .order_by(ScriptVersion.version_code.desc()).limit(1))
+        code = (last.version_code if last else 0) + 1
+        ver = version or (bump(last.version) if last else "1.0.0")
+        if s.scalar(select(ScriptVersion).where(ScriptVersion.script_id == sc.id, ScriptVersion.version == ver)):
+            raise HTTPException(409, "版本 %s 已存在" % ver)
+        v = ScriptVersion(script_id=sc.id, version=ver, version_code=code, notes=notes, sha256=digest,
+                          size=size, files=files, created_by=p.username)
+        s.add(v)
+        s.flush()
+        dest = store.version_dir(c.config, sc.id, v.id)
+        dest.mkdir(parents=True, exist_ok=True)
+        shutil.move(str(src), dest / "source.zip")
+        if publish:
+            sc.current_version_id = v.id
+        sc.updated_at = int(time.time())
+        record(request, s, p, "script.version", "%s %s" % (sc.name, ver),
+               {"id": sc.id, "version_id": v.id, "code": code, "publish": publish, "sha256": digest, **(extra or {})})
+        s.commit()
+        return version_out(v, sc.current_version_id)
+
+
 @router.post("/{script_id}/versions")
 async def upload_version(script_id: int, request: Request, file: UploadFile = File(...),
                          version: str = Form(default=""), notes: str = Form(default="", max_length=4000),
@@ -168,13 +207,6 @@ async def upload_version(script_id: int, request: Request, file: UploadFile = Fi
     if not (file.filename or "").lower().endswith(".zip"):
         raise HTTPException(400, "需要上传工程 .zip")
 
-    with c.db.session() as s:
-        sc = _get(s, script_id)
-        last = s.scalar(select(ScriptVersion).where(ScriptVersion.script_id == sc.id)
-                        .order_by(ScriptVersion.version_code.desc()).limit(1))
-        code = (last.version_code if last else 0) + 1
-        ver = version or (bump(last.version) if last else "1.0.0")
-
     tmp_dir = c.config.scripts_dir / str(script_id) / (".upload-%d" % time.time_ns())
     tmp_dir.mkdir(parents=True, exist_ok=True)
     src = tmp_dir / "source.zip"
@@ -186,36 +218,9 @@ async def upload_version(script_id: int, request: Request, file: UploadFile = Fi
                 if size > store.MAX_SOURCE_ZIP:
                     raise HTTPException(413, "工程太大（上限 %d MB）" % (store.MAX_SOURCE_ZIP // 1024 // 1024))
                 f.write(chunk)
-        # The archive's top folder is stripped on install; the 小程序's project_name decides the
-        # package name on devices, so any folder name works.
-        try:
-            _top, files = await run_in_threadpool(store.inspect_zip, src)
-        except Exception as e:  # BadZipFile, unsafe paths, no entry
-            raise HTTPException(400, "工程压缩包无效: %s" % e) from None
-        digest = await run_in_threadpool(store.sha256_file, src)
-
-        with c.db.session() as s:
-            sc = _get(s, script_id)
-            if s.scalar(select(ScriptVersion).where(ScriptVersion.script_id == sc.id,
-                                                    ScriptVersion.version == ver)):
-                raise HTTPException(409, "版本 %s 已存在" % ver)
-            v = ScriptVersion(script_id=sc.id, version=ver, version_code=code, notes=notes, sha256=digest,
-                              size=size, files=files, created_by=p.username)
-            s.add(v)
-            s.flush()
-            dest = store.version_dir(c.config, sc.id, v.id)
-            dest.mkdir(parents=True, exist_ok=True)
-            shutil.move(str(src), dest / "source.zip")
-            if publish:
-                sc.current_version_id = v.id
-            sc.updated_at = int(time.time())
-            record(request, s, p, "script.version", "%s %s" % (sc.name, ver),
-                   {"id": sc.id, "version_id": v.id, "code": code, "publish": publish, "sha256": digest})
-            s.commit()
-            out = version_out(v, sc.current_version_id)
+        return await run_in_threadpool(store_version, c, request, p, script_id, src, size, version, notes, publish)
     finally:
         shutil.rmtree(tmp_dir, ignore_errors=True)
-    return out
 
 
 class PublishIn(BaseModel):

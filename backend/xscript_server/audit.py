@@ -34,6 +34,10 @@ DEFAULT_SETTINGS: dict[str, Any] = {
     "abuse_ip_failures": 5,        # unknown card codes tried from one IP
     # 登录 IP 白名单: IPs / CIDR ranges allowed to use the console and API ([] = anyone)
     "login_ip_allowlist": [],
+    # 后台 AI 写脚本: override XSCRIPT_AI_BASE_URL / XSCRIPT_AI_MODEL ("" = use the environment).
+    # The key (XSCRIPT_AI_KEY) is environment-only and never stored here.
+    "ai_base_url": "",
+    "ai_model": "",
 }
 
 ALERT_EVENTS = {

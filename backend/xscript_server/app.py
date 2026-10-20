@@ -22,7 +22,7 @@ from .deps import Context
 from .hub import Hub, Scheduler
 from .maintenance import Maintainer
 from .packer import Packer
-from .routes import appops, auth, cards, devices, pack, reseller, scripts, system, tasks, users
+from .routes import ai, appops, auth, cards, devices, pack, reseller, scripts, system, tasks, users
 
 log = logging.getLogger("xscript.server")
 
@@ -64,7 +64,8 @@ def create_app(config: Config, start_workers: bool = True) -> FastAPI:
                   packer=Packer(config, db, alerts), key=key, pubkey=licensing.public_b64(key), alerts=alerts, abuse=abuse_monitor,
                   maint=Maintainer(config, db, hub, alerts, config.maintenance_interval),
                   # 热更新 checks every 30 min per device, so 120/min per IP leaves room for NAT'd farms.
-                  pub_limiter=RateLimiter(120, 60), apk_limiter=RateLimiter(20, 600))
+                  pub_limiter=RateLimiter(120, 60), apk_limiter=RateLimiter(20, 600),
+                  ai_limiter=RateLimiter(20, 600))
 
     @asynccontextmanager
     async def lifespan(app: FastAPI):
@@ -116,7 +117,7 @@ def create_app(config: Config, start_workers: bool = True) -> FastAPI:
 
     for r in (appops.router, appops.update_router, appops.public, auth.router, users.router, devices.router, tasks.router, cards.router, cards.public, pack.router,
               pack.public, scripts.router, scripts.public, system.router,
-              reseller.router, reseller.me):
+              reseller.router, reseller.me, ai.router):
         app.include_router(r)
     app.include_router(devices.ws_router)
 
