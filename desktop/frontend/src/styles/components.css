@@ -614,3 +614,16 @@ pre.logs.debug-console { min-height: 4rem; max-height: 10rem; }
 .cloud-wall .wall-card .row { gap: var(--sp-2); min-width: 0; }
 .cloud-wall .wall-card .row > .grow { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .cloud-wall .wall-card .row > .muted { flex: none; white-space: nowrap; }
+
+/* settings dialog: about and updates (P5.4) */
+.update-panel { display: flex; flex-direction: column; gap: var(--sp-2); margin-top: var(--sp-4); padding-top: var(--sp-3); border-top: 1px solid var(--border); }
+.update-panel h3 { margin: 0; font-size: var(--fs-md); }
+.update-panel p { margin: 0; }
+.update-actions { display: flex; flex-wrap: wrap; align-items: center; gap: var(--sp-3); }
+.update-auto { display: inline-flex; align-items: center; gap: var(--sp-1); color: var(--text-muted); }
+.update-feed { font-size: var(--fs-xs); overflow-wrap: anywhere; }
+.update-offer { display: flex; flex-direction: column; align-items: flex-start; gap: var(--sp-2); padding: var(--sp-3); border: 1px solid var(--border); border-radius: var(--r-sm); background: var(--primary-soft); }
+.update-notes { white-space: pre-wrap; }
+.update-progress { display: flex; align-items: center; gap: var(--sp-2); width: 100%; }
+.update-progress progress { flex: 1; }
+.nav-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--primary); margin-left: auto; flex: none; }
