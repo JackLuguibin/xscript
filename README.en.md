@@ -77,19 +77,22 @@ If you would rather not build it yourself, use the published packages. All you n
 
 | Home | Mini-program list | Mini-program details |
 | :---: | :---: | :---: |
-| <img src="docs/images/phone-home.png" width="220" alt="Home: developer address, current mini-program and permission status"> | <img src="docs/images/phone-projects.png" width="220" alt="Mini-program list: create, import"> | <img src="docs/images/phone-project.png" width="220" alt="Mini-program details: run, log, run on boot, scheduled tasks, files"> |
-| Developer address, permission status, one-tap run of the last mini-program | **New** / **Import**, tap one to open it | **Run** / **Log**, run on boot, re-run after stop, scheduled tasks |
+| <img src="docs/images/phone-home.png" width="220" alt="Home: current mini-program, developer address, pairing code, AI coding and cloud connection status, permissions"> | <img src="docs/images/phone-projects.png" width="220" alt="Mini-program list: create, import"> | <img src="docs/images/phone-project.png" width="220" alt="Mini-program details: run, log, run on boot, scheduled tasks, files"> |
+| Developer address, pairing code, permission status, one-tap run of the last mini-program | **New** / **Import**, tap one to open it | **Run** / **Log**, run on boot, re-run after stop, scheduled tasks |
 | **View code** | **Run log** | **Scheduled tasks** |
 | <img src="docs/images/phone-editor.png" width="220" alt="Viewing and editing __init__.py on the phone"> | <img src="docs/images/phone-run-log.png" width="220" alt="Run log: print output shown live, can be stopped and cleared"> | <img src="docs/images/phone-schedule.png" width="220" alt="Adding a scheduled task: daily at a time, every N minutes, run once"> |
 | Tap a file on the details page to view and make simple edits | `print` output shows live; **Stop** / **Clear** | Daily at a time, every N minutes, run once |
+| **Pairing code** | **New (templates)** | |
+| <img src="docs/images/phone-pairing.png" width="220" alt="Pairing code dialog: the code a computer enters on first connection; regenerate, copy or close"> | <img src="docs/images/phone-templates.png" width="220" alt="New mini-program: enter a name and pick a template (empty, Hello, AScript style, daily check-in, find image, OCR, floating UI)"> | |
+| Home → **Pairing code**: entered once by each computer; can be regenerated. The desktop client over USB pairs automatically | Seven templates, the same as **New Project** in the web IDE and the VS Code extension | |
 
 **4. Background floating window**: when a script is running and you send XScript to the background, a floating window appears at the edge of the screen (green dot + project name + elapsed time). After a few seconds without touch it shrinks into a semi-transparent ball. Dragging snaps it to the left or right edge with easing (staying clear of the status bar and navigation bar) and remembers the position, one for portrait and one for landscape. Tap it to expand **Stop / Log / Open / Hide** (icon above, small label below; colors follow the light/dark theme) plus any buttons the script added with `FloatWindow.add_menu`, so you can stop a script without returning to the app. If a script ends with an error the window turns red and stays for a few seconds. **Floating window display** on the home screen can be set to show while running (default) / always show in the background / off. It needs the **overlay permission**; without it the window is simply not shown and scripts run normally. It collapses when you return to the app or when the script ends.
 
 <img src="docs/images/phone-floating.png" width="240" alt="Floating window over another app: the expanded panel has Stop, Log, Open and Hide buttons">
 
-**5. Write scripts on the computer**: the **developer address** on the home screen is the address your computer connects to. On the same LAN, open `http://<developer address>/tools/` directly; over USB or with an emulator, run `adb forward tcp:19860 tcp:9860` first and then open `http://127.0.0.1:19860/tools/`, and go to the **Script IDE**.
+**5. Write scripts on the computer**: the **developer address** on the home screen is the address your computer connects to. On the same LAN, open `http://<developer address>/tools/` directly; over USB or with an emulator, run `adb forward tcp:19860 tcp:9860` first and then open `http://127.0.0.1:19860/tools/`, and go to the **Script IDE**. The first visit asks for the **pairing code** shown on the phone's home screen.
 
-![Script IDE: directory tree on the left, editor with Python highlighting on the right, run log below](docs/images/ide-overview.png)
+![Script IDE: projects and directory tree on the left, editor with Python highlighting in the middle, breakpoint debugging and run log below](docs/images/ide-overview.png)
 
 - **New** project from a template (empty, Hello, AScript-compatible, check-in, find image and tap, OCR readout, floating UI; the phone app's **New** offers the same list); **New** file / folder: file paths look like `utils/net.py` and go into the folder selected in the tree by default; the tree works like VS Code's.
 - ⌘/Ctrl+S saves; **Save and run** (F6) runs on the phone, **Stop** (Shift+F6) ends the run; **Save and debug** supports breakpoints, stepping and variable inspection.
