@@ -30,7 +30,8 @@ class DeviceError(Exception):
     @property
     def code(self) -> str:
         """The RPC error code for this failure (the page maps codes to actionable hints)."""
-        return {"connect": "device.unreachable", "timeout": "device.timeout", "protocol": "device.protocol"}.get(self.kind, "device.http")
+        return {"connect": "device.unreachable", "timeout": "device.timeout", "protocol": "device.protocol",
+                "auth": "device.unpaired"}.get(self.kind, "device.http")
 
 
 @dataclass(frozen=True)
@@ -88,16 +89,40 @@ def _detail(r: httpx.Response) -> str:
     return ""
 
 
-class DeviceClient:
-    """One device endpoint. No auth (the device API has none, openapi.yaml); loopback or trusted LAN only."""
+def normalize_code(code: str) -> str:
+    """"abcd-efgh" -> "ABCDEFGH": the pairing code as the device compares it."""
+    return "".join(c for c in (code or "") if c.isalnum()).upper()
 
-    def __init__(self, target: DeviceTarget, timeout: float = 10.0, transport: httpx.AsyncBaseTransport | None = None):
+
+def valid_code(code: str) -> bool:
+    return bool(re.fullmatch(r"[A-Z0-9]{8}", normalize_code(code)))
+
+
+def needs_pairing(status: dict[str, Any]) -> bool:
+    """/status of a device that has pairing on and did not accept (or was not given) our code."""
+    return bool(status.get("pairing")) and status.get("paired") is False
+
+
+class DeviceClient:
+    """One device endpoint. Sends the pairing code (phone: 开发与连接 → 配对码) as a bearer token when it has one."""
+
+    def __init__(self, target: DeviceTarget, timeout: float = 10.0, transport: httpx.AsyncBaseTransport | None = None,
+                 token: str = ""):
         self.target = target
         self.timeout = timeout
         self._http = httpx.AsyncClient(
             base_url=target.base_url, timeout=timeout, headers=CLIENT_HEADER, transport=transport,
             trust_env=False,  # never route device traffic through a system proxy
         )
+        self.token = ""
+        self.set_token(token)
+
+    def set_token(self, code: str) -> None:
+        self.token = normalize_code(code)
+        if self.token:
+            self._http.headers["Authorization"] = "Bearer " + self.token
+        else:
+            self._http.headers.pop("Authorization", None)
 
     async def aclose(self) -> None:
         await self._http.aclose()
@@ -111,6 +136,8 @@ class DeviceClient:
             raise DeviceError("cannot reach %s: %s" % (self.target.address, e), kind="connect") from e
         if r.is_error and r.status_code not in ok_status:
             d = _detail(r)
+            if r.status_code == 401:
+                raise DeviceError("设备需要配对码（手机 XScript 首页「开发与连接 → 配对码」）", status=401, detail=d, kind="auth")
             raise DeviceError("device %s %s -> %d%s" % (method, path, r.status_code, (": " + d) if d else ""),
                               status=r.status_code, detail=d)
         return r

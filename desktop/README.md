@@ -105,6 +105,7 @@ e2e 用例要先 `npm run build`（否则自动跳过）。视觉回归的基线
 ## 设备连接的约定
 
 - **ADB**：每台设备建自己的 forward，本地端口由 adb 自动分配（`forward tcp:0 tcp:9860`），**不占用 19860 之类的固定端口**，所以不会与 VS Code 扩展 / 其它工具抢端口。只删除本进程创建的 forward，别人的不动。要用固定端口，可以先自己 `adb forward tcp:19860 tcp:9860`，再在「局域网/手动地址」里填 `localhost:19860`。
-- **局域网**：设备 API **没有鉴权**，非回环地址会显示警告；优先用 ADB。
+- **配对码**：设备 API 默认需要配对码。ADB 连接经 `adb forward tcp:0 localabstract:xscript-pair.<包名>` 自动读取（只有 adb 守护进程能读到，不用 `adb shell`）；局域网连接在设备卡片上输入一次，保存在系统钥匙串（凭据槽 `device/<设备 id>`）。手机上重新生成配对码后，卡片会变成「待配对」。
+- **局域网**：手机关闭了配对（或 App 版本较旧）时，非回环地址会显示警告；优先用 ADB。
 - 页面 → Python 的所有请求都走桥；截图这种二进制走 `xsapp://app/_shot/<设备id>.jpg`，不走 JSON。
 - 本阶段**不会**对设备做 `adb install` / `uninstall` / `pm clear`（`AdbService` 里没有这些封装）。

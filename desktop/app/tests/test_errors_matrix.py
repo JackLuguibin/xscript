@@ -121,12 +121,13 @@ async def test_loopback_addresses_get_no_lan_warning(address):
         fd.close()
 
 
-async def test_non_loopback_lan_address_gets_the_unauthenticated_warning():
+async def test_open_lan_device_without_pairing_gets_the_warning():
     fd = FakeDevice()
     try:
         ctx = make_ctx(fd)
         r = await call(ctx, "device.connect", transport="lan", address="192.0.2.77:9860")
-        assert r["ok"] and "没有鉴权" in r["result"]["warning"] and r["result"]["transport"] == "lan"
+        # FakeDevice is an older/open device (no "pairing" in /status): anyone on the LAN could run code
+        assert r["ok"] and "关闭了配对" in r["result"]["warning"] and r["result"]["transport"] == "lan"
     finally:
         fd.close()
 

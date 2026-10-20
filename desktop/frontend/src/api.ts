@@ -39,7 +39,7 @@ export interface Device {
   address: string;
   serial: string;
   forwardPort: number;
-  state: "connecting" | "online" | "offline";
+  state: "connecting" | "online" | "unpaired" | "offline";
   error: string;
   /** Machine-readable twin of `error` (an RPC error code such as device.unreachable); absent on older backends. */
   errorCode?: string;
@@ -227,6 +227,7 @@ export function createApi(rpc: RpcClient) {
     connectLan: (address: string) => rpc.call<Device>("device.connect", { transport: "lan", address }, { timeoutMs: 30_000 }),
     listDevices: () => rpc.call<{ devices: Device[]; notice?: string; noticeDetail?: string }>("device.list"),
     refresh: (id: string) => rpc.call<Device>("device.refresh", { id }),
+    pairDevice: (id: string, code: string) => rpc.call<Device>("device.pair", { id, code }),
     disconnect: (id: string) => rpc.call<{ removed: boolean; device?: Device }>("device.disconnect", { id }),
     updateDevice: (id: string, patch: { name?: string; group?: string; note?: string; autoConnect?: boolean }) =>
       rpc.call<Device>("device.update", { id, ...patch }),

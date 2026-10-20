@@ -469,6 +469,7 @@ export function DevicePage({
                 onDisconnect={() => disconnect(d.id)}
                 onForget={() => void forget(d.id)}
                 onRetry={() => retry(d)}
+                onPair={async (code) => upsert(await api.pairDevice(d.id, code))}
                 onSave={(patch) => saveMeta(d, patch)}
                 onOpen={(page) => open(d, page)}
                 busy={has("rm:" + d.id) || has("fg:" + d.id) || has("re:" + d.id) || has("sv:" + d.id)}

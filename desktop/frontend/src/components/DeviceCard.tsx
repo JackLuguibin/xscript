@@ -1,6 +1,6 @@
 import { useEffect, useId, useState } from "react";
 import type { Device } from "../api";
-import { describeCode } from "../errors";
+import { describeCode, errorLine } from "../errors";
 import { t } from "../strings";
 import { Badge } from "./Badge";
 import { ErrorBanner } from "./ErrorBanner";
@@ -30,6 +30,74 @@ function shotMax(): number {
 
 export type DevicePageTarget = "mirror" | "projects";
 
+/** "abcd efgh" → "ABCD-EFGH" while typing; the backend normalizes again. */
+export function formatPairCode(raw: string): string {
+  const v = raw.toUpperCase().replace(/[^0-9A-Z]/g, "").slice(0, 8);
+  return v.length > 4 ? `${v.slice(0, 4)}-${v.slice(4)}` : v;
+}
+
+/** Inline pairing form for a device whose API wants the phone's pairing code. */
+function PairForm({ title, onPair }: { title: string; onPair: (code: string) => Promise<unknown> }) {
+  const [code, setCode] = useState("");
+  const [err, setErr] = useState("");
+  const [busy, setBusy] = useState(false);
+  const inputId = useId();
+  const ready = code.replace(/-/g, "").length === 8;
+  return (
+    <Alert tone="warn" className="pair-box">
+      <IconAlert size={16} />
+      <div className="grow">
+        <strong>{t.pair.title}</strong>
+        <p className="muted">{t.pair.hint}</p>
+        <form
+          className="row pair-form"
+          onSubmit={(e) => {
+            e.preventDefault();
+            if (!ready) {
+              setErr(t.pair.invalid);
+              return;
+            }
+            setBusy(true);
+            setErr("");
+            onPair(code)
+              .catch((x: unknown) => {
+                // a refused code: the backend's own sentence ("配对码不正确…") says more than the generic title
+                const o = x as { code?: unknown; message?: unknown };
+                setErr(o && o.code === "device.unpaired" && o.message ? String(o.message) : errorLine(x));
+              })
+              .finally(() => setBusy(false));
+          }}
+        >
+          <Input
+            id={inputId}
+            aria-label={t.pair.label(title)}
+            className="mono pair-code"
+            value={code}
+            maxLength={9}
+            onChange={(e) => {
+              setCode(formatPairCode(e.target.value));
+              setErr("");
+            }}
+            placeholder={t.pair.placeholder}
+            autoComplete="off"
+            spellCheck={false}
+            aria-invalid={err ? true : undefined}
+          />
+          <Button type="submit" variant="primary" disabled={busy || !ready}>
+            {busy ? <Spinner /> : null}
+            {t.pair.submit}
+          </Button>
+        </form>
+        {err && (
+          <p className="pair-error" role="alert">
+            {err}
+          </p>
+        )}
+      </div>
+    </Alert>
+  );
+}
+
 /**
  * Compact device card: name, state, model and the primary buttons. Properties, the screenshot, the editable
  * name / group / note / auto-reconnect and 「忘记」 live under 「详情」 (collapsed by default) so a list of devices fits on screen.
@@ -41,6 +109,7 @@ export function DeviceCard({
   onRetry,
   onSave,
   onOpen,
+  onPair,
   current = false,
   busy,
 }: {
@@ -51,6 +120,8 @@ export function DeviceCard({
   onSave?: (patch: { name: string; group: string; note: string; autoConnect: boolean }) => void;
   /** 「屏幕」/「工程」: make this the current device and go to that page */
   onOpen?: (page: DevicePageTarget) => void;
+  /** the device is "unpaired": send the code the user typed (rejects with the RPC error when it is wrong) */
+  onPair?: (code: string) => Promise<unknown>;
   /** this is the app-wide current device */
   current?: boolean;
   busy: boolean;
@@ -64,7 +135,7 @@ export function DeviceCard({
   // Screenshots come over the custom scheme (xsapp://app/_shot/...), not through the JSON bridge (design §3.1).
   const shotUrl = shotTick ? `/_shot/${encodeURIComponent(device.id)}.jpg?max=${shotMax()}&t=${shotTick}` : "";
   const ratio = i.width && i.height ? `${i.width} / ${i.height}` : "9 / 19.5";
-  const tone = device.state === "online" ? "ok" : device.state === "connecting" ? "warn" : "bad";
+  const tone = device.state === "online" ? "ok" : device.state === "connecting" || device.state === "unpaired" ? "warn" : "bad";
   const title = device.name || i.name || i.model || device.id;
   const [name, setName] = useState(device.name ?? "");
   const [group, setGroup] = useState(device.group ?? "");
@@ -157,7 +228,8 @@ export function DeviceCard({
           <span className="grow">{device.warning}</span>
         </Alert>
       )}
-      {device.error && device.error !== hiddenError && (
+      {device.state === "unpaired" && onPair && <PairForm title={title} onPair={onPair} />}
+      {device.error && device.error !== hiddenError && !(device.state === "unpaired" && onPair) && (
         <ErrorBanner
           info={describeCode(device.errorCode ?? "", device.error)}
           onDismiss={() => setHiddenError(device.error)}

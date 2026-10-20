@@ -22,7 +22,7 @@ from .services.debugger import DebugError, DebugSession
 from .services.mirror import MirrorProxy, MirrorTimings
 from .services.secrets import MemoryBackend, NameIndex, SecretError, SecretStore
 from .services.store import AppStore, SavedDevice, StoreError, StoreSyncCache
-from .services.tool_pages import TITLES, tool_url
+from .services.tool_pages import TITLES, paired_url, tool_url
 
 ACTION_TYPES = ("click", "swipe", "input", "key")
 MAX_FILE_CHARS = 2 * 1024 * 1024  # stays under the bridge's 4 MiB request cap even after JSON escaping
@@ -39,6 +39,19 @@ def _rel_path(params: dict[str, Any], key: str = "path") -> str:
     if not rel or rel.startswith("/") or "\\" in rel or "\0" in rel or any(p in ("", ".", "..") for p in rel.split("/")):
         raise RpcError("rpc.bad_params", "invalid project path: %r" % rel)
     return rel
+
+
+class _KeychainPairing:
+    """Device pairing codes in the OS keychain, as `device/<device id>` credential slots (design §5.2)."""
+
+    def __init__(self, ctx: "AppContext") -> None:
+        self._ctx = ctx
+
+    def get(self, device_id: str) -> str:
+        return self._ctx.secrets.reveal("device", device_id) or ""
+
+    def put(self, device_id: str, code: str) -> None:
+        self._ctx.secrets.set("device", device_id, code)
 
 
 def error_code(e: BaseException) -> str:
@@ -96,7 +109,8 @@ class AppContext:
             saved_adb = self.store.get_setting("adbPath")
             if saved_adb:
                 self.adb.set_path(saved_adb)
-        self.devices = DeviceManager(self.adb, emit=self.dispatcher.emit, poll_interval=poll_interval, on_online=self._persist_seen)
+        self.devices = DeviceManager(self.adb, emit=self.dispatcher.emit, poll_interval=poll_interval, on_online=self._persist_seen,
+                                     pairing=_KeychainPairing(self))
         self.mirror = MirrorProxy(self._mirror_client, self.dispatcher.emit, timings=mirror_timings)
         # Memory backend until main() swaps in the OS keyring. --selftest never touches the login keychain.
         self.secrets = SecretStore(MemoryBackend(), NameIndex(data_dir / "slot-index.json" if data_dir else None))
@@ -467,6 +481,12 @@ class AppContext:
         async def flow_list_runs(params: dict[str, Any]) -> dict[str, Any]:
             limit = int(params.get("limit") or 20)
             return {"runs": await self.store.aexec(self.store._list_runs, limit)}
+
+        @d.method("device.pair")
+        @_map_errors
+        async def pair(params: dict[str, Any]) -> dict[str, Any]:
+            """Pair with the code shown on the phone (开发与连接 → 配对码). The code goes to the keychain, never back out."""
+            return (await self.devices.pair(param(params, "id", str), param(params, "code", str))).to_dict()
 
         @d.method("device.refresh")
         @_map_errors
@@ -866,6 +886,8 @@ class AppContext:
         async def tools_open(params: dict[str, Any]) -> dict[str, Any]:
             page = param(params, "page", str, default="home")
             rec = self.devices.get(param(params, "id", str))
+            if rec.state == "unpaired":
+                raise RpcError("device.unpaired", "设备需要配对码，配对后才能打开工具页")
             if rec.state != "online" or rec.client is None:
                 raise RpcError("tools.offline", "设备不在线，打不开工具页")
             if rec.transport not in ("adb", "lan"):
@@ -876,7 +898,10 @@ class AppContext:
                 raise RpcError("rpc.bad_params", str(e)) from e
             if self.open_tools is None:
                 raise RpcError("app.unavailable", "no tool window in this mode")
-            await self.open_tools(rec.target.host, rec.target.port, url, TITLES.get(page, "XScript"))
+            # The tool window is its own browser profile: pass the pairing code once through /pair, which sets the
+            # device's SameSite cookie and redirects to the page. The plain URL is what goes back to the page.
+            load = paired_url(url, rec.client.token)
+            await self.open_tools(rec.target.host, rec.target.port, load, TITLES.get(page, "XScript"))
             return {"url": url, "page": page, "warning": rec.warning}
 
         @d.method("device.uiTree")

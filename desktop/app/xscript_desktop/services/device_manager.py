@@ -10,22 +10,42 @@ import ipaddress
 import socket
 import time
 from dataclasses import dataclass, field
-from typing import Any, Awaitable, Callable
+from typing import Any, Awaitable, Callable, Protocol
 
 import httpx
 
 from .adb import DEVICE_PORT, AdbError, AdbService
-from .device_client import DeviceClient, DeviceError, DeviceTarget, is_xscript_status, summarize_status
+from .device_client import (DeviceClient, DeviceError, DeviceTarget, is_xscript_status, needs_pairing, normalize_code,
+                            summarize_status, valid_code)
 
 EventEmitter = Callable[[str, Any], None]
 ClientFactory = Callable[[DeviceTarget], DeviceClient]
 
 SCAN_PORTS = tuple(range(9860, 9870))  # device API: 9860, taken ports are skipped up to 9869 (openapi.yaml)
 POLL_TIMEOUT = 3.0  # per-device /status budget of one health round: one dead LAN device must not stall the others
-LAN_WARNING = "此设备经局域网直连：设备 API 没有鉴权，同网段任何人都能运行代码。仅在可信网络使用，优先用 ADB。"
+LAN_WARNING = "此设备关闭了配对（或 App 版本较旧）：设备 API 不需要配对码，同网段任何人都能运行代码。仅在可信网络使用，优先用 ADB。"
+UNPAIRED = "需要配对码：在手机 XScript 首页「开发与连接 → 配对码」查看后输入"
 OnOnline = Callable[["DeviceRecord"], Awaitable[None]]
 OnFound = Callable[[dict[str, Any]], None]
 OnProgress = Callable[[int, int], None]
+
+
+class PairingStore(Protocol):
+    """Pairing codes per device id ("adb:<serial>", "lan:<host>:<port>"). The app keeps them in the OS keychain."""
+
+    def get(self, device_id: str) -> str: ...
+    def put(self, device_id: str, code: str) -> None: ...
+
+
+class MemoryPairing:
+    def __init__(self) -> None:
+        self.codes: dict[str, str] = {}
+
+    def get(self, device_id: str) -> str:
+        return self.codes.get(device_id, "")
+
+    def put(self, device_id: str, code: str) -> None:
+        self.codes[device_id] = code
 
 
 @dataclass
@@ -35,7 +55,7 @@ class DeviceRecord:
     target: DeviceTarget
     serial: str = ""  # adb serial (adb transport)
     forward_port: int = 0  # local port of the forward we created (adb transport)
-    state: str = "connecting"  # connecting | online | offline
+    state: str = "connecting"  # connecting | online | unpaired | offline
     status: dict[str, Any] = field(default_factory=dict)
     error: str = ""
     error_code: str = ""  # machine-readable twin of `error` (DeviceError.code), "" when there is no error
@@ -62,8 +82,10 @@ class DeviceRecord:
 
 class DeviceManager:
     def __init__(self, adb: AdbService, emit: EventEmitter | None = None, client_factory: ClientFactory | None = None,
-                 poll_interval: float = 5.0, on_online: OnOnline | None = None, poll_timeout: float = POLL_TIMEOUT) -> None:
+                 poll_interval: float = 5.0, on_online: OnOnline | None = None, poll_timeout: float = POLL_TIMEOUT,
+                 pairing: PairingStore | None = None) -> None:
         self.adb = adb
+        self._pairing: PairingStore = pairing or MemoryPairing()
         self._emit = emit or (lambda topic, data: None)
         self._factory = client_factory or (lambda t: DeviceClient(t))
         self._on_online = on_online
@@ -94,6 +116,83 @@ class DeviceManager:
             return ipaddress.ip_address(host).is_loopback or host == "localhost"
         except ValueError:
             return host == "localhost"
+
+    # ---- pairing ----------------------------------------------------------------------------------------------------------------------
+
+    def _stored_code(self, device_id: str) -> str:
+        try:
+            return normalize_code(self._pairing.get(device_id) or "")
+        except Exception:
+            return ""  # keychain locked or unavailable: ask the user instead
+
+    def _save_code(self, device_id: str, code: str) -> None:
+        try:
+            self._pairing.put(device_id, normalize_code(code))
+        except Exception:
+            pass  # still paired for this session; the next start asks again
+
+    async def _pair_up(self, device_id: str, client: DeviceClient, status: dict[str, Any], serial: str = "") -> dict[str, Any]:
+        """Bring a pairing-protected device to paired: the saved code first, then (USB) the code read over adb.
+        Returns the device's /status as seen with whatever code worked, or the unpaired status."""
+        if not needs_pairing(status):
+            return status
+        tried: set[str] = set()
+        stored = self._stored_code(device_id)
+        sources = [(stored, False)] if stored else []
+        for i in range(2):
+            if i == 1 and serial:
+                code = await self.adb.pairing_code(serial, str(status.get("app_id") or ""))
+                if code:
+                    sources.append((code, True))
+            while sources:
+                code, fresh = sources.pop(0)
+                if code in tried:
+                    continue
+                tried.add(code)
+                client.set_token(code)
+                st = await client.status()
+                if not needs_pairing(st):
+                    if fresh:
+                        self._save_code(device_id, code)
+                    return st
+        client.set_token("")
+        return status
+
+    def _pair_state(self, rec: DeviceRecord) -> None:
+        if needs_pairing(rec.status):
+            self._set_state(rec, "unpaired", UNPAIRED, "device.unpaired")
+        else:
+            self._set_state(rec, "online")
+
+    async def pair(self, device_id: str, code: str) -> DeviceRecord:
+        """Pair with the code the user typed. Raises DeviceError(kind="auth") when the device refuses it."""
+        rec = self.get(device_id)
+        if rec.client is None:
+            raise DeviceError("设备未连接", kind="connect")
+        if not valid_code(code):
+            raise DeviceError("配对码是 8 位字母或数字，例如 ABCD-EFGH", kind="auth")
+        old = rec.client.token
+        rec.client.set_token(code)
+        try:
+            st = await rec.client.status()
+        except DeviceError:
+            rec.client.set_token(old)
+            raise
+        if needs_pairing(st):
+            rec.client.set_token(old)
+            raise DeviceError("配对码不正确（手机上重新生成过？）", status=401, kind="auth")
+        self._save_code(rec.id, code)
+        rec.status, rec.last_seen = st, time.time()
+        rec.warning = self._warning(rec)
+        self._pair_state(rec)
+        self._emit("device.state", rec.to_dict())
+        await self._note_online(rec)
+        return rec
+
+    def _warning(self, rec: DeviceRecord) -> str:
+        if rec.transport != "lan" or self._is_loopback(rec.target.host):
+            return ""
+        return "" if rec.status.get("pairing") else LAN_WARNING
 
     def _set_state(self, rec: DeviceRecord, state: str, error: str = "", code: str = "") -> None:
         changed = rec.state != state or rec.error != error or rec.error_code != code
@@ -137,9 +236,15 @@ class DeviceManager:
             await client.aclose()
             await self.adb.remove_forward(serial, fw.local_port)
             raise DeviceError("127.0.0.1:%d 有响应，但不像 XScript 设备（/status 缺少 device_id/app_id/model）" % fw.local_port, kind="protocol")
+        try:
+            status = await self._pair_up(dev_id, client, status, serial)
+        except DeviceError:
+            pass  # keep the unpaired status: the card offers "输入配对码"
         client.timeout = 10.0
         rec = DeviceRecord(id=dev_id, transport="adb", target=target, serial=serial, forward_port=fw.local_port,
                            state="online", status=status, last_seen=time.time(), client=client)
+        if needs_pairing(status):
+            rec.state, rec.error, rec.error_code = "unpaired", UNPAIRED, "device.unpaired"
         self._devices[dev_id] = rec
         self._emit("device.state", rec.to_dict())
         return rec
@@ -163,10 +268,16 @@ class DeviceManager:
         if not is_xscript_status(status):
             await client.aclose()
             raise DeviceError("%s 有响应，但不像 XScript 设备（/status 缺少 device_id/app_id/model）" % target.address, kind="protocol")
+        try:
+            status = await self._pair_up(dev_id, client, status)
+        except DeviceError:
+            pass
         client.timeout = 10.0
-        warning = "" if self._is_loopback(target.host) else LAN_WARNING
         rec = DeviceRecord(id=dev_id, transport="lan", target=target, state="online", status=status, last_seen=time.time(),
-                           client=client, warning=warning)
+                           client=client)
+        rec.warning = self._warning(rec)
+        if needs_pairing(status):
+            rec.state, rec.error, rec.error_code = "unpaired", UNPAIRED, "device.unpaired"
         self._devices[dev_id] = rec
         self._emit("device.state", rec.to_dict())
         return rec
@@ -190,10 +301,15 @@ class DeviceManager:
         rec = self.get(device_id)
         assert rec.client is not None
         try:
-            rec.status = await rec.client.status()
+            status = await rec.client.status()
+            if needs_pairing(status):
+                status = await self._pair_up(rec.id, rec.client, status, rec.serial if rec.transport == "adb" else "")
+            rec.status = status
             rec.last_seen = time.time()
-            self._set_state(rec, "online")
-            await self._note_online(rec)
+            rec.warning = self._warning(rec)
+            self._pair_state(rec)
+            if rec.state == "online":
+                await self._note_online(rec)
         except DeviceError as e:
             self._set_state(rec, "offline", str(e), e.code)
         return rec
@@ -229,10 +345,18 @@ class DeviceManager:
             return
         if self._devices.get(rec.id) is not rec:
             return  # disconnected (or reconnected as a new record) while this request was in flight
+        if needs_pairing(status) and rec.state != "unpaired" and rec.transport == "adb":
+            # the code was regenerated on the phone: over USB, read the new one once instead of nagging
+            try:
+                status = await self._pair_up(rec.id, rec.client, status, rec.serial)
+            except DeviceError:
+                pass
         rec.status = status
         rec.last_seen = time.time()
-        self._set_state(rec, "online")
-        await self._note_online(rec)
+        rec.warning = self._warning(rec)
+        self._pair_state(rec)
+        if rec.state == "online":
+            await self._note_online(rec)
         if before != (rec.status.get("running"), rec.status.get("project")):
             self._emit("device.state", rec.to_dict())
 

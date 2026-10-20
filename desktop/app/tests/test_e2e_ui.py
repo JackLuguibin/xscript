@@ -156,11 +156,11 @@ def test_e2e_07_device_goes_offline_and_comes_back_via_pushed_events(ui, qtbot):
 
 
 def test_e2e_08_lan_connect_warns_about_missing_auth_for_non_loopback(ui, qtbot):
-    """E-08 a non-loopback address connects but shows the 'no authentication' warning banner; loopback does not."""
+    """E-08 a non-loopback address whose device has pairing switched off connects but shows the warning banner; loopback does not."""
     ui.redirect[9860] = ui.fake_device.port
     ui.type_into(qtbot, "device address", "192.168.1.20:9860")
     ui.click(qtbot, "连接地址")
-    ui.wait_text(qtbot, "没有鉴权，同网段任何人都能运行代码")
+    ui.wait_text(qtbot, "此设备关闭了配对")
     assert "192.168.1.20:9860" in ui.text(qtbot)
 
 
