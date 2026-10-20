@@ -353,6 +353,9 @@ export interface Settings {
   login_ip_allowlist: string[];
   login_ip_allowlist_on: boolean;
   your_ip: string;
+  /** 后台 AI 写脚本: overrides XSCRIPT_AI_BASE_URL / XSCRIPT_AI_MODEL ("" = environment). The key is env-only. */
+  ai_base_url: string;
+  ai_model: string;
 }
 
 export interface MaintenanceInfo {
@@ -465,4 +468,23 @@ export interface ApiToken {
   expires_at: number | null;
   last_used_at: number | null;
   token?: string;
+}
+
+/** 后台 AI 写脚本: model config without the key (XSCRIPT_AI_KEY stays on the server). */
+export interface AiStatus {
+  configured: boolean;
+  base_url: string;
+  model: string;
+  key_set: boolean;
+  source: "settings" | "env";
+}
+
+export interface AiResult {
+  code: string;
+  notes: string;
+  /** "" when the code parses; otherwise "第 N 行: …". Nothing is executed on the server. */
+  syntax_error: string;
+  model: string;
+  usage: { prompt_tokens?: number; completion_tokens?: number; total_tokens?: number };
+  ms: number;
 }
