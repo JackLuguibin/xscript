@@ -70,7 +70,18 @@ def _v7(conn: Connection) -> None:
     conn.execute(text("CREATE INDEX IF NOT EXISTS ix_cards_owner_id ON cards (owner_id)"))
 
 
-STEPS: list[Callable[[Connection], None]] = [_v1, _v2, _v3, _v4, _v5, _v6, _v7]
+def _v8(conn: Connection) -> None:
+    """0.10: 打包机 columns on pack jobs (the pack_workers table comes from create_all)."""
+    if not inspect(conn).has_table("pack_jobs"):
+        return  # create_all makes it whole
+    _add_column(conn, "pack_jobs", "worker_id", "BIGINT")
+    _add_column(conn, "pack_jobs", "worker_name", "VARCHAR(64) NOT NULL DEFAULT ''")
+    _add_column(conn, "pack_jobs", "heartbeat_at", "BIGINT")
+    _add_column(conn, "pack_jobs", "attempts", "BIGINT NOT NULL DEFAULT 0")
+    _add_column(conn, "pack_jobs", "cancel_requested", "BOOLEAN NOT NULL DEFAULT false")
+
+
+STEPS: list[Callable[[Connection], None]] = [_v1, _v2, _v3, _v4, _v5, _v6, _v7, _v8]
 LATEST = len(STEPS)
 
 

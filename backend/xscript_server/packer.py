@@ -1,4 +1,11 @@
-"""APK 打包 jobs: one Gradle build at a time, run through backend/xscript_pack.py."""
+"""APK 打包 jobs, run through backend/xscript_pack.py.
+
+Two modes (Config.pack_mode, XSCRIPT_PACK_MODE):
+  local  (default) this server builds one job at a time from an in-memory queue.
+  remote jobs wait in the database; separate 打包机 (pack_worker.py) claim them over HTTP, send the build
+         log with a heartbeat, and upload the APK. A job whose worker stops sending heartbeats for
+         `lease_s` is queued again once (then failed), so a lost machine never leaves it "running".
+"""
 
 from __future__ import annotations
 
@@ -13,13 +20,13 @@ import zipfile
 from pathlib import Path
 from typing import Any
 
-from sqlalchemy import select
+from sqlalchemy import func, select, update
 from starlette.concurrency import run_in_threadpool
 
 from .audit import audit
 from .config import Config
 from .db import Database
-from .models import PackJob
+from .models import PackJob, PackWorker
 from .protect import has_entry
 
 log = logging.getLogger("xscript.pack")
@@ -61,7 +68,66 @@ def safe_extract(zip_path: Path, dest: Path) -> Path:
     raise ValueError("压缩包里没有 __init__.py（工程入口）")
 
 
+def pack_command(python: str, pack_script: Path, d: Path, info: dict[str, Any], project: Path,
+                 signing: tuple[str, str, str, str] | None) -> tuple[list[str], dict[str, str]]:
+    """The xscript_pack.py command for one job (here or on a 打包机). `d` is the job directory, `signing` is
+    (keystore, alias, store password, key password) when this machine can sign release builds."""
+    o = info["options"]
+    args = [python, str(pack_script), str(project),
+            "--app-id", info["app_id"], "--version", info["version"],
+            "--version-code", str(info["version_code"]), "--out", str(d / "out"),
+            "--abis", o.get("abis") or "arm64-v8a"]
+    if info["app_name"]:
+        args += ["--name", info["app_name"]]
+    if info["project_name"]:
+        args += ["--project-name", info["project_name"]]
+    if (d / "icon.png").is_file():
+        args += ["--icon", str(d / "icon.png")]
+    if o.get("license_pubkey"):
+        args += ["--license-pubkey", o["license_pubkey"]]
+        if o.get("license_server"):
+            args += ["--license-server", o["license_server"]]
+    env = dict(os.environ)
+    env.pop("XSCRIPT_CLOUD_URL", None)
+    if o.get("cloud_url"):
+        # The URL embeds a device key: pass it in the environment, not argv (visible in `ps`).
+        env["XSCRIPT_CLOUD_URL"] = o["cloud_url"]
+        if o.get("cloud_group"):
+            args += ["--cloud-group", o["cloud_group"]]
+    for flag in ("autostart", "dev_server", "bundle_requirements", "protect"):
+        if o.get(flag):
+            args.append("--" + flag.replace("_", "-"))
+    if o.get("ops_server"):
+        args += ["--ops-server", o["ops_server"]]
+    if o.get("update_channel"):
+        args += ["--update-server", o["update_server"], "--update-channel", o["update_channel"],
+                 "--update-pubkey", o["update_pubkey"], "--script-code", str(o.get("script_code") or 0)]
+    if o.get("release") and signing:
+        keystore, alias, store_pass, key_pass = signing
+        # Passwords go through the environment so they never show up in `ps`.
+        args += ["--keystore", keystore, "--key-alias", alias]
+        env["XSCRIPT_STORE_PASS"] = store_pass
+        env["XSCRIPT_KEY_PASS"] = key_pass or store_pass
+    return args, env
+
+
+def redacted_command(args: list[str], env: dict[str, str]) -> list[str]:
+    """The log lines that show the command (the 云控 URL carries a device key)."""
+    out = ["$ " + " ".join(args[1:])]
+    if env.get("XSCRIPT_CLOUD_URL"):
+        out.append("  XSCRIPT_CLOUD_URL=%s?token=***" % env["XSCRIPT_CLOUD_URL"].split("?")[0])
+    return out
+
+
+class WrongJob(Exception):
+    """The job is not running on this 打包机 any more (cancelled, reassigned after a lost lease, deleted)."""
+
+
 class Packer:
+    lease_s = 90            # a worker sends a heartbeat every few seconds; this long without one = lost
+    reap_interval = 10.0
+    max_attempts = 2        # a lost worker's job is handed out once more, then failed
+
     def __init__(self, config: Config, db: Database, alerts=None):
         self.config, self.db, self.alerts = config, db, alerts
         self.loop: asyncio.AbstractEventLoop | None = None
@@ -93,7 +159,17 @@ class Packer:
             data = f.read(limit)
         return data.decode("utf-8", "replace"), max(0, offset) + len(data)
 
+    @property
+    def remote(self) -> bool:
+        return self.config.pack_mode == "remote"
+
     def available(self) -> tuple[bool, str]:
+        if self.remote:
+            with self.db.session() as s:
+                n = s.scalar(select(func.count()).select_from(PackWorker).where(PackWorker.disabled.is_(False)))
+            if not n:
+                return False, "还没有可用的打包机：在「APK 打包 → 打包机」里添加一台，并在那台机器上启动 pack-worker"
+            return True, ""
         script = self.config.pack_script
         if not script:
             return False, "这台服务器没有开启 APK 打包（Docker 部署请使用 full 镜像）"
@@ -101,10 +177,26 @@ class Packer:
             return False, "找不到打包脚本 xscript_pack.py"
         return True, ""
 
+    def release_signing(self) -> bool:
+        """Can a release (正式签名) build run? Remote: some enabled 打包机 reported a keystore."""
+        if not self.remote:
+            return self.config.release_signing
+        with self.db.session() as s:
+            caps = s.scalars(select(PackWorker.capabilities).where(PackWorker.disabled.is_(False))).all()
+        return any((c or {}).get("release") for c in caps)
+
+    def append_log(self, job_id: int, text: str) -> None:
+        self.job_dir(job_id).mkdir(parents=True, exist_ok=True)
+        with open(self.log_path(job_id), "ab") as f:
+            f.write(text.encode("utf-8", "replace"))
+
     # ------------------------------------------------------------ queue
 
     def recover(self) -> None:
-        """Jobs left running by a crash or restart are marked failed; queued ones run again."""
+        """Jobs left running by a crash or restart are marked failed; queued ones run again.
+        Remote mode: nothing to do, the jobs are in the database and running ones belong to their 打包机."""
+        if self.remote:
+            return
         with self.db.session() as s:
             for job in s.scalars(select(PackJob).where(PackJob.status == "running")):
                 job.status, job.error, job.finished_at = "failed", "服务重启，任务中断", int(time.time())
@@ -114,7 +206,8 @@ class Packer:
             self.queue.put_nowait(jid)
 
     def submit(self, job_id: int) -> None:
-        self.queue.put_nowait(job_id)
+        if not self.remote:  # remote: the queued row is the queue
+            self.queue.put_nowait(job_id)
 
     async def cancel(self, job_id: int) -> bool:
         with self.db.session() as s:
@@ -125,17 +218,34 @@ class Packer:
                 job.status, job.finished_at = "cancelled", int(time.time())
                 s.commit()
                 return True
+            if self.remote:  # the 打包机 sees it in its next heartbeat reply and stops the build
+                job.cancel_requested = True
+                s.commit()
+                return True
         self.cancelled.add(job_id)
         if self.current == job_id and self.proc and self.proc.returncode is None:
             self.proc.terminate()
         return True
 
     def position(self, job_id: int) -> int | None:
+        if self.remote:
+            with self.db.session() as s:
+                if s.scalar(select(PackJob.status).where(PackJob.id == job_id)) != "queued":
+                    return None
+                return s.scalar(select(func.count()).select_from(PackJob)
+                                .where(PackJob.status == "queued", PackJob.id <= job_id)) or None
         items = list(self._queue._queue) if self._queue is not None else []  # type: ignore[attr-defined]
         return items.index(job_id) + 1 if job_id in items else None
 
     async def run(self) -> None:
         self.loop = asyncio.get_running_loop()
+        if self.remote:
+            while True:
+                try:
+                    await run_in_threadpool(self.reap)
+                except Exception:  # pragma: no cover
+                    log.exception("checking pack worker leases")
+                await asyncio.sleep(self.reap_interval)
         while True:
             job_id = await self.queue.get()
             try:
@@ -147,6 +257,102 @@ class Packer:
                 await run_in_threadpool(self._finish, job_id, "failed", None, str(e))
             finally:
                 self.current, self.proc = None, None
+
+    # ------------------------------------------------------------ remote 打包机
+
+    def _info(self, job: PackJob) -> dict[str, Any]:
+        return {"app_id": job.app_id, "app_name": job.app_name, "version": job.version,
+                "version_code": job.version_code, "project_name": job.project_name,
+                "options": dict(job.options or {}), "created_by": job.created_by}
+
+    def claim(self, worker_id: int, caps: dict[str, Any]) -> dict[str, Any] | None:
+        """Hand the oldest queued job this worker can build to it, or None. Safe with several workers:
+        the queued → running update only succeeds for one of them."""
+        now = int(time.time())
+        with self.db.session() as s:
+            w = s.get(PackWorker, worker_id)
+            if w is None or w.disabled:
+                return None
+            for job in s.scalars(select(PackJob).where(PackJob.status == "queued").order_by(PackJob.id).limit(50)).all():
+                if (job.options or {}).get("release") and not caps.get("release"):
+                    continue  # needs a keystore this machine does not have
+                won = s.execute(update(PackJob).where(PackJob.id == job.id, PackJob.status == "queued").values(
+                    status="running", worker_id=w.id, worker_name=w.name, started_at=now, heartbeat_at=now,
+                    attempts=PackJob.attempts + 1, cancel_requested=False).execution_options(synchronize_session=False))
+                if won.rowcount != 1:
+                    continue
+                s.refresh(job)
+                audit(s, job.created_by or "system", "pack.claim", job.app_id,
+                      {"job": job.id, "worker": w.name, "attempt": job.attempts})
+                s.commit()
+                self.append_log(job.id, "== 打包机「%s」开始构建（第 %d 次）\n" % (w.name, job.attempts))
+                return {"id": job.id, **self._info(job), "has_icon": (self.job_dir(job.id) / "icon.png").is_file(),
+                        "lease_s": self.lease_s}
+        return None
+
+    def _owned(self, s, worker_id: int, job_id: int) -> PackJob:
+        job = s.get(PackJob, job_id)
+        if job is None or job.status != "running" or job.worker_id != worker_id:
+            raise WrongJob()
+        return job
+
+    def check_owner(self, worker_id: int, job_id: int) -> None:
+        with self.db.session() as s:
+            self._owned(s, worker_id, job_id)
+
+    def heartbeat(self, worker_id: int, job_id: int, text: str = "") -> dict[str, Any]:
+        """Extend the lease and append build output. Replies whether the job was cancelled."""
+        with self.db.session() as s:
+            job = self._owned(s, worker_id, job_id)
+            job.heartbeat_at = int(time.time())
+            cancel = bool(job.cancel_requested)
+            s.commit()
+        if text:
+            self.append_log(job_id, text)
+        return {"cancel": cancel, "lease_s": self.lease_s}
+
+    def complete(self, worker_id: int, job_id: int, status: str, error: str | None,
+                 apk: Path | None = None, apk_name: str = "") -> None:
+        """The worker's result. A succeeded build brings its APK (already saved to a temp file)."""
+        with self.db.session() as s:
+            self._owned(s, worker_id, job_id)
+        out = None
+        if status == "succeeded":
+            if apk is None:
+                status, error = "failed", "打包机没有上传 APK"
+            else:
+                out_dir = self.job_dir(job_id) / "out"
+                out_dir.mkdir(parents=True, exist_ok=True)
+                out = out_dir / apk_name
+                shutil.move(str(apk), out)
+                error = None
+        elif status == "cancelled":
+            error = "已取消"
+        self._finish(job_id, status, out, (error or "打包失败")[:2000] if status == "failed" else error)
+
+    def reap(self, now: float | None = None) -> int:
+        """Jobs whose 打包机 stopped sending heartbeats: queued again (once), else failed. Returns how many."""
+        now = int(now or time.time())
+        done: list[tuple[int, str, str]] = []
+        with self.db.session() as s:
+            stale = s.scalars(select(PackJob).where(
+                PackJob.status == "running", PackJob.worker_id.is_not(None),
+                func.coalesce(PackJob.heartbeat_at, PackJob.started_at, 0) < now - self.lease_s)).all()
+            for job in stale:
+                who = job.worker_name or "?"
+                if job.cancel_requested:
+                    done.append((job.id, "cancelled", "已取消"))
+                elif job.attempts < self.max_attempts:
+                    job.status, job.worker_id, job.started_at, job.heartbeat_at = "queued", None, None, None
+                    audit(s, "system", "pack.requeue", job.app_id, {"job": job.id, "worker": who})
+                    self.append_log(job.id, "== 打包机「%s」失联超过 %d 秒，任务重新排队\n" % (who, self.lease_s))
+                else:
+                    done.append((job.id, "failed", "打包机「%s」失联，任务中断" % who))
+            s.commit()
+        for job_id, status, error in done:
+            self.append_log(job_id, "== %s\n" % error)
+            self._finish(job_id, status, None, error)
+        return len(stale)
 
     # ------------------------------------------------------------ one job
 
@@ -181,43 +387,9 @@ class Packer:
                 self.loop.call_soon_threadsafe(self.alerts.emit, event, label, text)
 
     def build_args(self, job_id: int, info: dict[str, Any], project: Path) -> tuple[list[str], dict[str, str]]:
-        o = info["options"]
-        d = self.job_dir(job_id)
-        args = [sys.executable, str(self.config.pack_script), str(project),
-                "--app-id", info["app_id"], "--version", info["version"],
-                "--version-code", str(info["version_code"]), "--out", str(d / "out"),
-                "--abis", o.get("abis") or "arm64-v8a"]
-        if info["app_name"]:
-            args += ["--name", info["app_name"]]
-        if info["project_name"]:
-            args += ["--project-name", info["project_name"]]
-        if (d / "icon.png").is_file():
-            args += ["--icon", str(d / "icon.png")]
-        if o.get("license_pubkey"):
-            args += ["--license-pubkey", o["license_pubkey"]]
-            if o.get("license_server"):
-                args += ["--license-server", o["license_server"]]
-        env = dict(os.environ)
-        env.pop("XSCRIPT_CLOUD_URL", None)
-        if o.get("cloud_url"):
-            # The URL embeds a device key: pass it in the environment, not argv (visible in `ps`).
-            env["XSCRIPT_CLOUD_URL"] = o["cloud_url"]
-            if o.get("cloud_group"):
-                args += ["--cloud-group", o["cloud_group"]]
-        for flag in ("autostart", "dev_server", "bundle_requirements", "protect"):
-            if o.get(flag):
-                args.append("--" + flag.replace("_", "-"))
-        if o.get("ops_server"):
-            args += ["--ops-server", o["ops_server"]]
-        if o.get("update_channel"):
-            args += ["--update-server", o["update_server"], "--update-channel", o["update_channel"],
-                     "--update-pubkey", o["update_pubkey"], "--script-code", str(o.get("script_code") or 0)]
-        if o.get("release") and self.config.release_signing:
-            # Passwords go through the environment so they never show up in `ps`.
-            args += ["--keystore", self.config.keystore, "--key-alias", self.config.key_alias]
-            env["XSCRIPT_STORE_PASS"] = self.config.store_pass
-            env["XSCRIPT_KEY_PASS"] = self.config.key_pass or self.config.store_pass
-        return args, env
+        signing = (self.config.keystore, self.config.key_alias, self.config.store_pass, self.config.key_pass) \
+            if self.config.release_signing else None
+        return pack_command(sys.executable, Path(self.config.pack_script), self.job_dir(job_id), info, project, signing)
 
     async def _cancelled(self, job_id: int, say) -> None:
         self.cancelled.discard(job_id)
@@ -243,9 +415,8 @@ class Packer:
                 await run_in_threadpool(self._finish, job_id, "failed", None, str(e))
                 return
             args, env = self.build_args(job_id, info, project)
-            say("$ " + " ".join(args[1:]))
-            if env.get("XSCRIPT_CLOUD_URL"):
-                say("  XSCRIPT_CLOUD_URL=%s?token=***" % env["XSCRIPT_CLOUD_URL"].split("?")[0])
+            for line in redacted_command(args, env):
+                say(line)
             # The job shows "running" from _start on, but there is no process to terminate until it has been spawned:
             # a cancel in that gap only marks the job, so honour the mark on both sides of the spawn. Otherwise the
             # build ran to the end (minutes for a real build) before the cancel took effect.

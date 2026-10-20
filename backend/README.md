@@ -8,7 +8,7 @@ XScript 的 PC / 服务器端。这里的内容都不在手机上运行。
 | --- | --- |
 | `xscript_server/` | FastAPI 服务：云控设备中心（`/ws`）、命令下发、HTTP 中转与远程操控、分组、服务端定时任务、卡密（卡密、批次、在线激活 `/license/*`、离线令牌）、小程序版本（发布 / 回滚、部署到设备、为打包应用提供热更新 `/pub/update`）、代码保护、APK 打包任务队列与分享链接（`/pub/d/…`）、用户与角色、API 令牌、操作日志 |
 | `web/` | React 19 + Ant Design 6 控制台（Vite）。`npm run build` 输出到 `web/dist`，由服务器在 `/` 提供 |
-| `xscript_pack.py` | APK 打包命令行工具。服务器的打包任务调用它；也可在 CI 中直接使用 |
+| `xscript_pack.py` | APK 打包命令行工具。服务器（或打包机 `pack-worker`）的打包任务调用它；也可在 CI 中直接使用 |
 | `tests/` | 服务器测试：真实 uvicorn + 通过 WebSocket 连接的模拟设备、卡密生命周期、打包队列、角色、旧数据导入 |
 | `scripts/demo.py` | 本地演示，带模拟设备和示例卡密 |
 
@@ -41,6 +41,31 @@ XScript 的 PC / 服务器端。这里的内容都不在手机上运行。
 - **恢复**：先停止服务器，再执行 `python -m xscript_server --data <dir> restore <file>`（`--force` 覆盖已有数据库）。旧版本的备份会自动迁移到新结构。设置了 `XSCRIPT_DATABASE_URL` 时恢复到 PostgreSQL。
 - **升级**：表结构变更是 `xscript_server/migrate.py` 中编号的步骤，启动时自动应用（版本号在 SQLite 的 `PRAGMA user_version`，PostgreSQL 的 `xscript_schema` 表）。来自更新版本的数据库会被拒绝，而不会被损坏。升级前请先备份。
 - **数据保留** 随每日备份一起执行：已完成的打包任务中，除最新的 `keep_pack_jobs` 个以外，其余的 APK 都会删除（任务记录保留）；早于 `audit_days` 的操作日志会删除；过期超过一周的分享链接会删除。设为 0 则全部保留。
+
+### 打包机（远程打包）
+
+默认（`XSCRIPT_PACK_MODE=local`）服务器自己一次打一个包。设 `XSCRIPT_PACK_MODE=remote` 后，任务留在数据库里，由单独的打包机领取：
+
+```bash
+# 在后台「APK 打包 → 打包机」添加一台，得到只显示一次的令牌
+export XSCRIPT_WORKER_TOKEN=xsw_…
+python -m xscript_server pack-worker --server https://xscript.example.com [--work-dir ./xscript-worker] [--once]
+```
+
+打包机需要和本机打包一样的环境（JDK、Android SDK，或 full 镜像），只用标准库通过 HTTPS 访问服务器，不需要开端口。协议（`Authorization: Bearer xsw_…`，打包机令牌不能访问其他接口）：
+
+| 接口 | 作用 |
+| --- | --- |
+| `POST /api/pack-worker/claim` | 上报能力（是否有签名证书、版本、主机名），领取最早的一个可做的任务；没有任务返回 `{"job": null}` |
+| `GET /api/pack-worker/jobs/{id}/project`、`/icon` | 下载工程 zip 和图标 |
+| `POST /api/pack-worker/jobs/{id}/heartbeat` | 每几秒一次，带上新增的构建日志；回复里 `cancel: true` 表示任务被取消 |
+| `POST /api/pack-worker/jobs/{id}/result` | multipart：`status`（succeeded / failed / cancelled）、`error`、`apk` |
+
+- 多台打包机同时领取时，一个任务只会分给一台（条件更新 queued → running）。
+- 只能操作自己领到、仍在运行的任务，否则返回 409（已取消、已转给别人或已删除），打包机随即停止构建。
+- 租约：90 秒没有心跳视为失联，任务重新排队一次（第二次失联则失败）；服务器重启不影响打包机上正在跑的任务。
+- 需要正式签名（`release`）的任务只分给上报了证书的打包机；没有这样的打包机时，后台不允许提交正式签名任务。
+- 管理（仅管理员）：`GET/POST /api/pack/workers`、`POST /api/pack/workers/{id}/disable|enable`、`DELETE /api/pack/workers/{id}`（先停用）。添加、停用、领取、失联重排都写操作日志。
 
 ### PostgreSQL（可选）
 
