@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
-"""xscript:// scheme links from a real Chrome page on an emulator/phone.
+"""xscript:// scheme links from a real Chrome page on an emulator/phone (or, with --no-browser, from adb intents).
 
-usage: scripts/device_scheme_e2e.py SERIAL DEVICE_URL [PACKAGE]   e.g. emulator-5556 http://127.0.0.1:19861
+usage: scripts/device_scheme_e2e.py [--no-browser] SERIAL DEVICE_URL [PACKAGE]   e.g. emulator-5556 http://127.0.0.1:19861
        PACKAGE defaults to com.xscript.app; pass another build's id (e.g. com.xscript.app.perf) to test that one.
        When more than one installed app handles xscript:// (e.g. com.xscript.app next to a .perf build), Android
        shows an "Open with" chooser whose entries carry only the app label. Give the target's label in
@@ -15,12 +15,22 @@ params, stop (no dialog), invalid / missing project (toast), a JS button, naviga
 (still only the confirm dialog), and the 直接运行 / 已关闭 modes. Restores the mode to 每次确认.
 Chrome 155 needs the Nearby devices (local network) permission once for the 10.0.2.2 page.
 Project `linkdemo` is created and deleted on the device.
+
+--no-browser: for devices without Chrome (or a Chrome that is not set up). Each link is sent with
+`am start -a VIEW -d xscript://... -p PACKAGE`, with android.intent.extra.REFERRER set to the page URL so the dialog
+still names a caller. Aimed at PACKAGE, the intent never shows the "Open with" chooser. Everything the app decides
+(dialog, cancel, run, params, stop, invalid / missing, busy, the three modes) is covered; the two checks that are
+about Chrome itself (a JS button, a redirect without a user gesture) are skipped and reported as SKIP.
 """
 import base64, html, http.server, json, os, re, subprocess, sys, threading, time, urllib.request
 import devauth  # scripts/devauth.py: pairing code (XSCRIPT_TOKEN or adb)
 
-SERIAL, BASE = sys.argv[1], sys.argv[2].rstrip("/")
-PKG = sys.argv[3] if len(sys.argv) > 3 else "com.xscript.app"
+NO_BROWSER = "--no-browser" in sys.argv[1:]
+ARGS = [a for a in sys.argv[1:] if a != "--no-browser"]
+if len(ARGS) < 2:
+    sys.exit(__doc__)
+SERIAL, BASE = ARGS[0], ARGS[1].rstrip("/")
+PKG = ARGS[2] if len(ARGS) > 2 else "com.xscript.app"
 APP_LABEL = os.environ.get("XS_APP_LABEL", "")
 PORT = int(os.environ.get("XS_PAGE_PORT", "8089"))
 ADB = os.path.expanduser("~/Library/Android/sdk/platform-tools/adb")
@@ -34,6 +44,9 @@ PAGE = """<!doctype html><html><head><meta name=viewport content="width=device-w
 <button onclick="location.href='xscript://run?name=linkdemo'">JSBUTTON</button>
 <a href="/auto">AUTOPAGE</a>
 </body></html>"""
+LINKS = {  # label -> href as written in PAGE (no entities; what --no-browser sends)
+    m.group(3): m.group(2) for m in re.finditer(r"""<a href=(["'])(.+?)\1>([A-Z]+LINK)</a>""", PAGE)
+}
 AUTO = "<!doctype html><title>auto</title><body><h1>AUTOLOADED</h1><script>setTimeout(()=>{location.href='xscript://run?name=linkdemo'},300)</script>"
 SCRIPT = '''import builtins, time
 print("LINK_RAN k=" + str(getattr(builtins, "k", "NONE")), flush=True)
@@ -161,6 +174,23 @@ def open_page(path="/"):
         assert wait_text("RUNLINK", "com.android.chrome", 5), "page did not load in Chrome"
 
 
+def follow(label):
+    """Open one link like a user would: tap it on the page in Chrome, or send the intent with --no-browser."""
+    if not NO_BROWSER:
+        open_page()
+        return tap(label)
+    url = LINKS[label]
+    r = subprocess.run([ADB, "-s", SERIAL, "shell", "am", "start", "-W", "-a", "android.intent.action.VIEW",
+                        "-d", "'%s'" % url.replace("'", "'\\''"), "--eu", "android.intent.extra.REFERRER",
+                        "http://10.0.2.2:%d/" % PORT, "-p", PKG], capture_output=True)
+    out = r.stdout.decode("utf-8", "replace")
+    return r.returncode == 0 and "Error" not in out
+
+
+def skip(name, why):
+    print("SKIP %s (%s)" % (name, why))
+
+
 def running():
     return api("GET", "/status").get("running")
 
@@ -201,8 +231,10 @@ def check(ok, name, detail=""):
 
 
 def main():
-    srv = http.server.ThreadingHTTPServer(("0.0.0.0", PORT), H)
-    threading.Thread(target=srv.serve_forever, daemon=True).start()
+    srv = None
+    if not NO_BROWSER:
+        srv = http.server.ThreadingHTTPServer(("0.0.0.0", PORT), H)
+        threading.Thread(target=srv.serve_forever, daemon=True).start()
     try:
         api("DELETE", "/projects/linkdemo")
     except Exception:
@@ -216,8 +248,7 @@ def main():
         set_mode("每次确认")
 
         # 1. confirm dialog: project, caller, cancel
-        open_page()
-        check(tap("RUNLINK"), "tap RUNLINK in Chrome")
+        check(follow("RUNLINK"), "open RUNLINK" + ("" if NO_BROWSER else " in Chrome"))
         msg = wait_text("linkdemo", PKG)
         check(msg is not None and "10.0.2.2" in "\n".join(texts(PKG)), "confirm dialog names the project and the caller (10.0.2.2)", (msg or "")[:40])
         check(not running(), "nothing runs while the dialog is open")
@@ -226,38 +257,34 @@ def main():
         check(not running(), "cancel does not run the project")
 
         # 2. confirm -> run
-        open_page()
-        tap("RUNLINK"); wait_text("linkdemo", PKG)
+        follow("RUNLINK"); wait_text("linkdemo", PKG)
         check(tap("运行", exact=True), "tap 运行")
         time.sleep(4)
         lines, mark = logs_since(mark)
         check(running() and any(l == "LINK_RAN k=NONE" for l in lines), "运行 starts linkdemo (no params)", str(lines[-3:]))
 
         # 3. already running: second run link is refused
-        open_page()
-        tap("RUNLINK"); wait_text("linkdemo", PKG); tap("运行", exact=True)
+        follow("RUNLINK"); wait_text("linkdemo", PKG); tap("运行", exact=True)
         check(wait_toast("busy") and running(), "second run while busy: a toast is shown and the first script keeps running")
 
         # 4. stop link: no dialog, stops
-        open_page()
-        tap("STOPLINK")
+        follow("STOPLINK")
         toast = wait_toast("stop")
         time.sleep(2)
         check(not running() and not any("运行小程序" in t for t in texts(PKG)), "xscript://stop stops without a dialog", "toast=%s" % toast)
 
         # 5. params
-        open_page()
-        tap("PARAMLINK"); wait_text("linkdemo", PKG); tap("运行", exact=True)
+        follow("PARAMLINK"); wait_text("linkdemo", PKG); tap("运行", exact=True)
         time.sleep(4)
         lines, mark = logs_since(mark)
         check(any(l == "LINK_RAN k=v" for l in lines), "params {\"k\":\"v\"} reach the script", str(lines[-3:]))
         stop_if_running()
 
         # 6. invalid / missing
-        open_page(); tap("BADLINK")
+        follow("BADLINK")
         toast = wait_toast("bad")
         check(toast and not running() and not any("运行小程序" in t for t in texts(PKG)), "invalid name is refused with a toast and no dialog")
-        open_page(); tap("MISSINGLINK")
+        follow("MISSINGLINK")
         check(wait_text("nosuchproj", PKG) is not None, "unknown project still asks first (dialog names it)")
         tap("运行", exact=True)
         toast = wait_toast("missing")
@@ -265,11 +292,20 @@ def main():
 
         main2(mark)
     finally:
-        srv.shutdown()
+        if srv:
+            srv.shutdown()
 
 
 def main2(mark):
     # 7. JS button (user gesture)
+    if NO_BROWSER:
+        skip("JS button and gesture-less redirect", "about Chrome's handling of the page, needs a browser")
+    else:
+        browser_only()
+    main3(mark)
+
+
+def browser_only():
     open_page(); check(tap("JSBUTTON"), "tap JSBUTTON")
     msg = wait_text("linkdemo", PKG)
     check(msg is not None, "location.href from a tapped button opens the confirm dialog")
@@ -281,20 +317,22 @@ def main2(mark):
     tap("取消", exact=True); time.sleep(1)
     check(not running(), "cancelling that dialog runs nothing")
 
+
+def main3(mark):
     # 8. modes
     set_mode("直接运行")
-    open_page(); tap("RUNLINK"); time.sleep(4)
+    follow("RUNLINK"); time.sleep(4)
     lines, mark = logs_since(mark)
     check(running() and any(l.startswith("LINK_RAN") for l in lines) and not any("运行小程序" in t for t in texts(PKG)),
           "直接运行 mode: starts without a dialog")
     stop_if_running()
     set_mode("已关闭")
-    open_page(); tap("RUNLINK")
+    follow("RUNLINK")
     toast = wait_toast("off")
     time.sleep(1)
     check(toast and not running(), "已关闭 mode: refused with a toast, nothing runs")
     set_mode("每次确认")
-    open_page(); tap("RUNLINK")
+    follow("RUNLINK")
     check(wait_text("运行小程序", PKG) is not None, "back to 每次确认: dialog is shown again")
     tap("取消", exact=True)
 
