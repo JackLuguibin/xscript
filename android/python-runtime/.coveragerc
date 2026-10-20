@@ -6,8 +6,8 @@ source =
     android/python-runtime/ascript
 
 [report]
-# Floor, not a target: measured 71 % (branch) on 2026-10-20 with the phone's library versions. Raise it as tests land.
-fail_under = 70
+# Floor, not a target: measured 79 % (branch) on 2026-10-20 with the phone's library versions, after the ui / screen / bridge tests. Raise it as tests land.
+fail_under = 78
 skip_covered = True
 exclude_also =
     if __name__ == .__main__.:

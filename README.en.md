@@ -59,7 +59,7 @@ The visual AI client supports explicitly configured inference services of your o
 
 - The web console has vitest + Testing Library unit tests, run in CI and by `scripts/verify.sh`. Its largest pages are split into smaller components.
 - `verify.sh` also checks the desktop client. The desktop layout test uses a bundled test font, so the result doesn't depend on the fonts installed on the machine. Development requires Node 22+.
-- CI runs the runtime tests on the phone's library versions (numpy 1.23.3, Pillow 11.0.0, ...; `scripts/tests/test_phone_pins.py` keeps them in step with the APK), with coverage floors for the runtime and the backend (70% / 82%, branch). The backend + MCP and runtime jobs are path-filtered too, so docs- or UI-only PRs skip them.
+- CI runs the runtime tests on the phone's library versions (numpy 1.23.3, Pillow 11.0.0, ...; `scripts/tests/test_phone_pins.py` keeps them in step with the APK), with coverage floors for the runtime and the backend (78% / 82%, branch). The backend + MCP and runtime jobs are path-filtered too, so docs- or UI-only PRs skip them.
 - CI caches npm and pip dependencies, and Dependabot opens weekly update PRs for GitHub Actions, npm and pip.
 - Three intermittent test failures were fixed at the cause, not by rerunning: a desktop test segfault (QtWebEngine native threads logging into a pytest-qt Python log handler while it was being swapped; pytest-qt Qt-log capture is now off), a mirror test division by zero (the image reports size 0 while the next frame loads; the test now reads one decoded frame atomically), and a Chrome startup-retry test that misfired on busy machines (attempts are now counted at spawn).
 
