@@ -82,6 +82,14 @@ export function createDemoTransport(): MemoryTransport {
         adbPath: configuredAdb || "/demo/adb",
         devices: [{ serial: "emulator-5554", state: "device", model: "sdk_gphone64_arm64", product: "", device: "", transportId: "1", isEmulator: true }],
       }),
+      "device.check": (p) => {
+        const adb = p.transport === "adb";
+        const ids = adb ? ["adb", "device", "authorized", "forward", "app", "xscript", "pairing"] : ["address", "reach", "app", "xscript", "pairing"];
+        // demo: USB always works; a LAN address only on 127.0.0.1
+        const fail = adb ? -1 : String(p.address).startsWith("127.0.0.1") ? -1 : 1;
+        const steps = ids.map((id, i) => ({ id, ok: fail < 0 || i < fail ? true : i === fail ? false : null, detail: i === fail ? "timeout" : "" }));
+        return { transport: adb ? "adb" : "lan", target: String(adb ? p.serial : p.address), ok: fail < 0, steps };
+      },
       "device.connect": (p) => {
         const serial = String(p.serial ?? p.address);
         const d: Device = {

@@ -6,6 +6,7 @@ import { useCurrentDevice } from "../device-context";
 import { t } from "../strings";
 import { useBusy } from "../useBusy";
 import { Badge } from "./Badge";
+import { ConnectCheck } from "./ConnectCheck";
 import { DeviceCard, type DevicePageTarget } from "./DeviceCard";
 import { EmptyState } from "./EmptyState";
 import { ErrorBanner } from "./ErrorBanner";
@@ -52,6 +53,8 @@ export function DevicePage({
   const [loaded, setLoaded] = useState(false);
   const { has, track } = useBusy();
   const [error, setError] = useState<unknown>(null);
+  /** The connect attempt that just failed with a connection problem: shown as 「逐项检查连接」. */
+  const [checking, setChecking] = useState<{ transport: "adb" | "lan"; target: string } | null>(null);
   const [address, setAddress] = useState("");
   const [scan, setScan] = useState<ScanState | null>(null);
   const [dbNotice, setDbNotice] = useState("");
@@ -182,8 +185,19 @@ export function DevicePage({
 
   const upsert = (d: Device) => setDevices((cur) => (cur.some((x) => x.id === d.id) ? cur.map((x) => (x.id === d.id ? d : x)) : [...cur, d]));
 
-  const connectAdb = (serial: string) => run("adb:" + serial, async () => upsert(await api.connectAdb(serial)));
-  const connectLan = (addr: string) => run("lan:" + addr, async () => upsert(await api.connectLan(addr)));
+  // connection problems (not a typo in the address, not a missing adb) open the step-by-step check right away
+  const connectAttempt = (transport: "adb" | "lan", target: string, fn: () => Promise<Device>) =>
+    run(transport + ":" + target, async () => {
+      setChecking(null);
+      try {
+        upsert(await fn());
+      } catch (e) {
+        if (needsCheck(e)) setChecking({ transport, target });
+        throw e;
+      }
+    });
+  const connectAdb = (serial: string) => connectAttempt("adb", serial, () => api.connectAdb(serial));
+  const connectLan = (addr: string) => connectAttempt("lan", addr, () => api.connectLan(addr));
   const disconnect = (id: string) =>
     run("rm:" + id, async () => {
       const res = await api.disconnect(id);
@@ -272,6 +286,15 @@ export function DevicePage({
         </Alert>
       )}
       {error !== null && <ErrorBanner error={error} onDismiss={() => setError(null)} />}
+      {checking && (
+        <ConnectCheck
+          key={checking.transport + ":" + checking.target}
+          transport={checking.transport}
+          target={checking.target}
+          onClose={() => setChecking(null)}
+          onConnect={() => void (checking.transport === "adb" ? connectAdb(checking.target) : connectLan(checking.target))}
+        />
+      )}
 
       <section aria-labelledby="h-connected">
         <div className="section-head">
@@ -480,4 +503,11 @@ export function DevicePage({
       </section>
     </div>
   );
+}
+
+/** Errors worth the step-by-step check: the device or the app could not be reached, or did not answer as XScript. */
+function needsCheck(e: unknown): boolean {
+  const code = e instanceof RpcError ? e.code : "";
+  if (code === "device.protocol" && /^invalid (port in )?device address/.test(e instanceof Error ? e.message : "")) return false;
+  return ["device.unreachable", "device.timeout", "device.protocol", "adb.no_such_device", "adb.not_ready", "adb.failed", "adb.timeout"].includes(code);
 }

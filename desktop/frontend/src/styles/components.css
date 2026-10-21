@@ -644,3 +644,20 @@ pre.logs.debug-console { min-height: 4rem; max-height: 10rem; }
 .search-line { flex: none; min-width: 2.5ch; text-align: right; }
 .search-hit mark { background: var(--warning-bg); color: inherit; border-radius: 2px; padding: 0 1px; }
 .project-search [aria-pressed="true"] { background: var(--primary-soft); color: var(--primary); }
+
+/* 逐项检查连接 (ConnectCheck): one row per step, the failing one carries its fix */
+.connect-check { margin-top: var(--sp-3); }
+.connect-check h3 { margin: 0; font-size: var(--fs-md); font-weight: 650; }
+.connect-check .row { display: flex; align-items: center; gap: var(--sp-2); }
+.connect-check > .row:last-child { margin-top: var(--sp-3); }
+.connect-check .err-hint { color: var(--danger-fg); font-size: var(--fs-sm); }
+.connect-check .err-help { font-size: var(--fs-sm); text-decoration: underline; color: var(--primary); }
+.check-steps { list-style: none; margin: var(--sp-3) 0 0; padding: 0; display: grid; gap: var(--sp-2); }
+.check-step { display: flex; align-items: flex-start; gap: var(--sp-2); font-size: var(--fs-sm); }
+.check-icon { flex: none; display: inline-flex; align-items: center; justify-content: center; width: 20px; height: 20px; border-radius: 50%; background: var(--surface-2, var(--border)); color: var(--text-muted); }
+.check-step.ok .check-icon { background: var(--success-bg); color: var(--success-dot); }
+.check-step.bad .check-icon { background: var(--danger-bg); color: var(--danger-dot); }
+.check-step.skip { opacity: 0.6; }
+.check-step.bad .check-title { font-weight: 650; }
+.check-fix { margin: var(--sp-1) 0 0; padding: var(--sp-2) var(--sp-3); border-radius: var(--r-md, 6px); background: var(--danger-bg); color: var(--danger-fg); line-height: 1.55; }
+.check-ok { margin: var(--sp-3) 0 0; color: var(--success-fg); font-size: var(--fs-sm); }

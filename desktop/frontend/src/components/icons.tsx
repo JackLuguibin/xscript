@@ -29,6 +29,7 @@ export const IconFlow = (p: P) => (<Svg {...p}><rect x="3" y="3.5" width="6.5" h
 export const IconGrid = (p: P) => (<Svg {...p}><rect x="3.5" y="3.5" width="7" height="7" rx="1.4" /><rect x="13.5" y="3.5" width="7" height="7" rx="1.4" /><rect x="3.5" y="13.5" width="7" height="7" rx="1.4" /><rect x="13.5" y="13.5" width="7" height="7" rx="1.4" /></Svg>);
 export const IconPlus = (p: P) => (<Svg {...p}><path d="M12 5v14M5 12h14" /></Svg>);
 export const IconChevron = (p: P) => (<Svg {...p}><path d="M6 9l6 6 6-6" /></Svg>);
+export const IconCheck = (p: P) => (<Svg {...p}><path d="M5 12.5l4.5 4.5L19 7.5" strokeWidth={2.4} /></Svg>);
 export const IconMark = (p: P) => (<Svg {...p}><path d="M5 5l14 14M19 5L5 19" strokeWidth={2.4} /></Svg>);
 
 export function Spinner() {
