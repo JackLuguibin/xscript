@@ -1,5 +1,6 @@
 {
   "xscript.command.connect": "Connect to Device",
+  "xscript.command.checkConnection": "Check Connection Step by Step",
   "xscript.command.selectDevice": "Select Run Device",
   "xscript.command.manageDevices": "Manage Device List",
   "xscript.command.scanDevices": "Scan Devices (ADB / network)",

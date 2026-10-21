@@ -10,6 +10,7 @@ import { DeviceStore, FoundDevice, SavedDevice, httpProbe, lanCandidates, normal
 import { DEFAULT_SYNCIGNORE, IgnoreRules, SYNCIGNORE_PATH, SyncCache, describeDeletes, describePreview, planEmptiedFolders, previewHasWork, previewSync, diffAgainstLocal, fetchProject, loadIgnoreRules, planDeletes, planUpload, writePulled } from "./sync";
 import { TEMPLATES, createProject, validateProjectName } from "./newProject";
 import { Node, XScriptTree } from "./tree";
+import { TROUBLESHOOTING_URL, canConnect, failureSummary, formatCheck, langOf, runConnectCheck, tcpConnect, type CheckStep } from "./connectCheck";
 import { newUiForm, registerUiDesigner } from "./uiDesigner";
 
 let client: DeviceClient;
@@ -115,8 +116,9 @@ async function guard<T>(what: string, fn: () => PromiseLike<T>): Promise<T | und
     }
     const msg = "XScript: " + what + " failed (" + describe(err) + ") at " + client.baseUrl;
     output.appendLine(msg);
-    const pick = await vscode.window.showErrorMessage(msg, "Change Device");
-    if (pick) await vscode.commands.executeCommand("xscript.connect");
+    const pick = await vscode.window.showErrorMessage(msg, "Check Connection", "Change Device");
+    if (pick === "Check Connection") await vscode.commands.executeCommand("xscript.checkConnection");
+    else if (pick) await vscode.commands.executeCommand("xscript.connect");
     return undefined;
   } finally {
     void refreshStatus();
@@ -518,11 +520,32 @@ async function startRun(name: string): Promise<void> {
   await startFollowing(since);
 }
 
+/** Runs the step-by-step check with a progress notification and writes every step to the output channel. */
+async function checkConnection(address: string): Promise<CheckStep[]> {
+  const lang = langOf(vscode.env.language);
+  const steps = await vscode.window.withProgress(
+    { location: vscode.ProgressLocation.Notification, title: (lang === "zh" ? "XScript：正在检查 " : "XScript: checking ") + address },
+    () => runConnectCheck(address, { connect: (t) => tcpConnect(t), status: (t) => deviceClient(t, 5000).status(5000) }),
+  );
+  for (const line of formatCheck(address, steps, lang)) output.appendLine(line);
+  return steps;
+}
+
+/** After a failed check: say where it stopped and offer the fixes. "retry" re-asks for the address, "save" keeps it anyway. */
+async function reportFailedCheck(steps: CheckStep[]): Promise<"retry" | "save" | undefined> {
+  const lang = langOf(vscode.env.language);
+  output.show(true);
+  const [edit, save, help] = lang === "zh" ? ["修改地址", "仍然保存", "排查文档"] : ["Edit Address", "Save Anyway", "Troubleshooting"];
+  const pick = await vscode.window.showErrorMessage("XScript: " + failureSummary(steps, lang), edit, save, help);
+  if (pick === help) await vscode.env.openExternal(vscode.Uri.parse(TROUBLESHOOTING_URL));
+  return pick === edit ? "retry" : pick === save ? "save" : undefined;
+}
+
 const commands: Record<string, (...args: any[]) => unknown> = {
-  "xscript.connect": async () => {
+  "xscript.connect": async (prefill?: unknown) => {
     const value = await vscode.window.showInputBox({
-      prompt: "Device address shown in the app (开发者地址)",
-      value: config().get<string>("device", "127.0.0.1:9860"),
+      prompt: "Device address shown in the app (开发者地址); it is checked step by step before it is saved",
+      value: typeof prefill === "string" ? prefill : config().get<string>("device", "127.0.0.1:9860"),
       validateInput: (v) => {
         try {
           parseTarget(v);
@@ -533,6 +556,12 @@ const commands: Record<string, (...args: any[]) => unknown> = {
       },
     });
     if (value === undefined) return;
+    const steps = await checkConnection(value.trim());
+    if (!canConnect(steps)) {
+      const next = await reportFailedCheck(steps);
+      if (next === "retry") return vscode.commands.executeCommand("xscript.connect", value.trim());
+      if (next !== "save") return;
+    }
     const target = vscode.workspace.workspaceFolders?.length
       ? vscode.ConfigurationTarget.Workspace
       : vscode.ConfigurationTarget.Global;
@@ -547,6 +576,17 @@ const commands: Record<string, (...args: any[]) => unknown> = {
   },
 
   "xscript.pair": () => pairDevice(),
+
+  "xscript.checkConnection": async () => {
+    const address = config().get<string>("device", "127.0.0.1:9860");
+    const steps = await checkConnection(address);
+    if (steps.every((s) => s.ok === true)) {
+      vscode.window.showInformationMessage(langOf(vscode.env.language) === "zh" ? "XScript：每一步都通了，" + address + " 可以连接。" : "XScript: every check passed for " + address + ".");
+      return;
+    }
+    const next = await reportFailedCheck(steps);
+    if (next === "retry") await vscode.commands.executeCommand("xscript.connect", address);
+  },
 
   "xscript.newUiForm": (arg?: { root?: string; name?: string }) => newUiForm(arg),
 
