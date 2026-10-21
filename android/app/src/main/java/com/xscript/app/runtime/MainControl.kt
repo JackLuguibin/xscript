@@ -104,6 +104,11 @@ object MainControl {
                     val on = a.getBoolean("stop_re_run")
                     Settings.rerunProjects = if (on) Settings.rerunProjects + project else Settings.rerunProjects - project
                 }
+                if (a.has("strict_capture")) {
+                    val on = a.getBoolean("strict_capture")
+                    Settings.strictCaptureProjects =
+                        if (on) Settings.strictCaptureProjects + project else Settings.strictCaptureProjects - project
+                }
                 config(project).toString()
             }
             // ---- events
@@ -145,6 +150,7 @@ object MainControl {
             .put("project", name)
             .put("auto_run", name.isNotEmpty() && Settings.bootProject == name)
             .put("stop_re_run", name in Settings.rerunProjects)
+            .put("strict_capture", name in Settings.strictCaptureProjects)
             .put("boot_project", Settings.bootProject)
     }
 

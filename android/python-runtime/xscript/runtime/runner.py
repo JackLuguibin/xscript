@@ -84,6 +84,26 @@ def _apply_params(raw):
             setattr(builtins, k, v)
 
 
+def _run_options(name):
+    """The project's run options from the app (项目详情 → 运行选项); {} off-device or on any error."""
+    import json
+
+    try:
+        data = json.loads(bridge.control("config_get", name) or "{}")
+    except Exception:
+        return {}
+    return data if isinstance(data, dict) else {}
+
+
+def _apply_run_options(name):
+    """运行选项「截图失败时停止脚本」 = screen.strict_capture(True) for this run, without changing the code."""
+    if _run_options(name).get("strict_capture") is True:
+        from xscript.android import image
+
+        image._strict["on"] = True
+        print("xscript: 截图失败时停止脚本（运行选项已开启）")
+
+
 def run_project(project_dir, launch_params="{}", debug=False):
     """Import `<parent>/<name>` so __init__.py runs as a package."""
     _apply_params(launch_params)
@@ -115,6 +135,7 @@ def run_project(project_dir, launch_params="{}", debug=False):
     if image_mod is not None:  # the interpreter is reused between runs: strict_capture() must not leak into the next one
         image_mod._reset_run_state()
     print("xscript: starting %s" % name)
+    _apply_run_options(name)
     code = 0
     try:
         _prepare_packages(project_dir)

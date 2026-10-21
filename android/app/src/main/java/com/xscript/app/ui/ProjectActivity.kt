@@ -295,6 +295,13 @@ class ProjectActivity : AppCompatActivity() {
         UiKit.switchRow(card, R.drawable.ic_sym_restart_alt, "停止后重新运行", name in Settings.rerunProjects) { on ->
             Settings.rerunProjects = if (on) Settings.rerunProjects + name else Settings.rerunProjects - name
         }
+        UiKit.switchRow(card, R.drawable.ic_sym_screenshot_monitor, "截图失败时停止脚本", name in Settings.strictCaptureProjects) { on ->
+            Settings.strictCaptureProjects = if (on) Settings.strictCaptureProjects + name else Settings.strictCaptureProjects - name
+        }
+        UiKit.note(
+            options,
+            "截图失败时停止脚本：截不到图（图色权限失效等）时找图、找色、OCR 直接报错停止，而不是返回空结果继续跑，相当于在代码开头写 screen.strict_capture()。下次运行生效。",
+        )
 
         UiKit.section(options, "定时任务")
         val sched = UiKit.card(options, UiKit.Space.S)

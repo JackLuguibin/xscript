@@ -629,6 +629,7 @@ paths:
               properties:
                 auto_run: { type: boolean }
                 stop_re_run: { type: boolean }
+                strict_capture: { type: boolean }
       responses:
         "200":
           description: Updated
@@ -1246,6 +1247,9 @@ components:
         stop_re_run:
           type: boolean
           description: 停止后重新运行. Re-run on exit or crash, not after a user stop. Pauses after 5 exits within 10 s.
+        strict_capture:
+          type: boolean
+          description: 截图失败时停止脚本. Each run starts with screen.strict_capture(True), so a failed capture raises screen.CaptureError instead of returning an empty result. Takes effect on the next run.
         boot_project: { type: string }
     Schedule:
       type: object
