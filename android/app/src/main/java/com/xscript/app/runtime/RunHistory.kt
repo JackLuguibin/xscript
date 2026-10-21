@@ -100,6 +100,10 @@ object RunHistory {
         return out
     }
 
+    /** Only the runs that ended in an error (not stopped by the user, not exit 0) when [failedOnly]. */
+    fun only(list: List<Record>, failedOnly: Boolean): List<Record> =
+        if (failedOnly) list.filter { failed(it.exit, it.userStop) } else list
+
     /** `{"runs":[...]}`, newest first. */
     fun api(list: List<Record>): JSONObject = JSONObject().put("runs", JSONArray().apply { list.forEach { put(it.toApi()) } })
 
