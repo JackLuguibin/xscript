@@ -1,0 +1,13 @@
+{
+  "type": "screen.capture_status",
+  "title": {
+    "zh": "截图状态",
+    "en": "Capture status"
+  },
+  "doc": {
+    "zh": "检查脚本现在能不能截图，以及用的是哪种方式；不能时给出原因。",
+    "en": "Whether the script can capture the screen now, and how; the reason when it can't."
+  },
+  "icon": "image",
+  "inputs": []
+}

@@ -1,0 +1,39 @@
+{
+  "type": "screen.capture_status",
+  "category": "screen",
+  "title": {
+    "zh": "screen.capture_status",
+    "en": "screen.capture_status"
+  },
+  "doc": {
+    "zh": "Can the script see the screen? Check before a long run and tell the user what to fix.",
+    "en": "Can the script see the screen? Check before a long run and tell the user what to fix."
+  },
+  "exec": {
+    "in": [
+      "exec"
+    ],
+    "out": [
+      "then"
+    ]
+  },
+  "inputs": [],
+  "outputs": [
+    {
+      "name": "result",
+      "type": "any"
+    }
+  ],
+  "py": {
+    "imports": [
+      "from xscript.android import screen"
+    ],
+    "stmt": "{id} = screen.capture_status()"
+  },
+  "dsl": {
+    "alias": "screen.capture_status"
+  },
+  "since": "0.2.6",
+  "origin": "xscript.android.screen.capture_status",
+  "availability": "ok"
+}

@@ -16,6 +16,18 @@ def capture(path=None):
     """Save a PNG on the device. Returns the file path or None."""
     ...
 
+def capture_status():
+    """Can the script see the screen? Check before a long run and tell the user what to fix.
+
+    Returns {"ok": bool, "source": "projection" | "accessibility" | "root" | "", "lost": bool, "reason": str}.
+    `source` is the capture method that will be used (系统录屏 / 无障碍截图 / Root 截图); `lost` is True when
+    the system screen-recording grant went away (reboot, revoked); `reason` says what to do when ok is False.
+        st = screen.capture_status()
+        if not st["ok"]:
+            ui.toast(st["reason"])
+    """
+    ...
+
 def capture_cv(rect=None):
     """BGR numpy array of the screen (or [l, t, r, b] region)."""
     ...
