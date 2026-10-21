@@ -25,6 +25,20 @@ class VersionsTest(unittest.TestCase):
         s = (ROOT / "ide/python-stubs/xscript/__init__.pyi").read_text(encoding="utf-8")
         self.assertEqual(re.search(r"^__version__ = '([^']+)'", s, re.M).group(1), app_version_name())
 
+    def test_pycharm_plugin_version_is_app_version(self):
+        s = (ROOT / "ide/pycharm-plugin/gradle.properties").read_text(encoding="utf-8")
+        self.assertEqual(re.search(r"^pluginVersion=(.+)$", s, re.M).group(1).strip(), app_version_name())
+
+    def test_release_ships_the_pycharm_plugin(self):
+        """The release job takes the zip the verify (ci.yml) run built and verified, checksums it and attaches it."""
+        s = (ROOT / ".github/workflows/release.yml").read_text(encoding="utf-8")
+        self.assertIn("name: xscript-pycharm-plugin", s)
+        self.assertIn('PYC="xscript-pycharm-${TAG#v}.zip"', s)
+        self.assertIn('sha256sum "$DMG" "$EXE" "$PYC" >> SHA256SUMS', s)
+        self.assertIn('"dist/release/xscript-pycharm-${TAG#v}.zip"', s)
+        ci = (ROOT / ".github/workflows/ci.yml").read_text(encoding="utf-8")
+        self.assertIn("name: xscript-pycharm-plugin", ci)
+
     def test_mock_device_reports_app_version(self):
         sys.path.insert(0, str(ROOT / "scripts"))
         try:

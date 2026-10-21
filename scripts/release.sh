@@ -35,6 +35,8 @@ app_version() { sed -n 's/.*versionName = if (packed) packProp("version_name", "
 RUNTIME_INIT=android/python-runtime/xscript/__init__.py
 STUB_INIT=ide/python-stubs/xscript/__init__.pyi   # IDE stubs mirror the runtime __version__
 runtime_version() { sed -n 's/^__version__ = "\([^"]*\)"/\1/p' "$RUNTIME_INIT"; }
+PYCHARM_PROPS=ide/pycharm-plugin/gradle.properties   # PyCharm plugin: pluginVersion = App version too
+pycharm_version() { sed -n 's/^pluginVersion=//p' "$PYCHARM_PROPS"; }
 ext_version() { python3 -c 'import json,sys; print(json.load(open(sys.argv[1]))["version"])' "$EXT/package.json"; }
 sha256() { if command -v sha256sum >/dev/null 2>&1; then sha256sum "$@"; else shasum -a 256 "$@"; fi; }
 sdk_tool() { # newest build-tools binary: sdk_tool apksigner | aapt2 | zipalign
@@ -74,6 +76,10 @@ check)
   if [ "$A" != "$E" ]; then
     echo "release: extension version $E != App versionName $A (they ship together; see scripts/release.sh)" >&2; exit 1
   fi
+  P="$(pycharm_version)"
+  if [ "$A" != "$P" ]; then
+    echo "release: PyCharm plugin version $P ($PYCHARM_PROPS) != App versionName $A (they ship together)" >&2; exit 1
+  fi
   R="$(runtime_version)"
   if [ "$A" != "$R" ]; then
     echo "release: runtime __version__ $R ($RUNTIME_INIT) != App versionName $A" >&2; exit 1
@@ -96,6 +102,7 @@ PY
   sed -i.bak 's/^__version__ = "[^"]*"/__version__ = "'"$V"'"/' "$RUNTIME_INIT" && rm -f "$RUNTIME_INIT.bak"
   sed -i.bak "s/^__version__ = '[^']*'/__version__ = '$V'/" "$STUB_INIT" && rm -f "$STUB_INIT.bak"
   (cd "$EXT" && npm version "$V" --no-git-tag-version --allow-same-version >/dev/null)
+  sed -i.bak "s/^pluginVersion=.*/pluginVersion=$V/" "$PYCHARM_PROPS" && rm -f "$PYCHARM_PROPS.bak"
   python3 - "$V" <<'PY'
 import datetime, os, re, sys
 v = sys.argv[1]
@@ -116,7 +123,7 @@ assert "\n## 未发布\n" in c, "CHANGELOG has no 未发布 section"
 c = c.replace("\n## 未发布\n", "\n## 未发布\n\n## v%s（%s）\n" % (v, datetime.date.today().isoformat()), 1)
 open("CHANGELOG.md", "w", encoding="utf-8").write(c)
 PY
-  echo "prepared v$V: $GRADLE, $RUNTIME_INIT, $EXT/package.json(+lock), README.md, CHANGELOG.md. Review (git diff), then: git commit -am 'chore(release): v$V' && git push"
+  echo "prepared v$V: $GRADLE, $RUNTIME_INIT, $EXT/package.json(+lock), $PYCHARM_PROPS, README.md, CHANGELOG.md. Review (git diff), then: git commit -am 'chore(release): v$V' && git push"
   ;;
 build)
   SKIP_APK=0; [ "${1:-}" = "--skip-apk" ] && SKIP_APK=1
