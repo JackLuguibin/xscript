@@ -12,6 +12,9 @@ import { DebugPanel, useDebugSession } from "./DebugPanel";
 import { ErrorBanner } from "./ErrorBanner";
 import { ProjectSearch } from "./ProjectSearch";
 import { RecentRuns } from "./RecentRuns";
+import { UiDesigner } from "./UiDesigner";
+import { UiPreview } from "./UiPreview";
+import { uiForm } from "../ui-form";
 import { SyncPanel } from "./SyncPanel";
 import { EmptyState } from "./EmptyState";
 import { IconAlert, IconFolder, IconMark, IconPhone, IconRefresh, Spinner } from "./icons";
@@ -155,6 +158,7 @@ export function ProjectsPage({ pollMs = LOG_POLL_MS, onDirtyChange }: { pollMs?:
     });
   };
 
+  const [formText, setFormText] = useState(false); // .ui.json: false = designer, true = raw JSON
   const [fileForm, setFileForm] = useState<{ mode: "new" | "rename"; from: string; value: string } | null>(null);
   const reloadFiles = async () => setFiles(await api.files(devId, project));
 
@@ -163,8 +167,9 @@ export function ProjectsPage({ pollMs = LOG_POLL_MS, onDirtyChange }: { pollMs?:
     if (!f || !f.value.trim()) return;
     const to = f.value.trim();
     void act("fileform", async () => {
+      const seed = f.mode === "new" && uiForm.formName(to) ? uiForm.serializeSpec(uiForm.newSpec()) : "";
       if (f.mode === "new") {
-        await api.writeFile(devId, project, to, "", true);
+        await api.writeFile(devId, project, to, seed, true);
       } else {
         await api.moveFile(devId, project, f.from, to);
         if (file?.path === f.from) setFile({ ...file, path: to });
@@ -181,7 +186,7 @@ export function ProjectsPage({ pollMs = LOG_POLL_MS, onDirtyChange }: { pollMs?:
             void act("undo", async () => {
               // only an untouched new file is removed: anything typed into it since is kept
               const now = await api.readFile(dev, proj, to);
-              if (now.content !== "") {
+              if (now.content !== seed) {
                 setNotice(t.files.undoCreateChanged(to));
                 return;
               }
@@ -324,6 +329,23 @@ export function ProjectsPage({ pollMs = LOG_POLL_MS, onDirtyChange }: { pollMs?:
     await api.writeFile(devId, project, file.path, text);
     setFile({ ...file, content: text });
     setDirty(false);
+    const form = uiForm.formName(file.path);
+    if (form) await generateForm(form, text);
+  };
+
+  /** Saving res/ui/<name>.ui.json also writes the page and the Python that shows it, like the other designers. */
+  const generateForm = async (name: string, spec: string) => {
+    let parsed;
+    try {
+      parsed = uiForm.parseSpec(spec);
+    } catch {
+      return setNotice(t.projects.uiNotGenerated);
+    }
+    if (uiForm.validateSpec(parsed).length) return setNotice(t.projects.uiNotGenerated);
+    const out = uiForm.outputs(parsed, name);
+    for (const [path, content] of Object.entries(out)) await api.writeFile(devId, project, path, content);
+    setNotice(t.projects.uiGenerated(Object.keys(out)));
+    await reloadFiles();
   };
 
   const create = () =>
@@ -628,7 +650,33 @@ export function ProjectsPage({ pollMs = LOG_POLL_MS, onDirtyChange }: { pollMs?:
           {!project && <EmptyState icon={<IconFolder size={26} />} title={t.projects.pickProject} />}
           {project && !file && <EmptyState icon={<IconFolder size={26} />} title={t.projects.pickFile} />}
           {file && file.encoding !== "utf-8" && <p className="muted">{t.projects.binary}</p>}
-          {file && file.encoding === "utf-8" && (
+          {file && file.encoding === "utf-8" && uiForm.formName(file.path) && (
+            <div className="row" style={{ justifyContent: "flex-end", marginBottom: "var(--sp-2)" }}>
+              <Button size="sm" aria-pressed={!formText} onClick={() => setFormText((v) => !v)}>
+                {formText ? t.projects.uiViewDesign : t.projects.uiViewText}
+              </Button>
+            </div>
+          )}
+          {file && file.encoding === "utf-8" && uiForm.formName(file.path) && !formText && (
+            <div
+              onKeyDown={(e) => {
+                if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "s") {
+                  e.preventDefault();
+                  void act("save", save);
+                }
+              }}
+            >
+              <UiDesigner
+                key={`${devId}/${project}/${file.path}`}
+                text={text}
+                onChange={(v) => {
+                  setText(v);
+                  setDirty(true);
+                }}
+              />
+            </div>
+          )}
+          {file && file.encoding === "utf-8" && (!uiForm.formName(file.path) || formText) && (
             <CodeEditor
               key={`${devId}/${project}/${file.path}`}
               path={file.path}
@@ -658,6 +706,7 @@ export function ProjectsPage({ pollMs = LOG_POLL_MS, onDirtyChange }: { pollMs?:
               }}
             />
           )}
+          {file && file.encoding === "utf-8" && uiForm.formName(file.path) && formText && <UiPreview text={text} />}
           {project && (
             <DebugPanel
               devId={devId}

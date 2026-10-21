@@ -70,6 +70,12 @@
 | --- | --- |
 | ![最近运行浅色](../docs/images/desktop-recent-runs-light.png) | ![最近运行深色](../docs/images/desktop-recent-runs-dark.png) |
 
+工程页打开 `.ui.json` 时的界面设计器（保存时生成 `.html` 与 `ui_<名称>.py`；重新生成：模拟设备上放 `res/ui/settings.ui.json`，`--run-js tools/screenshot-ui-designer.js`）：
+
+| 浅色 | 深色 |
+| --- | --- |
+| ![界面设计器浅色](../docs/images/desktop-ui-designer-light.png) | ![界面设计器深色](../docs/images/desktop-ui-designer-dark.png) |
+
 连不上设备时的提示（带「连不上怎么办」链接，打开 [docs/TROUBLESHOOTING.md](../docs/TROUBLESHOOTING.md)）：
 
 | 浅色 | 深色 |
