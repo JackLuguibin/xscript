@@ -143,6 +143,14 @@ export function CloudDevices({ selected, onSelected, reloadKey = 0 }: { selected
                 <td>
                   <Badge tone={d.online ? "ok" : "neutral"}>{d.online ? t.cloud.dev.online : t.cloud.dev.offline}</Badge>{" "}
                   {d.online && <span className="muted">{d.running ? `${t.cloud.dev.running}${d.project ? " · " + d.project : ""}` : t.cloud.dev.idle}</span>}
+                  {d.crash && (
+                    <>
+                      {" "}
+                      <Badge tone="bad" title={t.cloud.dev.crashTip(d.crash.project, d.crash.exit, d.crash.error)}>
+                        {t.cloud.dev.crashed}
+                      </Badge>
+                    </>
+                  )}
                 </td>
                 <td>{d.online ? "—" : seenText(d.last_seen)}</td>
               </tr>

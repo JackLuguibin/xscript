@@ -138,6 +138,9 @@ async def test_device_list_filters_and_drops_bulky_fields(ctx, fb):
     a1 = res["items"][0]
     assert a1["id"] == "dev-a1" and a1["online"] and a1["running"] and a1["group"] == "farm-1" and a1["note"] == "rack A"
     assert "data" not in a1 and "remote" not in a1 and "10.0.0.5" not in raw
+    assert a1["crash"] is None and res["items"][2]["crash"] is None
+    assert res["items"][1]["crash"] == {"project": "daily", "exit": "1", "time": 1760989000, "error": "CaptureError: no screen"}
+    assert "tail" not in raw
     r, _ = await rpc(ctx, "cloud.devices", q="mi", online=True, group="farm-1", app="com.xscript.app", pageSize=25)
     assert [d["id"] for d in r["result"]["items"]] == ["dev-b2"]
     path, _ = fb.calls[-1][1], None

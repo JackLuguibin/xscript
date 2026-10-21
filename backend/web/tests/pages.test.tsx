@@ -11,6 +11,7 @@ import { createQueryClient } from "../src/queryClient";
 import CardsPage from "../src/pages/Cards";
 import DevicesPage from "../src/pages/Devices";
 import PackPage from "../src/pages/Pack";
+import { crashSummary, crashedRun } from "../src/format";
 
 const admin = { id: 1, username: "admin", role: "admin", disabled: false, created_at: 0, last_login_at: null,
   totp_enabled: false, needs_totp_setup: false };
@@ -72,5 +73,25 @@ describe("split pages", () => {
     expect(await within(drawer).findByText("设备 ID")).toBeTruthy();
     expect(within(drawer).getByText("机房 A")).toBeTruthy();
     expect(within(drawer).getByText(/"gold": 5/)).toBeTruthy();
+  });
+
+  it("Devices: a crashed last run shows a red 异常退出 pill until the next run starts", async () => {
+    const crashed = { ...device, id: "dev2", device_id: "dev2", model: "Mi 13", brand: "Xiaomi",
+      last_run: { project: "签到", exit: "1", crashed: true, time: 1_700_000_050,
+        tail: [{ stream: "stdout", line: "start" }, { stream: "stderr", line: "CaptureError: 截图失败" }] } };
+    routes["/api/devices"] = { items: [device, crashed], total: 2 };
+    try {
+      renderPage(<DevicesPage />);
+      const pill = await screen.findByText("异常退出");
+      expect(pill.className).toContain("red");
+      expect(screen.getAllByText("异常退出")).toHaveLength(1);
+    } finally {
+      routes["/api/devices"] = { items: [device], total: 1 };
+    }
+    expect(crashedRun({ running: true, last_run: crashed.last_run })).toBe(false);
+    expect(crashedRun({ running: false, last_run: { ...crashed.last_run, crashed: false } })).toBe(false);
+    expect(crashedRun({ running: false, last_run: null })).toBe(false);
+    expect(crashSummary(crashed.last_run).error).toBe("CaptureError: 截图失败");
+    expect(crashSummary(crashed.last_run).head).toMatch(/^签到 · 退出码 1 · /);
   });
 });

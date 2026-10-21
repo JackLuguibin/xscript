@@ -413,7 +413,10 @@ export interface CloudDevice {
   width: number | null;
   height: number | null;
   last_seen: number | null;
+  /** The last run crashed (null when it ended cleanly or a newer run is in progress). */
+  crash?: CloudCrash | null;
 }
+export interface CloudCrash { project: string; exit: string; time: number | null; error: string }
 export interface CloudDeviceFilter { q?: string; group?: string; app?: string; online?: boolean; page?: number; pageSize?: number }
 export interface CloudDevicePage { items: CloudDevice[]; total: number; page: number; pageSize: number }
 export interface CloudGroup { name: string; total: number; online: number }
