@@ -23,5 +23,5 @@
   await sleep(500);
   if (window.__XS_SAVE__ !== false) btn((b) => b.textContent.trim() === "保存")?.click();
   await sleep(2500);
-  document.querySelector(".ui-designer")?.parentElement?.scrollIntoView({ block: "start" });
+  (btn((b) => b.textContent.trim() === "在手机上试运行") || document.querySelector(".ui-designer"))?.scrollIntoView({ block: "start" });
 })();

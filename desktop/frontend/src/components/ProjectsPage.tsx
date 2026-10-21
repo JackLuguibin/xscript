@@ -25,6 +25,8 @@ const UNDO_MAX_FILES = 50;
 import { Alert } from "./ui/alert";
 import { Button } from "./ui/button";
 import { Input } from "./ui/input";
+import { UI_TRY_PROJECT, uiTryMain } from "../ui-try";
+
 
 const MAX_LOG_LINES = 2000; // the device keeps about the same window (design §14)
 export const LOG_POLL_MS = 1000;
@@ -371,6 +373,34 @@ export function ProjectsPage({ pollMs = LOG_POLL_MS, onDirtyChange }: { pollMs?:
     await reloadFiles();
   };
 
+  /** 在手机上试运行: the form's generated files go into a scratch project with a tiny __init__.py that shows the form
+   * and prints what it returns; the user's own project (and its entry point) is not touched. */
+  const tryForm = () =>
+    act("tryform", async () => {
+      if (!file) return;
+      const name = uiForm.formName(file.path);
+      if (!name) return;
+      let parsed;
+      try {
+        parsed = uiForm.parseSpec(text);
+      } catch {
+        return setNotice(t.projects.uiTryBad);
+      }
+      if (uiForm.validateSpec(parsed).length) return setNotice(t.projects.uiTryBad);
+      if (dirty) await save();
+      const out = uiForm.outputs(parsed, name);
+      try {
+        await api.createProject(devId, UI_TRY_PROJECT);
+      } catch {
+        // already there from an earlier try: its files are overwritten below
+      }
+      for (const [path, content] of Object.entries(out)) await api.writeFile(devId, UI_TRY_PROJECT, path, content);
+      await api.writeFile(devId, UI_TRY_PROJECT, "__init__.py", uiTryMain(name));
+      const r = await api.run(devId, UI_TRY_PROJECT);
+      if (r.error) setNotice(`${t.projects.alreadyRunning}${r.project ? `：${r.project}` : ""}`);
+      else toast(t.projects.uiTryStarted(name));
+    });
+
   const create = () =>
     act("create", async () => {
       const name = newName.trim();
@@ -678,6 +708,9 @@ export function ProjectsPage({ pollMs = LOG_POLL_MS, onDirtyChange }: { pollMs?:
           {file && file.encoding !== "utf-8" && <p className="muted">{t.projects.binary}</p>}
           {file && file.encoding === "utf-8" && uiForm.formName(file.path) && (
             <div className="row" style={{ justifyContent: "flex-end", marginBottom: "var(--sp-2)" }}>
+              <Button size="sm" onClick={() => void tryForm()} disabled={has("tryform") || has("run")} title={t.projects.uiTryHint}>
+                {has("tryform") ? <Spinner /> : t.projects.uiTry}
+              </Button>
               <Button size="sm" aria-pressed={!formText} onClick={() => setFormText((v) => !v)}>
                 {formText ? t.projects.uiViewDesign : t.projects.uiViewText}
               </Button>
