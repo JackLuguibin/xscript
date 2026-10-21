@@ -643,6 +643,8 @@
     const hit = x => x.line === s.line && s.col >= x.col && s.col <= x.col + x.length;
     const unused = s.index.unusedIn(s.path).find(x => x.kind === "import" && (hit(x) || x.stmtLine === s.line && x.names === 1));
     if (unused) { removeUnusedImport(unused); return; }
+    const uv = s.index.unusedIn(s.path).find(x => x.kind === "variable" && x.edit && hit(x));
+    if (uv) { replaceRange(uv.edit.line, uv.edit.col, uv.edit.length, uv.edit.text); message("已" + uv.edit.label); return; }
     const dead = s.index.unreachableIn(s.path).find(x => x.line === s.line);
     if (dead) {
       // whole lines from the first to the last dead line, with their line breaks

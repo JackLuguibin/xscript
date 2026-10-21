@@ -721,7 +721,10 @@
             out.push({ line: d.line, col: d.col, length: name.length, message: "未使用的 import " + name + "（Ctrl+. 删除）", severity: "unused", kind: "import", name, stmtLine: d.stmtLine, names: count });
           } else if (sc.kind === "function" && sc.name !== "<lambda>" && ds.every(d => d.kind === "variable")) {
             if (dynamic || ds.some(noqa) || !ds.every(plain) || spelled(name, f.text, f.occ.filter(o => o.name === name && o.kind === "def").length)) continue;
-            for (const d of ds) out.push({ line: d.line, col: d.col, length: name.length, message: "未使用的变量 " + name, severity: "unused", kind: "variable", name });
+            for (const d of ds) {
+              const edit = this.dropAssignment(f, d);
+              out.push(Object.assign({ line: d.line, col: d.col, length: name.length, message: "未使用的变量 " + name + (edit ? "（Ctrl+. " + (edit.text === null ? "删除这一行" : "删除赋值，保留右边") + "）" : ""), severity: "unused", kind: "variable", name }, edit ? { edit: Object.assign(edit, { text: edit.text || "" }) } : {}));
+            }
           }
         }
       }
@@ -816,6 +819,27 @@
       };
       walk(f.root.node.body);
       return out;
+    }
+    /**
+     * Edit that drops a plain `name = value` assignment (d is a "variable" definition on its own line): the whole line
+     * when the value is a single constant or name and a sibling statement keeps the block non-empty (text null), else
+     * only the `name = ` part so the right-hand side (a call may have side effects) still runs. Null when unsure.
+     */
+    dropAssignment(f, d) {
+      const lines = (f.lines = f.lines || f.text.split("\n")), raw = lines[d.line - 1] || "";
+      if (raw.slice(0, d.col).trim() || /;/.test(raw.replace(/(["'])(?:\\.|(?!\1).)*\1/g, ""))) return null;
+      const m = new RegExp("^" + d.name.replace(/[$]/g, "\\$&") + "\\s*(:[^=]*)?=(?!=)\\s*", "u").exec(raw.slice(d.col));
+      if (!m || !d.value) return null;
+      const rest = raw.slice(d.col + m[0].length).replace(/\s+#.*$/, "").trim();
+      const single = (d.value.type === "Constant" && d.value.kind !== "string" || d.value.type === "Name" || d.value.type === "Constant" && /^(['"])[^'"\\]*\1$/.test(rest)) && !/[([{]/.test(rest);
+      const indentOf = l => l.length - l.trimStart().length, sibling = k => {
+        for (let i = d.line - 1 + k; i >= 0 && i < lines.length; i += k) { if (!lines[i].trim() || /^\s*#/.test(lines[i])) continue; return indentOf(lines[i]) === d.col; }
+        return false;
+      };
+      if (single && (sibling(-1) || sibling(1)))
+        return { line: d.line, col: 0, length: raw.length + 1, text: null, label: "删除未使用的变量 " + d.name };
+      if (!rest) return null;
+      return { line: d.line, col: d.col, length: m[0].length, text: "", label: "删除未使用变量 " + d.name + " 的赋值" };
     }
     /** Names visible from `scope` (its bindings, enclosing functions, the module, builtins), for "did you mean". */
     visibleNames(scope) {
