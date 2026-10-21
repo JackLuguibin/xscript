@@ -661,3 +661,10 @@ pre.logs.debug-console { min-height: 4rem; max-height: 10rem; }
 .check-step.bad .check-title { font-weight: 650; }
 .check-fix { margin: var(--sp-1) 0 0; padding: var(--sp-2) var(--sp-3); border-radius: var(--r-md, 6px); background: var(--danger-bg); color: var(--danger-fg); line-height: 1.55; }
 .check-ok { margin: var(--sp-3) 0 0; color: var(--success-fg); font-size: var(--fs-sm); }
+
+/* screen page: 截图状态 (CaptureStatus.tsx) */
+.capture-chip { font-size: var(--fs-sm); color: var(--text-muted); padding: 2px var(--sp-2); border-radius: 999px; border: 1px solid var(--border); white-space: nowrap; }
+.capture-card { margin-bottom: var(--sp-3); }
+.capture-card p { margin: var(--sp-1) 0; }
+.capture-card ol { margin: var(--sp-1) 0 0; padding-left: 1.4em; }
+.capture-card li + li { margin-top: 2px; }
