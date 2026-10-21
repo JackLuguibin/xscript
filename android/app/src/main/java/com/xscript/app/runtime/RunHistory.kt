@@ -21,10 +21,33 @@ object RunHistory {
         val userStop: Boolean,
         val logFrom: Long,
         val logTo: Long,
+        /** From the run's 运行统计 line; null when the run printed none (stopped, killed, older runtime). */
+        val stats: Stats? = null,
     ) {
         fun toJson(): JSONObject = JSONObject()
             .put("project", project).put("start", start).put("duration_ms", durationMs)
             .put("exit", exit).put("user_stop", userStop).put("log_from", logFrom).put("log_to", logTo)
+            .also { o -> stats?.let { o.put("stats", it.toJson()) } }
+
+        /** The HTTP view (GET /projects/{name}/runs): adds the readable outcome and a failed flag. */
+        fun toApi(): JSONObject = toJson().put("outcome", outcome(exit, userStop)).put("failed", failed(exit, userStop))
+    }
+
+    /** Captures, average capture time and peak memory of one run (peakMb 0 = unknown). */
+    data class Stats(val captures: Int, val captureAvgMs: Int, val peakMb: Int) {
+        fun toJson(): JSONObject = JSONObject().put("captures", captures).put("capture_avg_ms", captureAvgMs).put("peak_mb", peakMb)
+
+        /** "截图 5 次 · 均 309ms · 176MB" (short enough for one row line next to the outcome) */
+        fun label(): String = (if (captures > 0) "截图 $captures 次 · 均 ${captureAvgMs}ms" else "未截图") +
+            (if (peakMb > 0) " · ${peakMb}MB" else "")
+    }
+
+    private val STATS_LINE = Regex("""xscript: 运行统计 .*?截图 (\d+) 次(?:（平均 (\d+)ms）)?(?:.*?峰值内存 (\d+)MB)?""")
+
+    /** Parses the runtime's summary line (`xscript: 运行统计 用时 1.8s · 截图 5 次（平均 309ms） · 峰值内存 176MB`). */
+    fun parseStats(line: String): Stats? {
+        val m = STATS_LINE.find(line) ?: return null
+        return Stats(m.groupValues[1].toInt(), m.groupValues[2].toIntOrNull() ?: 0, m.groupValues[3].toIntOrNull() ?: 0)
     }
 
     /** How the run ended, as shown in the list. */
@@ -70,11 +93,15 @@ object RunHistory {
             val o = arr.optJSONObject(i) ?: continue
             val project = o.optString("project")
             if (project.isEmpty()) continue
+            val st = o.optJSONObject("stats")?.let { Stats(it.optInt("captures"), it.optInt("capture_avg_ms"), it.optInt("peak_mb")) }
             out.add(Record(project, o.optLong("start"), o.optLong("duration_ms"), o.optString("exit", "0"),
-                o.optBoolean("user_stop"), o.optLong("log_from"), o.optLong("log_to")))
+                o.optBoolean("user_stop"), o.optLong("log_from"), o.optLong("log_to"), st))
         }
         return out
     }
+
+    /** `{"runs":[...]}`, newest first. */
+    fun api(list: List<Record>): JSONObject = JSONObject().put("runs", JSONArray().apply { list.forEach { put(it.toApi()) } })
 
     fun encode(list: List<Record>): String = JSONArray().apply { list.forEach { put(it.toJson()) } }.toString()
 

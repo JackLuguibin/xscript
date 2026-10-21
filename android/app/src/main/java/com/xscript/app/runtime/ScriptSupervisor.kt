@@ -144,8 +144,12 @@ object ScriptSupervisor {
         }
         com.xscript.app.cloud.CloudClient.reportRunEnd(r.project, r.exit ?: "died", r.userStop)
         try {
+            val to = LogBuffer.lastSeq(ctx)
+            // The summary is one of the run's last lines: read a short tail, not the whole run.
+            val stats = LogBuffer.since(ctx, maxOf(r.logFrom, to - 20), limit = 20).first
+                .asReversed().firstNotNullOfOrNull { if (it.seq <= to) RunHistory.parseStats(it.line) else null }
             RunHistory.record(ctx, RunHistory.Record(r.project, r.wallStart, SystemClock.elapsedRealtime() - r.started,
-                r.exit ?: "died", r.userStop, r.logFrom, LogBuffer.lastSeq(ctx)))
+                r.exit ?: "died", r.userStop, r.logFrom, to, stats))
         } catch (_: Exception) {
             // history is best effort; never break the rerun / queue logic below
         }

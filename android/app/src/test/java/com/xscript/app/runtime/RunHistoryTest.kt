@@ -46,4 +46,26 @@ class RunHistoryTest {
         assertEquals("1 分 12 秒", RunHistory.duration(72_000))
         assertEquals("2 小时 5 分", RunHistory.duration(7_500_000))
     }
+
+    @Test
+    fun parsesTheSummaryLine() {
+        assertEquals(RunHistory.Stats(5, 309, 176),
+            RunHistory.parseStats("xscript: 运行统计 用时 1.8s · 截图 5 次（平均 309ms） · 峰值内存 176MB\n"))
+        assertEquals(RunHistory.Stats(0, 0, 119), RunHistory.parseStats("xscript: 运行统计 用时 0.1s · 截图 0 次 · 峰值内存 119MB"))
+        assertEquals(RunHistory.Stats(3, 20, 0), RunHistory.parseStats("xscript: 运行统计 用时 2.0s · 截图 3 次（平均 20ms）"))
+        assertEquals(null, RunHistory.parseStats("xscript: finished a"))
+        assertEquals("截图 5 次 · 均 309ms · 176MB", RunHistory.Stats(5, 309, 176).label())
+        assertEquals("未截图", RunHistory.Stats(0, 0, 0).label())
+    }
+
+    @Test
+    fun statsSurviveJsonAndShowInTheApi() {
+        val r = RunHistory.Record("a", 1, 2, "1", false, 3, 4, RunHistory.Stats(1, 2, 3))
+        assertEquals(listOf(r), RunHistory.parse(RunHistory.encode(listOf(r))))
+        val api = RunHistory.api(listOf(r)).getJSONArray("runs").getJSONObject(0)
+        assertEquals("出错退出（退出码 1）", api.getString("outcome"))
+        assertTrue(api.getBoolean("failed"))
+        assertEquals(3, api.getJSONObject("stats").getInt("peak_mb"))
+        assertFalse(RunHistory.api(listOf(r.copy(stats = null))).getJSONArray("runs").getJSONObject(0).has("stats"))
+    }
 }
