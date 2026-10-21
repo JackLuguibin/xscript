@@ -368,7 +368,7 @@ export function ProjectsPage({ pollMs = LOG_POLL_MS, onDirtyChange }: { pollMs?:
             {(projects ?? []).map((p) => (
               <li key={p.name}>
                 <Button variant="bare" className={"list-btn" + (p.name === project ? " active" : "")} aria-current={p.name === project ? "true" : undefined} onClick={() => void openProject(p.name)}>
-                  {p.name}
+                  <span className="list-name" title={p.name}>{p.name}</span>
                   {running && runningProject === p.name && <Badge tone="ok">{t.projects.running}</Badge>}
                 </Button>
               </li>
@@ -427,7 +427,7 @@ export function ProjectsPage({ pollMs = LOG_POLL_MS, onDirtyChange }: { pollMs?:
                   {folders.map(([d, n]) => (
                     <li key={d} className="file-row">
                       <span className="ui-btn list-btn mono folder-label">
-                        📁 {d}/
+                        <span className="list-name" title={`${d}/`}>📁 {d}/</span>
                         <span className="muted">{t.files.fileCount(n)}</span>
                       </span>
                       <Button variant="ghost" size="sm" className="text-danger-fg hover:bg-danger-bg"
@@ -448,7 +448,7 @@ export function ProjectsPage({ pollMs = LOG_POLL_MS, onDirtyChange }: { pollMs?:
                   return (
                     <li key={f.path} className="file-row">
                       <Button variant="bare" className={"list-btn mono" + (file?.path === f.path ? " active" : "")} onClick={() => void openFile(f.path)}>
-                        {f.path}
+                        <span className="list-name" title={f.path}>{f.path}</span>
                         <span className="muted">{f.size} B</span>
                       </Button>
                       <Button variant="ghost" size="sm"

@@ -40,6 +40,17 @@ describe("ProjectsPage", () => {
     expect((await api.readFile(id, "demo", "__init__.py")).content).toBe("print(1)\n");
   });
 
+  it("truncates long names with an ellipsis span and a full-name tooltip", async () => {
+    await setup();
+    const proj = await screen.findByRole("button", { name: /^demo/ });
+    expect(proj.querySelector(".list-name")?.getAttribute("title")).toBe("demo");
+    fireEvent.click(proj);
+    const file = await screen.findByRole("button", { name: /^__init__\.py/ });
+    const name = file.querySelector(".list-name");
+    expect(name?.getAttribute("title")).toBe("__init__.py");
+    expect(name?.nextElementSibling?.textContent).toMatch(/ B$/);
+  });
+
   it("creates a project", async () => {
     await setup();
     await screen.findByRole("button", { name: /^demo/ });

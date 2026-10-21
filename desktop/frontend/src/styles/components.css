@@ -192,6 +192,9 @@ pre.logs .err { color: var(--danger-fg); }
 .lang-mark { display: inline-grid; place-items: center; width: 18px; font-size: var(--fs-xs); font-weight: 700; }
 /* A folder row's name: laid out like the file buttons beside it, but not clickable. */
 .list-btn.folder-label, .list-btn.folder-label:hover:not(:disabled) { cursor: default; background: transparent; }
+.list-btn { gap: var(--sp-2, 8px); min-width: 0; }
+.list-btn .list-name { flex: 1 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.list-btn > :not(.list-name) { flex: 0 0 auto; }
 .file-row { display: flex; gap: var(--sp-1, 4px); align-items: center; } .file-row .list-btn { flex: 1; min-width: 0; }
 
 /* debugger: the decorations Monaco draws are styled in overrides.css (unlayered, like Monaco's own CSS) */
