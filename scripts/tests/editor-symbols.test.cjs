@@ -519,3 +519,20 @@ test('imports: "did you mean" for misspelled xscript / ascript modules and names
   const own = EditorSymbols.build([{path: 'main.py', content: 'import xscript.andriod\n'}, {path: 'xscript/__init__.py', content: ''}], XSDocs);
   assert.deepEqual(own.problemsIn('main.py'), []);
 });
+
+test('duplicate definitions: a later def / class in the same block replaces the earlier one', () => {
+  const src = [
+    'def a():', '    pass', 'def a():', '    pass',                                   // 3
+    'class K:', '    @property', '    def v(self): return 1', '    @v.setter', '    def v(self, x): pass',   // decorated: skipped
+    '    def m(self): pass', '    def m(self): pass',                                 // 11: methods too
+    'if X:', '    def b(): pass', 'else:', '    def b(): pass',                         // branches: skipped
+    'def c(): pass', 'old = c', 'def c(): pass',                                      // used in between: skipped
+    'class D: pass', 'class D: pass  # noqa', 'class E: pass', 'def E(): pass', ''].join('\n');   // noqa; 22: class replaced by a function
+  const p = EditorSymbols.build([{path: 'm.py', content: src}], XSDocs);
+  assert.deepEqual(p.duplicateDefs('m.py').map(w => [w.line, w.col, w.length, w.message, w.jump]), [
+    [3, 4, 1, '重复定义函数 a，会覆盖第 1 行的函数（Ctrl+. 跳过去）', {line: 1, col: 4}],
+    [11, 8, 1, '重复定义函数 m，会覆盖第 10 行的函数（Ctrl+. 跳过去）', {line: 10, col: 8}],
+    [22, 4, 1, '重复定义函数 E，会覆盖第 21 行的类（Ctrl+. 跳过去）', {line: 21, col: 6}],
+  ]);
+  assert.deepEqual(EditorSymbols.build([{path: 'm.pyi', content: 'def a(): ...\ndef a(): ...\n'}], XSDocs).duplicateDefs('m.pyi'), []);
+});
