@@ -197,15 +197,15 @@ test('basic checks: undefined names and call arguments of project functions and 
     'def h():', '    global later', '    later = 1', 'print(later)', 'lambda q: q + zz', ''].join('\n');
   const p = EditorSymbols.build([{path: 'lib.py', content: lib}, {path: '__init__.py', content: main}], XSDocs);
   assert.deepEqual(p.problemsIn('__init__.py').map(w => [w.line, w.col, w.length, w.message, w.severity]), [
-    [4, 4, 2, 'Sq() 缺少参数 side', 'warning'],
-    [5, 2, 4, 'Sq.area() 缺少参数 k', 'warning'],
+    [4, 4, 2, 'Sq() 缺少参数 side（Ctrl+. 补上）', 'warning'],
+    [5, 2, 4, 'Sq.area() 缺少参数 k（Ctrl+. 补上）', 'warning'],
     [6, 3, 4, 'Sq.make() 最多接受 1 个位置参数，这里传了 2 个', 'warning'],
     [7, 0, 1, 'f() 最多接受 2 个位置参数，这里传了 3 个', 'warning'],
     [8, 0, 1, 'f() 没有名为 c 的参数', 'warning'],
     [9, 0, 1, 'f() 的参数 a 传了两次', 'warning'],
     [10, 6, 11, '未定义的名字 undefined_x', 'warning'],
     [19, 6, 1, '未定义的名字 y', 'warning'],
-    [25, 3, 4, 'Sq.unit() 缺少参数 x', 'warning'],
+    [25, 3, 4, 'Sq.unit() 缺少参数 x（Ctrl+. 补上）', 'warning'],
     [30, 14, 2, '未定义的名字 zz', 'warning'],
   ]);
   assert.deepEqual(p.problemsIn('lib.py'), []);
@@ -472,6 +472,25 @@ test('unreachable code: none reported anywhere in this repository', () => {
     .map(p => ({path: p, content: fs.readFileSync(path.join(root, p), 'utf8')}));
   const p = EditorSymbols.build(files, XSDocs);
   assert.deepEqual(files.flatMap(f => p.unreachableIn(f.path).map(w => f.path + ':' + w.line)), []);
+});
+
+test('call arguments: Ctrl+. fills missing parameters with name=... before the closing parenthesis', () => {
+  const src = [
+    'class A:', '    def m(self, a, b):', '        pass',
+    'A().m(1)',                                      // 4: after the last argument
+    'x = [A().m(', '  ")",  # (', ')]',              // 5-7: strings, comments and nested brackets are skipped
+    'A().m()',                                       // 8: no arguments yet
+    'A().m(', '    1,', ')', ''].join('\n');         // 9-11: trailing comma
+  const p = EditorSymbols.build([{path: 'm.py', content: src}], XSDocs);
+  assert.deepEqual(p.problemsIn('m.py').map(w => [w.line, w.message, w.edit && [w.edit.line, w.edit.col, w.edit.text]]), [
+    [4, 'A.m() 缺少参数 b（Ctrl+. 补上）', [4, 7, ', b=...']],
+    [5, 'A.m() 缺少参数 b（Ctrl+. 补上）', [7, 0, ', b=...']],
+    [8, 'A.m() 缺少参数 a、b（Ctrl+. 补上）', [8, 6, 'a=..., b=...']],
+    [9, 'A.m() 缺少参数 b（Ctrl+. 补上）', [11, 0, ' b=...']],
+  ]);
+  const apply = (text, e) => { const ls = text.split('\n'); ls[e.line - 1] = ls[e.line - 1].slice(0, e.col) + e.text + ls[e.line - 1].slice(e.col); return ls.join('\n'); };
+  const fixed = p.problemsIn('m.py').reverse().reduce((t, w) => apply(t, w.edit), src);
+  assert.deepEqual(EditorSymbols.build([{path: 'm.py', content: fixed}], XSDocs).problemsIn('m.py'), []);
 });
 
 test('unreachable code: each faded line knows the whole dead run that Ctrl+. deletes', () => {

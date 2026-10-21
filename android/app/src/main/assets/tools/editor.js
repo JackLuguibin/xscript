@@ -654,6 +654,8 @@
     }
     const typo = s.index.problemsIn(s.path).find(x => x.suggest && hit(x));
     if (typo) { replaceRange(s.line, typo.col, typo.length, typo.suggest); message("已改为 " + typo.suggest); return; }
+    const ed = s.index.problemsIn(s.path).find(x => x.edit && hit(x));
+    if (ed) { replaceRange(ed.edit.line, ed.edit.col, ed.edit.length, ed.edit.text); message("已" + ed.edit.label); return; }
     const w = s.index.problemsIn(s.path).find(x => x.fix && hit(x));
     if (!w) { message("光标处没有可自动修复的问题", true); return; }
     let mod = w.fix[0];
