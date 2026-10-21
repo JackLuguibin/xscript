@@ -21,18 +21,31 @@ from xscript.android import screen
 
 GOLDEN = os.path.join(os.path.dirname(os.path.abspath(__file__)), "data", "golden")
 RUNS = 7
-# budget ms. Comments: median on an M-series Mac / on the GitHub ubuntu runner (CI), with the phone pins (numpy
-# 1.23.3, OpenCV 4.5.4). Each budget is at least 3x the CI median: room for a slower runner, not for a path that got
-# several times slower. SIFT (feature) is ~4x slower on the runner than on the Mac, hence its larger budget.
+# budget ms, about 2.5x the slowest of 8 green CI runs (GitHub ubuntu runner, phone pins numpy 1.23.3 /
+# OpenCV 4.5.4): room for a slow runner, not for a path that got twice as slow. Comments: median on an M-series
+# Mac / slowest CI median seen. SIFT (feature) is ~3x slower on the runner than on the Mac.
+# Every CI run lists its medians in the job summary, so drift is visible before a budget trips.
 BUDGET_MS = {
-    "template: find every template": 150,              # 22 / 33
-    "template: find_all coins": 40,                    # 5 / 9
-    "template: rgb find_all coins": 50,                # 7 / 13
-    "multiscale: find on a 0.8x screen": 150,          # 18 / 23
-    "multiscale: find_all coins on a 1.25x screen": 450,  # 63 / 84
-    "feature: rotated 10 degrees": 600,                # 45 / 179
-    "auto: 90 degree screenshot": 200,                 # 25 / 48
+    "template: find every template": 90,               # 22 / 34
+    "template: find_all coins": 25,                    # 5 / 9
+    "template: rgb find_all coins": 35,                # 7 / 14
+    "multiscale: find on a 0.8x screen": 60,           # 18 / 23
+    "multiscale: find_all coins on a 1.25x screen": 220,  # 63 / 84
+    "feature: rotated 10 degrees": 450,                # 45 / 179
+    "auto: 90 degree screenshot": 125,                 # 25 / 49
 }
+
+
+def write_summary(rows, path):
+    """Append a Markdown table of medians to the GitHub job summary (no-op outside Actions)."""
+    if not path:
+        return
+    lines = ["### Matching benchmark", "", "| case | median ms | budget | used |", "|---|---:|---:|---:|"]
+    for name, med, budget in rows:
+        lines.append("| %s | %.1f | %.0f | %d%%%s |" % (name, med, budget, round(100 * med / budget),
+                                                        " ⚠️" if med > budget else ""))
+    with open(path, "a") as f:
+        f.write("\n".join(lines) + "\n\n")
 
 
 def main():
@@ -65,7 +78,7 @@ def main():
         "auto: 90 degree screenshot": lambda: screen.find_image(t("btn_shop.png"), image=r90, confidence=0.5, method="auto"),
     }
     factor = float(os.environ.get("XS_BENCH_FACTOR", "1"))
-    over = []
+    over, rows = [], []
     print("%-46s %9s %9s" % ("case", "median ms", "budget"))
     for name, fn in cases.items():
         fn()  # warm-up: template cache, OpenCV's first-call setup
@@ -76,6 +89,7 @@ def main():
             times.append((time.perf_counter() - s) * 1000)
         med, budget = statistics.median(times), BUDGET_MS[name] * factor
         print("%-46s %9.1f %9.0f%s" % (name, med, budget, "  OVER" if med > budget else ""))
+        rows.append((name, med, budget))
         if med > budget:
             over.append(name)
     for n in os.listdir(tmp):
@@ -83,6 +97,7 @@ def main():
     os.rmdir(tmp)
     if over:
         print("over budget: " + ", ".join(over))
+    write_summary(rows, os.environ.get("GITHUB_STEP_SUMMARY"))
     return 1 if over and "--check" in sys.argv else 0
 
 
