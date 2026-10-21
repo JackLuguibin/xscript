@@ -488,7 +488,37 @@
         filled.add(k.arg);
       }
       const missing = t.params.filter(a => (a.kind === "arg" || a.kind === "kwonly") && !a.default && !filled.has(a.arg)).map(a => a.arg);
-      return missing.length ? t.label + "() 缺少参数 " + missing.join("、") : null;
+      if (!missing.length) return null;
+      const message = t.label + "() 缺少参数 " + missing.join("、"), edit = this.fillArgs(call, missing);
+      return edit ? { message: message + "（Ctrl+. 补上）", edit } : message;
+    }
+    /**
+     * Text edit that appends `name=...` placeholders for `missing` parameters right before the call's closing
+     * parenthesis: {line, col, length: 0, text, label}, or null when the call's source cannot be scanned for sure.
+     */
+    fillArgs(call, missing) {
+      const f = call.scope.file, text = f.text, n = call.node;
+      let at = 0; const lines = (f.lines = f.lines || text.split("\n"));
+      for (let i = 0; i < n.line - 1; i++) at += lines[i].length + 1;
+      at += n.col; if (text[at] !== "(") return null;
+      let depth = 0, i = at, close = -1;
+      for (; i < text.length; i++) {
+        const ch = text[i];
+        if (ch === "#") { while (i < text.length && text[i] !== "\n") i++; continue; }
+        if (ch === '"' || ch === "'") {
+          const q = text.startsWith(ch.repeat(3), i) ? ch.repeat(3) : ch; i += q.length;
+          while (i < text.length && !text.startsWith(q, i)) { if (text[i] === "\\") i++; if (q.length === 1 && text[i] === "\n") return null; i++; }
+          i += q.length - 1; continue;
+        }
+        if ("([{".includes(ch)) depth++;
+        else if (")]}".includes(ch) && --depth === 0) { close = i; break; }
+      }
+      if (close < 0 || text[close] !== ")") return null;
+      const before = text.slice(at + 1, close).replace(/\s+$/, ""), last = before.slice(-1);
+      const sep = !before.trim() ? "" : last === "," ? " " : ", ";
+      const ins = sep + missing.map(m => m + "=...").join(", ");
+      const head = text.slice(0, close), line = head.split("\n").length, col = close - (head.lastIndexOf("\n") + 1);
+      return { line, col, length: 0, text: ins, label: "补上参数 " + missing.join("、") };
     }
     /**
      * Literal arguments that clearly do not match a simple builtin annotation of the parameter they fill
@@ -723,9 +753,11 @@
         }
         while (lines.length && !f.lines[lines[lines.length - 1] - 1].trim()) lines.pop();
         if (lines.some(n => /#\s*noqa/i.test(f.lines[n - 1]))) return;
+        // Ctrl+. deletes the whole dead run (whole lines, from its first to its last line)
+        const dead = { from: lines[0], to: lines[lines.length - 1] };
         for (const n of lines) {
           const raw = f.lines[n - 1], lead = raw.length - raw.trimStart().length; if (!raw.trim()) continue;
-          out.push({ line: n, col: lead, length: raw.trimEnd().length - lead, message: "执行不到的代码（前面已经 " + WHY[list[i].type] + "）", severity: "unused", kind: "unreachable" });
+          out.push({ line: n, col: lead, length: raw.trimEnd().length - lead, message: "执行不到的代码（前面已经 " + WHY[list[i].type] + "；Ctrl+. 删除）", severity: "unused", kind: "unreachable", dead });
         }
       };
       const walk = node => {
@@ -841,10 +873,10 @@
       }
       for (const c of f.calls) {
         const m = this.callProblem(c); if (!m) continue;
-        if (typeof m === "object") { out.push(Object.assign({}, m.at, { message: m.message, severity: "warning", suggest: m.suggest })); continue; }
+        if (typeof m === "object" && m.at) { out.push(Object.assign({}, m.at, { message: m.message, severity: "warning", suggest: m.suggest })); continue; }
         const e = c.node.func, at = e.type === "Name" ? { line: e.line, col: e.col, length: e.id.length } : { line: e.line, col: e.col, length: e.attr.length };
         const k = at.line + ":" + at.col; if (seen.has(k)) continue; seen.add(k);
-        out.push(Object.assign(at, { message: m, severity: "warning" }));
+        out.push(Object.assign(at, { message: typeof m === "object" ? m.message : m, severity: "warning" }, m.edit ? { edit: m.edit } : {}));
       }
       return out.sort((a, b) => a.line - b.line || a.col - b.col);
     }

@@ -712,7 +712,7 @@ test('Web IDE explorer, editor and create/delete flows in a real browser', {skip
       await b.eval(click, '#refresh'); await b.waitFor(idle);
     });
 
-    await t.test('unreachable code after return is faded and explained on its line', async () => {
+    await t.test('unreachable code after return is faded and explained on its line; Ctrl+. deletes it (undoable)', async () => {
       await api('PUT', '/projects/dom/files', {files: [{path: 'ur_main.py', content: 'print("ok")\n'}]});
       await b.eval(click, '#refresh'); await b.waitFor(idle);
       await b.eval(click, row('ur_main.py'));
@@ -723,10 +723,39 @@ test('Web IDE explorer, editor and create/delete flows in a real browser', {skip
       assert.deepEqual(await b.eval(() => [...document.querySelectorAll('#diag .fade')].map(n => n.textContent)), ['print("never")', 'x = 2']);
       assert.equal(await b.eval(() => document.getElementById('problems').dataset.count), '0');
       await b.eval(() => { const e = document.getElementById('editor'); e.focus(); const at = e.value.indexOf('never'); e.setSelectionRange(at, at); e.dispatchEvent(new Event('keyup')); });
-      await b.waitFor(() => document.getElementById('problems').textContent.includes('第 3 行：执行不到的代码（前面已经 return）'), 5000);
+      await b.waitFor(() => document.getElementById('problems').textContent.includes('第 3 行：执行不到的代码（前面已经 return；Ctrl+. 删除）'), 5000);
+      await b.eval(() => document.getElementById('editor').dispatchEvent(new KeyboardEvent('keydown', {key: '.', ctrlKey: true, bubbles: true, cancelable: true})));
+      await b.waitFor(() => document.getElementById('editor').value === 'def f():\n    return 1\n\nprint(f())\n');
+      await b.waitFor(() => document.querySelectorAll('#diag .fade').length === 0, 5000);
+      await b.eval(() => { document.getElementById('editor').focus(); document.execCommand('undo'); });
+      assert.equal(await b.eval(() => document.getElementById('editor').value), 'def f():\n    return 1\n    print("never")\n    x = 2\n\nprint(f())\n');
+      await b.eval(() => { document.getElementById('editor').focus(); document.execCommand('redo'); });
       await b.eval(click, '#save'); await b.waitFor(idle);
       await b.eval(click, row('__init__.py')); await b.waitFor(() => !document.getElementById('editor').disabled);
       await fetch(base + '/projects/dom/file?path=ur_main.py', {method: 'DELETE'});
+      await b.eval(click, '#refresh'); await b.waitFor(idle);
+    });
+
+    await t.test('call arguments: Ctrl+. fills missing parameters (undoable)', async () => {
+      await api('PUT', '/projects/dom/files', {files: [{path: 'ma_main.py', content: 'print("ok")\n'}]});
+      await b.eval(click, '#refresh'); await b.waitFor(idle);
+      await b.eval(click, row('ma_main.py'));
+      await b.waitFor(() => document.getElementById('editor').value === 'print("ok")\n' && !document.getElementById('editor').disabled);
+      await b.eval(v => { const e = document.getElementById('editor'); e.focus(); e.value = v; e.dispatchEvent(new Event('input')); },
+        'def tap(x, y, times=1):\n    pass\ntap(10)\n');
+      await b.waitFor(() => document.querySelectorAll('#diag .sq.warn').length === 1, 5000);
+      await b.eval(click, '#problems');
+      assert.match(await b.eval(() => document.getElementById('problems').textContent), /第 3 行：tap\(\) 缺少参数 y（Ctrl\+\. 补上）/);
+      await b.eval(() => { const e = document.getElementById('editor'); e.focus(); const at = e.value.indexOf('tap(10)') + 1; e.setSelectionRange(at, at); });
+      await b.eval(() => document.getElementById('editor').dispatchEvent(new KeyboardEvent('keydown', {key: '.', ctrlKey: true, bubbles: true, cancelable: true})));
+      await b.waitFor(() => document.getElementById('editor').value.endsWith('tap(10, y=...)\n'));
+      await b.eval(() => { document.getElementById('editor').focus(); document.execCommand('undo'); });
+      assert.match(await b.eval(() => document.getElementById('editor').value), /tap\(10\)\n$/);
+      await b.eval(() => { document.getElementById('editor').focus(); document.execCommand('redo'); });
+      await b.waitFor(() => document.getElementById('problems').dataset.count === '0', 5000);
+      await b.eval(click, '#save'); await b.waitFor(idle);
+      await b.eval(click, row('__init__.py')); await b.waitFor(() => !document.getElementById('editor').disabled);
+      await fetch(base + '/projects/dom/file?path=ma_main.py', {method: 'DELETE'});
       await b.eval(click, '#refresh'); await b.waitFor(idle);
     });
 
