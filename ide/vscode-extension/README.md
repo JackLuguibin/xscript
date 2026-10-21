@@ -21,7 +21,9 @@ cd ide/vscode-extension && npm ci && npm run package     # 生成 xscript-vscode
 
 ![逐项检查连接：手机上的 XScript 没打开，停在「XScript app answers」，Output 里列出每一步，通知给出修法和「修改地址 / 仍然保存 / 排查文档」](../../docs/images/vscode-connect.png)
 
-（真实 VS Code（运行、调试两图 1.142，连接检查 1.143）、隔离配置，连着一台 Android 模拟器的演示工程；`bash scripts/vscode-screenshots.sh` 可重新生成，连接检查一图用 `XS_SHOT_NAMES=connect`，先在手机上强制停止 XScript。）
+![基本检查：在 async 函数里直接调用另一个 async 函数、拼错的 totl 在「问题」面板里列出，未使用的 import os 和 return 后面执行不到的代码变暗](../../docs/images/vscode-problems.png)
+
+（真实 VS Code（运行、调试两图 1.142，连接检查 1.143）、隔离配置，连着一台 Android 模拟器的演示工程；`bash scripts/vscode-screenshots.sh` 可重新生成，连接检查一图用 `XS_SHOT_NAMES=connect`，先在手机上强制停止 XScript；基本检查一图用 `XS_SHOT_NAMES=problems`。）
 
 ## 使用
 
@@ -31,6 +33,7 @@ cd ide/vscode-extension && npm ci && npm run package     # 生成 xscript-vscode
 4. 打开 `__init__.py`，点编辑器右上角的 ▶ 或按 **Ctrl+Shift+R**（F6 也行）。扩展会：停掉正在运行的脚本（再次运行等于「重新运行」）→ 把变化的文件同步到手机（按内容摘要和文件大小对比，只传新增或修改的）→ 启动，日志实时输出到 **Output → XScript**。**Shift+F6** 或 ■ 停止；**Alt+F6** 调试。
 5. **工程同步**：上传（强制全量，忽略对比缓存）或从手机拉取（本地有差异的文件会先确认；手机上没有的本地文件不动）。
 6. **编辑同步忽略规则**：`.vscode/.syncignore`（和 AScript 同一个位置），gitignore 风格（`*.log`、`dist/`、`/build/`、`!keep.log`）。以 `.` 开头的文件和目录、`__pycache__`、`.pyc`、虚拟环境始终不上传。
+7. **基本检查**：XScript 工程里的 `.py` 文件，边打边检查，和网页 IDE 是同一套规则（未定义的名字及「是不是 …」、属性不存在、调用参数不对、import 拼错、async / await 用错、重复定义），以警告列在「问题」面板并画波浪线；未使用的 import / 变量和执行不到的代码变暗。设置 `xscript.lint` 设为 `false` 可关闭。
 
 ## 命令（命令面板里的名字有中文版，跟随 VS Code 显示语言）
 
