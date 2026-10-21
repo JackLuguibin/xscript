@@ -402,7 +402,7 @@ jobs:
           { echo; sed "s/{VERSION}/${TAG#v}/g" desktop/app/packaging/release-notes-windows.md; } >> "$RUNNER_TEMP/notes.md"
           FEED=""
           [ -f dist/release/desktop-update.json ] && FEED="dist/release/desktop-update.json dist/release/desktop-update.json.sig"
-          gh release create "$TAG" --verify-tag --title "XScript $TAG" --notes-file "$RUNNER_TEMP/notes.md" \
+          gh release create "$TAG" --draft --verify-tag --title "XScript $TAG" --notes-file "$RUNNER_TEMP/notes.md" \
             "dist/release/xscript-${TAG}-release.apk" \
             "dist/release/xscript-${TAG}-release-arm64-v8a.apk" \
             "dist/release/xscript-vscode-${TAG#v}.vsix" \

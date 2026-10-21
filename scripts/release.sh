@@ -5,7 +5,7 @@
 # vX.Y.Z; .github/workflows/release.yml re-verifies, builds the signed APK (GitHub Secrets) and the vsix, writes SHA256SUMS,
 # checks the signing certificate and 16 KB alignment, and creates the Release. See docs/发布.md.
 #
-#   scripts/release.sh check                 versions agree (android versionName == extension version == runtime __version__); used by verify.sh and CI
+#   scripts/release.sh check                 versions agree (android versionName == extension version == runtime __version__ == desktop app version); used by verify.sh and CI
 #   scripts/release.sh prepare X.Y.Z         bump android versionName (+ versionCode + 1), runtime __version__, extension package.json / lock,
 #                                            the README / README.en.md download link, and turn CHANGELOG "未发布" into "vX.Y.Z（date）".
 #                                            Edits files only; review, then commit (chore(release): vX.Y.Z) and push.
@@ -37,6 +37,10 @@ STUB_INIT=ide/python-stubs/xscript/__init__.pyi   # IDE stubs mirror the runtime
 runtime_version() { sed -n 's/^__version__ = "\([^"]*\)"/\1/p' "$RUNTIME_INIT"; }
 PYCHARM_PROPS=ide/pycharm-plugin/gradle.properties   # PyCharm plugin: pluginVersion = App version too
 pycharm_version() { sed -n 's/^pluginVersion=//p' "$PYCHARM_PROPS"; }
+DESKTOP_PY=desktop/app/pyproject.toml                 # desktop app: same version (release.yml checks it against the tag)
+DESKTOP_INIT=desktop/app/xscript_desktop/__init__.py
+DESKTOP_FE=desktop/frontend
+desktop_version() { sed -n 's/^version = "\(.*\)"/\1/p' "$DESKTOP_PY"; }
 ext_version() { python3 -c 'import json,sys; print(json.load(open(sys.argv[1]))["version"])' "$EXT/package.json"; }
 sha256() { if command -v sha256sum >/dev/null 2>&1; then sha256sum "$@"; else shasum -a 256 "$@"; fi; }
 sdk_tool() { # newest build-tools binary: sdk_tool apksigner | aapt2 | zipalign
@@ -80,6 +84,10 @@ check)
   if [ "$A" != "$P" ]; then
     echo "release: PyCharm plugin version $P ($PYCHARM_PROPS) != App versionName $A (they ship together)" >&2; exit 1
   fi
+  D="$(desktop_version)"
+  if [ "$A" != "$D" ]; then
+    echo "release: desktop app version $D ($DESKTOP_PY) != App versionName $A (the dmg / setup.exe ship in the same Release)" >&2; exit 1
+  fi
   R="$(runtime_version)"
   if [ "$A" != "$R" ]; then
     echo "release: runtime __version__ $R ($RUNTIME_INIT) != App versionName $A" >&2; exit 1
@@ -103,6 +111,9 @@ PY
   sed -i.bak "s/^__version__ = '[^']*'/__version__ = '$V'/" "$STUB_INIT" && rm -f "$STUB_INIT.bak"
   (cd "$EXT" && npm version "$V" --no-git-tag-version --allow-same-version >/dev/null)
   sed -i.bak "s/^pluginVersion=.*/pluginVersion=$V/" "$PYCHARM_PROPS" && rm -f "$PYCHARM_PROPS.bak"
+  sed -i.bak 's/^version = "[^"]*"/version = "'"$V"'"/' "$DESKTOP_PY" && rm -f "$DESKTOP_PY.bak"
+  sed -i.bak 's/^__version__ = "[^"]*"/__version__ = "'"$V"'"/' "$DESKTOP_INIT" && rm -f "$DESKTOP_INIT.bak"
+  (cd "$DESKTOP_FE" && npm version "$V" --no-git-tag-version --allow-same-version >/dev/null)
   python3 - "$V" <<'PY'
 import datetime, os, re, sys
 v = sys.argv[1]
@@ -123,7 +134,7 @@ assert "\n## 未发布\n" in c, "CHANGELOG has no 未发布 section"
 c = c.replace("\n## 未发布\n", "\n## 未发布\n\n## v%s（%s）\n" % (v, datetime.date.today().isoformat()), 1)
 open("CHANGELOG.md", "w", encoding="utf-8").write(c)
 PY
-  echo "prepared v$V: $GRADLE, $RUNTIME_INIT, $EXT/package.json(+lock), $PYCHARM_PROPS, README.md, CHANGELOG.md. Review (git diff), then: git commit -am 'chore(release): v$V' && git push"
+  echo "prepared v$V: $GRADLE, $RUNTIME_INIT, $EXT/package.json(+lock), $PYCHARM_PROPS, $DESKTOP_PY, $DESKTOP_INIT, $DESKTOP_FE/package.json(+lock), README.md, CHANGELOG.md. Review (git diff), then: git commit -am 'chore(release): v$V' && git push"
   ;;
 build)
   SKIP_APK=0; [ "${1:-}" = "--skip-apk" ] && SKIP_APK=1

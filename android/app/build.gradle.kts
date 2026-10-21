@@ -54,8 +54,8 @@ android {
         applicationId = if (packed) packProp("app_id") else "com.xscript.app$appIdSuffix"
         minSdk = 26
         targetSdk = 34
-        versionCode = if (packed) packProp("version_code", "1").toInt() else 10
-        versionName = if (packed) packProp("version_name", "1.0.0") else "0.4.0"
+        versionCode = if (packed) packProp("version_code", "1").toInt() else 11
+        versionName = if (packed) packProp("version_name", "1.0.0") else "0.5.0"
         ndk {
             abiFilters += abiList.split(',').map { it.trim() }.filter { it.isNotEmpty() }
         }

@@ -29,6 +29,16 @@ class VersionsTest(unittest.TestCase):
         s = (ROOT / "ide/pycharm-plugin/gradle.properties").read_text(encoding="utf-8")
         self.assertEqual(re.search(r"^pluginVersion=(.+)$", s, re.M).group(1).strip(), app_version_name())
 
+    def test_desktop_app_version_is_app_version(self):
+        """release.yml refuses to build the dmg / setup.exe when desktop/app/pyproject.toml differs from the tag."""
+        py = (ROOT / "desktop/app/pyproject.toml").read_text(encoding="utf-8")
+        self.assertEqual(re.search(r'^version = "([^"]+)"', py, re.M).group(1), app_version_name())
+        init = (ROOT / "desktop/app/xscript_desktop/__init__.py").read_text(encoding="utf-8")
+        self.assertEqual(re.search(r'^__version__ = "([^"]+)"', init, re.M).group(1), app_version_name())
+        import json
+        fe = json.loads((ROOT / "desktop/frontend/package.json").read_text(encoding="utf-8"))
+        self.assertEqual(fe["version"], app_version_name())
+
     def test_release_ships_the_pycharm_plugin(self):
         """The release job takes the zip the verify (ci.yml) run built and verified, checksums it and attaches it."""
         s = (ROOT / ".github/workflows/release.yml").read_text(encoding="utf-8")
