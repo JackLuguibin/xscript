@@ -116,7 +116,7 @@ For an item-by-item comparison with the official AScript extension and the featu
 
 ### PyCharm plugin
 
-If you prefer PyCharm, use `ide/pycharm-plugin` (PyCharm 2024.2+): Tools → XScript uploads and runs the project (Ctrl+Alt+Shift+R) and stops it, and the XScript tool window shows the log live. New-project templates and completion stubs are the same as in the VS Code extension; there is no breakpoint debugging yet. Get the zip from the CI artifact or build it yourself; see the [plugin README](ide/pycharm-plugin/README.en.md).
+If you prefer PyCharm, use `ide/pycharm-plugin` (PyCharm 2024.2+): Tools → XScript uploads and runs the project (Ctrl+Alt+Shift+R), stops it, runs the selected code on the device (Ctrl+Alt+Shift+E) and pulls a project from the device, and the XScript tool window shows the log live. New-project templates and completion stubs are the same as in the VS Code extension; there is no breakpoint debugging yet. Get the zip from the CI artifact or build it yourself; see the [plugin README](ide/pycharm-plugin/README.en.md).
 
 ![PyCharm plugin: after a run the XScript tool window shows the log](docs/images/pycharm-run.png)
 

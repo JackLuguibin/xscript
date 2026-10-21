@@ -5,7 +5,7 @@
 | 路径 | 作用 |
 | --- | --- |
 | `vscode-extension/` | VS Code / Cursor 扩展：活动栏设备 / 工程视图、设备扫描、新建工程、增量同步与拉取、运行 / 停止 / 一键断点调试、日志、在设备上运行选中代码、截图、内置存根（对照 AScript 官方扩展，见其 README） |
-| `pycharm-plugin/` | PyCharm 插件（2024.2+）：上传运行 / 停止、XScript 日志工具窗口、配对码（存 IDE 密码库）、新建工程（与 VS Code 扩展同一套模板）、内置存根补全。见 [pycharm-plugin/README.md](pycharm-plugin/README.md) |
+| `pycharm-plugin/` | PyCharm 插件（2024.2+）：上传运行 / 停止、在设备上运行选中代码、从设备拉取工程、XScript 日志工具窗口、配对码（存 IDE 密码库）、新建工程（与 VS Code 扩展同一套模板）、内置存根补全。见 [pycharm-plugin/README.md](pycharm-plugin/README.md) |
 | `mcp-server/` | Cursor MCP（`xscript-mcp`），让 AI 能看到屏幕，编写、上传和运行脚本。见 [mcp-server/README.md](mcp-server/README.md) |
 | `python-stubs/` | 生成的 `.pyi` 存根，用于 `xscript.*` / `ascript.*` 自动补全（`scripts/gen_stubs.py`） |
 
