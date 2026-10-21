@@ -638,6 +638,16 @@
       }
       return out.sort((a, b) => a.line - b.line || a.col - b.col);
     }
+    /** Names visible from `scope` (its bindings, enclosing functions, the module, builtins), for "did you mean". */
+    visibleNames(scope) {
+      const out = new Set();
+      for (let s = scope, first = true; s; s = s.parent, first = false) {
+        if (s.kind === "class" && !first) continue;
+        for (const k of s.defs.keys()) out.add(k);
+      }
+      for (const b of BUILTINS) if (!b.startsWith("__")) out.add(b);
+      return out;
+    }
     /** Project modules (other than `path`'s) that define `name` at top level (function, class or variable), sorted. */
     importCandidates(name, path) {
       if (name.startsWith("_")) return [];
@@ -667,9 +677,10 @@
       const out = [], seen = new Set();
       for (const o of f.occ) {
         if (o.kind !== "name" || BUILTINS.has(o.name) || this.bound(o.scope, o.name)) continue;
-        const fix = this.importCandidates(o.name, path);
-        const hint = !fix.length ? "" : fix.length === 1 ? "（Ctrl+. 从 " + fix[0] + " 导入）" : "（Ctrl+. 选择要导入的模块）";
-        out.push(Object.assign({ line: o.line, col: o.col, length: o.name.length, message: "未定义的名字 " + o.name + hint, severity: "warning" }, fix.length ? { name: o.name, fix } : {}));
+        const fix = this.importCandidates(o.name, path), suggest = fix.length ? null : closest(o.name, this.visibleNames(o.scope));
+        const hint = suggest ? "（是不是 " + suggest + "？Ctrl+. 改正）" : !fix.length ? "" : fix.length === 1 ? "（Ctrl+. 从 " + fix[0] + " 导入）" : "（Ctrl+. 选择要导入的模块）";
+        out.push(Object.assign({ line: o.line, col: o.col, length: o.name.length, message: "未定义的名字 " + o.name + hint, severity: "warning" },
+          fix.length ? { name: o.name, fix } : {}, suggest ? { suggest } : {}));
       }
       for (const o of f.occ) {
         const m = o.kind === "attr" && !o.store ? this.attrProblem(o) : null; if (!m) continue;
