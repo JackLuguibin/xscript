@@ -165,6 +165,8 @@ jobs:
           python -m coverage run --rcfile=android/python-runtime/.coveragerc -m unittest $traced
           python -m unittest test_find_colors_fast
           python -m coverage report --rcfile=android/python-runtime/.coveragerc
+      - name: Image matching speed (budgets in tests/bench_matching.py)
+        run: PYTHONPATH=android/python-runtime python android/python-runtime/tests/bench_matching.py --check
 
   web-ide:
     name: Web IDE (node + headless Chrome)
