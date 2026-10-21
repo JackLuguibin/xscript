@@ -6,9 +6,13 @@ It talks to the device HTTP API (`protocol/openapi.yaml`, default port 9860). On
 
 ![After a run the XScript tool window at the bottom shows the log live](../../docs/images/pycharm-run.png)
 
-![Settings → Tools → XScript: device address and pairing code](../../docs/images/pycharm-settings.png)
+![Settings → Tools → XScript: device address, pairing code and Run Selection timeout](../../docs/images/pycharm-settings.png)
 
-(Sandbox PyCharm 2024.2.6 connected to the local mock device `scripts/mock_device.py`.)
+![Select a line and press Ctrl+Alt+Shift+E: the code and the device's answer appear in the XScript tool window](../../docs/images/pycharm-eval.png)
+
+![Pull Project from Device: after picking a device project and confirming the overwrite, the pulled files show in the editor and project tree and the log counts new / updated files](../../docs/images/pycharm-pull.png)
+
+(Sandbox PyCharm 2024.2.6 connected to the local mock device `scripts/mock_device.py`; results are mock data.)
 
 ## Install
 
