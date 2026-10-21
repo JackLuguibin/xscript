@@ -67,12 +67,17 @@ def slug(heading: str) -> str:
     return "".join(out)
 
 
+def read(rel: str) -> str:
+    with open(os.path.join(ROOT, rel), encoding="utf-8") as f:
+        return f.read()
+
+
 _anchors: dict[str, set[str]] = {}
 
 
 def anchors(rel: str) -> set[str]:
     if rel not in _anchors:
-        text = strip_code(open(os.path.join(ROOT, rel), encoding="utf-8").read())
+        text = strip_code(read(rel))
         seen: dict[str, int] = {}
         out = set(IDS.findall(text))
         for _, title in HEADING.findall(text):
@@ -95,7 +100,7 @@ def links(text: str) -> list[tuple[int, str]]:
 def check_local(md_files: list[str]) -> tuple[list[str], list[tuple[str, int, str]]]:
     problems, external = [], []
     for rel in md_files:
-        text = strip_code(open(os.path.join(ROOT, rel), encoding="utf-8").read())
+        text = strip_code(read(rel))
         for line, url in links(text):
             if re.match(r"^[a-z][a-z0-9+.-]*:", url, re.I):
                 if url.lower().startswith(("http://", "https://")):
@@ -121,10 +126,12 @@ def unused_images() -> list[str]:
     images = tracked("docs/images")
     corpus = []
     for rel in tracked():
-        if rel.startswith("docs/images/") or os.path.getsize(os.path.join(ROOT, rel)) > 2_000_000:
+        full = os.path.join(ROOT, rel)
+        # symlinks and missing paths (a deleted-but-staged file) are skipped, like anything large or binary
+        if rel.startswith("docs/images/") or os.path.islink(full) or not os.path.isfile(full) or os.path.getsize(full) > 2_000_000:
             continue
         try:
-            corpus.append(open(os.path.join(ROOT, rel), encoding="utf-8").read())
+            corpus.append(read(rel))
         except (UnicodeDecodeError, OSError):
             continue
     blob = "\n".join(corpus)

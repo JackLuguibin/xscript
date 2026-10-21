@@ -31,6 +31,14 @@ class ParseTest(unittest.TestCase):
         self.assertEqual(sorted(u for _, u in check_docs.links(text)), ["../b.md#top", "d.md", "images/a.png", "images/c.png"])
 
 
+class RepoFilesTest(unittest.TestCase):
+    def test_no_tracked_symlinks_to_dependency_folders(self):
+        # node_modules / .venv must never be committed, not even as a symlink (`node_modules/` only ignores folders)
+        out = check_docs.subprocess.run(["git", "ls-files", "-s"], cwd=check_docs.ROOT, capture_output=True, text=True, check=True).stdout
+        links = [line.split("\t", 1)[1] for line in out.splitlines() if line.startswith("120000 ")]
+        self.assertEqual([p for p in links if Path(p).name in ("node_modules", ".venv", "venv")], [])
+
+
 class RepoTest(unittest.TestCase):
     def test_repo_docs_are_clean(self):
         md = check_docs.tracked("*.md")
