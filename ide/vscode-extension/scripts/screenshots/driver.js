@@ -1,5 +1,5 @@
 // Runs INSIDE the VS Code extension host (--extensionTestsPath): puts the editor into the states shown in the README
-// screenshots (run + sidebar + log panel, debugger stopped at a breakpoint, the step-by-step connection check, the lost screen capture warning; XS_SHOT_NAMES picks which), and for each one writes <XS_SHOT_DIR>/ready-<name> then waits for done-<name> (capture.js takes the
+// screenshots (run + sidebar + log panel, debugger stopped at a breakpoint, the step-by-step connection check, the lost screen capture warning, the basic checks in the Problems panel; XS_SHOT_NAMES picks which), and for each one writes <XS_SHOT_DIR>/ready-<name> then waits for done-<name> (capture.js takes the
 // picture through the DevTools protocol in between). Needs a real device: XS_SHOT_DEVICE=127.0.0.1:<forwarded port>.
 const fs = require("fs");
 const path = require("path");
@@ -66,6 +66,25 @@ exports.run = async function run() {
       await sleep(800);
       await shot("capture");
       await cmd("notifications.clearAll");
+    }
+
+    if (names.includes("problems")) {
+      // the Web IDE's basic checks in the Problems panel: a throw-away checks.py with typical slips, deleted afterwards
+      const demo = path.join(root, "checks.py");
+      fs.writeFileSync(demo, [
+        "import os", "", "", "async def fetch_status():", "    return \"ok\"", "", "",
+        "async def main():", "    total = 0", "    fetch_status()", "    print(totl)", "    return", "    print(\"done\")", "",
+      ].join("\n"));
+      await vscode.window.showTextDocument(vscode.Uri.file(demo), { preview: false });
+      for (let i = 0; i < 20 && vscode.languages.getDiagnostics(vscode.Uri.file(demo)).length < 4; i++) await sleep(500);
+      await cmd("workbench.actions.view.problems");
+      await cmd("workbench.action.focusActiveEditorGroup");
+      await sleep(1500);
+      await shot("problems");
+      await cmd("workbench.action.closeActiveEditor");
+      fs.rmSync(demo, { force: true });
+      await cmd("workbench.action.closePanel");
+      await sleep(500);
     }
 
     if (names.includes("run")) {
