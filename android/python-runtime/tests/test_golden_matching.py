@@ -61,7 +61,8 @@ class GoldenMatchingTest(unittest.TestCase):
         for name, box in self.exp["templates"].items():
             hit = self.screen.find_image(self.tpl(name), image=self.scene_path, confidence=0.9)
             self.assertIsNotNone(hit, name)
-            self.assertEqual(list(hit["rect"]), box, name)
+            # the three coins are pixel-identical, so which one scores best is a tie (it differs by platform)
+            self.assertIn(list(hit["rect"]), self.exp["coin_rects"] if name == "coin.png" else [box], name)
             self.assertGreater(hit["confidence"], 0.98, name)
 
     def test_repeated_icon_is_found_at_each_place(self):
