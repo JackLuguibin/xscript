@@ -706,18 +706,24 @@ def orientation():
         shot("landscape")
         # drag to the opposite side in landscape
         want = "left" if o["side"] == "right" else "right"
-        to_mode("pill")
-        o = overlay()
         tx = 100 if want == "left" else st["width"] - 100
-        adb("shell", "input", "swipe", str(o["x"] + o["width"] // 2), str(o["y"] + dp(26)), str(tx), str(int(st["height"] * 0.4)), "600")
-        check(wait(lambda: overlay()["side"] == want, 5), "landscape drag snaps to the other edge", overlay())
+        # the pill shrinks back to the ball after a few idle seconds (PILL_IDLE_MS), so a drag can start on a window
+        # that is just changing size: make sure it is a pill right before the swipe, and try the drag twice
+        for _ in range(2):
+            check(to_mode("pill"), "pill before the landscape drag", overlay())
+            o = overlay()
+            adb("shell", "input", "swipe", str(o["x"] + o["width"] // 2), str(o["y"] + dp(26)), str(tx), str(int(st["height"] * 0.4)), "600")
+            if wait(lambda: overlay()["side"] == want, 5):
+                break
+        check(overlay()["side"] == want, "landscape drag snaps to the other edge", overlay())
         time.sleep(0.8)
         land = (overlay()["side"], overlay()["y"])
         adb("shell", "cmd", "window", "user-rotation", "lock", "0")
         check(wait(lambda: api("GET", "/status")["width"] == pw, 8), "device rotated back to portrait")
         time.sleep(2.2)
         o = overlay()
-        check((o["side"], o["y"]) == portrait or (o["side"] == portrait[0] and abs(o["y"] - portrait[1]) <= 2), "portrait position unchanged by the landscape drag", (portrait, o))
+        # same side; y may differ by the ball/pill height difference (the window may have collapsed meanwhile)
+        check(o["side"] == portrait[0] and abs(o["y"] - portrait[1]) <= dp(12), "portrait position unchanged by the landscape drag", (portrait, o))
         adb("shell", "cmd", "window", "user-rotation", "lock", "1")
         check(wait(lambda: api("GET", "/status")["width"] > pw, 8), "rotated to landscape again")
         time.sleep(2.2)
