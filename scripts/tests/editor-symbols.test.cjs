@@ -412,3 +412,21 @@ test('basic checks: return values that do not match a simple return annotation',
     [20, 15, 4, 'K.m() 声明返回 bool，这里返回了 None'],
   ]);
 });
+
+test('call arguments: "did you mean" for a misspelled keyword, only among parameters not filled otherwise', () => {
+  const src = [
+    'def wait(seconds=1, label="", *, timeout=0):', '    pass',
+    'wait(secnds=2)', 'wait(1, secods=2)', 'wait(Label=1)', 'wait(timout=1)',   // 4: seconds already given positionally
+    'wait(seconds=1, secondz=2)', 'wait(xx=1)',                                   // 7: already given by keyword; 8: nothing close
+    'class A:', '    def m(self, count):', '        pass', 'A().m(cuont=1)', ''].join('\n');
+  const p = EditorSymbols.build([{path: 'm.py', content: src}], XSDocs);
+  assert.deepEqual(p.problemsIn('m.py').map(w => [w.line, w.col, w.length, w.message, w.suggest]), [
+    [3, 5, 6, 'wait() 没有名为 secnds 的参数（是不是 seconds？Ctrl+. 改正）', 'seconds'],
+    [4, 0, 4, 'wait() 没有名为 secods 的参数', undefined],
+    [5, 5, 5, 'wait() 没有名为 Label 的参数（是不是 label？Ctrl+. 改正）', 'label'],
+    [6, 5, 6, 'wait() 没有名为 timout 的参数（是不是 timeout？Ctrl+. 改正）', 'timeout'],
+    [7, 0, 4, 'wait() 没有名为 secondz 的参数', undefined],
+    [8, 0, 4, 'wait() 没有名为 xx 的参数', undefined],
+    [12, 6, 5, 'A.m() 没有名为 cuont 的参数（是不是 count？Ctrl+. 改正）', 'count'],
+  ]);
+});
