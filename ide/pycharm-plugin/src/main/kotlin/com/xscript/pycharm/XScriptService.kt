@@ -337,8 +337,25 @@ class XScriptService(private val project: Project) : Disposable {
         }.queue()
     }
 
+    /** Re-checks the status bar's device state now (after a run, stop or connect) instead of at the next poll. */
+    fun refreshStatus() {
+        ApplicationManager.getApplication().invokeLater({
+            val w = com.intellij.openapi.wm.WindowManager.getInstance().getStatusBar(project)
+                ?.getWidget(DEVICE_STATUS_WIDGET_ID) as? DeviceStatusWidget ?: return@invokeLater
+            ApplicationManager.getApplication().executeOnPooledThread { w.refresh() }
+        }, project.disposed)
+    }
+
     /** Runs `body`; on the device's 401 asks for the pairing code once, stores it and retries. Other errors are reported. */
     private fun withPairing(body: (DeviceClient) -> Unit) {
+        try {
+            withPairingInner(body)
+        } finally {
+            refreshStatus()
+        }
+    }
+
+    private fun withPairingInner(body: (DeviceClient) -> Unit) {
         val settings = XScriptSettings.get()
         try {
             try {
@@ -387,6 +404,7 @@ class XScriptService(private val project: Project) : Disposable {
                     onLost = { print(XScriptBundle.message("log.reconnecting") + "\n", ConsoleViewContentType.SYSTEM_OUTPUT) },
                     onBack = { print(XScriptBundle.message("log.reconnected") + "\n", ConsoleViewContentType.SYSTEM_OUTPUT) },
                 )
+                refreshStatus()
                 when (end) {
                     FollowEnd.Finished -> print(XScriptBundle.message("log.finished") + "\n", ConsoleViewContentType.SYSTEM_OUTPUT)
                     is FollowEnd.Lost -> {

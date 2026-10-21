@@ -18,6 +18,7 @@
         <toolWindow id="XScript" anchor="bottom" icon="AllIcons.Toolwindows.ToolWindowRun"
                     factoryClass="com.xscript.pycharm.XScriptToolWindowFactory"/>
         <notificationGroup id="XScript" displayType="BALLOON"/>
+        <statusBarWidgetFactory id="XScript.DeviceStatus" implementation="com.xscript.pycharm.DeviceStatusWidgetFactory"/>
         <postStartupActivity implementation="com.xscript.pycharm.StubsStartupActivity"/>
         <postStartupActivity implementation="com.xscript.pycharm.ScreenshotDemoActivity"/>
     </extensions>
