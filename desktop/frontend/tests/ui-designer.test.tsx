@@ -65,4 +65,56 @@ describe("desktop UI designer (D.3 / D.4)", () => {
     fireEvent.click(screen.getByRole("button", { name: "OK" }));
     await waitFor(async () => expect(uiForm.parseSpec((await api.readFile(id, "demo", "res/ui/login.ui.json")).content).fields).toEqual([]));
   });
+
+  it("undo / redo step through designer edits (buttons and Ctrl+Z / Ctrl+Shift+Z) and update the text", async () => {
+    await setup(uiForm.serializeSpec(uiForm.newSpec("挂机设置")));
+    const designer = await screen.findByLabelText("界面设计器", undefined, { timeout: 3000 });
+    const undo = screen.getByRole("button", { name: "撤销" }) as HTMLButtonElement;
+    const redo = screen.getByRole("button", { name: "重做" }) as HTMLButtonElement;
+    expect(undo.disabled && redo.disabled).toBe(true);
+    const kinds = async () => {
+      fireEvent.click(screen.getByRole("button", { name: "JSON" }));
+      const v = ((await screen.findByRole("textbox", { name: "编辑器" })) as HTMLTextAreaElement).value;
+      fireEvent.click(screen.getByRole("button", { name: "设计" }));
+      return uiForm.parseSpec(v).fields.map((f) => f.kind);
+    };
+    fireEvent.click(within(designer).getByRole("button", { name: /单行文本/ }));
+    await new Promise((r) => setTimeout(r, 700)); // separate steps, not merged
+    fireEvent.click(within(designer).getByRole("button", { name: /复选框/ }));
+    expect(undo.disabled).toBe(false);
+    fireEvent.click(undo);
+    expect(redo.disabled).toBe(false);
+    expect(await kinds()).toEqual(["text"]);
+    const d2 = await screen.findByLabelText("界面设计器");
+    fireEvent.keyDown(d2, { key: "z", ctrlKey: true });
+    expect(await kinds()).toEqual([]);
+    const d3 = await screen.findByLabelText("界面设计器");
+    fireEvent.keyDown(d3, { key: "z", ctrlKey: true, shiftKey: true });
+    fireEvent.click(screen.getByRole("button", { name: "重做" }));
+    expect(await kinds()).toEqual(["text", "checkbox"]);
+  });
+
+  it("unsaved designer edits ask before another file replaces them", async () => {
+    await setup(uiForm.serializeSpec(uiForm.newSpec()));
+    const designer = await screen.findByLabelText("界面设计器", undefined, { timeout: 3000 });
+    fireEvent.click(within(designer).getByRole("button", { name: /单行文本/ }));
+    expect(screen.getByText("未保存")).toBeTruthy();
+    fireEvent.click(screen.getByRole("button", { name: /^__init__\.py/ }));
+    expect(await screen.findByText("未保存，确定放弃修改？")).toBeTruthy();
+    fireEvent.click(screen.getByRole("button", { name: "取消" }));
+    expect(screen.getByText("未保存")).toBeTruthy();
+  });
+
+  it("an edit made as JSON is one undo step in the designer", async () => {
+    await setup(uiForm.serializeSpec(uiForm.newSpec("A")));
+    await screen.findByLabelText("界面设计器", undefined, { timeout: 3000 });
+    fireEvent.click(screen.getByRole("button", { name: "JSON" }));
+    const editor = (await screen.findByRole("textbox", { name: "编辑器" })) as HTMLTextAreaElement;
+    const before = editor.value;
+    fireEvent.change(editor, { target: { value: uiForm.serializeSpec(uiForm.newSpec("B")) } });
+    fireEvent.click(screen.getByRole("button", { name: "设计" }));
+    fireEvent.click(screen.getByRole("button", { name: "撤销" }));
+    fireEvent.click(screen.getByRole("button", { name: "JSON" }));
+    expect(((await screen.findByRole("textbox", { name: "编辑器" })) as HTMLTextAreaElement).value).toBe(before);
+  });
 });
