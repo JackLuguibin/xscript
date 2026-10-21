@@ -135,11 +135,11 @@ def capture_rgba(rect=None, use_cache=True):
     return last
 
 
-CAPTURE_LOST_HINT = (
+_CAPTURE_LOST_HINT = (
     "截图失败：系统录屏授权已失效（手机重启或被系统收回）。"
     "请打开 XScript 主页点「图色权限」重新授权，或开启无障碍 / Root 截图。"
 )
-CAPTURE_NONE_HINT = (
+_CAPTURE_NONE_HINT = (
     "截图失败：没有可用的截图方式。请在 XScript 主页授予「图色权限」，"
     "或开启无障碍（Android 11+）/ Root。"
 )
@@ -153,9 +153,9 @@ def _capture_problem():
     except Exception:
         info = {}
     if info.get("lost"):
-        return CAPTURE_LOST_HINT
+        return _CAPTURE_LOST_HINT
     if info and not info.get("available", True):
-        return CAPTURE_NONE_HINT
+        return _CAPTURE_NONE_HINT
     return ""
 
 

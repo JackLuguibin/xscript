@@ -4,10 +4,12 @@
 Frames come from the device as raw RGBA (8-byte w/h header). numpy is required for
 color and template work; OpenCV (cv2) for template matching. Both ship in the APK.
 """
+import json
 import math
 import os
 import re
 import struct
+import sys
 import threading
 import time
 import numpy as np
