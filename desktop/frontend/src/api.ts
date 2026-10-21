@@ -239,6 +239,9 @@ export function createApi(rpc: RpcClient) {
     writeFile: (id: string, project: string, path: string, content: string, create = false) =>
       rpc.call<{ ok: boolean }>("project.write", { id, project, path, content, create }, { timeoutMs: 60_000 }),
     deleteFile: (id: string, project: string, path: string) => rpc.call<{ ok: boolean }>("project.deleteFile", { id, project, path }),
+    /** A folder and everything in it (DELETE ?recursive=1); `deleted` is the number of files removed. */
+    deleteFolder: (id: string, project: string, path: string) =>
+      rpc.call<{ ok: boolean; deleted: number }>("project.deleteFile", { id, project, path, recursive: true }),
     moveFile: (id: string, project: string, from: string, to: string) => rpc.call<{ ok: boolean }>("project.move", { id, project, from, to }),
     run: (id: string, project: string) => rpc.call<RunResult>("project.run", { id, project }),
     stop: (id: string, project: string) => rpc.call<RunResult>("project.stop", { id, project }),

@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useServices } from "../app-context";
 import { bpKey, hasBpOptions, wireBreakpoints } from "../api";
 import type { BpOptions, BreakpointOptions, Breakpoints, DebugStep, FileContent, LogEntry, ProjectFiles, ProjectSummary } from "../api";
@@ -171,6 +171,33 @@ export function ProjectsPage({ pollMs = LOG_POLL_MS, onDirtyChange }: { pollMs?:
     void act("del:" + path, async () => {
       await api.deleteFile(devId, project, path);
       if (file?.path === path) {
+        setFile(null);
+        setDirty(false);
+      }
+      await reloadFiles();
+    });
+  };
+
+  /** Every folder that holds a file, parents before children (the device lists files only). */
+  const folders = useMemo(() => {
+    const out = new Map<string, number>();
+    for (const f of files?.files ?? []) {
+      const parts = f.path.split("/");
+      for (let i = 1; i < parts.length; i++) {
+        const d = parts.slice(0, i).join("/");
+        out.set(d, (out.get(d) ?? 0) + 1);
+      }
+    }
+    return [...out.entries()].sort(([a], [b]) => a.localeCompare(b));
+  }, [files]);
+
+  const deleteFolder = async (dir: string) => {
+    const inside = (files?.files ?? []).map((f) => f.path).filter((p) => p.startsWith(dir + "/"));
+    const shown = inside.slice(0, 15).join("\n") + (inside.length > 15 ? "\n" + t.files.more(inside.length - 15) : "");
+    if (!(await confirm({ message: t.files.confirmDeleteFolder(dir, inside.length, shown), confirmLabel: t.confirm.del, danger: true }))) return;
+    void act("deldir:" + dir, async () => {
+      await api.deleteFolder(devId, project, dir);
+      if (file && file.path.startsWith(dir + "/")) {
         setFile(null);
         setDirty(false);
       }
@@ -394,6 +421,26 @@ export function ProjectsPage({ pollMs = LOG_POLL_MS, onDirtyChange }: { pollMs?:
                     ✕
                   </Button>
                 </form>
+              )}
+              {folders.length > 0 && (
+                <ul className="list" aria-label={t.files.folders}>
+                  {folders.map(([d, n]) => (
+                    <li key={d} className="file-row">
+                      <span className="list-btn mono">
+                        📁 {d}/
+                        <span className="muted">{t.files.fileCount(n)}</span>
+                      </span>
+                      <Button variant="ghost" size="sm" className="text-danger-fg hover:bg-danger-bg"
+                        aria-label={`${t.files.delFolder} ${d}/`}
+                        title={t.files.delFolder}
+                        disabled={has("deldir:" + d)}
+                        onClick={() => void deleteFolder(d)}
+                      >
+                        {has("deldir:" + d) ? <Spinner /> : "🗑"}
+                      </Button>
+                    </li>
+                  ))}
+                </ul>
               )}
               <ul className="list" aria-label={t.projects.files}>
                 {files.files.map((f) => {

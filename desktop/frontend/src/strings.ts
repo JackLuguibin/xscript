@@ -402,6 +402,12 @@ const zh = {
     del: "删除",
     confirmDelete: (p: string) => `确定从设备上删除 ${p}？此操作不能撤销。`,
     entryProtected: "入口 __init__.py 不能删除或改名",
+    folders: "文件夹",
+    delFolder: "删除文件夹",
+    fileCount: (n: number) => `${n} 个文件`,
+    confirmDeleteFolder: (d: string, n: number, list: string) =>
+      `确定从设备上删除文件夹 ${d}/ 和其中的 ${n} 个文件？此操作不能撤销。\n\n${list}`,
+    more: (n: number) => `…… 还有 ${n} 个`,
   },
   projects: {
     subtitle: "浏览、编辑并运行设备上的工程",
@@ -1155,6 +1161,12 @@ const en: Strings = {
     del: "Delete",
     confirmDelete: (p: string) => `Delete ${p} from the device? This cannot be undone.`,
     entryProtected: "The entry point __init__.py cannot be deleted or renamed",
+    folders: "Folders",
+    delFolder: "Delete folder",
+    fileCount: (n: number) => (n === 1 ? "1 file" : `${n} files`),
+    confirmDeleteFolder: (d: string, n: number, list: string) =>
+      `Delete the folder ${d}/ and the ${n} file(s) in it from the device? This cannot be undone.\n\n${list}`,
+    more: (n: number) => `… and ${n} more`,
   },
   projects: {
     subtitle: "Browse, edit and run the projects on a device",

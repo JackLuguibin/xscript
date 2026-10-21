@@ -75,6 +75,40 @@ describe("file new / rename / delete", () => {
     expect(screen.getByText("选择一个文件查看或编辑")).toBeTruthy(); // the open file was deleted
   });
 
+  it("deletes a folder with everything in it after a confirm that lists its files", async () => {
+    const { transport } = await projects();
+    for (const path of ["pkg/a.py", "pkg/sub/b.py"]) {
+      fireEvent.click(screen.getByRole("button", { name: "新建文件" }));
+      const input = screen.getByRole("textbox", { name: /新文件路径/ });
+      fireEvent.change(input, { target: { value: path } });
+      fireEvent.submit(input.closest("form")!);
+      await screen.findByRole("button", { name: new RegExp("^" + path.replace(/[/.]/g, "\\$&")) });
+    }
+    const folders = screen.getByRole("list", { name: "文件夹" });
+    expect(within(folders).getByText(/pkg\/$/).textContent).toContain("2 个文件");
+    expect(within(folders).getByText(/pkg\/sub\/$/).textContent).toContain("1 个文件");
+
+    fireEvent.click(screen.getByRole("button", { name: /^pkg\/sub\/b\.py/ }));
+    await screen.findByText(/demo\/pkg\/sub\/b\.py/);
+    fireEvent.click(screen.getByRole("button", { name: "删除文件夹 pkg/" }));
+    let dlg = await screen.findByRole("alertdialog");
+    expect(dlg.textContent).toMatch(/确定从设备上删除文件夹 pkg\/ 和其中的 2 个文件/);
+    expect(dlg.textContent).toContain("pkg/a.py");
+    expect(dlg.textContent).toContain("pkg/sub/b.py");
+    fireEvent.click(within(dlg).getByRole("button", { name: "取消" }));
+    await waitFor(() => expect(screen.queryByRole("alertdialog")).toBeNull());
+    expect(transport.sent.some((m) => m.method === "project.deleteFile")).toBe(false);
+
+    fireEvent.click(screen.getByRole("button", { name: "删除文件夹 pkg/" }));
+    dlg = await screen.findByRole("alertdialog");
+    fireEvent.click(within(dlg).getByRole("button", { name: "删除" }));
+    await waitFor(() => expect(screen.queryByRole("button", { name: /^pkg\/a\.py/ })).toBeNull());
+    expect(transport.sent.find((m) => m.method === "project.deleteFile")?.params).toMatchObject({ path: "pkg", recursive: true });
+    expect(screen.queryByRole("button", { name: /^pkg\/sub\/b\.py/ })).toBeNull();
+    expect(screen.queryByRole("list", { name: "文件夹" })).toBeNull();
+    expect(screen.getByText("选择一个文件查看或编辑")).toBeTruthy(); // the open file was inside
+  });
+
   it("escape / ✕ close the form; a device error is shown", async () => {
     const { transport } = await projects();
     fireEvent.click(screen.getByRole("button", { name: "新建文件" }));
