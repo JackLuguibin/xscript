@@ -82,7 +82,14 @@ describe("WallPage thumbnails", () => {
         <WallPage />
       </ServicesContext.Provider>,
     );
-    const imgs = (await screen.findAllByRole("img")) as HTMLImageElement[];
+    await waitFor(() => expect(screen.getAllByRole("img")).toHaveLength(2));
+    // let any late device.state pushes (real setTimeout 0 in the demo transport) and their re-renders finish before
+    // switching to fake timers, so the tick counters below only move because of what each test does (CI flaked once)
+    await act(async () => {
+      await new Promise((r) => setTimeout(r, 50));
+    });
+    const imgs = screen.getAllByRole("img") as HTMLImageElement[];
+    expect(imgs.map((i) => new URL(i.src, "http://x").searchParams.get("t"))).toEqual(["1", "1"]);
     vi.useFakeTimers();
     return imgs;
   }
