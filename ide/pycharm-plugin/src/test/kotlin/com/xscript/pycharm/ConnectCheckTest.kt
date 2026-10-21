@@ -74,6 +74,19 @@ class ConnectCheckTest {
     }
 
     @Test
+    fun `every step has a title and a fix in both bundles (generated from protocol connect-check json)`() {
+        for (name in listOf("/messages/XScriptBundle.properties", "/messages/XScriptBundle_zh_CN.properties")) {
+            val props = java.util.Properties().apply {
+                ConnectCheckTest::class.java.getResourceAsStream(name)!!.reader(Charsets.UTF_8).use { load(it) }
+            }
+            for (id in CheckStepId.entries) {
+                assertTrue("$name check.${id.key}", !props.getProperty("check.${id.key}").isNullOrBlank())
+                assertTrue("$name check.fix.${id.key}", !props.getProperty("check.fix.${id.key}").isNullOrBlank())
+            }
+        }
+    }
+
+    @Test
     fun `html escapes details`() {
         val html = checkHtml(listOf(CheckStep(CheckStepId.ADDRESS, false, "<b>x</b>")) , msg)
         assertTrue(html.contains("&lt;b&gt;x"))

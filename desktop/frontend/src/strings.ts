@@ -1,5 +1,8 @@
 // UI strings: zh-CN (default) and en. `t` is a live binding: setLanguage() swaps the dictionary and the shell re-renders
 // (src/i18n.ts). Every key must exist in both: `en` is typed as `Strings` so a missing one fails tsc.
+// step titles and fixes are shared with the PyCharm plugin: edit protocol/connect-check.json, then run scripts/gen_connect_check.py
+import connectCheckText from "./generated/connect-check.json";
+
 const zh = {
   appTitle: "XScript 桌面端",
   brand: "XScript",
@@ -222,17 +225,7 @@ const zh = {
     fixLabel: "怎么修",
     more: "更多排查步骤",
     skipped: "未检查",
-    steps: {
-      adb: { title: "找到 adb", fix: "安装 Android platform-tools，或在设置里指定 adb 路径（环境变量 XSCRIPT_ADB / ANDROID_HOME）。" },
-      device: { title: "adb 能看到手机", fix: "检查数据线（换一根能传数据的线），手机打开「开发者选项 → USB 调试」；模拟器先 adb connect。然后点「刷新」。" },
-      authorized: { title: "已允许 USB 调试", fix: "在手机上的「允许 USB 调试吗？」弹窗里点允许（可勾选「始终允许」）；没有弹窗就拔插一次数据线。" },
-      forward: { title: "端口转发", fix: "adb 转发失败：重启 adb（adb kill-server）后重试，或换个 USB 口。" },
-      address: { title: "地址格式", fix: "请填写 主机:端口，例如 192.168.1.20:9860（端口为 1–65535，省略时用 9860）。" },
-      reach: { title: "能连到这个地址", fix: "电脑和手机要在同一个 Wi-Fi，地址和端口以手机首页「开发者地址」为准；访客网络可能开了设备隔离，VPN / 代理也可能拦住局域网地址。也可以改用 USB。" },
-      app: { title: "XScript App 在响应", fix: "打开手机上的 XScript，首页「开发者地址」应显示地址而不是「服务未启动」；全新安装要先允许通知权限。端口不是 9860 时以首页显示为准。" },
-      xscript: { title: "对方是 XScript", fix: "这个端口上不是 XScript：检查端口，并把 App 升级到与桌面端匹配的版本。" },
-      pairing: { title: "配对码", fix: "连接后在设备卡片上输入手机首页「开发与连接 → 配对码」显示的配对码。" },
-    } as Record<string, { title: string; fix: string }>,
+    steps: connectCheckText.zh as Record<string, { title: string; fix: string }>,
   },
   deviceFlow: {
     current: "当前设备",
@@ -1028,17 +1021,7 @@ const en: Strings = {
     fixLabel: "How to fix",
     more: "More troubleshooting steps",
     skipped: "Not checked",
-    steps: {
-      adb: { title: "adb found", fix: "Install Android platform-tools, or set the adb path in Settings (XSCRIPT_ADB / ANDROID_HOME)." },
-      device: { title: "adb sees the phone", fix: "Check the cable (it must carry data) and turn on Developer options → USB debugging; for emulators run adb connect first. Then press Refresh." },
-      authorized: { title: "USB debugging allowed", fix: "Tap Allow in the phone's \"Allow USB debugging?\" prompt (tick Always allow). No prompt? Unplug and plug the cable back in." },
-      forward: { title: "Port forward", fix: "adb could not forward the port: restart adb (adb kill-server) and try again, or use another USB port." },
-      address: { title: "Address format", fix: "Use host:port, e.g. 192.168.1.20:9860 (port 1–65535; 9860 when omitted)." },
-      reach: { title: "Address reachable", fix: "Computer and phone must be on the same Wi-Fi; use the address and port shown on the phone's home screen. Guest networks may isolate devices, and a VPN or proxy can block LAN addresses. USB works too." },
-      app: { title: "XScript app answers", fix: "Open XScript on the phone; its home screen should show the developer address, not \"service not started\". A fresh install needs the notification permission first. Use the port shown there if it is not 9860." },
-      xscript: { title: "It is XScript", fix: "Something else answers on this port: check the port, and update the app to match this desktop version." },
-      pairing: { title: "Pairing code", fix: "After connecting, enter the pairing code from the phone's home screen (Developer & connection → Pairing code) on the device card." },
-    } as Record<string, { title: string; fix: string }>,
+    steps: connectCheckText.en as Record<string, { title: string; fix: string }>,
   },
   deviceFlow: {
     current: "Current device",
