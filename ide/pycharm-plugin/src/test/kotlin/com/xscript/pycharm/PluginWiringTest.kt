@@ -57,6 +57,30 @@ class PluginWiringTest : BasePlatformTestCase() {
         }
     }
 
+    fun testDeviceProjectsPanelSelectionAndButtons() {
+        val panel = DeviceProjectsPanel(project)
+        fun enabled(a: com.intellij.openapi.actionSystem.AnAction): Boolean {
+            val e = com.intellij.testFramework.TestActionEvent.createTestEvent(a)
+            a.update(e)
+            return e.presentation.isEnabled
+        }
+        assertTrue(enabled(panel.refreshAction))
+        assertFalse(enabled(panel.runAction))     // nothing selected
+        panel.setRows(listOf(DeviceProjectRow("alpha", false), DeviceProjectRow("beta", true)))
+        panel.list.selectedIndex = 0
+        assertTrue(enabled(panel.runAction))
+        assertTrue(enabled(panel.pullAction))
+        assertFalse(enabled(panel.stopAction))    // alpha is not running
+        panel.list.selectedIndex = 1
+        assertTrue(enabled(panel.stopAction))
+        // a refresh keeps the selection by name even when the order changes
+        panel.setRows(listOf(DeviceProjectRow("beta", false), DeviceProjectRow("alpha", false), DeviceProjectRow("gamma", false)))
+        assertEquals("beta", panel.selected?.name)
+        assertFalse(enabled(panel.stopAction))
+        panel.setRows(emptyList())
+        assertNull(panel.selected)
+    }
+
     fun testProjectRootFindsTopmostPackage() {
         val init = myFixture.addFileToProject("demo/lib/__init__.py", "")
         myFixture.addFileToProject("demo/__init__.py", "print('hi')\n")
