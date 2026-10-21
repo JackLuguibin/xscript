@@ -146,6 +146,16 @@ class ProjectRoutesTest {
         assertEquals(200, call("DELETE", "demo", "/file", query = q("pkg/m.py")).status)
         assertEquals(200, call("DELETE", "demo", "/file", query = q("pkg")).status)
         assertEquals(404, call("DELETE", "demo", "/file", query = q("pkg")).status)
+        // recursive=1 removes a non-empty folder and reports how many files went
+        call("PUT", "demo", "/files", file("lib/x.py"))
+        call("PUT", "demo", "/files", file("lib/deep/y.py"))
+        val rq = { p: String -> mapOf("path" to p, "recursive" to "1") }
+        assertEquals(409, call("DELETE", "demo", "/file", query = q("lib")).status)   // still refused without it
+        val r = call("DELETE", "demo", "/file", query = rq("lib"))
+        assertEquals(200, r.status)
+        assertEquals(2, r.json.getInt("deleted"))
+        assertEquals(404, call("DELETE", "demo", "/file", query = rq("lib")).status)
+        assertEquals(400, call("DELETE", "demo", "/file", query = rq("__init__.py")).status)
     }
 
     @Test

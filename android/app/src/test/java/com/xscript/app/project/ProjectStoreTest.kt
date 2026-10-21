@@ -76,4 +76,26 @@ class ProjectStoreTest {
         assertFalse(File(root, "demo/pkg").exists())
         assertTrue(File(root, "demo/__init__.py").isFile)
     }
+
+    @Test
+    fun deleteFolderRemovesEverythingInsideButNeverFollowsSymlinks() {
+        store.createNew("demo")
+        store.createFile("demo", "pkg/a.py", "", "utf-8")
+        store.createFile("demo", "pkg/sub/b.py", "", "utf-8")
+        store.createDir("demo", "pkg/empty")
+        val outside = File(root.parentFile, "outside-${System.nanoTime()}").apply { mkdirs() }
+        File(outside, "keep.txt").writeText("keep")
+        java.nio.file.Files.createSymbolicLink(File(root, "demo/pkg/link").toPath(), outside.toPath())
+        assertEquals(3, store.deleteFolder("demo", "pkg"))           // a.py, sub/b.py and the link itself
+        assertFalse(File(root, "demo/pkg").exists())
+        assertTrue("the link target outside the project is untouched", File(outside, "keep.txt").isFile)
+        assertTrue(File(root, "demo/__init__.py").isFile)
+        assertThrows(IllegalArgumentException::class.java) { store.deleteFolder("demo", "__init__.py") }
+        assertThrows(IllegalArgumentException::class.java) { store.deleteFolder("demo", "") }
+        assertThrows(IllegalArgumentException::class.java) { store.deleteFolder("demo", "../demo") }
+        assertThrows(NoSuchElementException::class.java) { store.deleteFolder("demo", "pkg") }
+        store.createFile("demo", "one.py", "", "utf-8")
+        assertEquals(1, store.deleteFolder("demo", "one.py"))       // a plain file is just deleted
+        outside.deleteRecursively()
+    }
 }

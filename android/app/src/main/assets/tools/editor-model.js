@@ -200,8 +200,9 @@
       }
       this.documents.delete(this.key(doc.path, doc.project));
     }
-    async removeFolder(path, project = this.project) {
-      await this.api("DELETE", this.projectUrl(project) + "/file?path=" + encodeURIComponent(path));
+    /** `recursive` deletes the folder with everything in it; otherwise the device refuses a non-empty one. */
+    async removeFolder(path, project = this.project, recursive = false) {
+      return this.api("DELETE", this.projectUrl(project) + "/file?path=" + encodeURIComponent(path) + (recursive ? "&recursive=1" : ""));
     }
     /** Where `path` ends up after moving `from` to `to` (a file, or a folder with everything inside). */
     static movedPath(path, from, to) {

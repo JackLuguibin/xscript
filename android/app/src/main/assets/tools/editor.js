@@ -513,11 +513,25 @@
   el("delete-file").onclick = () => {
     if (selectedDir()) {
       const dir = selectedDir(), project = model.project;
-      if (files.some(f => f.path.startsWith(dir + "/")) || dirs.some(d => d.startsWith(dir + "/"))) { message("文件夹 " + dir + "/ 非空，请先删除其中的文件和子文件夹", true); return; }
-      if (confirm("删除空文件夹 " + dir + "/？")) operation(async () => {
-        await model.removeFolder(dir, project); expanded().delete(dir);
+      const inside = files.filter(f => f.path.startsWith(dir + "/")).map(f => f.path);
+      const nonEmpty = inside.length > 0 || dirs.some(d => d.startsWith(dir + "/"));
+      const dirtyInside = inside.filter(p => { const d = model.documents.get(model.key(p)); return d && model.dirty(d); });
+      const ask = !nonEmpty ? "删除空文件夹 " + dir + "/？"
+        : "删除文件夹 " + dir + "/ 及其中的 " + inside.length + " 个文件？此操作不可撤销。\n\n" +
+          inside.slice(0, 15).join("\n") + (inside.length > 15 ? "\n…… 还有 " + (inside.length - 15) + " 个" : "") +
+          (dirtyInside.length ? "\n\n其中 " + dirtyInside.length + " 个文件有未保存的修改，也将丢弃。" : "");
+      if (confirm(ask)) operation(async () => {
+        const r = await model.removeFolder(dir, project, nonEmpty); expanded().delete(dir);
+        for (const p of inside) { model.documents.delete(model.key(p, project)); debuggerClient.breakpoints.delete(project + ":" + p); }
+        const lost = current && current.project === project && current.path.startsWith(dir + "/");
+        if (lost) { ++generation; current = null; el("editor").value = ""; el("editor").disabled = true; assist.setFile(null); showDesigner(null); cursor(); }
         selected = current ? {type: "file", path: current.path} : null;
-        await refreshFiles(); message("已删除文件夹 " + dir + "/");
+        await refreshFiles();
+        if (lost && model.project === project) {
+          const next = files.find(f => f.path === "__init__.py") || files[0];
+          if (next) await load(next.path); else render();
+        }
+        message("已删除文件夹 " + dir + "/" + (nonEmpty ? "（" + ((r && r.deleted) ?? inside.length) + " 个文件）" : ""));
       });
       return;
     }

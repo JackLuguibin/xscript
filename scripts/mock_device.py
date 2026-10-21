@@ -984,6 +984,12 @@ class Handler(BaseHTTPRequestHandler):
             elif rel in files:
                 del files[rel]
                 self._json(200, {"ok": True})
+            elif self._query().get("recursive") == "1" and rel in _dirs(name):
+                gone = [p for p in files if p.startswith(rel + "/")]
+                for p in gone:
+                    del files[p]
+                STATE["dirs"][name] = {d for d in STATE["dirs"][name] if d != rel and not d.startswith(rel + "/")}
+                self._json(200, {"ok": True, "deleted": len(gone)})
             elif rel in _dirs(name):
                 if any(p.startswith(rel + "/") for p in files) or any(d.startswith(rel + "/") for d in _dirs(name)):
                     self._json(409, {"error": "文件夹非空: " + rel})

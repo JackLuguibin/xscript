@@ -45,6 +45,11 @@ test('Web IDE native HTTP contract and packaged asset routes', {timeout:15000}, 
     let tree=await model.listTree();assert(tree.dirs.includes('assets'));assert(tree.dirs.includes('pkg/sub'));
     await assert.rejects(api('DELETE',model.projectUrl()+'/file?path=__init__.py'),/入口/);
     await assert.rejects(api('DELETE',model.projectUrl()+'/file?path=pkg'),/非空/);
+    {const tmp=await model.createFile('gone/a/b.py');await model.save(tmp);await model.createFile('gone/c.txt');
+     const r=await model.removeFolder('gone',undefined,true);assert.equal(r.deleted,2);
+     const t2=await model.listTree();assert(!t2.files.some(f=>f.path.startsWith('gone/')));assert(!t2.dirs.some(d=>d==='gone'||d.startsWith('gone/')));
+     await assert.rejects(api('DELETE',model.projectUrl()+'/file?path=__init__.py&recursive=1'),/入口/);
+     await assert.rejects(api('DELETE',model.projectUrl()+'/file?path=nope&recursive=1'),/不存在/);}
     await assert.rejects(api('DELETE',model.projectUrl()+'/file?path=missing.py'),/不存在/);
     // 重命名 / 移动 (POST /move): open documents follow, conflicts and bad paths are rejected.
     const mv=await model.open('pkg/sub/mod.py');model.edit(mv,'Y = 3\n');
