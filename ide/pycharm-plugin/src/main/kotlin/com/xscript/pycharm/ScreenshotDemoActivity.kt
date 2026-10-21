@@ -18,7 +18,7 @@ import java.util.concurrent.TimeUnit
  * Docs screenshots only. With -Dxscript.screenshotDemo=run|settings|eval|pull (set by `./gradlew runIde -PrunIdeScreenshotDemo=…`,
  * never in a normal IDE) it opens the first XScript project's __init__.py and runs Upload and Run (`run`), or opens
  * Settings | Tools | XScript (`settings`), selects the first `_result` line and runs Run Selection on Device (`eval`), or starts
- * Pull Project from Device (`pull`, its project picker stays open), so screenshots need no scripted mouse clicks. Does nothing otherwise.
+ * Pull Project from Device (`pull`), or runs a device project and opens the Device Projects tab (`projects`), so screenshots need no scripted mouse clicks. Does nothing otherwise.
  */
 class ScreenshotDemoActivity : ProjectActivity {
     override suspend fun execute(project: Project) {
@@ -35,6 +35,10 @@ class ScreenshotDemoActivity : ProjectActivity {
             }
             if (mode == "pull") {
                 XScriptService.get(project).pullProject()
+                return@invokeLater
+            }
+            if (mode == "projects") {
+                XScriptService.get(project).runOnDevice("daily_signin")
                 return@invokeLater
             }
             ToggleStubsAction.enable(project)
@@ -56,6 +60,15 @@ class ScreenshotDemoActivity : ProjectActivity {
                     editor.selectionModel.setSelection(doc.getLineStartOffset(line), doc.getLineEndOffset(line))
                     editor.caretModel.moveToOffset(doc.getLineEndOffset(line))
                     editor.selectionModel.selectedText?.let { XScriptService.get(project).eval(it) }
+                }
+                if (mode == "projects") ToolWindowManager.getInstance(project).getToolWindow(XScriptService.TOOL_WINDOW_ID)?.let { tw ->
+                    tw.show()
+                    tw.contentManager.contents.getOrNull(1)?.let { c ->
+                        tw.contentManager.setSelectedContent(c)
+                        AppExecutorUtil.getAppScheduledExecutorService().schedule({
+                            app.invokeLater({ (c.component as? DeviceProjectsPanel)?.list?.selectedIndex = 0 }, project.disposed)
+                        }, 3, TimeUnit.SECONDS)
+                    }
                 }
                 if (mode == "run" || mode == "eval") ToolWindowManager.getInstance(project).getToolWindow(XScriptService.TOOL_WINDOW_ID)?.show()
             }, project.disposed)
@@ -110,6 +123,6 @@ class ScreenshotDemoActivity : ProjectActivity {
 
     companion object {
         fun mode(): String? = System.getProperty("xscript.screenshotDemo")?.takeIf { it in MODES }
-        private val MODES = setOf("run", "settings", "eval", "pull")
+        private val MODES = setOf("run", "settings", "eval", "pull", "projects")
     }
 }

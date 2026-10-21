@@ -127,6 +127,21 @@ class DeviceClientTest {
         assertEquals(7L, open.projectFiles("pyc_inc")!!.first { it.path == "lib/a.py" }.size)
     }
 
+    @Test fun deviceProjectsListMarksTheRunningOne() {
+        open.uploadFiles("pyc_list_b", listOf(UploadFile("__init__.py", "", "utf-8")))
+        open.uploadFiles("Pyc_list_a", listOf(UploadFile("__init__.py", "", "utf-8")))
+        open.stopIfRunning()
+        val idle = DeviceProjects.load(open).filter { it.name.lowercase().startsWith("pyc_list_") }
+        assertEquals(listOf(DeviceProjectRow("Pyc_list_a", false), DeviceProjectRow("pyc_list_b", false)), idle)
+        assertTrue(open.run("pyc_list_b").get("running").asBoolean)
+        try {
+            val rows = DeviceProjects.load(open)
+            assertEquals(listOf("pyc_list_b"), rows.filter { it.running }.map { it.name })
+        } finally {
+            open.stop("pyc_list_b")
+        }
+    }
+
     @Test fun pullRejectsUnsafePaths() {
         for (bad in listOf("", "/etc/passwd", "../x", "a/../b", "a//b", "./a", "a\\b", "a\u0000b")) assertFalse(bad, ProjectPull.safeRelative(bad))
         for (ok in listOf("a", "lib/x.py", "res/img/a b.png", "数据/表.csv")) assertTrue(ok, ProjectPull.safeRelative(ok))

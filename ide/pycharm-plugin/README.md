@@ -12,6 +12,8 @@
 
 ![选中一行按 Ctrl+Alt+Shift+E：代码和设备返回的结果显示在 XScript 工具窗口](../../docs/images/pycharm-eval.png)
 
+![「设备工程」标签页：手机上的工程列表，正在运行的 daily_signin 有标记，左侧是刷新 / 运行 / 停止 / 拉取](../../docs/images/pycharm-projects.png)
+
 ![Pull Project from Device：选择设备上的工程、确认覆盖后，拉取的文件出现在编辑器和工程树里，日志列出新增 / 更新数量](../../docs/images/pycharm-pull.png)
 
 （沙盒 PyCharm 2024.2.6，连接本机模拟设备 `scripts/mock_device.py`，结果是模拟数据。）
@@ -39,6 +41,7 @@ cd ide/pycharm-plugin
 | Upload and Run on Device | Ctrl+Alt+Shift+R；编辑器、项目视图右键 | 先停止手机上正在运行的脚本，再上传当前文件所在的工程并运行，日志实时显示在 XScript 工具窗口。只发送上次从本 IDE 上传后新增或改动的文件（设备上文件大小 + 本地内容哈希，与 VS Code 扩展规则一致），日志里会显示跳过了几个 |
 | Upload All and Run on Device | | 与上一项相同，但重新发送所有文件（手机上改过工程后用） |
 | Stop Script on Device | | 停止手机上正在运行的脚本 |
+| XScript 工具窗口 →「设备工程」 | | 列出手机上的工程，正在运行的那个有标记；选中后可 **在设备上运行**（不上传，直接运行手机上的版本）、**停止**、**拉取到本工程**；第一次打开这个标签页时加载，之后点「刷新」 |
 | Pull Project from Device… | | 从设备列出的工程中选一个下载：IDE 工程（或其下的子文件夹）与设备工程同名时直接拉到那里，否则选一个文件夹，在其下新建同名子文件夹。只写入新增和不同的文件；会覆盖本地修改时先列出文件请你确认；设备上没有的本地文件保留不动 |
 | Run Selection on Device | Ctrl+Alt+Shift+E；编辑器右键 | 把选中的代码（没选中时为光标所在行）发到手机的 eval 进程执行，结果打印在 XScript 工具窗口；要看某个值就赋给 `_result`；超时默认 8 秒，可在设置里改（200–15000 毫秒） |
 | Connect to Device… | | 填写手机地址（`IP[:端口]`），并测试连接 |
@@ -60,5 +63,5 @@ cd ide/pycharm-plugin
 ```
 
 - 新建工程模板 `src/main/resources/templates.json` 是生成的：改 `ide/vscode-extension/src/newProject.ts` 后，在 `ide/vscode-extension` 里 `npm run compile && node scripts/export-templates.js`。CI 用 `--check` 检查。
-- 截图：先在 `.intellijPlatform/sandbox/xscript-pycharm/PC-2024.2.6/config_runIde/options/xscript.xml` 里把设备地址设为本机 mock 设备，再 `./gradlew runIde -PrunIdeProject=<演示工程> -PrunIdeHeadlessConsent -PrunIdeScreenshotDemo=run -PrunIdeScreenshotOut=<目录>`（模式还有 `settings`、`eval`、`pull`）。这些开关只用于这个一次性的沙盒：跳过用户协议，打开演示工程，执行对应功能（`pull` 会自动按下选择和覆盖对话框的默认按钮；演示工程里要有与设备工程同名的文件夹），约 25 秒后把 IDE 窗口（有对话框时截对话框）存成 `<目录>/<模式>.png`，不需要系统录屏权限。
+- 截图：先在 `.intellijPlatform/sandbox/xscript-pycharm/PC-2024.2.6/config_runIde/options/xscript.xml` 里把设备地址设为本机 mock 设备，再 `./gradlew runIde -PrunIdeProject=<演示工程> -PrunIdeHeadlessConsent -PrunIdeScreenshotDemo=run -PrunIdeScreenshotOut=<目录>`（模式还有 `settings`、`eval`、`pull`、`projects`）。这些开关只用于这个一次性的沙盒：跳过用户协议，打开演示工程，执行对应功能（`pull` 会自动按下选择和覆盖对话框的默认按钮；演示工程里要有与设备工程同名的文件夹），约 25 秒后把 IDE 窗口（有对话框时截对话框）存成 `<目录>/<模式>.png`，不需要系统录屏权限。
 - 本机没有系统 JDK 时可以用 Android Studio 自带的：`JAVA_HOME="/Applications/Android Studio.app/Contents/jbr/Contents/Home"`。

@@ -10,6 +10,8 @@ It talks to the device HTTP API (`protocol/openapi.yaml`, default port 9860). On
 
 ![Select a line and press Ctrl+Alt+Shift+E: the code and the device's answer appear in the XScript tool window](../../docs/images/pycharm-eval.png)
 
+![The Device Projects tab: the phone's projects with the running daily_signin marked, and Refresh / Run / Stop / Pull on the left](../../docs/images/pycharm-projects.png)
+
 ![Pull Project from Device: after picking a device project and confirming the overwrite, the pulled files show in the editor and project tree and the log counts new / updated files](../../docs/images/pycharm-pull.png)
 
 (Sandbox PyCharm 2024.2.6 connected to the local mock device `scripts/mock_device.py`; results are mock data.)
@@ -32,6 +34,7 @@ Then in PyCharm: **Settings → Plugins → ⚙ → Install Plugin from Disk…*
 | Upload and Run on Device | Ctrl+Alt+Shift+R; editor and Project view context menus | Stops the script running on the phone, uploads the project of the current file and runs it; the log streams into the XScript tool window. Only files new or changed since the last upload from this IDE are sent (device file size + local content hash, the VS Code extension's rule); the log says how many were skipped |
 | Upload All and Run on Device | | Same, but sends every file again (use it after editing the project on the phone) |
 | Stop Script on Device | | Stops the running script |
+| XScript tool window → "Device Projects" | | Lists the phone's projects and marks the running one; for the selected one: **Run on Device** (no upload, runs the phone's copy), **Stop**, **Pull into This Project**. Loaded when the tab is first opened, then with Refresh |
 | Pull Project from Device… | | Pick one of the device's projects and download it: into the IDE project (or its sub-folder) when it has the same name, else into a new folder of that name under a folder you choose. Only new and different files are written; overwriting local edits asks first, listing them; local files the device does not have are kept |
 | Run Selection on Device | Ctrl+Alt+Shift+E; editor context menu | Evaluates the selected code (or the current line) in the phone's eval process and prints the result in the XScript tool window; assign `_result` to see a value; times out after 8 s by default, adjustable in Settings (200–15000 ms) |
 | Connect to Device… | | Sets the phone address (`IP[:port]`) and tests the connection |

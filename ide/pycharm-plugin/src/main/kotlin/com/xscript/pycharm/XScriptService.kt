@@ -80,6 +80,49 @@ class XScriptService(private val project: Project) : Disposable {
         }.queue()
     }
 
+    /** The device's projects for the Device Projects tab; `done` runs on the EDT (not called when the device can't be reached). */
+    fun loadDeviceProjects(done: (List<DeviceProjectRow>) -> Unit) {
+        object : Task.Backgroundable(project, XScriptBundle.message("task.projects"), false) {
+            override fun run(indicator: ProgressIndicator) {
+                withPairing { client ->
+                    val rows = DeviceProjects.load(client)
+                    ApplicationManager.getApplication().invokeLater({ done(rows) }, project.disposed)
+                }
+            }
+        }.queue()
+    }
+
+    /** Runs a project already on the device (no upload), restarting whatever runs there, and follows its log. */
+    fun runOnDevice(name: String, after: () -> Unit = {}) {
+        object : Task.Backgroundable(project, XScriptBundle.message("task.run", name), true) {
+            override fun run(indicator: ProgressIndicator) {
+                withPairing { client ->
+                    client.stopIfRunning()?.let { print(XScriptBundle.message("log.stopped", it) + "\n", ConsoleViewContentType.SYSTEM_OUTPUT) }
+                    val since = client.currentSeq()
+                    client.run(name).get("error")?.let { throw IllegalStateException(it.asString) }
+                    lastProject = name
+                    print(XScriptBundle.message("log.run", name, client.target.baseUrl) + "\n", ConsoleViewContentType.SYSTEM_OUTPUT)
+                    showLog()
+                    follow(client, since)
+                }
+                ApplicationManager.getApplication().invokeLater({ after() }, project.disposed)
+            }
+        }.queue()
+    }
+
+    /** Stops one named device project. */
+    fun stopProject(name: String, after: () -> Unit = {}) {
+        object : Task.Backgroundable(project, XScriptBundle.message("task.stop"), false) {
+            override fun run(indicator: ProgressIndicator) {
+                withPairing { client ->
+                    client.stop(name)
+                    print(XScriptBundle.message("log.stopped", name) + "\n", ConsoleViewContentType.SYSTEM_OUTPUT)
+                }
+                ApplicationManager.getApplication().invokeLater({ after() }, project.disposed)
+            }
+        }.queue()
+    }
+
     fun stop() {
         val name = lastProject ?: run {
             // nothing started from here: stop whatever the device runs
@@ -115,8 +158,8 @@ class XScriptService(private val project: Project) : Disposable {
         }.queue()
     }
 
-    /** Asks which device project to pull and where, downloads it, confirms overwriting changed files, writes and refreshes. */
-    fun pullProject() {
+    /** Asks which device project to pull (unless `preselected`, from the Device Projects tab) and where, downloads it, confirms overwriting changed files, writes and refreshes. */
+    fun pullProject(preselected: String? = null) {
         object : Task.Backgroundable(project, XScriptBundle.message("task.pull.list"), true) {
             override fun run(indicator: ProgressIndicator) {
                 withPairing { client ->
@@ -128,6 +171,11 @@ class XScriptService(private val project: Project) : Disposable {
                     var name: String? = null
                     var dest: Path? = null
                     ApplicationManager.getApplication().invokeAndWait {
+                        if (preselected != null) {
+                            name = preselected
+                            dest = pullDestination(preselected)
+                            return@invokeAndWait
+                        }
                         val combo = com.intellij.openapi.ui.ComboBox(names.toTypedArray())
                         val panel = javax.swing.JPanel(java.awt.BorderLayout(0, 6)).apply {
                             add(javax.swing.JLabel(XScriptBundle.message("pull.pick", client.target.baseUrl)), java.awt.BorderLayout.NORTH)
