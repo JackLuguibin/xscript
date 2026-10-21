@@ -149,3 +149,53 @@ def test_lan_hosts():
     assert lan_hosts("192.168.5.0/30") == ["192.168.5.1", "192.168.5.2"]
     with pytest.raises(ValueError):
         lan_hosts("10.0.0.0/16")
+
+
+def _steps(res: dict) -> dict:
+    return {s["id"]: s["ok"] for s in res["steps"]}
+
+
+async def test_check_adb_all_green_and_leaves_nothing_behind(mock_device):
+    fake = FakeAdb([("emulator-5554", "device", mock_device)])
+    m = make_manager(fake, [])
+    res = await m.check("adb", "emulator-5554")
+    assert res["ok"] is True
+    assert [s["id"] for s in res["steps"]] == ["adb", "device", "authorized", "forward", "app", "xscript", "pairing"]
+    assert all(s["ok"] for s in res["steps"])
+    assert fake.forwards == {} and m.list() == []  # a check never connects
+    await m.shutdown()
+
+
+async def test_check_adb_stops_at_the_first_failure(mock_device):
+    fake = FakeAdb([("R5", "unauthorized", mock_device), ("emulator-5554", "device", 1)])
+    m = make_manager(fake, [])
+    res = await m.check("adb", "nope")
+    assert _steps(res) == {"adb": True, "device": False, "authorized": None, "forward": None, "app": None, "xscript": None, "pairing": None}
+    res = await m.check("adb", "R5")
+    assert _steps(res)["authorized"] is False and res["steps"][2]["detail"] == "unauthorized"
+    res = await m.check("adb", "emulator-5554")  # forward fine, nothing listening behind it
+    assert _steps(res)["forward"] is True and _steps(res)["app"] is False and res["ok"] is False
+    assert fake.forwards == {}
+    await m.shutdown()
+
+
+async def test_check_adb_without_adb():
+    async def runner(argv):
+        raise AdbError("adb.not_found", "找不到 adb")
+
+    m = DeviceManager(AdbService(runner=runner), emit=lambda t, d: None)
+    res = await m.check("adb", "x")
+    assert _steps(res)["adb"] is False and _steps(res)["device"] is None
+
+
+async def test_check_lan(mock_device):
+    m = make_manager(FakeAdb([]), [])
+    res = await m.check("lan", "127.0.0.1:%d" % mock_device)
+    assert res["ok"] is True and [s["id"] for s in res["steps"]] == ["address", "reach", "app", "xscript", "pairing"]
+    res = await m.check("lan", "127.0.0.1:1")
+    assert _steps(res) == {"address": True, "reach": False, "app": None, "xscript": None, "pairing": None}
+    assert res["steps"][1]["detail"] == "refused"
+    res = await m.check("lan", "host:99999")
+    assert _steps(res)["address"] is False
+    assert m.list() == []
+    await m.shutdown()

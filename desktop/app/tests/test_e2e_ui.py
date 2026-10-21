@@ -133,7 +133,8 @@ def test_e2e_06_connect_errors_surface_as_alerts(ui, qtbot, mode, code, title):
     ui.click(qtbot, "详情")
     ui.wait_text(qtbot, "[%s]" % code)
     assert ui.js(qtbot, "document.querySelectorAll('article').length") == 0
-    assert ui.fake.forwards == {}  # the forward created for the probe was removed again
+    # the forwards created for the probe (and for the step-by-step check that opens after unreachable) are removed again
+    qtbot.waitUntil(lambda: ui.fake.forwards == {}, timeout=10000)
     assert ui.js(qtbot, "!!document.querySelector('[role=alert]')") is True
 
 

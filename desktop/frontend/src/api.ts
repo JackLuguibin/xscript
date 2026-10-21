@@ -33,6 +33,20 @@ export interface DeviceInfo {
   cloud: string;
 }
 
+/** One step of device.check: ok is null for steps after the first failure. */
+export interface ConnectCheckStep {
+  id: string;
+  ok: boolean | null;
+  detail: string;
+}
+
+export interface ConnectCheckResult {
+  transport: "adb" | "lan";
+  target: string;
+  ok: boolean;
+  steps: ConnectCheckStep[];
+}
+
 export interface Device {
   id: string;
   transport: "adb" | "lan";
@@ -245,6 +259,8 @@ export function createApi(rpc: RpcClient) {
     adbList: () => rpc.call<{ adbPath: string | null; devices: AdbDevice[]; autoConnecting?: string[] }>("device.adb.list", {}, { timeoutMs: 20_000 }),
     connectAdb: (serial: string) => rpc.call<Device>("device.connect", { transport: "adb", serial }, { timeoutMs: 30_000 }),
     connectLan: (address: string) => rpc.call<Device>("device.connect", { transport: "lan", address }, { timeoutMs: 30_000 }),
+    checkConnection: (transport: "adb" | "lan", target: string) =>
+      rpc.call<ConnectCheckResult>("device.check", transport === "adb" ? { transport, serial: target } : { transport, address: target }, { timeoutMs: 40_000 }),
     listDevices: () => rpc.call<{ devices: Device[]; notice?: string; noticeDetail?: string }>("device.list"),
     refresh: (id: string) => rpc.call<Device>("device.refresh", { id }),
     pairDevice: (id: string, code: string) => rpc.call<Device>("device.pair", { id, code }),

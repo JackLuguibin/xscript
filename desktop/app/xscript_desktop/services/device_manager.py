@@ -282,6 +282,103 @@ class DeviceManager:
         self._emit("device.state", rec.to_dict())
         return rec
 
+    # ---- connection check ---------------------------------------------------------------------------------------------------------
+
+    async def check(self, transport: str, target: str) -> dict[str, Any]:
+        """Walk the connection one step at a time and stop at the first failure (the 「逐项检查」 panel).
+
+        adb: adb found → device listed → USB debugging allowed → port forward → app answers → XScript → paired.
+        lan: address valid → port reachable → app answers → XScript → paired.
+        Each step is {id, ok, detail}; ok is None for steps not reached. Leaves no forward or client behind and does
+        not add a device (connect does that).
+        """
+        steps: list[dict[str, Any]] = []
+        order = (["adb", "device", "authorized", "forward"] if transport == "adb" else ["address", "reach"]) + ["app", "xscript", "pairing"]
+
+        def done(step: str, ok: bool, detail: str = "") -> bool:
+            steps.append({"id": step, "ok": ok, "detail": detail})
+            return ok
+
+        def result() -> dict[str, Any]:
+            seen = {x["id"] for x in steps}
+            out = steps + [{"id": i, "ok": None, "detail": ""} for i in order if i not in seen]
+            return {"transport": transport, "target": target, "ok": all(x["ok"] for x in out), "steps": out}
+
+        forward: tuple[str, int] | None = None
+        client: DeviceClient | None = None
+        try:
+            if transport == "adb":
+                try:
+                    devs = {d.serial: d for d in await self.adb.devices()}
+                except AdbError as e:
+                    if e.code in ("adb.not_found", "adb.spawn"):
+                        done("adb", False, str(e))
+                    else:
+                        done("adb", True)
+                        done("device", False, str(e))
+                    return result()
+                done("adb", True)
+                dev = devs.get(target)
+                if not done("device", dev is not None, "" if dev else "adb devices 里没有 %s" % target):
+                    return result()
+                if not done("authorized", dev.state == "device", dev.state):
+                    return result()
+                live = self._devices.get("adb:" + target)
+                if live is not None and live.forward_port and live.state != "offline":
+                    dt = DeviceTarget("127.0.0.1", live.forward_port)  # already connected: check through its forward
+                    done("forward", True, "127.0.0.1:%d → %d" % (live.forward_port, DEVICE_PORT))
+                else:
+                    try:
+                        fw = await self.adb.forward(target, DEVICE_PORT, 0)
+                    except AdbError as e:
+                        done("forward", False, str(e))
+                        return result()
+                    forward = (target, fw.local_port)
+                    dt = DeviceTarget("127.0.0.1", fw.local_port)
+                    done("forward", True, "127.0.0.1:%d → %d" % (fw.local_port, DEVICE_PORT))
+            else:
+                try:
+                    dt = DeviceTarget.parse(target)
+                except ValueError as e:
+                    done("address", False, str(e))
+                    return result()
+                done("address", True, dt.address)
+                try:
+                    _, writer = await asyncio.wait_for(asyncio.open_connection(dt.host, dt.port), 3.0)
+                    writer.close()
+                except asyncio.TimeoutError:
+                    done("reach", False, "timeout")
+                    return result()
+                except OSError as e:
+                    done("reach", False, "refused" if isinstance(e, ConnectionRefusedError) else (e.strerror or str(e)))
+                    return result()
+                done("reach", True, dt.address)
+            client = self._probe_client(dt, timeout=5.0)
+            try:
+                status = await client.status()
+            except DeviceError as e:
+                done("app", False, str(e))
+                return result()
+            done("app", True)
+            if not done("xscript", is_xscript_status(status), "%s %s" % (status.get("model", ""), status.get("version", "")) if isinstance(status, dict) else ""):
+                return result()
+            dev_id = ("adb:" if transport == "adb" else "lan:") + (target if transport == "adb" else dt.address)
+            try:
+                status = await self._pair_up(dev_id, client, status, target if transport == "adb" else "")
+            except DeviceError as e:
+                done("pairing", False, str(e))
+                return result()
+            done("pairing", not needs_pairing(status), "pairing" if status.get("pairing") else "off")
+            return result()
+        finally:
+            if client is not None:
+                await client.aclose()
+            if forward is not None:
+                try:
+                    await self.adb.remove_forward(*forward)
+                except AdbError:
+                    pass
+
     async def disconnect(self, device_id: str) -> bool:
         rec = self._devices.pop(device_id, None)
         if rec is None:
