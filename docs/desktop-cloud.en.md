@@ -14,7 +14,7 @@ The desktop client's **Cloud** page (sidebar, Ctrl+6) manages a self-hosted admi
 
 | Section | What it does | Role |
 | --- | --- | --- |
-| Devices | Backend device table with search, group / app / online filters and paging; selection survives paging and filtering. **Batch command** runs or stops a project on the selected devices and lists each result. | view: all; command: operator+ |
+| Devices | Backend device table with search, group / app / online filters and paging; selection survives paging and filtering. A device whose last run crashed shows a red **Crashed** badge (hover for project, exit code and the last stderr line) until its next run starts. **Batch command** runs or stops a project on the selected devices and lists each result. | view: all; command: operator+ |
 | Screens | Live thumbnails of online devices (pausable), relayed from each device's `/screen` through the backend. | operator+ |
 | Logs | Search a device's stored run logs (text and stream filters, page back; works while the device is offline). | all |
 | Tasks | Server-side scheduled tasks: enable / disable, run now, delete, create run / stop tasks (daily or interval). | view: all; edit: operator+ |
