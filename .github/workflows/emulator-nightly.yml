@@ -12,6 +12,8 @@ on:
       - scripts/ci_emulator_checks.sh
       - scripts/device_endpoint_e2e.py
       - scripts/device_guide_smoke.py
+      - scripts/device_pairing_copy_e2e.py
+      - scripts/device_float_e2e.py
 
 permissions:
   contents: read

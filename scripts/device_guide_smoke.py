@@ -47,7 +47,8 @@ def call(method, path, data=None, ctype=None):
     return json.loads(body) if body else {}
 
 
-def run(name, source, wait=60):
+def run(name, source, wait=60, quiet=False):
+    """Upload `source` as project `name`, run it and return its log lines (printed unless `quiet`)."""
     buf = io.BytesIO()
     with zipfile.ZipFile(buf, "w") as z:
         z.writestr("__init__.py", source)
@@ -66,8 +67,9 @@ def run(name, source, wait=60):
             break
         time.sleep(1)
     call("DELETE", "/projects/%s" % q)
-    for s in lines:
-        print("   ", s)
+    if not quiet:
+        for s in lines:
+            print("   ", s)
     return lines
 
 
