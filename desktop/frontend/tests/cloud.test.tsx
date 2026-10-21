@@ -122,12 +122,20 @@ describe("CloudPage batch commands (P4.3)", () => {
 
   it("marks a device whose last run crashed with a red badge and the error in its tooltip", async () => {
     await openDevices("xsk_view", "victor", "viewer");
-    const badges = screen.getAllByText(t.cloud.dev.crashed);
+    const badges = screen.getAllByText(t.cloud.dev.crashed).filter((el) => el.closest("td"));
     expect(badges).toHaveLength(1);
     const badge = badges[0].closest(".badge") as HTMLElement;
     expect(badge.className).toContain("bad");
     expect(badge.getAttribute("title")).toContain("CaptureError");
     expect(badge.closest("tr")?.textContent).toContain("farm-02");
+  });
+
+  it("filters the device table to crashed devices", async () => {
+    await openDevices("xsk_view", "victor", "viewer");
+    fireEvent.change(screen.getByLabelText(t.cloud.dev.anyState), { target: { value: "crashed" } });
+    expect(await screen.findByText(t.cloud.dev.total(1))).toBeTruthy();
+    expect(screen.getByText("farm-02")).toBeTruthy();
+    expect(screen.queryByText("farm-01")).toBeNull();
   });
 
   it("stop asks first", async () => {

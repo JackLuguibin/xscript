@@ -88,7 +88,8 @@ class FakeBackend:
         rows = [d for d in self.devices
                 if (not qp.get("q") or qp["q"].lower() in (d["id"] + d["model"] + d["brand"] + d["note"]).lower())
                 and (not qp.get("group") or d["group"] == qp["group"]) and (not qp.get("app") or d["app"] == qp["app"])
-                and (qp.get("online") is None or d["online"] == (qp["online"] == "true"))]
+                and (qp.get("online") is None or d["online"] == (qp["online"] == "true"))
+                and (qp.get("crashed") != "true" or ((d.get("last_run") or {}).get("crashed") and not d["running"]))]
         page, size = int(qp.get("page", 1)), int(qp.get("page_size", 50))
         return {"items": rows[(page - 1) * size: page * size], "total": len(rows)}
 

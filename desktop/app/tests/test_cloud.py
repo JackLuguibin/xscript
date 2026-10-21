@@ -145,6 +145,8 @@ async def test_device_list_filters_and_drops_bulky_fields(ctx, fb):
     assert [d["id"] for d in r["result"]["items"]] == ["dev-b2"]
     path, _ = fb.calls[-1][1], None
     assert path == "/api/devices"
+    r, _ = await rpc(ctx, "cloud.devices", crashed=True)
+    assert [d["id"] for d in r["result"]["items"]] == ["dev-b2"]
     r, _ = await rpc(ctx, "cloud.devices", online=False)
     assert [d["id"] for d in r["result"]["items"]] == ["dev-c3"]
 
