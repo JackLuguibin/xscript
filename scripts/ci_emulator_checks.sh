@@ -17,12 +17,18 @@ adb shell appops set "$PKG" SYSTEM_ALERT_WINDOW allow
 adb shell settings put secure enabled_accessibility_services "$PKG/com.xscript.app.a11y.XscriptAccessibilityService"
 adb shell settings put secure accessibility_enabled 1
 adb shell am start -n "$PKG/com.xscript.app.LauncherActivity"
-adb forward tcp:19860 tcp:9860
-for _ in $(seq 1 60); do curl -sf http://127.0.0.1:19860/status >/dev/null && break; sleep 2; done
-curl -sf http://127.0.0.1:19860/status >/dev/null || { echo "device API did not come up"; exit 1; }
+# (re)forward and wait for the device API: device_endpoint_e2e.py force-stops the app and turns networking off and on
+wait_api() {
+  adb forward tcp:19860 tcp:9860
+  for _ in $(seq 1 60); do curl -sf http://127.0.0.1:19860/status >/dev/null && return 0; sleep 2; done
+  echo "device API did not come up"; exit 1
+}
+wait_api
 
 python3 scripts/device_guide_smoke.py http://127.0.0.1:19860
 python3 scripts/device_endpoint_e2e.py "$PKG"
+adb shell am start -n "$PKG/com.xscript.app.LauncherActivity"
+wait_api
 python3 scripts/device_pairing_copy_e2e.py "$PKG" http://127.0.0.1:19860
 # the floating window keeps a position per orientation and re-fits after rotating
 XS_PKG="$PKG" XS_ONLY=orientation python3 scripts/device_float_e2e.py "$ANDROID_SERIAL" http://127.0.0.1:19860
