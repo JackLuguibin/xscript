@@ -26,7 +26,7 @@ android/app/build-pack/
 android/app/build-pack-gen/
 
 # VS Code extension build output
-node_modules/
+node_modules
 ide/vscode-extension/out/
 ide/vscode-extension/stubs/
 ide/vscode-extension/media/ui-form.js
