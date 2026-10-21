@@ -72,3 +72,10 @@ class EvalSelectionAction : AnAction() {
         XScriptService.get(project).eval(code)
     }
 }
+
+/** Downloads a project from the device into the IDE project (same folder name) or a folder you pick, like VS Code's "Pull Project". */
+class PullProjectAction : AnAction() {
+    override fun getActionUpdateThread() = ActionUpdateThread.BGT
+    override fun update(e: AnActionEvent) { e.presentation.isEnabled = e.project != null }
+    override fun actionPerformed(e: AnActionEvent) { e.project?.let { XScriptService.get(it).pullProject() } }
+}

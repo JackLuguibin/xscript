@@ -39,6 +39,9 @@
             </action>
             <action id="XScript.Connect" class="com.xscript.pycharm.ConnectAction"
                     text="Connect to Device…" description="Set the phone address and test the connection" icon="AllIcons.General.Web"/>
+            <action id="XScript.PullProject" class="com.xscript.pycharm.PullProjectAction"
+                    text="Pull Project from Device…" description="Download a project from the phone into the IDE project or a folder you choose"
+                    icon="AllIcons.Actions.Download"/>
             <action id="XScript.NewProject" class="com.xscript.pycharm.NewProjectAction"
                     text="New XScript Project…" description="Create a project folder from a template (same templates as the VS Code extension)"/>
             <action id="XScript.ToggleStubs" class="com.xscript.pycharm.ToggleStubsAction"
