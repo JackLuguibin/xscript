@@ -73,8 +73,7 @@ class XScriptService(private val project: Project) : Disposable {
                     props.setValue(key, com.google.gson.Gson().toJson(plan.hashes))
                     if (syncDeletes) deleteRemoved(client, root, name, files, remote)
                     val since = client.currentSeq()
-                    val r = client.run(name)
-                    r.get("error")?.let { throw IllegalStateException(it.asString) }
+                    startOrExplain(client, name)
                     lastProject = name
                     showLog()
                     follow(client, since)
@@ -176,6 +175,15 @@ class XScriptService(private val project: Project) : Disposable {
         }.queue()
     }
 
+    /** Starts `name`; the device's "already running" refusal becomes a localized message naming what still runs. */
+    private fun startOrExplain(client: DeviceClient, name: String) {
+        try {
+            client.start(name)
+        } catch (e: AlreadyRunningException) {
+            throw IllegalStateException(XScriptBundle.message("run.alreadyRunning", e.running.ifEmpty { "?" }), e)
+        }
+    }
+
     /** Runs a project already on the device (no upload), restarting whatever runs there, and follows its log. */
     fun runOnDevice(name: String, after: () -> Unit = {}) {
         object : Task.Backgroundable(project, XScriptBundle.message("task.run", name), true) {
@@ -183,7 +191,7 @@ class XScriptService(private val project: Project) : Disposable {
                 withPairing { client ->
                     client.stopIfRunning()?.let { print(XScriptBundle.message("log.stopped", it) + "\n", ConsoleViewContentType.SYSTEM_OUTPUT) }
                     val since = client.currentSeq()
-                    client.run(name).get("error")?.let { throw IllegalStateException(it.asString) }
+                    startOrExplain(client, name)
                     lastProject = name
                     print(XScriptBundle.message("log.run", name, client.target.baseUrl) + "\n", ConsoleViewContentType.SYSTEM_OUTPUT)
                     showLog()
