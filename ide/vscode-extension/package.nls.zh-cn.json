@@ -39,6 +39,7 @@
   "xscript.config.syncDeletes": "上传时同步删除本地已删除的文件。默认关闭；开启后会先列出要删除的设备文件，确认后才删除。被 .vscode/.syncignore 忽略的文件、点开头的文件和 __pycache__ 永远不会删。删除后变空的设备文件夹也会一起删除（同一个确认框里列出）。",
   "xscript.config.evalTimeoutMs": "「在设备上运行选中代码」的超时（毫秒）。",
   "xscript.config.adbPath": "扫描设备和 ADB 终端用的 adb 路径。留空：先找 ANDROID_HOME 和常见 SDK 目录，再找 PATH。",
+  "xscript.config.lint": "在「问题」面板中显示与网页 IDE 相同的基本检查（未定义的名字、参数不对、import 拼错、async / await 用错、未使用的代码等），仅对 XScript 工程里的 Python 文件。",
   "xscript.config.scanLan": "扫描设备时同时扫描局域网（私有网段 /24），而不只是 ADB。",
   "xscript.command.newUiForm": "新建界面（UI 设计器）",
   "xscript.uiDesigner.displayName": "XScript UI 设计器",

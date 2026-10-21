@@ -474,6 +474,11 @@
           "default": "",
           "description": "%xscript.config.adbPath%"
         },
+        "xscript.lint": {
+          "type": "boolean",
+          "default": true,
+          "description": "%xscript.config.lint%"
+        },
         "xscript.scanLan": {
           "type": "boolean",
           "default": true,
@@ -512,7 +517,7 @@
     ]
   },
   "scripts": {
-    "compile": "tsc -p . && node scripts/copy-stubs.js && node scripts/copy-ui-form.js",
+    "compile": "tsc -p . && node scripts/copy-stubs.js && node scripts/copy-ui-form.js && node scripts/copy-lint.js",
     "watch": "tsc -watch -p .",
     "test": "node --test \"out/test/**/*.test.js\"",
     "vscode:prepublish": "npm run compile",

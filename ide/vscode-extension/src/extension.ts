@@ -13,6 +13,7 @@ import { Node, XScriptTree } from "./tree";
 import { captureBadge, captureProblem, captureText } from "./captureStatus";
 import { TROUBLESHOOTING_URL, canConnect, failureSummary, formatCheck, langOf, runConnectCheck, tcpConnect, type CheckStep } from "./connectCheck";
 import { newUiForm, registerUiDesigner } from "./uiDesigner";
+import { registerDiagnostics } from "./diagnostics";
 
 let client: DeviceClient;
 let output: vscode.OutputChannel;
@@ -861,6 +862,7 @@ export function activate(context: vscode.ExtensionContext): XScriptApi {
   }
   context.subscriptions.push(vscode.window.createTreeView("xscript.devices", { treeDataProvider: tree, showCollapseAll: false }));
   registerUiDesigner(context, output);
+  registerDiagnostics(context, output);
   registerDebugger(context, output, () => config().get<string>("device", "127.0.0.1:9860"), tokenFor);
   context.subscriptions.push(
     vscode.workspace.onDidChangeConfiguration((e) => {
