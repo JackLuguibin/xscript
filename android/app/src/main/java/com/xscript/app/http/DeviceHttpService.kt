@@ -35,6 +35,11 @@ class DeviceHttpService : Service() {
         // Packaged apps keep the service (it holds the 图色 MediaProjection session) but only
         // open the LAN developer API when the pack or the user enabled it.
         server = if (com.xscript.app.settings.Settings.devServer) startServer() else null
+        NetworkInfo.server = when {
+            server != null -> NetworkInfo.Server.RUNNING
+            !com.xscript.app.settings.Settings.devServer -> NetworkInfo.Server.DISABLED
+            else -> NetworkInfo.Server.NO_FREE_PORT
+        }
         if (server != null) pairing = PairingSocket(packageName).also { it.start() }
         if (server != null) {
             getSystemService(NotificationManager::class.java).notify(NOTIF_ID, notification())
@@ -80,6 +85,7 @@ class DeviceHttpService : Service() {
         com.xscript.app.runtime.DapTransport.disconnect()
         server?.stop()
         server = null
+        NetworkInfo.server = NetworkInfo.Server.NOT_STARTED
         pairing?.stop()
         pairing = null
         super.onDestroy()
@@ -121,7 +127,14 @@ class DeviceHttpService : Service() {
         const val EXTRA_PROJECTION_CODE = "code"
         const val EXTRA_PROJECTION_DATA = "data"
 
+        /** Stop and start again: binds a port anew (the 重试 action when 9860–9869 were all taken). */
+        fun restart(context: Context) {
+            context.stopService(Intent(context, DeviceHttpService::class.java))
+            start(context)
+        }
+
         fun start(context: Context) {
+            if (NetworkInfo.server != NetworkInfo.Server.RUNNING) NetworkInfo.server = NetworkInfo.Server.STARTING
             val intent = Intent(context, DeviceHttpService::class.java)
             if (Build.VERSION.SDK_INT >= 26) {
                 context.startForegroundService(intent)
