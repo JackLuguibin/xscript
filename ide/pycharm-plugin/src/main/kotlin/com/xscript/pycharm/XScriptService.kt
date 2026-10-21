@@ -238,11 +238,28 @@ class XScriptService(private val project: Project) : Disposable {
     }
 
     /** The IDE project itself or its sub-folder when it is named like the device project and is a project; else a chosen parent folder + name. EDT. */
+    /**
+     * Opens the pulled copy of device project `name` (its entry file, selected in the Project view);
+     * when there is none in this IDE project, offers to pull it. EDT.
+     */
+    fun openLocalCopy(name: String) {
+        val dir = DeviceProjects.localCopy(project.basePath?.let { Path.of(it) }, name)
+        if (dir == null) {
+            if (Messages.showYesNoDialog(project, XScriptBundle.message("projects.open.none", name), "XScript",
+                    XScriptBundle.message("projects.open.pull"), Messages.getCancelButton(), Messages.getQuestionIcon()) == Messages.YES) {
+                pullProject(name)
+            }
+            return
+        }
+        val target = DeviceProjects.entryFile(dir) ?: dir
+        val vf = com.intellij.openapi.vfs.LocalFileSystem.getInstance().refreshAndFindFileByNioFile(target) ?: return
+        if (!vf.isDirectory) com.intellij.openapi.fileEditor.FileEditorManager.getInstance(project).openFile(vf, true)
+        com.intellij.ide.projectView.ProjectView.getInstance(project).select(null, vf, false)
+    }
+
     private fun pullDestination(name: String): Path? {
         val base = project.basePath?.let { Path.of(it) }
-        if (base != null) {
-            for (c in listOf(base, base.resolve(name))) if (c.fileName.toString() == name && LocalProject.isProjectDir(c)) return c
-        }
+        DeviceProjects.localCopy(base, name)?.let { return it }
         val desc = com.intellij.openapi.fileChooser.FileChooserDescriptorFactory.createSingleFolderDescriptor()
             .withTitle(XScriptBundle.message("pull.dest", name))
         val parent = com.intellij.openapi.fileChooser.FileChooser.chooseFile(desc, project,
