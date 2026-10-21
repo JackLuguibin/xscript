@@ -235,6 +235,40 @@ class DeviceClientTest {
         assertTrue("no POST on a GET's connection", posts.none { it in gets })
     }
 
+    @Test fun startExplainsAlreadyRunning() {
+        for (n in listOf("pyc_busy_a", "pyc_busy_b")) open.uploadFiles(n, listOf(UploadFile("__init__.py", "print(1)\n", "utf-8")))
+        assertTrue(open.start("pyc_busy_a").get("running").asBoolean)
+        try {
+            open.start("pyc_busy_b")
+            fail("expected AlreadyRunningException")
+        } catch (e: AlreadyRunningException) {
+            assertEquals("pyc_busy_a", e.running)
+        } finally {
+            open.stop("pyc_busy_a")
+        }
+    }
+
+    @Test fun stopIfRunningWaitsUntilTheDeviceIsIdle() {
+        // a real phone keeps reporting the old script for a moment after /stop; the next run must not race it
+        val srv = com.sun.net.httpserver.HttpServer.create(java.net.InetSocketAddress("127.0.0.1", 0), 0)
+        val busyPolls = java.util.concurrent.atomic.AtomicInteger(3)
+        srv.createContext("/") { ex ->
+            val body = (if (ex.requestURI.path == "/status") {
+                val running = ex.requestMethod == "GET" && busyPolls.getAndDecrement() > 0
+                "{\"running\":$running,\"project\":\"old\"}"
+            } else "{\"ok\":true,\"running\":false}").toByteArray()
+            ex.sendResponseHeaders(200, body.size.toLong())
+            ex.responseBody.use { it.write(body) }
+        }
+        srv.start()
+        try {
+            assertEquals("old", DeviceClient(DeviceTarget("127.0.0.1", srv.address.port)).stopIfRunning(pollMs = 10))
+            assertTrue("polled until idle", busyPolls.get() < 0)
+        } finally {
+            srv.stop(0)
+        }
+    }
+
     @Test fun errorDetail() {
         assertEquals("工程已存在: demo", DeviceHttpException.detailOf("{\"error\": \"工程已存在: demo\"}"))
         assertEquals("plain", DeviceHttpException.detailOf("plain"))

@@ -38,6 +38,9 @@ class DeviceHttpException(val status: Int, val body: String) :
 }
 
 /** "abcd-efgh" → "ABCDEFGH": the pairing code as the device compares it. */
+/** The device refused a run because `running` (may be empty when unknown) is still running there. */
+class AlreadyRunningException(val running: String) : IllegalStateException("already running: " + running.ifEmpty { "?" })
+
 fun normalizeCode(code: String?): String = (code ?: "").filter { it.isLetterOrDigit() && it.code < 128 }.uppercase()
 
 /** Null when valid, else a message for the input dialog. */
@@ -156,13 +159,28 @@ class DeviceClient(val target: DeviceTarget, private val timeoutMs: Long = 15000
     fun readFileRaw(project: String, path: String): ByteArray =
         send("GET", "/projects/${p(project)}/file", query = mapOf("path" to path, "raw" to "1"), timeout = maxOf(timeoutMs, 60000)).body()
 
-    /** Stops whatever the device runs (like the VS Code extension before each run, so running again restarts). Returns its name. */
-    fun stopIfRunning(): String? {
+    /** Stops whatever the device runs (like the VS Code extension before each run, so running again restarts) and
+     *  waits up to `waitMs` until the device no longer reports it running, so the next run is not refused with 409
+     *  "already running" while the old script is still winding down. Returns its name. */
+    fun stopIfRunning(waitMs: Long = 10_000, pollMs: Long = 200): String? {
         val s = status()
         if (s.get("running")?.asBoolean != true) return null
         val name = s.get("project")?.takeIf { !it.isJsonNull }?.asString ?: return null
         stop(name)
+        val end = System.currentTimeMillis() + waitMs
+        while (status().get("running")?.asBoolean == true && System.currentTimeMillis() < end) Thread.sleep(pollMs)
         return name
+    }
+
+    /** POST /projects/{name}/run; a refusal ("already running") becomes [AlreadyRunningException] naming what runs. */
+    fun start(project: String): JsonObject {
+        val r = run(project)
+        val err = r.get("error")?.takeIf { !it.isJsonNull }?.asString ?: return r
+        if (err == "already running") {
+            val other = try { status().get("project")?.takeIf { !it.isJsonNull }?.asString } catch (_: Exception) { null }
+            throw AlreadyRunningException(other ?: "")
+        }
+        throw IllegalStateException(err)
     }
 
     /** Latest log seq, so following shows only lines from the next run. */
