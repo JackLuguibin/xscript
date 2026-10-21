@@ -68,6 +68,15 @@ class DeviceClientTest {
         assertTrue(polls < 10)
     }
 
+    @Test fun stopIfRunningRestartsCleanly() {
+        open.uploadFiles("pyc_again", listOf(UploadFile("__init__.py", "", "utf-8")))
+        assertTrue(open.run("pyc_again").get("running").asBoolean)
+        assertEquals("pyc_again", open.stopIfRunning())
+        assertNull(open.stopIfRunning())
+        assertTrue(open.run("pyc_again").get("running").asBoolean) // not "already running"
+        open.stop("pyc_again")
+    }
+
     @Test fun unicodeProjectNameIsEncoded() {
         assertTrue(open.uploadFiles("脚本_1", listOf(UploadFile("__init__.py", "", "utf-8"))).get("ok").asBoolean)
         assertTrue("脚本_1" in open.listProjects())

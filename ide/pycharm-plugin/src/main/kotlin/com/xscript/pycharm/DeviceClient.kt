@@ -106,6 +106,15 @@ class DeviceClient(val target: DeviceTarget, private val timeoutMs: Long = 15000
         return o.getAsJsonArray("files")?.map { gson.fromJson(it, RemoteFile::class.java) } ?: emptyList()
     }
 
+    /** Stops whatever the device runs (like the VS Code extension before each run, so running again restarts). Returns its name. */
+    fun stopIfRunning(): String? {
+        val s = status()
+        if (s.get("running")?.asBoolean != true) return null
+        val name = s.get("project")?.takeIf { !it.isJsonNull }?.asString ?: return null
+        stop(name)
+        return name
+    }
+
     /** Latest log seq, so following shows only lines from the next run. */
     fun currentSeq(maxPages: Int = 100): Long {
         var since = 0L

@@ -55,6 +55,7 @@ class XScriptService(private val project: Project) : Disposable {
         object : Task.Backgroundable(project, XScriptBundle.message("task.upload", name), true) {
             override fun run(indicator: ProgressIndicator) {
                 withPairing { client ->
+                    client.stopIfRunning()?.let { print(XScriptBundle.message("log.stopped", it) + "\n", ConsoleViewContentType.SYSTEM_OUTPUT) }
                     val files = LocalProject.collectFiles(root)
                     print(XScriptBundle.message("log.upload", files.size, name, client.target.baseUrl) + "\n", ConsoleViewContentType.SYSTEM_OUTPUT)
                     client.uploadFiles(name, files)
