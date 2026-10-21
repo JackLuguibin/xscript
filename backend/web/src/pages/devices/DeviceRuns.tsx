@@ -12,13 +12,37 @@ export interface RunRecord {
   duration_ms: number;
   exit?: string | null;
   user_stop?: boolean;
+  log_from: number;
+  log_to: number;
   outcome: string;
   failed: boolean;
   stats?: { captures: number; capture_avg_ms: number; peak_mb: number } | null;
 }
 
-function relay<T>(id: string, path: string) {
-  return request<T>("POST", `/api/devices/${encodeURIComponent(id)}/http`, { method: "GET", path, timeout: 15 });
+function relay<T>(id: string, path: string, query?: Record<string, string>) {
+  return request<T>("POST", `/api/devices/${encodeURIComponent(id)}/http`, { method: "GET", path, query, timeout: 15 });
+}
+
+/** One run's own lines (log_from < seq <= log_to) from the phone's log buffer, read through the relay. */
+function RunLog({ id, run }: { id: string; run: RunRecord }) {
+  const q = useQuery({
+    queryKey: ["device-run-log", id, run.log_from, run.log_to],
+    queryFn: () => relay<{ entries: { seq: number; stream: string; line: string }[] }>(id, "/logs", { since: String(run.log_from) }),
+    retry: false,
+  });
+  if (q.isLoading) return <Typography.Text type="secondary">读取中…</Typography.Text>;
+  if (q.error) return <Alert type="error" showIcon message={(q.error as Error).message} />;
+  const lines = (q.data?.entries ?? []).filter((e) => e.seq > run.log_from && e.seq <= run.log_to);
+  if (!lines.length) return <Typography.Text type="secondary">这段日志已不在手机的日志缓冲区里（被新日志挤掉或已清空）</Typography.Text>;
+  return (
+    <pre className="mono code-block" aria-label="这次运行的日志" style={{ maxHeight: 260, overflow: "auto", margin: 0 }}>
+      {lines.map((l) => (
+        <div key={l.seq} style={l.stream === "stderr" ? { color: "var(--ant-color-error, #d4380d)" } : undefined}>
+          {l.line.replace(/\n$/, "")}
+        </div>
+      ))}
+    </pre>
+  );
 }
 
 export function fmtDuration(ms: number): string {
@@ -80,6 +104,7 @@ export function DeviceRuns({ id, online, defaultProject }: { id: string; online:
           rowKey="start"
           loading={runs.isLoading && !!project}
           pagination={false}
+          expandable={{ expandedRowRender: (r) => <RunLog id={id} run={r} />, expandRowByClick: true }}
           dataSource={rows}
           locale={{ emptyText: failedOnly ? "最近没有出错的运行" : "还没有运行记录" }}
           columns={[

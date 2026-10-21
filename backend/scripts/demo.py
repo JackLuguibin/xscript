@@ -150,11 +150,12 @@ async def fake_device(url: str, n: int) -> None:
                             payload = json.dumps({"runs": [
                                 {"project": d["path"].split("/")[2], "start": now - 600_000, "duration_ms": 184_000, "exit": "1",
                                  "user_stop": False, "outcome": "出错退出（退出码 1）", "failed": True,
+                                 "log_from": max(0, len(log) - 12), "log_to": len(log),
                                  "stats": {"captures": 96, "capture_avg_ms": 38, "peak_mb": 212}},
                                 {"project": d["path"].split("/")[2], "start": now - 3_600_000, "duration_ms": 42_500, "exit": "stopped",
-                                 "user_stop": True, "outcome": "已停止", "failed": False},
+                                 "user_stop": True, "outcome": "已停止", "failed": False, "log_from": 0, "log_to": 0},
                                 {"project": d["path"].split("/")[2], "start": now - 7_200_000, "duration_ms": 305_000, "exit": "0",
-                                 "user_stop": False, "outcome": "正常结束", "failed": False,
+                                 "user_stop": False, "outcome": "正常结束", "failed": False, "log_from": 0, "log_to": 0,
                                  "stats": {"captures": 154, "capture_avg_ms": 35, "peak_mb": 198}},
                             ]}).encode()
                         elif d["path"].endswith("/zip") and d["method"] == "PUT":
