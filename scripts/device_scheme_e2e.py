@@ -234,7 +234,7 @@ results = []
 
 def check(ok, name, detail=""):
     results.append(ok)
-    print(("PASS " if ok else "FAIL ") + name + (" (%s)" % detail if detail else ""))
+    print(("PASS " if ok else "FAIL ") + name + (" (%s)" % devauth.mask(detail) if detail else ""))
 
 
 def main():

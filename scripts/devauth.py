@@ -8,12 +8,20 @@ from __future__ import annotations
 
 import json
 import os
+import re
 import shutil
 import socket
 import subprocess
 import urllib.request
 
 _cache: dict[str, str] = {}
+_CODE = re.compile(r"\b[A-Z0-9]{4}-?[A-Z0-9]{4}\b")
+
+
+def mask(text: object) -> str:
+    """`text` with pairing codes (XXXX-XXXX, also unhyphenated) replaced by ****-****. Device scripts pass anything
+    that may hold UI dump text or device logs through this before printing it (the home screen shows the code)."""
+    return _CODE.sub("****-****", str(text))
 
 
 def _adb() -> str | None:

@@ -69,7 +69,7 @@ def api(method, path, body=None):
 
 def check(ok, name, detail=""):
     (passes if ok else fails).append(name)
-    print(("PASS " if ok else "FAIL ") + name + ("" if ok or not detail else "  -- " + str(detail)[:300]), flush=True)
+    print(("PASS " if ok else "FAIL ") + name + ("" if ok or not detail else "  -- " + devauth.mask(detail)[:300]), flush=True)
     return ok
 
 
@@ -184,7 +184,7 @@ def main():
         ns = wait(form_up, 25)
         if not check(ns is not None, "show() opened the form window"):
             shot("ui-e2e-noform")
-            print(logs_text()[-1500:])
+            print(devauth.mask(logs_text()[-1500:]))
             return
         shot("ui-e2e-form")
         check(find(ns, lambda n: n["text"] == "UI designer e2e") is not None, "label text rendered")

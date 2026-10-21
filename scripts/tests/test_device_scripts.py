@@ -50,6 +50,14 @@ class DeviceScriptsTest(unittest.TestCase):
             if "print(" in line and "mask(" not in line:
                 self.assertNotRegex(line, r"nodes\(|dump|ns\b", line)
 
+    def test_ui_dump_scripts_mask_pairing_codes(self):
+        # the home screen shows the pairing code: a script that dumps the UI masks what it prints with devauth.mask
+        quiet = {"device_pairing_copy_e2e.py"}  # prints only fixed strings, never dump text
+        dumping = [p for p in PY if "uiautomator" in p.read_text(encoding="utf-8") and p.name not in quiet]
+        self.assertGreaterEqual(len(dumping), 6)
+        bad = [p.name for p in dumping if not re.search(r"devauth\.mask|from devauth import mask", p.read_text(encoding="utf-8"))]
+        self.assertEqual(bad, [], "use devauth.mask on printed UI text")
+
 
 if __name__ == "__main__":
     unittest.main()
