@@ -109,6 +109,63 @@ def find_all_images(template, rect=None, confidence=0.9, rgb=False, maxcnt=0, sc
     return _img.find_templates(template, rect, confidence, rgb, maxcnt, scale_range, image, method=method)
 
 
+IMAGE_ENABLED = "enabled"
+IMAGE_DISABLED = "disabled"
+
+
+def image_state(template, rect=None, confidence=0.9, image=None):
+    """Is the button / icon on screen, and in its normal colours?
+
+    Returns "enabled" (found with the template's colours), "disabled" (the same shape is there but greyed out or
+    in other colours: a disabled button, a locked icon) or None (not on screen). Brightness does not count, so a
+    dimmed screen still reads "enabled". Use a template cut from the enabled (coloured) state.
+    """
+    return _state_and_hit(template, rect, confidence, _img.to_bgr(image))[0]
+
+
+def _state_and_hit(template, rect, confidence, src):
+    if src is None:
+        return None, None
+    hit = find_image(template, rect, confidence, image=src)
+    if hit is None:
+        return None, None
+    l, t, r, b = hit["rect"]
+    region = src[max(0, t):b, max(0, l):r]
+    if not region.size:
+        return None, None
+    same = _img._chroma_difference(region, _img._raw_template(template)) <= _img._colour_tolerance(confidence)
+    return (IMAGE_ENABLED if same else IMAGE_DISABLED), hit
+
+
+def _poll(look, timeout, interval):
+    deadline = time.monotonic() + float(timeout)
+    while True:
+        hit = look()
+        left = deadline - time.monotonic()
+        if hit or left <= 0:
+            return hit
+        time.sleep(min(float(interval), left))
+
+
+def wait_image(template, timeout=10, rect=None, confidence=0.9, rgb=False, interval=0.3, method=None):
+    """find_image every `interval` seconds until the template shows up or `timeout` seconds pass → hit dict or None."""
+    return _poll(lambda: find_image(template, rect, confidence, rgb, method=method), timeout, interval)
+
+
+def wait_enabled(template, timeout=10, rect=None, confidence=0.9, interval=0.3):
+    """Wait until the button / icon is on screen in its normal colours (see image_state) → hit dict or None.
+
+    Typical use: wait for a greyed-out "领取" button to light up, then tap it.
+        hit = screen.wait_enabled(R.img("claim.png"), timeout=30)
+        if hit: action.click(hit["center_x"], hit["center_y"])
+    """
+    def look():
+        state, hit = _state_and_hit(template, rect, confidence, _img.capture_bgr())
+        return hit if state == IMAGE_ENABLED else None
+
+    return _poll(look, timeout, interval)
+
+
 OCR_MLKIT = "mlkit"
 OCR_AUTO = "auto"          # PP-OCRv6 tiny, ML Kit if its models cannot be loaded
 OCR_PADDLE = "paddle"      # PP-OCRv5 (downloaded on first use)
@@ -162,13 +219,7 @@ def ocr_find_all(pattern, rect=None, image=None, engine=None):
 
 def ocr_wait(pattern, timeout=10, rect=None, engine=None, interval=0.3):
     """OCR every `interval` seconds until `pattern` shows up or `timeout` seconds pass (one last look at the deadline)."""
-    deadline = time.monotonic() + float(timeout)
-    while True:
-        hit = ocr_find(pattern, rect, engine=engine)
-        left = deadline - time.monotonic()
-        if hit or left <= 0:
-            return hit
-        time.sleep(min(float(interval), left))
+    return _poll(lambda: ocr_find(pattern, rect, engine=engine), timeout, interval)
 
 
 def ocr_click(pattern, timeout=0, rect=None, engine=None):
