@@ -69,3 +69,34 @@ class StrictCaptureTest(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class RunOptionTest(unittest.TestCase):
+    """运行选项「截图失败时停止脚本」: the app's config_get turns strict mode on for the run."""
+
+    def tearDown(self):
+        image._reset_run_state()
+
+    def _apply(self, answer):
+        from xscript.runtime import runner
+
+        out = io.StringIO()
+        with mock.patch.object(bridge, "control", side_effect=answer) as ctl, mock.patch("sys.stdout", out):
+            image._reset_run_state()
+            runner._apply_run_options("demo")
+        return ctl, out.getvalue()
+
+    def test_on(self):
+        ctl, out = self._apply(lambda op, arg: json.dumps({"project": "demo", "strict_capture": True}))
+        self.assertEqual(ctl.call_args[0], ("config_get", "demo"))
+        self.assertTrue(image._strict["on"])
+        self.assertIn("截图失败时停止脚本", out)
+
+    def test_off_older_app_and_errors_keep_the_default(self):
+        def boom(op, arg):
+            raise RuntimeError("off-device")
+
+        for answer in (lambda op, arg: json.dumps({"strict_capture": False}), lambda op, arg: json.dumps({"stop_re_run": True}),
+                       lambda op, arg: "", lambda op, arg: "[1]", lambda op, arg: json.dumps({"strict_capture": "yes"}), boom):
+            self._apply(answer)
+            self.assertFalse(image._strict["on"])
