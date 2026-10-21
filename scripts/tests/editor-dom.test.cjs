@@ -435,7 +435,7 @@ test('Web IDE explorer, editor and create/delete flows in a real browser', {skip
       await b.waitFor(() => [...document.querySelectorAll('#line-numbers .diag-line')].map(n => n.textContent.trim()).join() === '4');
       assert.match((await state()).title, /没有闭合/);
       // fix everything -> clean
-      await b.eval(() => { const e = document.getElementById('editor'); e.value = 'if x:\n    pass\nprint("hi")\nok = (1,)\n'; e.dispatchEvent(new Event('input')); });
+      await b.eval(() => { const e = document.getElementById('editor'); e.value = 'if True:\n    pass\nprint("hi")\nok = (1,)\n'; e.dispatchEvent(new Event('input')); });
       await b.waitFor(() => document.getElementById('problems').dataset.count === '0');
       assert.equal(await b.eval(() => document.querySelectorAll('#diag .sq, #line-numbers .diag-line').length), 0);
       assert.match(await b.eval(() => document.getElementById('problems').textContent), /无语法问题/);
@@ -446,6 +446,51 @@ test('Web IDE explorer, editor and create/delete flows in a real browser', {skip
       await new Promise(r => setTimeout(r, 500));
       assert.deepEqual(await b.eval(() => [document.querySelectorAll('#diag .sq').length, document.getElementById('problems').hidden]), [0, true]);
       await b.eval(() => { const e = document.getElementById('editor'); e.value = 'hello\n'; e.dispatchEvent(new Event('input')); });
+    });
+
+    await t.test('basic checks: undefined names and wrong call arguments as warnings, only when the syntax is clean', async () => {
+      await api('PUT', '/projects/dom/files', {files: [
+        {path: 'chk_lib.py', content: 'def scale(v, k=2, *, unit="px"):\n    return v * k\n'},
+        {path: 'chk_main.py', content: 'print("ok")\n'}]});
+      await b.eval(click, '#refresh'); await b.waitFor(idle);
+      await b.eval(click, row('chk_main.py'));
+      await b.waitFor(() => document.getElementById('editor').value === 'print("ok")\n' && !document.getElementById('editor').disabled);
+      const setText = v => b.eval(v => { const e = document.getElementById('editor'); e.focus(); e.value = v; e.dispatchEvent(new Event('input')); }, v);
+      const warnings = () => b.eval(() => ({
+        sq: [...document.querySelectorAll('#diag .sq')].map(n => n.textContent + (n.classList.contains('warn') ? '!' : '')),
+        marks: [...document.querySelectorAll('#line-numbers .diag-line')].map(n => n.textContent.trim() + (n.classList.contains('warn') ? '!' : '')),
+        text: document.getElementById('problems').textContent, warn: document.getElementById('problems').classList.contains('has-warnings'),
+      }));
+      await setText('from chk_lib import scale\nimport some_lib\nscale(1, 2, 3)\nscale(1, size=3)\nscale()\nprint(totl, some_lib.x, len([]))\nscale(1, unit="m")\n');
+      await b.waitFor(() => document.querySelectorAll('#diag .sq.warn').length === 4, 5000);
+      const w = await warnings();
+      assert.deepEqual(w.sq, ['scale!', 'scale!', 'scale!', 'totl!']);
+      assert.deepEqual(w.marks, ['3!', '4!', '5!', '6!']);
+      assert.equal(w.warn, true); assert.match(w.text, /4 个问题/);
+      await b.eval(click, '#problems');
+      assert.match(await b.eval(() => document.getElementById('problems').textContent), /第 3 行：scale\(\) 最多接受 2 个位置参数，这里传了 3 个/);
+      await b.eval(click, '#problems');
+      assert.match(await b.eval(() => document.getElementById('problems').textContent), /第 4 行：scale\(\) 没有名为 size 的参数/);
+      await b.eval(click, '#problems');
+      assert.match(await b.eval(() => document.getElementById('problems').textContent), /第 5 行：scale\(\) 缺少参数 v/);
+      await b.eval(click, '#problems');
+      assert.match(await b.eval(() => document.getElementById('problems').textContent), /第 6 行：未定义的名字 totl/);
+      // a syntax error hides the warnings (only the error is shown); fixing it brings them back
+      await setText('scale(\nprint(totl)\n');
+      await b.waitFor(() => document.querySelectorAll('#diag .sq').length === 1);
+      await new Promise(r => setTimeout(r, 600));
+      assert.deepEqual((await warnings()).sq.map(x => x.endsWith('!')), [false]);
+      await setText('from chk_lib import scale\nprint(scale(1), totl)\n');
+      await b.waitFor(() => document.querySelectorAll('#diag .sq.warn').length === 1, 5000);
+      assert.deepEqual((await warnings()).sq, ['totl!']);
+      await setText('from chk_lib import scale\nprint(scale(1))\n');
+      await b.waitFor(() => document.getElementById('problems').dataset.count === '0');
+      await new Promise(r => setTimeout(r, 600));
+      assert.equal(await b.eval(() => document.querySelectorAll('#diag .sq').length), 0);
+      await b.eval(click, '#save'); await b.waitFor(idle);
+      await b.eval(click, row('__init__.py')); await b.waitFor(() => !document.getElementById('editor').disabled);
+      for (const p of ['chk_lib.py', 'chk_main.py']) await fetch(base + '/projects/dom/file?path=' + p, {method: 'DELETE'});
+      await b.eval(click, '#refresh'); await b.waitFor(idle);
     });
 
 

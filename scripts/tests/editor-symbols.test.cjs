@@ -182,3 +182,45 @@ test('a real package (backend/xscript_server): every occurrence resolves without
   assert.ok(r && r.refs.some(x => x.def), JSON.stringify(r));
   assert.ok(Date.now() - t1 < (process.env.CI ? 3000 : 1000), `references took ${Date.now() - t1} ms (index ${t1 - t0} ms)`);
 });
+
+test('basic checks: undefined names and call arguments of project functions and classes', () => {
+  const lib = 'class Sq:\n    def __init__(self, side, *, unit="px"):\n        self.side = side\n    def area(self, k):\n        return self.side * k\n' +
+    '    @classmethod\n    def make(cls, n):\n        return cls(n)\n    @staticmethod\n    def unit(x):\n        return x\n' +
+    '    @property\n    def p(self):\n        return 1\ndef f(a, b=1):\n    pass\ndef g(*a, **kw):\n    pass\n';
+  const main = [
+    'import os', 'from lib import Sq, f, g', 'from nowhere import thing', 's = Sq()',          // 4
+    's.area()', 'Sq.make(1, 2)', 'f(1, 2, 3)', 'f(1, c=2)', 'f(1, a=2)',                       // 9
+    'print(undefined_x, len(os.sep), thing, __name__)',                                         // 10
+    'try:', '    pass', 'except ValueError as err:', '    print(err)',                           // 14
+    'for i in range(3): print(i)', 's2 = Sq(1, unit="m")', 's2.area(2)', '[y for y in range(2)]', 'print(y)',   // 19
+    'g(1, 2, x=3)', 'f(*[1, 2, 3])', 'f(**{})', 'Sq.area(s2, 2)', 'Sq.unit(1)', 'Sq.unit()',      // 25
+    'def h():', '    global later', '    later = 1', 'print(later)', 'lambda q: q + zz', ''].join('\n');
+  const p = EditorSymbols.build([{path: 'lib.py', content: lib}, {path: '__init__.py', content: main}], XSDocs);
+  assert.deepEqual(p.problemsIn('__init__.py').map(w => [w.line, w.col, w.length, w.message, w.severity]), [
+    [4, 4, 2, 'Sq() 缺少参数 side', 'warning'],
+    [5, 2, 4, 'Sq.area() 缺少参数 k', 'warning'],
+    [6, 3, 4, 'Sq.make() 最多接受 1 个位置参数，这里传了 2 个', 'warning'],
+    [7, 0, 1, 'f() 最多接受 2 个位置参数，这里传了 3 个', 'warning'],
+    [8, 0, 1, 'f() 没有名为 c 的参数', 'warning'],
+    [9, 0, 1, 'f() 的参数 a 传了两次', 'warning'],
+    [10, 6, 11, '未定义的名字 undefined_x', 'warning'],
+    [19, 6, 1, '未定义的名字 y', 'warning'],
+    [25, 3, 4, 'Sq.unit() 缺少参数 x', 'warning'],
+    [30, 14, 2, '未定义的名字 zz', 'warning'],
+  ]);
+  assert.deepEqual(p.problemsIn('lib.py'), []);
+  // star imports make every name possibly defined
+  const star = EditorSymbols.build([{path: 'a.py', content: 'from somewhere import *\nprint(anything)\n'}], XSDocs);
+  assert.deepEqual(star.problemsIn('a.py'), []);
+});
+
+test('basic checks: no warnings on the repository\'s own Python sources', () => {
+  const {execSync} = require('node:child_process'); const fs = require('node:fs'); const path = require('node:path');
+  const root = path.join(__dirname, '..', '..');
+  const files = execSync('git ls-files "*.py"', {cwd: root}).toString().trim().split('\n').filter(Boolean)
+    .map(p => ({path: p, content: fs.readFileSync(path.join(root, p), 'utf8')}));
+  assert.ok(files.length > 100);
+  const p = EditorSymbols.build(files, XSDocs), found = [];
+  for (const f of files) for (const w of p.problemsIn(f.path)) found.push(f.path + ':' + w.line + ' ' + w.message);
+  assert.deepEqual(found, []);
+});
