@@ -95,9 +95,11 @@ class XScriptService(private val project: Project) : Disposable {
         object : Task.Backgroundable(project, XScriptBundle.message("task.eval"), true) {
             override fun run(indicator: ProgressIndicator) {
                 withPairing { client ->
-                    val r = client.eval(code)
+                    val ms = XScriptSettings.get().evalTimeoutMs
+                    val r = client.eval(code, ms.toLong())
                     showLog()
                     print(formatEval(code, r), if (r.ok) ConsoleViewContentType.NORMAL_OUTPUT else ConsoleViewContentType.ERROR_OUTPUT)
+                    if (!r.ok && r.error == "timeout") print(XScriptBundle.message("log.evalTimeout", ms) + "\n", ConsoleViewContentType.SYSTEM_OUTPUT)
                 }
             }
         }.queue()
