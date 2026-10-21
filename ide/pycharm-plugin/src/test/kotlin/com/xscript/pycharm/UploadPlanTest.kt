@@ -95,4 +95,25 @@ class UploadPlanTest {
         assertEquals(emptyList<String>(), UploadPlanner.planEmptiedFolders(local, remote, emptyList()))
         assertEquals(emptyList<String>(), UploadPlanner.planEmptiedFolders(local, null, gone))
     }
+
+    @Test
+    fun previewSplitsNewChangedUnchangedAndDeletesOrKept() {
+        val files = listOf(UploadFile("__init__.py", "a", "utf-8"), UploadFile("lib/x.py", "bb", "utf-8"),
+            UploadFile("new.py", "c", "utf-8"), UploadFile("same.py", "dd", "utf-8"))
+        val cache = UploadPlanner.plan(files, null, emptyMap()).hashes
+        val remote = listOf(RemoteFile("__init__.py", 1), RemoteFile("lib/x.py", 5), RemoteFile("same.py", 2),
+            RemoteFile("old/gone.py", 1), RemoteFile("skip.log", 1))
+        val synced: (String) -> Boolean = { !it.endsWith(".log") }
+        val keep = UploadPlanner.preview(files, remote, cache, synced, false)
+        assertEquals(listOf("new.py"), keep.added)
+        assertEquals(listOf("lib/x.py"), keep.changed)
+        assertEquals(2, keep.unchanged)
+        assertEquals(listOf("old/gone.py"), keep.kept)
+        assertEquals(emptyList<String>(), keep.deletes)
+        val del = UploadPlanner.preview(files, remote, cache, synced, true)
+        assertEquals(listOf("old/gone.py"), del.deletes)
+        assertEquals(listOf("old"), del.folders)
+        assertEquals(emptyList<String>(), del.kept)
+        assertEquals(4, UploadPlanner.preview(files, emptyList(), emptyMap(), synced, false).added.size)
+    }
 }

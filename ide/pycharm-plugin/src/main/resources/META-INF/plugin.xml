@@ -32,6 +32,8 @@
             </action>
             <action id="XScript.UploadAndRunFull" class="com.xscript.pycharm.FullUploadAndRunAction"
                     text="Upload All and Run on Device" description="Send every file of the project again (not only changed ones) and run it"/>
+            <action id="XScript.PreviewUpload" class="com.xscript.pycharm.PreviewUploadAction"
+                    text="Preview Upload (Dry Run)" description="List what Upload and Run would send and delete, without changing anything on the phone"/>
             <action id="XScript.Stop" class="com.xscript.pycharm.StopAction"
                     text="Stop Script on Device" description="Stop the script running on the phone" icon="AllIcons.Actions.Suspend"/>
             <action id="XScript.EvalSelection" class="com.xscript.pycharm.EvalSelectionAction"
