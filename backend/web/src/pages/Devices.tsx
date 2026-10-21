@@ -54,7 +54,7 @@ export default function DevicesPage() {
   const [f, setF] = useState<Filters>({
     q: params.get("q") ?? "",
     group: "",
-    online: params.get("online") === "1" ? "true" : "",
+    online: params.get("online") === "1" ? "true" : params.get("crashed") === "1" ? "crashed" : "",
     page: 1,
     page_size: 20,
   });
@@ -68,7 +68,12 @@ export default function DevicesPage() {
 
   const list = useQuery({
     queryKey: ["devices", f],
-    queryFn: () => api.get<Page<Device>>("/api/devices", { ...f, online: f.online || undefined }),
+    queryFn: () =>
+      api.get<Page<Device>>("/api/devices", {
+        ...f,
+        online: f.online === "true" || f.online === "false" ? f.online : undefined,
+        crashed: f.online === "crashed" ? "true" : undefined,
+      }),
     refetchInterval: 5000,
     placeholderData: keepPreviousData,
   });
@@ -294,6 +299,7 @@ export default function DevicesPage() {
               { value: "", label: "全部状态" },
               { value: "true", label: "在线" },
               { value: "false", label: "离线" },
+              { value: "crashed", label: "异常退出" },
             ]}
           />
           <span className="spacer" />
