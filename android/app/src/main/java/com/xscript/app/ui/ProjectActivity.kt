@@ -460,7 +460,7 @@ class ProjectActivity : AppCompatActivity() {
         }
         for (r in runs.take(HISTORY_ROWS)) {
             val at = LocalDateTime.ofInstant(java.time.Instant.ofEpochMilli(r.start), ZoneId.systemDefault()).format(NEXT_FORMAT)
-            val row = UiKit.row(card, 0, "$at · ${RunHistory.duration(r.durationMs)}", "") {
+            val row = UiKit.row(card, 0, "$at · ${RunHistory.duration(r.durationMs)}" + (r.stats?.let { "\n" + it.label() } ?: ""), "") {
                 startActivity(
                     Intent(this, LogActivity::class.java)
                         .putExtra(LogActivity.EXTRA_FROM, r.logFrom)
