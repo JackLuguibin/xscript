@@ -70,6 +70,12 @@
 | --- | --- |
 | ![最近运行浅色](../docs/images/desktop-recent-runs-light.png) | ![最近运行深色](../docs/images/desktop-recent-runs-dark.png) |
 
+点「跳到出错行」后编辑器整行选中出错的那一行（`--run-js tools/screenshot-run-error-line.js`，模拟设备同上，日志里需有一段指向工程文件的 Traceback）：
+
+| 浅色 | 深色 |
+| --- | --- |
+| ![跳到出错行浅色](../docs/images/desktop-run-error-line-light.png) | ![跳到出错行深色](../docs/images/desktop-run-error-line-dark.png) |
+
 工程页打开 `.ui.json` 时的界面设计器（保存时生成 `.html` 与 `ui_<名称>.py`；重新生成：模拟设备上放 `res/ui/settings.ui.json`，`--run-js tools/screenshot-ui-designer.js`）：
 
 | 浅色 | 深色 |

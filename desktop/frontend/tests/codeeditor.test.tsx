@@ -9,7 +9,7 @@ afterEach(() => {
 });
 
 function fakeMonaco() {
-  const calls = { created: 0, disposed: 0, theme: [] as boolean[], set: [] as string[], bps: [] as number[][], cur: [] as Array<number | null>, reveal: [] as number[][] };
+  const calls = { created: 0, disposed: 0, theme: [] as boolean[], set: [] as string[], bps: [] as number[][], cur: [] as Array<number | null>, reveal: [] as number[][], flash: [] as number[] };
   let value = "";
   type O = { value: string; onChange: (v: string) => void; onKey: (e: KeyboardEvent) => void; dark: boolean; language: string; breakpoints?: number[]; currentLine?: number | null; onToggleBreakpoint?: (n: number) => void };
   let opts: O | null = null;
@@ -31,6 +31,7 @@ function fakeMonaco() {
         setBreakpoints: (l: number[]) => calls.bps.push(l),
         setCurrentLine: (n: number | null) => calls.cur.push(n),
         reveal: (l: number, c: number, n: number) => calls.reveal.push([l, c, n]),
+        flashLine: (l: number) => calls.flash.push(l),
       };
     },
   };
@@ -124,5 +125,22 @@ describe("CodeEditor", () => {
     expect(f.calls.reveal).toEqual([[2, 7, 3]]);
     rerender(<CodeEditor {...props} reveal={{ line: 1, column: 1, length: 1 }} />);
     expect(f.calls.reveal.at(-1)).toEqual([1, 1, 1]);
+    expect(f.calls.flash).toEqual([]);
+  });
+
+  it("a whole-line reveal (跳到出错行) selects the entire line and flashes it", async () => {
+    const props = { path: "m.py", value: "a = 1\nprint(tap)\n", label: "ed", onChange: () => undefined, onKeyDown: () => undefined };
+    const { unmount } = render(<CodeEditor {...props} reveal={{ line: 2, column: 1, length: 0, wholeLine: true }} />);
+    const ta = screen.getByRole("textbox", { name: "ed" }) as HTMLTextAreaElement;
+    expect(ta.value.slice(ta.selectionStart, ta.selectionEnd)).toBe("print(tap)");
+    unmount();
+
+    const f = fakeMonaco();
+    editorLoader.load = () => Promise.resolve(f.mod);
+    render(<CodeEditor {...props} reveal={{ line: 9, column: 1, length: 0, wholeLine: true }} />);
+    await act(async () => undefined);
+    // a line past the end (the file changed since the run) clamps to the last line
+    expect(f.calls.reveal).toEqual([[3, 1, 0]]);
+    expect(f.calls.flash).toEqual([3]);
   });
 });

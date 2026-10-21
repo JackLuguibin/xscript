@@ -143,6 +143,8 @@ export interface EditorHandle {
   setCurrentLine(line: number | null): void;
   /** select `length` characters at line/column (1-based), scroll them to the middle and focus the editor */
   reveal(line: number, column: number, length: number): void;
+  /** briefly highlight a whole line (e.g. where a run failed) */
+  flashLine(line: number, ms?: number): void;
   dispose(): void;
 }
 
@@ -169,6 +171,8 @@ export function createEditor(
   });
   const bpDeco = ed.createDecorationsCollection();
   const lineDeco = ed.createDecorationsCollection();
+  const flashDeco = ed.createDecorationsCollection();
+  let flashTimer: ReturnType<typeof setTimeout> | undefined;
   const setBreakpoints = (lines: number[], kinds: Record<number, BpKind> = {}) =>
     bpDeco.set(lines.map((ln) => {
       const k = kinds[ln];
@@ -232,7 +236,13 @@ export function createEditor(
       ed.revealLineInCenter(line);
       ed.focus();
     },
+    flashLine: (line, ms = 1600) => {
+      flashDeco.set([{ range: new monaco.Range(line, 1, line, 1), options: { isWholeLine: true, className: "err-flash-line" } }]);
+      clearTimeout(flashTimer);
+      flashTimer = setTimeout(() => flashDeco.clear(), ms);
+    },
     dispose: () => {
+      clearTimeout(flashTimer);
       ed.getModel()?.dispose();
       ed.dispose();
     },

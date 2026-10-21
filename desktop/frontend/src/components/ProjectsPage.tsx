@@ -215,7 +215,7 @@ export function ProjectsPage({ pollMs = LOG_POLL_MS, onDirtyChange }: { pollMs?:
 
   // 在工程中搜索: a result opens its file (asking about unsaved edits) and selects the match
   const searchInput = useRef<HTMLInputElement>(null);
-  const [reveal, setReveal] = useState<{ path: string; line: number; column: number; length: number } | null>(null);
+  const [reveal, setReveal] = useState<{ path: string; line: number; column: number; length: number; wholeLine?: boolean } | null>(null);
   const openMatch = async (m: SearchMatch) => {
     if (file?.path !== m.path) {
       if (!(await confirmDiscard())) return;
@@ -229,7 +229,7 @@ export function ProjectsPage({ pollMs = LOG_POLL_MS, onDirtyChange }: { pollMs?:
       if (!(await confirmDiscard())) return;
       await openFile(path, false);
     }
-    setReveal({ path, line, column: 1, length: 0 });
+    setReveal({ path, line, column: 1, length: 0, wholeLine: true });
   };
   // Ctrl/Cmd+Shift+F anywhere on the page (the code editor included) focuses the search box
   useEffect(() => {
