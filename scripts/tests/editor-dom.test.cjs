@@ -712,7 +712,7 @@ test('Web IDE explorer, editor and create/delete flows in a real browser', {skip
       await b.eval(click, '#refresh'); await b.waitFor(idle);
     });
 
-    await t.test('unreachable code after return is faded and explained on its line', async () => {
+    await t.test('unreachable code after return is faded and explained on its line; Ctrl+. deletes it (undoable)', async () => {
       await api('PUT', '/projects/dom/files', {files: [{path: 'ur_main.py', content: 'print("ok")\n'}]});
       await b.eval(click, '#refresh'); await b.waitFor(idle);
       await b.eval(click, row('ur_main.py'));
@@ -723,7 +723,13 @@ test('Web IDE explorer, editor and create/delete flows in a real browser', {skip
       assert.deepEqual(await b.eval(() => [...document.querySelectorAll('#diag .fade')].map(n => n.textContent)), ['print("never")', 'x = 2']);
       assert.equal(await b.eval(() => document.getElementById('problems').dataset.count), '0');
       await b.eval(() => { const e = document.getElementById('editor'); e.focus(); const at = e.value.indexOf('never'); e.setSelectionRange(at, at); e.dispatchEvent(new Event('keyup')); });
-      await b.waitFor(() => document.getElementById('problems').textContent.includes('第 3 行：执行不到的代码（前面已经 return）'), 5000);
+      await b.waitFor(() => document.getElementById('problems').textContent.includes('第 3 行：执行不到的代码（前面已经 return；Ctrl+. 删除）'), 5000);
+      await b.eval(() => document.getElementById('editor').dispatchEvent(new KeyboardEvent('keydown', {key: '.', ctrlKey: true, bubbles: true, cancelable: true})));
+      await b.waitFor(() => document.getElementById('editor').value === 'def f():\n    return 1\n\nprint(f())\n');
+      await b.waitFor(() => document.querySelectorAll('#diag .fade').length === 0, 5000);
+      await b.eval(() => { document.getElementById('editor').focus(); document.execCommand('undo'); });
+      assert.equal(await b.eval(() => document.getElementById('editor').value), 'def f():\n    return 1\n    print("never")\n    x = 2\n\nprint(f())\n');
+      await b.eval(() => { document.getElementById('editor').focus(); document.execCommand('redo'); });
       await b.eval(click, '#save'); await b.waitFor(idle);
       await b.eval(click, row('__init__.py')); await b.waitFor(() => !document.getElementById('editor').disabled);
       await fetch(base + '/projects/dom/file?path=ur_main.py', {method: 'DELETE'});

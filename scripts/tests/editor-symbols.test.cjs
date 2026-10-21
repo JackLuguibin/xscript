@@ -457,11 +457,11 @@ test('unreachable code after return / raise / continue / break is faded, line by
     'def h():', '    raise ValueError', '    x = 1  # noqa', 'def k():', '    return; print(1)', ''].join('\n');
   const p = EditorSymbols.build([{path: 'm.py', content: src}], XSDocs);
   assert.deepEqual(p.unreachableIn('m.py').map(w => [w.line, w.col, w.length, w.message, w.severity]), [
-    [5, 12, 8, '执行不到的代码（前面已经 continue）', 'unused'],
-    [11, 4, 7, '执行不到的代码（前面已经 return）', 'unused'],
-    [12, 2, 2, '执行不到的代码（前面已经 return）', 'unused'],
-    [13, 4, 5, '执行不到的代码（前面已经 return）', 'unused'],
-    [14, 8, 4, '执行不到的代码（前面已经 return）', 'unused'],
+    [5, 12, 8, '执行不到的代码（前面已经 continue；Ctrl+. 删除）', 'unused'],
+    [11, 4, 7, '执行不到的代码（前面已经 return；Ctrl+. 删除）', 'unused'],
+    [12, 2, 2, '执行不到的代码（前面已经 return；Ctrl+. 删除）', 'unused'],
+    [13, 4, 5, '执行不到的代码（前面已经 return；Ctrl+. 删除）', 'unused'],
+    [14, 8, 4, '执行不到的代码（前面已经 return；Ctrl+. 删除）', 'unused'],
   ]);
 });
 
@@ -472,4 +472,10 @@ test('unreachable code: none reported anywhere in this repository', () => {
     .map(p => ({path: p, content: fs.readFileSync(path.join(root, p), 'utf8')}));
   const p = EditorSymbols.build(files, XSDocs);
   assert.deepEqual(files.flatMap(f => p.unreachableIn(f.path).map(w => f.path + ':' + w.line)), []);
+});
+
+test('unreachable code: each faded line knows the whole dead run that Ctrl+. deletes', () => {
+  const src = ['def f(x):', '    for i in x:', '        break', '        a = 1', '', '        # note', '        b = 2', '    return 1', '    c = (3,', '  4)', ''].join('\n');
+  const p = EditorSymbols.build([{path: 'm.py', content: src}], XSDocs);
+  assert.deepEqual(p.unreachableIn('m.py').map(w => [w.line, w.dead.from, w.dead.to]), [[4, 4, 7], [6, 4, 7], [7, 4, 7], [9, 9, 10], [10, 9, 10]]);
 });
