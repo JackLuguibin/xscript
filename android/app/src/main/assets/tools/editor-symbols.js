@@ -922,6 +922,34 @@
       walk(f.root.node);
       return out.sort((a, b) => a.line - b.line);
     }
+    /**
+     * async / await mistakes with project functions: a bare statement that calls an `async def` without `await` (the
+     * coroutine never runs), and `await` on a plain function that certainly returns no awaitable (no yield, and every
+     * return is bare or a literal). Undecorated targets only (callTarget); classes are never judged.
+     */
+    asyncProblems(path) {
+      const f = this.files.get(path); if (!f || !f.root.node) return [];
+      const byNode = new Map(f.calls.map(c => [c.node, c])), out = [];
+      const LITERAL = /^(Constant|JoinedStr|List|Dict|Set|Tuple|ListComp|DictComp|SetComp)$/;
+      const target = call => { const t = call && this.callTarget(call); return t && t.node.type === "FunctionDef" && t.node.name !== "__init__" ? t : null; };
+      const at = c => { const e = c.node.func; return { line: e.line, col: e.col, length: e.type === "Name" ? e.id.length : e.attr.length }; };
+      const walk = node => {
+        if (Array.isArray(node)) return node.forEach(walk);
+        if (!node || typeof node !== "object") return;
+        if (node.type === "Expr" && node.value && node.value.type === "Call") {
+          const c = byNode.get(node.value), t = target(c);
+          if (t && t.node.isAsync) out.push(Object.assign(at(c), { message: t.label + "() 是 async 函数，这样调用不会执行，前面要加 await" }));
+        }
+        if (node.type === "Await" && node.value && node.value.type === "Call") {
+          const c = byNode.get(node.value), t = target(c), sc = t && t.scope;
+          if (t && !t.node.isAsync && sc && !sc.yields && (sc.returns || []).every(x => !x.value || LITERAL.test(x.value.type)))
+            out.push(Object.assign(at(c), { message: t.label + "() 不是 async 函数，返回值不能 await" }));
+        }
+        for (const k of Object.keys(node)) if (node[k] && typeof node[k] === "object") walk(node[k]);
+      };
+      walk(f.root.node.body);
+      return out;
+    }
     /** Names visible from `scope` (its bindings, enclosing functions, the module, builtins), for "did you mean". */
     visibleNames(scope) {
       const out = new Set();
@@ -972,6 +1000,7 @@
       }
       for (const sc of f.scopes) for (const p of this.returnProblems(sc)) out.push(Object.assign(p, { severity: "warning" }));
       for (const p of this.importProblems(path)) out.push(Object.assign(p, { severity: "warning" }));
+      for (const p of this.asyncProblems(path)) out.push(Object.assign(p, { severity: "warning" }));
       for (const p of this.projectImportProblems(path)) out.push(Object.assign(p, { severity: "warning" }));
       for (const p of this.duplicateDefs(path)) out.push(Object.assign(p, { severity: "warning" }));
       for (const c of f.calls) for (const a of this.argTypeProblems(c)) {
