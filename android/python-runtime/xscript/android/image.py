@@ -1162,7 +1162,7 @@ def _colour_tolerance(confidence):
     return max(8.0, (1.0 - confidence) * 150.0)
 
 
-def chroma_difference(region, template):
+def _chroma_difference(region, template):
     """Mean per-pixel distance in Lab a/b (colour, not brightness) between a BGR region and a BGR/BGRA template
     of the same picture. Transparent template pixels are ignored. 0 = same colours; a grey copy of a red
     icon scores ~50+."""
@@ -1226,7 +1226,7 @@ def _colour_filter(src, part, hits, confidence):
         x, y, w, h = int(x), int(y), int(w), int(h)
         region = src[max(0, y):y + h, max(0, x):x + w]
         if region.size and region.shape[:2] == (h, w) and _shape_score(region, tpl) >= confidence \
-                and chroma_difference(region, tpl) <= tol:
+                and _chroma_difference(region, tpl) <= tol:
             keep.append(hit)
     return keep
 
