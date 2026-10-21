@@ -199,12 +199,14 @@ describe("DiagnosticsPanel (P5.5)", () => {
     transport.setHandler("app.diagnostics", () => ({ saved: false }));
     fireEvent.click(screen.getByRole("button", { name: t.update.diagExport }));
     await waitFor(() => expect(transport.sent.some((m) => m.method === "app.diagnostics")).toBe(true));
-    await tick();
+    const button = screen.getByRole("button", { name: t.update.diagExport }) as HTMLButtonElement;
+    // the button stays disabled until the first save settles; a click before that is ignored (the old flake)
+    await waitFor(() => expect(button.disabled).toBe(false));
     expect(screen.queryByRole("status")).toBeNull();
     transport.setHandler("app.diagnostics", () => {
       throw { code: "app.unavailable", message: "no save dialog in this mode" };
     });
-    fireEvent.click(screen.getByRole("button", { name: t.update.diagExport }));
+    fireEvent.click(button);
     expect(await screen.findByRole("alert")).toBeTruthy();
   });
 });
