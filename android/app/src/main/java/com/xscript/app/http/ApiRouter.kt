@@ -119,6 +119,9 @@ class ApiRouter(private val context: Context) {
         when {
             m == "GET" && p == "/" -> return home()
             m == "GET" && p == "/status" -> return Reply.json(status(req))
+            m == "POST" && p == "/capture/request" -> return Reply.json(
+                JSONObject().put("ok", true).put("opened", com.xscript.app.capture.CaptureNotice.request(context)).put("notified", true),
+            )
             m == "GET" && p == "/debug/status" -> return Reply.json(DapTransport.status())
             m == "POST" && p == "/debug/connect" -> return Reply.json(DapTransport.connect())
             m == "POST" && p == "/debug/request" -> return Reply.json(DapTransport.send(req.json()))

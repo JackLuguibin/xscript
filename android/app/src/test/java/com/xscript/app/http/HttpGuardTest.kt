@@ -17,6 +17,7 @@ class HttpGuardTest {
         assertEquals(Verdict.UNAUTHORIZED, v("POST", "/eval"))
         assertEquals(Verdict.UNAUTHORIZED, v("POST", "/eval", "authorization" to "Bearer WRONGCODE"))
         assertEquals(Verdict.UNAUTHORIZED, v("GET", "/projects"))
+        assertEquals(Verdict.UNAUTHORIZED, v("POST", "/capture/request"))
         assertEquals(Verdict.UNAUTHORIZED, v("GET", "/screen/stream"))
         assertEquals(Verdict.UNAUTHORIZED, v("GET", "/tools/"))
         assertEquals(Verdict.UNAUTHORIZED, v("GET", "/tools/ui/editor.html"))
