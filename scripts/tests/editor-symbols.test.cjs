@@ -315,3 +315,25 @@ test('unused: only pyflakes-confirmed findings on the repository\'s own Python s
   for (const f of files) for (const w of p.unusedIn(f.path)) { const k = f.path + ':' + w.line + ' ' + w.name; if (!KNOWN.has(k)) found.push(k); }
   assert.deepEqual(found, []);
 });
+
+test('basic checks: literal arguments that do not match a simple annotation', () => {
+  const lib = 'def f(n: int, x: float = 1.0, s: str = "", o: int = None, *, l: list = None):\n    pass\n' +
+    'class Box:\n    def __init__(self, w: int):\n        self.w = w\n    def scale(self, k: float):\n        return self.w * k\n' +
+    'def g(v: "int", u: list[int], q: Optional, z):\n    pass\n';
+  const main = [
+    'from lib import f, Box, g', 'f("3")', 'f(1, 2)', 'f(True, s=5)', 'f(1, o=None, l=[1])', 'f(1.5, l={})',   // 6
+    'f(n=f"x{1}")', 'b = Box("2")', 'b.scale(2)', 'b.scale("x")', 'g("a", "b", 1, 2)', 'f(len("x"))', ''].join('\n');
+  const p = EditorSymbols.build([{path: 'lib.py', content: lib}, {path: 'main.py', content: main}], XSDocs);
+  assert.deepEqual(p.problemsIn('main.py').map(w => [w.line, w.col, w.length, w.message]), [
+    [2, 2, 3, 'f() 的参数 n 应为 int，这里传了 str'],
+    [4, 10, 1, 'f() 的参数 s 应为 str，这里传了 int'],
+    [6, 2, 3, 'f() 的参数 n 应为 int，这里传了 float'],
+    [6, 9, 1, 'f() 的参数 l 应为 list，这里传了 dict'],
+    [7, 4, 2, 'f() 的参数 n 应为 int，这里传了 str'],
+    [8, 8, 3, 'Box() 的参数 w 应为 int，这里传了 str'],
+    [10, 8, 3, 'Box.scale() 的参数 k 应为 float，这里传了 str'],
+  ]);
+  // a project class named like a builtin shadows it: no judgement
+  const shadow = EditorSymbols.build([{path: 'm.py', content: 'class str:\n    pass\ndef h(s: str):\n    pass\nh(1)\n'}], XSDocs);
+  assert.deepEqual(shadow.problemsIn('m.py'), []);
+});
