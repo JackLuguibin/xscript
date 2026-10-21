@@ -1,5 +1,6 @@
 import org.jetbrains.intellij.platform.gradle.IntelliJPlatformType
 import org.jetbrains.intellij.platform.gradle.TestFrameworkType
+import org.jetbrains.kotlin.gradle.dsl.JvmDefaultMode
 import org.jetbrains.kotlin.gradle.dsl.JvmTarget
 
 plugins {
@@ -31,7 +32,14 @@ java {
     sourceCompatibility = JavaVersion.VERSION_21
     targetCompatibility = JavaVersion.VERSION_21
 }
-kotlin { compilerOptions { jvmTarget.set(JvmTarget.JVM_21) } }
+kotlin {
+    compilerOptions {
+        jvmTarget.set(JvmTarget.JVM_21)
+        // Use the platform interfaces' own default methods instead of generating bridges that override them
+        // (the bridges show up in the Plugin Verifier as internal / deprecated API usages).
+        jvmDefault.set(JvmDefaultMode.NO_COMPATIBILITY)
+    }
+}
 
 intellijPlatform {
     pluginConfiguration {
@@ -42,7 +50,17 @@ intellijPlatform {
         }
     }
     pluginVerification {
-        ides { create(IntelliJPlatformType.PyCharmCommunity, providers.gradleProperty("platformVersion")) }
+        ides {
+            // the lowest supported line and a newer one, so a removed API shows up here before it does for users
+            create(IntelliJPlatformType.PyCharmCommunity, providers.gradleProperty("platformVersion")) { useInstaller = false }
+            create(IntelliJPlatformType.PyCharmCommunity, providers.gradleProperty("verifyAlsoVersion")) { useInstaller = false }
+        }
+        // Fail on API the platform marks internal (as JetBrains Marketplace would reject it), not just on breakage.
+        failureLevel = listOf(
+            org.jetbrains.intellij.platform.gradle.tasks.VerifyPluginTask.FailureLevel.COMPATIBILITY_PROBLEMS,
+            org.jetbrains.intellij.platform.gradle.tasks.VerifyPluginTask.FailureLevel.INTERNAL_API_USAGES,
+            org.jetbrains.intellij.platform.gradle.tasks.VerifyPluginTask.FailureLevel.INVALID_PLUGIN,
+        )
     }
     // Not published to JetBrains Marketplace (needs the user's approval and account).
 }

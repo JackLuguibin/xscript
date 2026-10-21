@@ -8,4 +8,37 @@
     ]]></description>
     <depends>com.intellij.modules.platform</depends>
     <depends>com.intellij.modules.python</depends>
+    <resource-bundle>messages.XScriptBundle</resource-bundle>
+
+    <extensions defaultExtensionNs="com.intellij">
+        <applicationService serviceImplementation="com.xscript.pycharm.XScriptSettings"/>
+        <projectService serviceImplementation="com.xscript.pycharm.XScriptService"/>
+        <applicationConfigurable parentId="tools" instance="com.xscript.pycharm.XScriptConfigurable"
+                                 id="com.xscript.settings" displayName="XScript"/>
+        <toolWindow id="XScript" anchor="bottom" icon="AllIcons.Toolwindows.ToolWindowRun"
+                    factoryClass="com.xscript.pycharm.XScriptToolWindowFactory"/>
+        <notificationGroup id="XScript" displayType="BALLOON"/>
+    </extensions>
+
+    <actions>
+        <group id="XScript.Menu" text="XScript" popup="true">
+            <add-to-group group-id="ToolsMenu" anchor="last"/>
+            <action id="XScript.UploadAndRun" class="com.xscript.pycharm.UploadAndRunAction"
+                    text="Upload and Run on Device" description="Upload the XScript project of the current file and run it on the phone"
+                    icon="AllIcons.Actions.Execute">
+                <keyboard-shortcut keymap="$default" first-keystroke="ctrl alt shift R"/>
+            </action>
+            <action id="XScript.Stop" class="com.xscript.pycharm.StopAction"
+                    text="Stop Script on Device" description="Stop the script running on the phone" icon="AllIcons.Actions.Suspend"/>
+            <action id="XScript.Connect" class="com.xscript.pycharm.ConnectAction"
+                    text="Connect to Device…" description="Set the phone address and test the connection" icon="AllIcons.General.Web"/>
+            <action id="XScript.Settings" class="com.xscript.pycharm.OpenSettingsAction"
+                    text="XScript Settings…" description="Device address and pairing code" icon="AllIcons.General.Settings"/>
+        </group>
+        <action id="XScript.UploadAndRun.Popup" class="com.xscript.pycharm.UploadAndRunAction"
+                text="XScript: Upload and Run on Device" icon="AllIcons.Actions.Execute">
+            <add-to-group group-id="ProjectViewPopupMenu" anchor="last"/>
+            <add-to-group group-id="EditorPopupMenu" anchor="last"/>
+        </action>
+    </actions>
 </idea-plugin>
