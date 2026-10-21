@@ -77,6 +77,19 @@ class DeviceScriptsTest(unittest.TestCase):
             m.run("xs_t", "print(1)", quiet=True)
         self.assertLess(order.index("wait_idle"), order.index("POST /projects/xs_t/run"))
         self.assertFalse(hasattr(m, "wait_idle"), "use the shared devauth.wait_idle")
+    def test_every_run_request_waits_for_an_idle_device(self):
+        # a run request while a script still runs (or is winding down) answers 409: wait with devauth.wait_idle first
+        # (or an explicit /status "running" loop) within the few lines before each POST .../run
+        post_run = re.compile(r"""["']POST["'],\s*[^\n]*/run["']""")
+        bad = []
+        for p in PY:
+            lines = p.read_text(encoding="utf-8").splitlines()
+            for i, line in enumerate(lines):
+                if post_run.search(line) and not any("wait_idle(" in s or '"/status")' in s and "running" in s
+                                                      for s in lines[max(0, i - 6):i]):
+                    bad.append(f"{p.name}:{i + 1}")
+        self.assertEqual(bad, [], "POST .../run without waiting for an idle device first")
+
 
 if __name__ == "__main__":
     unittest.main()

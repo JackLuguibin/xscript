@@ -64,6 +64,7 @@ def run_device(base, only, repeat, paddle, timeout=900):
         z.writestr("algo_bench.py", src)
     _http(base, "PUT", "/projects/xs_bench/zip", buf.getvalue(), "application/zip")
     _http(base, "DELETE", "/logs")
+    devauth.wait_idle(base)
     _http(base, "POST", "/projects/xs_bench/run", b"{}")
     deadline = time.time() + timeout
     while time.time() < deadline:
@@ -91,6 +92,7 @@ def run_dispatch(base, n=10):
     ts = []
     for _ in range(n + 1):
         _http(base, "DELETE", "/logs")
+        devauth.wait_idle(base)  # outside the timed part: the previous no-op run may still be winding down
         t0 = time.perf_counter()
         _http(base, "POST", "/projects/xs_nop/run", b"{}")
         while time.perf_counter() - t0 < 30:

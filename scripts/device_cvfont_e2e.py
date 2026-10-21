@@ -159,6 +159,7 @@ def main():
         api("PUT", "/projects/%s/files" % PROJECT, {"files": [
             {"path": p, "encoding": "base64", "content": base64.b64encode(data).decode()} for p, data in files]})
         since = api("GET", "/logs?since=0").get("next", 0)
+        devauth.wait_idle(BASE)  # a script left running would refuse the run: 409
         print("run:", api("POST", "/projects/%s/run" % PROJECT, {}))
         deadline, lines_seen, result, t_start = time.time() + 120, [], None, time.time()
         while time.time() < deadline:

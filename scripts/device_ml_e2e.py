@@ -50,6 +50,7 @@ def run_project(files, wait=300):
     api("PUT", "/projects/%s/files" % PROJECT, {"files": [
         {"path": p, "encoding": "base64", "content": base64.b64encode(d).decode()} for p, d in files]})
     since = api("GET", "/logs?since=0").get("next", 0)
+    devauth.wait_idle(BASE)  # a script left running (e.g. from a manual session) would refuse the run: 409
     print("   run:", api("POST", "/projects/%s/run" % PROJECT, {}).get("running"))
     t0, lines, result = time.time(), [], None
     while time.time() - t0 < wait:
