@@ -3,6 +3,8 @@
    selectors inside .monaco-host; everything else belongs in components.css. */
 .monaco-host .bp-glyph { background: var(--danger-dot); border-radius: 50%; width: 10px !important; height: 10px !important; margin: 4px 0 0 6px; cursor: pointer; }
 .monaco-host .dbg-current-line { background: var(--warning-bg); }
+/* 最近运行 → 跳到出错行: the failing line flashes briefly */
+.monaco-host .err-flash-line { background: var(--danger-bg); animation: err-flash 1.6s ease-out forwards; }
 .monaco-host .dbg-current-glyph::after { content: "➜"; color: var(--warning-fg); position: absolute; left: 4px; font-size: 12px; }
 .monaco-host .bp-glyph.bp-cond { background: var(--danger-dot); box-shadow: inset 0 0 0 2px var(--surface, #fff); outline: 2px solid var(--danger-dot); outline-offset: -2px; }
 .monaco-host .bp-glyph.bp-log { background: var(--primary); border-radius: 2px; transform: rotate(45deg) scale(0.85); }
