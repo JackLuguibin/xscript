@@ -560,6 +560,7 @@
   el("editor").addEventListener("keydown", e => {
     if (e.key === "F12" && !e.ctrlKey && !e.metaKey && !e.altKey) { e.preventDefault(); (e.shiftKey ? findReferences : goToDefinition)(e.target.selectionStart); return; }
     if (e.key === "F2" && !e.shiftKey && !e.ctrlKey && !e.metaKey && !e.altKey) { e.preventDefault(); renameSymbol(e.target.selectionStart); return; }
+    if (e.key === "." && (e.ctrlKey || e.metaKey) && !e.shiftKey && !e.altKey) { e.preventDefault(); quickFix(e.target.selectionStart); return; }
     if (assist.onKey(e)) return;
     if (e.key === "Tab" && !e.shiftKey) {
       e.preventDefault(); const box = e.target;
@@ -633,6 +634,31 @@
     const index = await projectIndex(path, text);
     return index ? index.problemsIn(path) : null;
   };
+  // Quick fix (Ctrl/Cmd+.): an undefined name that a project module defines gets `from module import name`.
+  async function quickFix(pos) {
+    if (pending) return;
+    const s = await symbolsAt(pos); if (!s) return;
+    const w = s.index.problemsIn(s.path).find(x => x.fix && x.line === s.line && s.col >= x.col && s.col <= x.col + x.length);
+    if (!w) { message("光标处没有可自动修复的问题", true); return; }
+    let mod = w.fix[0];
+    if (w.fix.length > 1) {
+      const pick = prompt("从哪个模块导入 " + w.name + "？输入序号：\n" + w.fix.map((m, i) => (i + 1) + ". " + m).join("\n"), "1");
+      if (pick === null) return;
+      mod = w.fix[Number(pick) - 1];
+      if (!mod) { message("没有序号 " + pick, true); return; }
+    }
+    const box = el("editor"); if (!current || current.path !== s.path) return;
+    const text = box.value, line = s.index.importLine(s.path), lines = text.split("\n");
+    let at = 0; for (let i = 0; i < line - 1 && i < lines.length; i++) at += lines[i].length + 1;
+    const stmt = "from " + mod + " import " + w.name + "\n", insert = at > text.length || (at === text.length && text && !text.endsWith("\n")) ? "\n" + stmt : stmt;
+    at = Math.min(at, text.length);
+    const caret = box.selectionStart, end = box.selectionEnd, top = box.scrollTop;
+    box.focus(); box.setRangeText(insert, at, at, "preserve");
+    const shift = at <= caret ? insert.length : 0;
+    box.setSelectionRange(caret + shift, end + shift); box.scrollTop = top + (shift ? 21 : 0);
+    box.dispatchEvent(new Event("input"));
+    message("已添加 " + stmt.trim());
+  }
   // Rename symbol (F2 in the editor): every occurrence of the same definition across the project, after a confirm.
   async function renameSymbol(pos) {
     if (pending) return;

@@ -513,6 +513,25 @@
       if (!cls || cls.file.dynamic || !this.closedClass(cls) || this.member({ cls }, o.name)) return null;
       return cls.name + " 没有属性或方法 " + o.name;
     }
+    /** Project modules (other than `path`'s) that define `name` at top level (function, class or variable), sorted. */
+    importCandidates(name, path) {
+      if (name.startsWith("_")) return [];
+      const own = this.files.get(path), out = [];
+      for (const f of this.files.values()) {
+        if (f === own || !f.module) continue;
+        if ((f.root.defs.get(name) || []).some(d => d.kind !== "import")) out.push(f.module);
+      }
+      return out.sort();
+    }
+    /** 1-based line where a new import goes: after the leading docstring and top-level imports (before the first other statement). */
+    importLine(path) {
+      const f = this.files.get(path); if (!f) return 1;
+      const body = (f.root.node && f.root.node.body) || [];
+      let i = 0;
+      if (body[0] && body[0].type === "Expr" && body[0].value && body[0].value.type === "Constant" && body[0].value.kind === "string") i = 1;
+      while (body[i] && (body[i].type === "Import" || body[i].type === "ImportFrom")) i++;
+      return body[i] ? body[i].line : f.text.split("\n").length + (f.text.endsWith("\n") || !f.text ? 0 : 1);
+    }
     /**
      * Basic checks of one file (warnings, not errors): names that are not defined anywhere visible and calls of
      * project functions/classes with the wrong arguments. Conservative: anything it cannot resolve for sure is skipped.
@@ -523,7 +542,9 @@
       const out = [], seen = new Set();
       for (const o of f.occ) {
         if (o.kind !== "name" || BUILTINS.has(o.name) || this.bound(o.scope, o.name)) continue;
-        out.push({ line: o.line, col: o.col, length: o.name.length, message: "未定义的名字 " + o.name, severity: "warning" });
+        const fix = this.importCandidates(o.name, path);
+        const hint = !fix.length ? "" : fix.length === 1 ? "（Ctrl+. 从 " + fix[0] + " 导入）" : "（Ctrl+. 选择要导入的模块）";
+        out.push(Object.assign({ line: o.line, col: o.col, length: o.name.length, message: "未定义的名字 " + o.name + hint, severity: "warning" }, fix.length ? { name: o.name, fix } : {}));
       }
       for (const o of f.occ) {
         const m = o.kind === "attr" && !o.store ? this.attrProblem(o) : null; if (!m) continue;
