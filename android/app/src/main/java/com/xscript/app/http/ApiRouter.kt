@@ -182,7 +182,8 @@ class ApiRouter(private val context: Context) {
             m == "GET" && sub == "/config" -> Reply.json(MainControl.config(name))
             m == "GET" && sub == "/runs" -> {
                 if (!store.exists(name)) return Reply.json(JSONObject().put("error", "missing project"), 404)
-                Reply.json(RunHistory.api(RunHistory.of(context, name)))
+                val failedOnly = req.query["failed"].let { it == "1" || it == "true" }
+                Reply.json(RunHistory.api(RunHistory.only(RunHistory.of(context, name), failedOnly)))
             }
             m == "PUT" && sub == "/config" -> {
                 if (!store.exists(name)) return Reply.json(JSONObject().put("error", "missing project"), 404)

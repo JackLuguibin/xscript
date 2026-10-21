@@ -33,7 +33,7 @@ OPERATOR_RELAY = {
     ("GET", "/status"), ("GET", "/projects"), ("GET", "/logs"), ("GET", "/screen"), ("GET", "/ui-tree"),
     ("GET", "/schedules"), ("POST", "/action"),
 }
-OPERATOR_RELAY_PREFIX = (("POST", "/projects/", ("/run", "/stop")), ("GET", "/projects/", ("/files", "/config")))
+OPERATOR_RELAY_PREFIX = (("POST", "/projects/", ("/run", "/stop")), ("GET", "/projects/", ("/files", "/config", "/runs")))
 
 
 def _live_view(d: Device, conn: Conn | None) -> dict[str, Any]:

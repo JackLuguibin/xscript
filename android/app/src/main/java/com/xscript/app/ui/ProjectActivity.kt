@@ -449,6 +449,8 @@ class ProjectActivity : AppCompatActivity() {
 
     // ------------------------------------------------------------------ 最近运行
 
+    private var historyFailedOnly = false
+
     private fun renderHistory() {
         history.removeAllViews()
         val runs = RunHistory.of(this, name)
@@ -458,7 +460,15 @@ class ProjectActivity : AppCompatActivity() {
             UiKit.row(card, 0, "还没有运行记录", "", chevron = false)
             return
         }
-        for (r in runs.take(HISTORY_ROWS)) {
+        if (runs.any { RunHistory.failed(it.exit, it.userStop) } || historyFailedOnly) {
+            UiKit.switchRow(card, 0, "只看出错的运行", historyFailedOnly) { on ->
+                historyFailedOnly = on
+                history.post { renderHistory() }
+            }
+        }
+        val shown = RunHistory.only(runs, historyFailedOnly)
+        if (shown.isEmpty()) UiKit.row(card, 0, "最近 ${runs.size} 次运行里没有出错的", "", chevron = false)
+        for (r in shown.take(HISTORY_ROWS)) {
             val at = LocalDateTime.ofInstant(java.time.Instant.ofEpochMilli(r.start), ZoneId.systemDefault()).format(NEXT_FORMAT)
             val row = UiKit.row(card, 0, "$at · ${RunHistory.duration(r.durationMs)}" + (r.stats?.let { "\n" + it.label() } ?: ""), "") {
                 startActivity(
@@ -470,7 +480,7 @@ class ProjectActivity : AppCompatActivity() {
             }
             row.value(RunHistory.outcome(r.exit, r.userStop), if (RunHistory.failed(r.exit, r.userStop)) ui.danger else ui.muted)
         }
-        if (runs.size > HISTORY_ROWS) UiKit.note(history, "只显示最近 $HISTORY_ROWS 次（保存最近 ${RunHistory.PER_PROJECT} 次）。")
+        if (shown.size > HISTORY_ROWS) UiKit.note(history, "只显示最近 $HISTORY_ROWS 次（保存最近 ${RunHistory.PER_PROJECT} 次）。")
     }
 
     // ------------------------------------------------------------------ files

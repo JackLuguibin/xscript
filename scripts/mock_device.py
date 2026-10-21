@@ -602,13 +602,16 @@ class Handler(BaseHTTPRequestHandler):
             if sub == "/runs":
                 # Two canned runs so clients have something to list: one clean, one crash.
                 now = int(time.time() * 1000)
-                self._json(200, {"runs": [
+                runs = [
                     {"project": name, "start": now - 120_000, "duration_ms": 4_200, "exit": "1", "user_stop": False,
                      "log_from": 10, "log_to": 30, "outcome": "出错退出（退出码 1）", "failed": True,
                      "stats": {"captures": 12, "capture_avg_ms": 41, "peak_mb": 180}},
                     {"project": name, "start": now - 600_000, "duration_ms": 61_000, "exit": "0", "user_stop": False,
                      "log_from": 0, "log_to": 10, "outcome": "正常结束", "failed": False},
-                ]})
+                ]
+                if self._query().get("failed") in ("1", "true"):
+                    runs = [r for r in runs if r["failed"]]
+                self._json(200, {"runs": runs})
                 return
             if sub == "/zip":
                 buf = io.BytesIO()
