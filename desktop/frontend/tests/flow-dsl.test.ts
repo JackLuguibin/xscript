@@ -2,6 +2,7 @@ import { execFileSync } from "node:child_process";
 import { readdirSync, readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 import { diagnose } from "../src/flow/diagnostics";
+import { SAMPLE_FLOW } from "../src/flow/sample";
 import { compile, createDslSync, danglingEdges, fillStmt, foldGraph, mergeFlow, parse, printFlow, promoteFunction, pyIdent, selectionPython, pyRepr, semanticKey, snippetFlow, unfoldGraph, type FlowGraph, type NodeSpec } from "../src/flow/dsl";
 import { insertGet, runPayload, variableRows } from "../src/flow/variables";
 
@@ -330,6 +331,15 @@ describe("control flow added from the design", () => {
     expect(selectionPython(graph, ["start", "a"], specs)).toBe(imports + "print('a')\n");
     expect(semanticKey(graph)).toBe(before);
     compileAll([selectionPython(graph, ["a", "b", "done"], specs)]);
+  });
+
+  it("copies a branch whose condition comes from outside the selection", () => {
+    const graph = parse(SAMPLE_FLOW);
+    const both = selectionPython(graph, ["ok", "tap", "msg", "retry"], specs);
+    expect(both).toContain("# 选区外的值：btn\nif (btn is not None):\n    btn.click()\n    print('已签到')\nelse:\n    action.sleep(1000 / 1000)\n");
+    expect(both).not.toContain("node.Selector()");
+    expect(selectionPython(graph, ["ok"], specs)).toContain("if (btn is not None):\n    pass\n");
+    compileAll([both]);
   });
 
   it("refuses to copy an empty or disjoint selection as Python", () => {

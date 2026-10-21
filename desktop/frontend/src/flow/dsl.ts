@@ -2456,8 +2456,8 @@ function foldedSource(nodes: FlowNode[], edges: FlowEdge[], entry: string, specs
 
 /**
  * Python for the selected nodes alone (「复制为 Python」): the same body a fold would put in its code node.
- * Starts with the imports it needs. The selection needs exactly one entry node (one with no exec wire from inside the selection); values wired
- * in from outside the selection are left as the compiler's defaults.
+ * Starts with the imports it needs; values wired in from outside become free variables, listed in a comment. The selection needs exactly one entry node (one with no exec wire from inside the selection); a branch arm
+ * or loop body left out of the selection becomes `pass`.
  */
 export function selectionPython(g: FlowGraph, ids: string[], specs: Map<string, NodeSpec>): string {
   const selected = new Set(ids.filter((id) => id !== "start"));
@@ -2469,14 +2469,37 @@ export function selectionPython(g: FlowGraph, ids: string[], specs: Map<string, 
   const execNodes = chosen.filter((node) => (specs.get(node.type)?.exec.in.length ?? 1) > 0);
   const entries = execNodes.filter((node) => !fed.has(node.id));
   if (entries.length !== 1) throw new Error("selection needs one entry node");
+  // Values wired in from outside: keep their source nodes off the exec path, so the snippet reads them as
+  // ready-made variables (a find step's result) or inlines them (pure nodes, followed upstream).
+  const ghosts = new Map<string, FlowNode>();
+  const ghostEdges: FlowEdge[] = [];
+  const pull = (target: string) => {
+    for (const edge of g.edges) {
+      const from = pinOf(edge.from).node;
+      if (pinOf(edge.to).node !== target || pinOf(edge.to).pin === "exec" || selected.has(from)) continue;
+      ghostEdges.push(edge);
+      if (ghosts.has(from)) continue;
+      const node = g.nodes.find((n) => n.id === from);
+      if (!node || node.type === "event.start") continue;
+      ghosts.set(from, node);
+      if ((specs.get(node.type)?.exec.in.length ?? 1) === 0) pull(from); // pure: its inputs are inlined too
+    }
+  };
+  for (const node of chosen) pull(node.id);
   const graph: FlowGraph = {
     xflow: 1,
     name: "selection",
-    nodes: [{ id: "start", type: "event.start" }, ...copyOf(chosen)],
-    edges: [{ from: "start.then", to: entries[0].id + ".exec" }, ...copyOf(internal)],
+    nodes: [{ id: "start", type: "event.start" }, ...copyOf(chosen), ...copyOf([...ghosts.values()])],
+    edges: [{ from: "start.then", to: entries[0].id + ".exec" }, ...copyOf(internal), ...copyOf(ghostEdges)],
   };
   // Keep the imports so the snippet runs on its own; drop the "generated from" banner.
-  return compile(graph, specs).python.split("\n").slice(1).join("\n").replace(/\n+$/, "\n");
+  const lines = compile(graph, specs).python.split("\n").slice(1);
+  const outside = [...ghosts.values()].filter((n) => (specs.get(n.type)?.exec.in.length ?? 1) > 0).map((n) => n.id);
+  if (outside.length) {
+    const blank = lines.indexOf("");
+    lines.splice(blank < 0 ? 0 : blank + 1, 0, "# 选区外的值：" + outside.join(", "));
+  }
+  return lines.join("\n").replace(/\n+$/, "\n");
 }
 
 /** Fold a straight selection into one code.python node. The original subgraph stays on meta.origin. */
