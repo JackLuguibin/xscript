@@ -88,7 +88,9 @@ def test_version_flag():
 def test_selftest_passes_with_one_bridge_roundtrip():
     r = run_app("--selftest", "--timeout", "40")
     assert r.returncode == 0, r.stderr
-    assert json.loads(r.stdout.strip().splitlines()[-1]) == {"selftest": "ok", "version": __version__, "page": "loaded", "bridge": "roundtrip"}
+    out = json.loads(r.stdout.strip().splitlines()[-1])
+    assert out.pop("adb", "missing") != "missing"  # the adb path this build uses (null when there is none)
+    assert out == {"selftest": "ok", "version": __version__, "page": "loaded", "bridge": "roundtrip"}
 
 
 @needs_build
@@ -106,7 +108,10 @@ def test_selftest_report_file_for_windowed_builds(tmp_path):
     rep.parent.mkdir()
     r = run_app("--selftest", "--timeout", "40", "--report", str(rep))
     assert r.returncode == 0, r.stderr
-    assert json.loads(rep.read_text(encoding="utf-8")) == {"selftest": "ok", "version": __version__, "page": "loaded", "bridge": "roundtrip"}
+    out = json.loads(rep.read_text(encoding="utf-8"))
+    assert "adb" in out  # the adb this build uses (null without one); the packaging checks expect the bundled one
+    del out["adb"]
+    assert out == {"selftest": "ok", "version": __version__, "page": "loaded", "bridge": "roundtrip"}
 
 
 @needs_build

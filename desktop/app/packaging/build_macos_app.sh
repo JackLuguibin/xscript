@@ -9,10 +9,15 @@ VERSION=$(sed -n 's/^version = "\(.*\)"/\1/p' pyproject.toml)
 uv pip install -q -p .venv-build/bin/python -e . "pyinstaller>=6.10"
 mkdir -p build
 .venv-build/bin/python packaging/make_icns.py build/XScript.icns
+# Google's adb (pinned version, official URL, sha256-checked) goes into Contents/Frameworks/platform-tools (issue #213)
+PT=$APP_DIR/build/platform-tools
+.venv-build/bin/python packaging/fetch_platform_tools.py darwin "$PT"
 .venv-build/bin/pyinstaller --noconfirm --clean --windowed \
   --name XScript --icon "$APP_DIR/build/XScript.icns" \
   --osx-bundle-identifier com.xscript.desktop \
   --paths "$APP_DIR" --collect-submodules xscript_desktop --collect-data xscript_desktop \
+  --add-binary "$PT/adb:platform-tools" --add-data "$PT/NOTICE.txt:platform-tools" \
+  --add-data "$PT/source.properties:platform-tools" \
   --distpath dist --workpath build/pyinstaller --specpath build \
   "$APP_DIR/packaging/launch.py"
 PLIST=dist/XScript.app/Contents/Info.plist
@@ -26,4 +31,5 @@ APP=dist/XScript.app
 xattr -cr "$APP"
 codesign --force --sign - --timestamp=none "$APP"
 bash "$APP_DIR/packaging/verify_macos_app.sh" "$APP"
+"$APP/Contents/Frameworks/platform-tools/adb" version  # the bundled adb runs from inside the sealed bundle
 echo "built $APP_DIR/dist/XScript.app"
