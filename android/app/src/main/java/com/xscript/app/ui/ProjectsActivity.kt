@@ -11,6 +11,7 @@ import android.text.Spanned
 import android.text.style.AbsoluteSizeSpan
 import android.text.style.ForegroundColorSpan
 import android.view.View
+import android.view.WindowManager
 import android.widget.EditText
 import android.widget.RadioGroup
 import android.widget.ScrollView
@@ -102,11 +103,20 @@ class ProjectsActivity : AppCompatActivity() {
             setTextColor(ui.muted)
             setPadding(0, UiKit.dp(this@ProjectsActivity, UiKit.Space.M), 0, UiKit.dp(this@ProjectsActivity, UiKit.Space.XS))
         }
-        val box = UiKit.dialogField(this, input, caption, group)
+        // The rule sits inside the scrolling view, not in setMessage: AlertDialogLayout only fits one middle panel
+        // between the title and the buttons. With both a message and a view it falls back to a plain LinearLayout,
+        // and seven two-line templates (more with the keyboard up or on a small phone) pushed 创建 off the screen.
+        val rule = TextView(this).apply {
+            text = NAME_RULE
+            textSize = UiKit.Type.BODY
+            setTextColor(ui.muted)
+            setPadding(0, 0, 0, UiKit.dp(this@ProjectsActivity, UiKit.Space.S))
+        }
+        val box = UiKit.dialogField(this, rule, input, caption, group)
+        rule.minHeight = 0
         val scroll = ScrollView(this).apply { addView(box) }
-        MaterialAlertDialogBuilder(this)
+        val dialog = MaterialAlertDialogBuilder(this)
             .setTitle("新建小程序")
-            .setMessage("名称用作 Python 包名：字母/汉字/数字/下划线，不能以数字开头")
             .setView(scroll)
             .setPositiveButton("创建") { _, _ ->
                 val name = input.text.toString().trim()
@@ -121,7 +131,10 @@ class ProjectsActivity : AppCompatActivity() {
                 }
             }
             .setNegativeButton("取消", null)
-            .show()
+            .create()
+        // Resize, not pan: with the keyboard up the list scrolls and 取消 / 创建 stay above the keyboard.
+        dialog.window?.setSoftInputMode(WindowManager.LayoutParams.SOFT_INPUT_ADJUST_RESIZE)
+        dialog.show()
     }
 
     override fun onResume() {
@@ -199,7 +212,7 @@ class ProjectsActivity : AppCompatActivity() {
         val box = UiKit.dialogField(this, input)
         MaterialAlertDialogBuilder(this)
             .setTitle(title)
-            .setMessage("名称用作 Python 包名：字母/汉字/数字/下划线，不能以数字开头")
+            .setMessage(NAME_RULE)
             .setView(box)
             .setPositiveButton("确定") { _, _ ->
                 val name = input.text.toString().trim()
@@ -230,6 +243,8 @@ class ProjectsActivity : AppCompatActivity() {
     }
 
     companion object {
+        private const val NAME_RULE = "名称用作 Python 包名：字母/汉字/数字/下划线，不能以数字开头"
+
         fun start(activity: Activity) = activity.startActivity(Intent(activity, ProjectsActivity::class.java))
     }
 }

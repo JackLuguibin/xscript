@@ -200,6 +200,9 @@ describe("run on device", () => {
     const { transport } = await mount();
     fireEvent.click(screen.getByRole("button", { name: "在设备上运行" }));
     await waitFor(() => expect(status()).toContain("已在设备上运行工程"));
+    // The note renders before React runs the passive effect that subscribes to device.state (it was set outside act
+    // after an awaited RPC); flush it, or the pushes below can land before anyone listens (a CI-only flake).
+    await act(async () => undefined);
     act(() => {
       transport.push({ event: true, topic: "device.state", data: { id: "adb:other", status: { running: false } } });
       transport.push({ event: true, topic: "device.state", data: { id: DEV, status: { running: false } } });

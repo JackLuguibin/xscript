@@ -34,6 +34,22 @@ class ScreensTest {
     }
 
     @Test
+    fun newProjectDialogKeepsItsButtonsOnScreen() {
+        // #216: a message plus a view makes AlertDialogLayout measure as a plain LinearLayout, so the template list
+        // pushed 创建 below the screen. The rule goes inside the scrolling view and the dialog has no message.
+        val projects = read("ProjectsActivity.kt")
+        val create = projects.substringAfter("private fun create()").substringBefore("override fun onResume()")
+        assertTrue(create.contains(".setView(scroll)"))
+        assertFalse(create.contains(".setMessage("))
+        assertTrue(create.contains("UiKit.dialogField(this, rule, input, caption, group)"))
+        assertTrue(create.contains(".setPositiveButton(\"创建\")"))
+        assertTrue(create.contains(".setNegativeButton(\"取消\", null)"))
+        // With the keyboard up the dialog resizes instead of panning, so the buttons stay above the keyboard.
+        assertTrue(create.contains("dialog.window?.setSoftInputMode(WindowManager.LayoutParams.SOFT_INPUT_ADJUST_RESIZE)"))
+        assertTrue(create.indexOf("setSoftInputMode") < create.indexOf("dialog.show()"))
+    }
+
+    @Test
     fun emptyStatesOfferActions() {
         assertTrue(read("ProjectsActivity.kt").contains("UiKit.empty(list, \"还没有小程序\""))
         assertTrue(read("LogActivity.kt").contains("UiKit.empty(col, \"还没有日志\""))
