@@ -1,0 +1,34 @@
+{
+  "type": "screen.image_state",
+  "title": {
+    "zh": "图标状态",
+    "en": "Image state"
+  },
+  "doc": {
+    "zh": "判断按钮或图标是正常颜色（enabled）、变灰或变色（disabled），还是不在屏幕上（None）。",
+    "en": "Is the button or icon in its normal colours (enabled), greyed out or recoloured (disabled), or missing (None)?"
+  },
+  "icon": "image",
+  "inputs": [
+    {
+      "name": "template",
+      "type": "string",
+      "ui": "text"
+    },
+    {
+      "name": "rect",
+      "type": "rect",
+      "ui": "text"
+    },
+    {
+      "name": "confidence",
+      "type": "float",
+      "ui": "number",
+      "min": 0
+    },
+    {
+      "name": "image",
+      "type": "image"
+    }
+  ]
+}

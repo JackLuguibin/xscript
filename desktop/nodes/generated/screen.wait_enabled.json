@@ -1,0 +1,65 @@
+{
+  "type": "screen.wait_enabled",
+  "category": "screen",
+  "title": {
+    "zh": "screen.wait_enabled",
+    "en": "screen.wait_enabled"
+  },
+  "doc": {
+    "zh": "Wait until the button / icon is on screen in its normal colours (see image_state) → hit dict or None.",
+    "en": "Wait until the button / icon is on screen in its normal colours (see image_state) → hit dict or None."
+  },
+  "exec": {
+    "in": [
+      "exec"
+    ],
+    "out": [
+      "then"
+    ]
+  },
+  "inputs": [
+    {
+      "name": "template",
+      "type": "any"
+    },
+    {
+      "name": "timeout",
+      "type": "any",
+      "default": 10
+    },
+    {
+      "name": "rect",
+      "type": "any",
+      "default": null
+    },
+    {
+      "name": "confidence",
+      "type": "any",
+      "default": 0.9
+    },
+    {
+      "name": "interval",
+      "type": "any",
+      "default": 0.3
+    }
+  ],
+  "outputs": [
+    {
+      "name": "result",
+      "type": "any"
+    }
+  ],
+  "py": {
+    "imports": [
+      "from xscript.android import screen"
+    ],
+    "stmt": "{id} = screen.wait_enabled({template}, timeout={timeout}, rect={rect}, confidence={confidence}, interval={interval})"
+  },
+  "dsl": {
+    "alias": "screen.wait_enabled"
+  },
+  "since": "0.2.6",
+  "origin": "xscript.android.screen.wait_enabled",
+  "availability": "ok",
+  "latent": true
+}
