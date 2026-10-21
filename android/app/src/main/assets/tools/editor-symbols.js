@@ -17,6 +17,9 @@
     return parts.join(".");
   }
 
+  const PY_KEYWORDS = new Set(("False None True and as assert async await break class continue def del elif else except finally for " +
+    "from global if import in is lambda nonlocal not or pass raise return try while with yield").split(" "));
+
   class Scope {
     constructor(kind, name, parent, file, node) {
       this.kind = kind; this.name = name; this.parent = parent; this.file = file; this.node = node;
@@ -222,6 +225,32 @@
       }
       refs.sort((a, b) => a.path < b.path ? -1 : a.path > b.path ? 1 : a.line - b.line || a.col - b.col);
       return { name: o.name, refs };
+    }
+    /**
+     * Rename the project symbol at (path, line, col). Without `newName` only checks it can be renamed: {name} | {error}.
+     * With it: {name, newName, edits:[{path,line,col,length}], files} | {error}. Every occurrence that resolves to the
+     * same symbol and is spelled like it is edited (import lines included); `as` aliases keep their own name.
+     */
+    renameAt(path, line, col, newName) {
+      const o = this.occurrenceAt(path, line, col); if (!o) return { error: "光标处没有可重命名的名字" };
+      const sym = this.resolveOcc(o);
+      if (!sym) return { error: "找不到 " + o.name + " 的定义，不能重命名" };
+      if (sym.library) return { error: "库符号 " + sym.library + " 不能重命名" };
+      if (sym.module) return { error: "模块名不能在这里重命名（请重命名文件）" };
+      const name = sym.name;
+      if (newName === undefined) return { name };
+      if (!/^[\p{L}_][\p{L}\p{N}_]*$/u.test(newName) || PY_KEYWORDS.has(newName)) return { error: "“" + newName + "”不是合法的 Python 名字" };
+      if (newName === name) return { error: "新名字和原来一样" };
+      if (sym.scope.defs.has(newName)) return { error: newName + " 在同一作用域里已经有定义，重命名会冲突" };
+      const want = this.key(sym), edits = [], files = new Set();
+      for (const f of this.files.values()) {
+        for (const x of f.occ) {
+          if (x.name !== name || this.key(this.resolveOcc(x)) !== want) continue;
+          edits.push({ path: f.path, line: x.line, col: x.col, length: name.length }); files.add(f.path);
+        }
+      }
+      edits.sort((a, b) => a.path < b.path ? -1 : a.path > b.path ? 1 : a.line - b.line || a.col - b.col);
+      return { name, newName, edits, files: files.size };
     }
   }
 

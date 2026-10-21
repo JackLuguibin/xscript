@@ -340,6 +340,36 @@
       } finally { guard.dispose(); this.rememberReplace(project, changes); }
       return {files, count, unsaved, undoable: !!this.lastReplace};
     }
+    /**
+     * Apply a symbol rename: `edits` [{path,line,col,length}] (from EditorSymbols.renameAt) each replace `oldName` by
+     * `newName`. Every position is checked first; if any no longer holds `oldName` nothing is changed. Saving and undo
+     * work like replaceInFiles (撤销替换 also undoes a rename). Returns {files, count, unsaved, undoable}.
+     */
+    async renameInFiles(edits, oldName, newName, project = this.project) {
+      const byPath = new Map();
+      for (const e of edits) { if (!byPath.has(e.path)) byPath.set(e.path, []); byPath.get(e.path).push(e); }
+      const plans = [];
+      for (const [path, list] of byPath) {
+        const doc = await this.open(path, project);
+        if (doc.binary) throw new Error(path + " 不是文本文件");
+        const starts = [0]; for (let i = 0; i < doc.content.length; i++) if (doc.content[i] === "\n") starts.push(i + 1);
+        const at = list.map(e => (starts[e.line - 1] ?? -1) + e.col).sort((a, b) => b - a);
+        if (at.some(i => i < 0 || doc.content.slice(i, i + oldName.length) !== oldName)) throw new Error(path + " 在分析之后改过，请重试");
+        let text = doc.content; for (const i of at) text = text.slice(0, i) + newName + text.slice(i + oldName.length);
+        plans.push({path, doc, text, count: at.length});
+      }
+      let files = 0, count = 0; const unsaved = [], changes = [];
+      try {
+        for (const p of plans) {
+          const wasDirty = this.dirty(p.doc), before = p.doc.content;
+          this.edit(p.doc, p.text);
+          if (wasDirty) unsaved.push(p.path); else await this.save(p.doc);
+          changes.push({path: p.path, before, after: p.text, saved: !wasDirty});
+          files++; count += p.count;
+        }
+      } finally { this.rememberReplace(project, changes); }
+      return {files, count, unsaved, undoable: !!this.lastReplace};
+    }
     // One-step undo of the latest 全部替换: the before/after text of every file it changed (bounded memory).
     rememberReplace(project, changes) {
       if (!changes.length) return;   // nothing changed: the previous undo still applies
