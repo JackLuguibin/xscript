@@ -285,6 +285,15 @@ export class DeviceClient {
     return ((await r.json()) as { ok?: boolean }).ok === true;
   }
 
+  /** Delete a folder and everything in it (DELETE ?recursive=1). Returns the number of files removed; 0 when it is already gone. */
+  async deleteFolder(project: string, folder: string): Promise<number> {
+    const r = await this.request("DELETE", "/projects/" + DeviceClient.p(project) + "/file", { query: { path: folder, recursive: "1" }, passStatuses: [404] });
+    if (r.status === 404) return 0;
+    const j = (await r.json()) as { ok?: boolean; deleted?: number };
+    if (j.ok !== true) throw new Error("could not delete folder " + folder);
+    return j.deleted ?? 0;
+  }
+
   /** Exact bytes of one project file (GET /projects/{name}/file?raw=1). */
   async readFileRaw(project: string, filePath: string): Promise<Buffer> {
     const r = await this.request("GET", "/projects/" + DeviceClient.p(project) + "/file", { query: { path: filePath, raw: "1" } });

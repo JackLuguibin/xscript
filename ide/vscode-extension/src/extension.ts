@@ -7,7 +7,7 @@ import { collectFiles, findProjectRoot, isProjectDir, isSyncedPath } from "./pro
 import { registerDebugger, startDebugging } from "./debugAdapter";
 import { execFile } from "child_process";
 import { DeviceStore, FoundDevice, SavedDevice, httpProbe, lanCandidates, normalizeAddress, scanAdb, scanLan } from "./devices";
-import { DEFAULT_SYNCIGNORE, IgnoreRules, SYNCIGNORE_PATH, SyncCache, describeDeletes, diffAgainstLocal, fetchProject, loadIgnoreRules, planDeletes, planUpload, writePulled } from "./sync";
+import { DEFAULT_SYNCIGNORE, IgnoreRules, SYNCIGNORE_PATH, SyncCache, describeDeletes, planEmptiedFolders, diffAgainstLocal, fetchProject, loadIgnoreRules, planDeletes, planUpload, writePulled } from "./sync";
 import { TEMPLATES, createProject, validateProjectName } from "./newProject";
 import { Node, XScriptTree } from "./tree";
 import { newUiForm, registerUiDesigner } from "./uiDesigner";
@@ -214,10 +214,13 @@ async function upload(root: string, full = true): Promise<boolean> {
 async function deleteRemoved(name: string, local: string[], remote: RemoteFile[] | undefined, ignore: IgnoreRules): Promise<void> {
   const gone = planDeletes(local, remote, (rel) => isSyncedPath(rel, ignore));
   if (!gone.length) return;
+  const folders = planEmptiedFolders(local, remote, gone);
   const ok = "Delete " + gone.length + " on Device";
+  const detail = describeDeletes(gone) + (folders.length ? "\n\nFolders left empty, removed with anything still in them (such as __pycache__):\n" + describeDeletes(folders.map((d) => d + "/")) : "");
   const pick = await vscode.window.showWarningMessage(
-    "XScript: " + gone.length + " file(s) of \"" + name + "\" are on the device but no longer in your local project. Delete them on the device? This cannot be undone.",
-    { modal: true, detail: describeDeletes(gone) },
+    "XScript: " + gone.length + " file(s) of \"" + name + "\" are on the device but no longer in your local project. Delete them on the device" +
+      (folders.length ? ", and the " + folders.length + " folder(s) they leave empty" : "") + "? This cannot be undone.",
+    { modal: true, detail },
     ok,
   );
   if (pick !== ok) {
@@ -232,8 +235,20 @@ async function deleteRemoved(name: string, local: string[], remote: RemoteFile[]
       failed.push(p);
     }
   }
+  let removed = 0;
+  for (const d of folders) {
+    // A folder whose file could not be deleted is not empty: leave it.
+    if (failed.some((f) => f.startsWith(d + "/"))) continue;
+    try {
+      await client.deleteFolder(name, d);
+      removed++;
+    } catch {
+      failed.push(d + "/");
+    }
+  }
   output.appendLine(
-    "deleted " + (gone.length - failed.length) + " file(s) on the device that were removed locally" + (failed.length ? "; could not delete: " + failed.join(", ") : ""),
+    "deleted " + (gone.length - failed.filter((f) => !f.endsWith("/")).length) + " file(s) on the device that were removed locally" +
+      (removed ? " and " + removed + " emptied folder(s)" : "") + (failed.length ? "; could not delete: " + failed.join(", ") : ""),
   );
 }
 

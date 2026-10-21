@@ -143,6 +143,31 @@ export function planDeletes(local: Iterable<string>, remote: RemoteFile[] | unde
   return [...out].sort();
 }
 
+/**
+ * Device folders that `gone` leaves without files: every device file under them is being deleted and no local
+ * file lives under them (a file uploaded a moment ago is not in the pre-upload `remote` list). Only the topmost
+ * such folders, sorted. __pycache__ and .pyc leftovers do not count as content; the folders are removed with
+ * DELETE ?recursive=1, which takes those leftovers too.
+ */
+export function planEmptiedFolders(local: Iterable<string>, remote: RemoteFile[] | undefined, gone: string[]): string[] {
+  if (!remote || !gone.length) return [];
+  const deleting = new Set(gone);
+  const dirsOf = (p: string) => {
+    const parts = p.split("/");
+    const out: string[] = [];
+    for (let i = 1; i < parts.length; i++) out.push(parts.slice(0, i).join("/"));
+    return out;
+  };
+  const keep = new Set<string>();
+  // Compiled leftovers do not keep a folder alive; anything else (.syncignore'd data, dot files) does.
+  const generated = (p: string) => p.endsWith(".pyc") || p.split("/").includes("__pycache__");
+  for (const f of remote) if (!deleting.has(f.path) && !generated(f.path)) for (const d of dirsOf(f.path)) keep.add(d);
+  for (const p of local) for (const d of dirsOf(p)) keep.add(d);
+  const cands = new Set<string>();
+  for (const p of gone) for (const d of dirsOf(p)) if (!keep.has(d)) cands.add(d);
+  return [...cands].filter((d) => !dirsOf(d).some((a) => cands.has(a))).sort();
+}
+
 /** The file list for the confirmation: at most `max` lines, then "… and N more". */
 export function describeDeletes(paths: string[], max = 30): string {
   const lines = paths.slice(0, max);

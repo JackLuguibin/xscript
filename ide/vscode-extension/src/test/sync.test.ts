@@ -7,7 +7,7 @@ import * as path from "node:path";
 import { DeviceClient } from "../client";
 import { collectFiles, findProjectRoot, isProjectDir, isSyncedPath } from "../project";
 import {
-  DEFAULT_SYNCIGNORE, IgnoreRules, SYNCIGNORE_PATH, describeDeletes, diffAgainstLocal, fetchProject, loadIgnoreRules, planDeletes, planUpload, safeRelative, writePulled,
+  DEFAULT_SYNCIGNORE, IgnoreRules, SYNCIGNORE_PATH, describeDeletes, diffAgainstLocal, planEmptiedFolders, fetchProject, loadIgnoreRules, planDeletes, planUpload, safeRelative, writePulled,
 } from "../sync";
 
 const REPO = path.resolve(__dirname, "..", "..", "..", "..");
@@ -165,6 +165,18 @@ test("describeDeletes caps the list", () => {
   assert.equal(describeDeletes(["a.py", "b.py"]), "a.py\nb.py");
 });
 
+test("planEmptiedFolders: topmost device folders the deletes leave without files", () => {
+  const remote = ["__init__.py", "lib/a.py", "lib/sub/b.py", "lib/__pycache__/a.pyc", "pkg/x.py", "pkg/data.json",
+    "tools/t.py", "fresh/old.py", "assets/hidden/.keep", "assets/hidden/i.py"].map((p) => ({ path: p, size: 1 }));
+  const gone = ["lib/a.py", "lib/sub/b.py", "pkg/x.py", "tools/t.py", "fresh/old.py", "assets/hidden/i.py"];
+  const local = ["__init__.py", "fresh/new.py"];
+  // lib: only __pycache__ is left -> removed (once, not lib/sub too); pkg keeps data.json (e.g. .syncignore'd);
+  // fresh has a file just uploaded; assets/hidden keeps a dot file.
+  assert.deepEqual(planEmptiedFolders(local, remote, gone), ["lib", "tools"]);
+  assert.deepEqual(planEmptiedFolders(local, remote, []), []);
+  assert.deepEqual(planEmptiedFolders(local, undefined, gone), []);
+});
+
 test("deleteFile removes a device file; a missing one counts as removed", async () => {
   await client.uploadFiles("del_demo", [
     { path: "__init__.py", content: "print(1)\n", encoding: "utf-8" },
@@ -173,4 +185,15 @@ test("deleteFile removes a device file; a missing one counts as removed", async 
   assert.equal(await client.deleteFile("del_demo", "old.py"), true);
   assert.equal(await client.deleteFile("del_demo", "old.py"), true);
   assert.deepEqual((await client.projectFiles("del_demo"))!.map((f) => f.path), ["__init__.py"]);
+});
+
+test("deleteFolder removes a folder with everything in it; a missing one returns 0", async () => {
+  await client.uploadFiles("delf_demo", [
+    { path: "__init__.py", content: "print(1)\n", encoding: "utf-8" },
+    { path: "lib/a.py", content: "x\n", encoding: "utf-8" },
+    { path: "lib/__pycache__/a.pyc", content: "c", encoding: "utf-8" },
+  ]);
+  assert.equal(await client.deleteFolder("delf_demo", "lib"), 2);
+  assert.equal(await client.deleteFolder("delf_demo", "lib"), 0);
+  assert.deepEqual((await client.projectFiles("delf_demo"))!.map((f) => f.path), ["__init__.py"]);
 });
