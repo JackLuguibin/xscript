@@ -561,6 +561,37 @@ test('Web IDE explorer, editor and create/delete flows in a real browser', {skip
       await b.eval(click, '#refresh'); await b.waitFor(idle);
     });
 
+    await t.test('unused imports and variables are faded; Ctrl+. removes an unused import (undoable)', async () => {
+      await api('PUT', '/projects/dom/files', {files: [{path: 'un_main.py', content: 'print("ok")\n'}]});
+      await b.eval(click, '#refresh'); await b.waitFor(idle);
+      await b.eval(click, row('un_main.py'));
+      await b.waitFor(() => document.getElementById('editor').value === 'print("ok")\n' && !document.getElementById('editor').disabled);
+      await b.eval(v => { const e = document.getElementById('editor'); e.focus(); e.value = v; e.dispatchEvent(new Event('input')); },
+        'import os\nimport sys, json\n\ndef f():\n    total = 1\n    return sys.argv\n');
+      await b.waitFor(() => document.querySelectorAll('#diag .fade').length === 3, 5000);
+      assert.deepEqual(await b.eval(() => [...document.querySelectorAll('#diag .fade')].map(n => n.textContent)), ['os', 'json', 'total']);
+      // faded names are hints, not problems: no squiggle, no gutter mark, the problems count stays 0
+      assert.deepEqual(await b.eval(() => [document.querySelectorAll('#diag .sq, #line-numbers .diag-line').length, document.getElementById('problems').dataset.count]), [0, '0']);
+      const caret = at => b.eval(at => { const e = document.getElementById('editor'); e.focus(); e.setSelectionRange(at, at); e.dispatchEvent(new Event('keyup')); }, at);
+      const ctrlDot = () => b.eval(() => document.getElementById('editor').dispatchEvent(new KeyboardEvent('keydown', {key: '.', ctrlKey: true, bubbles: true, cancelable: true})));
+      const value = () => b.eval(() => document.getElementById('editor').value);
+      await caret(8);
+      assert.match(await b.eval(() => document.getElementById('problems').textContent), /第 1 行：未使用的 import os（Ctrl\+\. 删除）/);
+      await ctrlDot();
+      await b.waitFor(() => !document.getElementById('editor').value.startsWith('import os'));
+      assert.equal(await value(), 'import sys, json\n\ndef f():\n    total = 1\n    return sys.argv\n');
+      await b.eval(() => { document.getElementById('editor').focus(); document.execCommand('undo'); });
+      assert.equal((await value()).startsWith('import os\n'), true, 'undo brings the import back');
+      await b.eval(() => { document.getElementById('editor').focus(); document.execCommand('redo'); });
+      await caret((await value()).indexOf('json') + 1); await ctrlDot();
+      await b.waitFor(() => document.getElementById('editor').value.startsWith('import sys\n'));
+      await b.waitFor(() => [...document.querySelectorAll('#diag .fade')].map(n => n.textContent).join() === 'total', 5000);
+      await b.eval(click, '#save'); await b.waitFor(idle);
+      await b.eval(click, row('__init__.py')); await b.waitFor(() => !document.getElementById('editor').disabled);
+      await fetch(base + '/projects/dom/file?path=un_main.py', {method: 'DELETE'});
+      await b.eval(click, '#refresh'); await b.waitFor(idle);
+    });
+
     await t.test('project search and replace: results, options, jump to match, replace saves clean files and keeps unsaved ones dirty', async () => {
       await api('PUT', '/projects/dom/files', {files: [
         {path: 'search/a.py', content: 'needle = 1\nprint(needle)\n'}, {path: 'search/b.py', content: '# NEEDLE\nx = 2\n'}, {path: 'search/c.txt', content: 'no match here\n'}]});

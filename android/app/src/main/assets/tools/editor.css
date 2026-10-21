@@ -114,6 +114,7 @@
 .ide-status .problems.has-problems { color:var(--bad, #d32f2f); }
 .ide-status .problems.has-warnings { color:var(--warn, #b26a00); }
 #diag .sq.warn { text-decoration-color:var(--warn, #b26a00); }
+#diag .fade { background:color-mix(in srgb, var(--bg) 55%, transparent); }
 #line-numbers .diag-line.warn { color:var(--warn, #b26a00); }
 .ide-status .auto-complete { display:flex; align-items:center; gap:4px; cursor:pointer; }
 /* Completion popup */

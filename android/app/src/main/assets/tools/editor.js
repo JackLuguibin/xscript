@@ -632,13 +632,16 @@
   assist.lint = async (path, text) => {
     if (!current || current.binary || current.path !== path || !/\.py$/.test(path) || !model.project) return null;
     const index = await projectIndex(path, text);
-    return index ? index.problemsIn(path) : null;
+    return index ? index.problemsIn(path).concat(index.unusedIn(path)) : null;
   };
   // Quick fix (Ctrl/Cmd+.): an undefined name that a project module defines gets `from module import name`.
   async function quickFix(pos) {
     if (pending) return;
     const s = await symbolsAt(pos); if (!s) return;
-    const w = s.index.problemsIn(s.path).find(x => x.fix && x.line === s.line && s.col >= x.col && s.col <= x.col + x.length);
+    const hit = x => x.line === s.line && s.col >= x.col && s.col <= x.col + x.length;
+    const unused = s.index.unusedIn(s.path).find(x => x.kind === "import" && (hit(x) || x.stmtLine === s.line && x.names === 1));
+    if (unused) { removeUnusedImport(unused); return; }
+    const w = s.index.problemsIn(s.path).find(x => x.fix && hit(x));
     if (!w) { message("光标处没有可自动修复的问题", true); return; }
     let mod = w.fix[0];
     if (w.fix.length > 1) {
@@ -662,6 +665,19 @@
     if (!native) box.dispatchEvent(new Event("input"));
     assist.close(); assist.hideSig();
     message("已添加 " + stmt.trim());
+  }
+  // Quick fix for an unused import: drop the name (or the whole statement), through the textarea's undo history.
+  function removeUnusedImport(u) {
+    const box = el("editor"), r = EditorSymbols.removeImport(box.value, u.stmtLine, u.name, u.names);
+    if (!r) { message("这条 import 的写法不能自动删除", true); return; }
+    const caret = box.selectionStart, top = box.scrollTop, delta = r.text.length - (r.to - r.from);
+    box.focus(); box.setSelectionRange(r.from, r.to);
+    let native = false; try { native = document.execCommand(r.text ? "insertText" : "delete", false, r.text || undefined) && box.value.slice(r.from, r.from + r.text.length) === r.text; } catch (e) { native = false; }
+    if (!native) { box.setRangeText(r.text, r.from, r.to, "start"); box.dispatchEvent(new Event("input")); }
+    const at = caret < r.from ? caret : caret >= r.to ? caret + delta : r.from;
+    box.setSelectionRange(at, at); box.scrollTop = top;
+    assist.close(); assist.hideSig();
+    message("已删除未使用的 import " + u.name);
   }
   // Rename symbol (F2 in the editor): every occurrence of the same definition across the project, after a confirm.
   async function renameSymbol(pos) {

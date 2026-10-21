@@ -158,7 +158,7 @@
         case "Import":
           for (const a of n.names) {
             const local = a.asname || a.name.split(".")[0];
-            bindScope(scope, local).add(local, { kind: "import", line: a.bindLine, col: a.bindCol, imp: { module: a.asname ? a.name : local } });
+            bindScope(scope, local).add(local, { kind: "import", line: a.bindLine, col: a.bindCol, stmtLine: n.line, imp: { module: a.asname ? a.name : local } });
             if (a.asname) occ(a.asname, a.bindLine, a.bindCol, scope, "def");
             let col = a.col; const parts = a.name.split(".");
             parts.forEach((p, i) => { occ(p, a.line, col, scope, "module", { module: parts.slice(0, i + 1).join(".") }); col += p.length + 1; });
@@ -170,7 +170,7 @@
           for (const a of n.names) {
             if (a.name === "*") { scope.star = scope.star || []; if (from !== null) scope.star.push(from); continue; }
             const local = a.asname || a.name;
-            bindScope(scope, local).add(local, { kind: "import", line: a.bindLine, col: a.bindCol, imp: { module: from, name: a.name } });
+            bindScope(scope, local).add(local, { kind: "import", line: a.bindLine, col: a.bindCol, stmtLine: n.line, relative: !!n.level, imp: { module: from, name: a.name } });
             occ(a.name, a.line, a.col, scope, "import", { module: from, imported: a.name });
             if (a.asname) occ(a.asname, a.bindLine, a.bindCol, scope, "def");
           }
@@ -513,6 +513,57 @@
       if (!cls || cls.file.dynamic || !this.closedClass(cls) || this.member({ cls }, o.name)) return null;
       return cls.name + " 没有属性或方法 " + o.name;
     }
+    /**
+     * Unused imports (any scope) and unused local variables (function scopes) of one file, for greying out:
+     * [{line,col,length,message,severity:"unused",kind:"import"|"variable",name}]. Package `__init__.py` files and
+     * files with `__all__` keep their imports (re-exports; the root __init__.py is the entry script and is checked); names starting with "_" and functions using
+     * locals()/vars()/eval/exec are skipped; an import another project file imports from this module counts as used.
+     */
+    unusedIn(path) {
+      const f = this.files.get(path); if (!f) return [];
+      const used = new Set();
+      for (const o of f.occ) {
+        if (o.kind !== "name") continue;
+        for (let sc = o.scope.globals.has(o.name) ? f.root : o.scope, first = true; sc; sc = sc.parent, first = false) {
+          if (sc.kind === "class" && !first) continue;
+          if (sc.defs.has(o.name)) { used.add(sc.id + ":" + o.name); break; }
+        }
+      }
+      // names other files import from this module, and strings like __all__ / getattr(mod, "x")
+      const exported = new Set();
+      for (const g of this.files.values()) for (const o of g.occ) if (o.kind === "import" && o.module === f.module) exported.add(o.imported);
+      const out = [], reexports = /\/__init__\.py$/.test(path) ||   // a sub-package; the project's own __init__.py is the entry script
+         f.root.defs.has("__all__");
+      f.lines = f.lines || f.text.split("\n");
+      const dynamic = /\b(locals|vars|eval|exec)\s*\(/.test(f.text);
+      // a module made only of imports is a facade that re-exports them
+      const facade = ((f.root.node && f.root.node.body) || []).every((st, i) => st.type === "Import" || st.type === "ImportFrom" ||
+        (i === 0 && st.type === "Expr" && st.value && st.value.type === "Constant" && st.value.kind === "string"));
+      const noqa = d => /#\s*noqa/i.test(f.lines[d.line - 1] || "") || (d.stmtLine && /#\s*noqa/i.test(f.lines[d.stmtLine - 1] || ""));
+      // The name is spelled somewhere else in `text` than at its own bindings (f-strings are not parsed into names).
+      const esc = name => name.replace(/[$]/g, "\\$&");
+      const spelled = (name, text, defs) => (text.match(new RegExp("(?<![\\p{L}\\p{N}_])" + esc(name) + "(?![\\p{L}\\p{N}_])", "gu")) || []).length > defs;
+      // only plain `name = ...` / `name: T = ...` statements (not tuple targets, loops, with/except `as`)
+      const plain = d => { const l = f.lines[d.line - 1] || ""; return !l.slice(0, d.col).trim() && new RegExp("^" + esc(d.name) + "\\s*(:[^=]*)?=(?!=)", "u").test(l.slice(d.col)); };
+      for (const sc of f.scopes) {
+        if (sc.kind === "class" || sc.kind === "comp") continue;
+        for (const [name, ds] of sc.defs) {
+          if (name.startsWith("_") || used.has(sc.id + ":" + name) || sc.globals.has(name) || sc.nonlocals.has(name)) continue;
+          if (ds.every(d => d.kind === "import")) {
+            if ((sc.kind === "module" && (reexports || facade || ds[0].relative || exported.has(name))) || ds.length !== 1 || noqa(ds[0])) continue;
+            const d = ds[0];
+            if (d.imp && d.imp.module === "__future__") continue;
+            if (spelled(name, f.text, f.occ.filter(o => o.name === name && (o.kind === "def" || o.kind === "import" || o.kind === "module")).length + 0)) continue;
+            const count = [...sc.defs.values()].reduce((n, xs) => n + xs.filter(x => x.kind === "import" && x.stmtLine === d.stmtLine).length, 0);
+            out.push({ line: d.line, col: d.col, length: name.length, message: "未使用的 import " + name + "（Ctrl+. 删除）", severity: "unused", kind: "import", name, stmtLine: d.stmtLine, names: count });
+          } else if (sc.kind === "function" && sc.name !== "<lambda>" && ds.every(d => d.kind === "variable")) {
+            if (dynamic || ds.some(noqa) || !ds.every(plain) || spelled(name, f.text, f.occ.filter(o => o.name === name && o.kind === "def").length)) continue;
+            for (const d of ds) out.push({ line: d.line, col: d.col, length: name.length, message: "未使用的变量 " + name, severity: "unused", kind: "variable", name });
+          }
+        }
+      }
+      return out.sort((a, b) => a.line - b.line || a.col - b.col);
+    }
     /** Project modules (other than `path`'s) that define `name` at top level (function, class or variable), sorted. */
     importCandidates(name, path) {
       if (name.startsWith("_")) return [];
@@ -560,7 +611,35 @@
     }
   }
 
-  const EditorSymbols = { moduleName, indexFile, build: (files, docs) => new Project(files, docs) };
+  /**
+   * Remove the import of `name` from the import statement starting on 1-based `stmtLine` that binds `names` names:
+   * {from, to, text} replacing text[from, to) (the whole statement and its newline when it is the only name), or null.
+   */
+  function removeImport(text, stmtLine, name, names) {
+    let from = 0; const lines = text.split("\n"); if (stmtLine < 1 || stmtLine > lines.length) return null;
+    for (let i = 0; i < stmtLine - 1; i++) from += lines[i].length + 1;
+    let to = from, depth = 0, i = stmtLine - 1;
+    for (; i < lines.length; i++) {
+      const l = lines[i].replace(/#.*$/, "");
+      for (const ch of l) { if (ch === "(") depth++; else if (ch === ")") depth--; }
+      to += lines[i].length + 1;
+      if (depth <= 0 && !/\\\s*$/.test(l)) break;
+    }
+    to = Math.min(to, text.length);
+    const stmt = text.slice(from, to), indent = stmt.match(/^[ \t]*/)[0];
+    if (!/^[ \t]*(from\s+\S+\s+)?import\b/.test(stmt)) return null;
+    if (names <= 1) return { from, to, text: "" };
+    const e = name.replace(/[$]/g, "\\$&"), entry = "(?:[\\p{L}\\p{N}_.]+\\s+as\\s+" + e + "|" + e + "(?:\\.[\\p{L}\\p{N}_.]+)?)";
+    const head = stmt.match(/^[ \t]*(?:from\s+\S+\s+)?import\s*\(?\s*/)[0];
+    const body = stmt.slice(head.length);
+    // a later entry: ", name"; the first entry: "name, "
+    let out = body.replace(new RegExp("\\s*,\\s*" + entry + "(?=\\s*(?:[,)#\\\\]|$))", "u"), "");
+    if (out === body) out = body.replace(new RegExp("^" + entry + "\\s*,[ \\t]*(?:\\\\?\\s*\\n[ \\t]*)?", "u"), "");
+    if (out === body) return null;
+    return { from, to, text: indent + head.slice(indent.length) + out };
+  }
+
+  const EditorSymbols = { removeImport, moduleName, indexFile, build: (files, docs) => new Project(files, docs) };
   if (typeof module !== "undefined" && module.exports) module.exports = { EditorSymbols };
   else root.EditorSymbols = EditorSymbols;
 })(typeof window !== "undefined" ? window : globalThis);

@@ -48,7 +48,7 @@
     scheduleCheck() { clearTimeout(this.timer); this.timer = setTimeout(() => this.runCheck(), CHECK_DELAY); }
     runCheck() {
       clearTimeout(this.timer);
-      this.diags = this.active && this.box.value.length <= 400000 ? EditorCheck.check(this.box.value) : [];
+      this.diags = this.active && this.box.value.length <= 400000 ? EditorCheck.check(this.box.value) : []; this.faded = [];
       this.render(); if (this.onMarks) this.onMarks();
       // Basic project checks (undefined names, wrong call arguments) only when the syntax is clean; `lint` is set
       // by editor.js and resolves to warnings for the text it was given.
@@ -57,7 +57,7 @@
       const path = this.path, text = this.box.value;
       Promise.resolve().then(() => this.lint(path, text)).then(ws => {
         if (token !== this.lintToken || !this.active || this.path !== path || this.box.value !== text || !ws || !ws.length) return;
-        this.diags = ws; this.problemCursor = -1; this.render(); if (this.onMarks) this.onMarks();
+        this.diags = ws.filter(w => w.severity !== "unused"); this.faded = ws.filter(w => w.severity === "unused"); this.problemCursor = -1; this.render(); if (this.onMarks) this.onMarks();
       }, () => {});
     }
     /** True when every diagnostic on `line` is a warning (basic checks), not a syntax error. */
@@ -65,17 +65,18 @@
     marks() { const m = new Map(); for (const d of this.diags) if (!m.has(d.line)) m.set(d.line, d.message); return m; }
     render() {
       const text = this.active ? this.box.value : "";
-      if (!this.diags.length) this.layer.textContent = "";
+      const all = this.diags.concat(this.faded || []);
+      if (!all.length) this.layer.textContent = "";
       else {
         const lines = text.split("\n"), byLine = new Map();
-        for (const d of this.diags) { if (!byLine.has(d.line)) byLine.set(d.line, []); byLine.get(d.line).push(d); }
+        for (const d of all) { if (!byLine.has(d.line)) byLine.set(d.line, []); byLine.get(d.line).push(d); }
         this.layer.innerHTML = lines.map((raw, i) => {
           const ds = byLine.get(i + 1); if (!ds) return esc(raw);
           let out = "", at = 0;
           for (const d of ds.sort((a, b) => a.col - b.col)) {
             let from = Math.min(Math.max(d.col, at), raw.length), to = Math.min(Math.max(from + d.length, from + 1), raw.length);
             if (to <= from) { if (at >= raw.length) continue; from = raw.length - 1; to = raw.length; }   // error at end of line: mark its last character
-            out += esc(raw.slice(at, from)) + '<span class="sq' + (d.severity === "warning" ? " warn" : "") + '">' + esc(raw.slice(from, to)) + "</span>"; at = to;
+            out += esc(raw.slice(at, from)) + '<span class="' + (d.severity === "unused" ? "fade" : d.severity === "warning" ? "sq warn" : "sq") + '">' + esc(raw.slice(from, to)) + "</span>"; at = to;
           }
           return out + esc(raw.slice(at));
         }).join("\n") + "\n";
@@ -89,7 +90,8 @@
       b.dataset.count = String(n); b.hidden = !this.path;
       const warn = n > 0 && this.diags.every(d => d.severity === "warning");
       b.classList.toggle("has-problems", n > 0 && !warn); b.classList.toggle("has-warnings", warn);
-      b.textContent = n === 0 ? "✓ 无语法问题" : here ? "⚠ 第 " + here.line + " 行：" + here.message : "⚠ " + n + (warn ? " 个问题" : " 个语法问题") + "（点击跳转）";
+      const faded = n === 0 && (this.faded || []).find(d => d.line === line);
+      b.textContent = faded ? "· 第 " + faded.line + " 行：" + faded.message : n === 0 ? "✓ 无语法问题" : here ? "⚠ 第 " + here.line + " 行：" + here.message : "⚠ " + n + (warn ? " 个问题" : " 个语法问题") + "（点击跳转）";
     }
     nextProblem() {
       if (!this.diags.length) return;
@@ -106,7 +108,7 @@
     // ---- completion ----
     onInput(e) {
       if (!this.active) return;
-      this.diags = []; this.lintToken = (this.lintToken || 0) + 1; this.layer.textContent = ""; if (this.onMarks) this.onMarks();    // positions are stale while typing
+      this.diags = []; this.faded = []; this.lintToken = (this.lintToken || 0) + 1; this.layer.textContent = ""; if (this.onMarks) this.onMarks();    // positions are stale while typing
       this.scheduleCheck();
       const type = e && e.inputType;
       if (!this.enabled || (type !== "insertText" && type !== "insertCompositionText")) { this.close(); this.updateSig(false); return; }
