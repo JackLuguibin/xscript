@@ -36,6 +36,12 @@ export function ErrorBanner({ error, info, onDismiss, label, role = "alert" }: {
       <div className="grow err-body">
         <strong className="err-title">{d.title}</strong>
         {d.hint && <span className="err-hint">{d.hint}</span>}
+        {d.help && (
+          // a plain link: the desktop shell hands clicked external links to the system browser
+          <a className="err-help" href={d.help}>
+            {t.errors.connectHelp}
+          </a>
+        )}
         {open && (
           <div className="err-detail" id={detailId}>
             <pre className="mono">{d.detail}</pre>

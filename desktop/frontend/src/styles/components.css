@@ -66,6 +66,7 @@ input[type="checkbox"], input[type="radio"] { width: 1rem; height: 1rem; min-hei
 .banner .grow { padding-top: 0; }
 .error-banner .err-body { display: flex; flex-direction: column; gap: 0.15rem; min-width: 0; }
 .error-banner .err-hint { opacity: 0.92; }
+.error-banner .err-help { display: inline-block; margin-top: var(--sp-1); color: inherit; text-decoration: underline; font-size: var(--fs-sm); }
 .error-banner .err-actions { display: flex; flex: none; gap: var(--sp-1); align-items: center; }
 .error-banner .err-actions button { color: inherit; }
 .error-banner .err-detail { display: flex; flex-direction: column; align-items: flex-start; gap: var(--sp-1); margin-top: var(--sp-1); }

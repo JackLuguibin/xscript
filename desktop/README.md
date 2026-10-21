@@ -64,6 +64,14 @@
 
 重新生成：设备上放一个带子文件夹的工程「每日签到」，然后 `python -m xscript_desktop --screenshot out.png --connect-adb <serial> --run-js tools/screenshot-projects.js --screenshot-delay 4 --theme light --size 1180x760`（`--run-js` 在设备连上后在页面里执行脚本：打开工程页、选工程、打开 `lib/tasks.py`）。截图规则和其他截图的生成方式见 [docs/截图.md](../docs/截图.md)。
 
+连不上设备时的提示（带「连不上怎么办」链接，打开 [docs/TROUBLESHOOTING.md](../docs/TROUBLESHOOTING.md)）：
+
+| 浅色 | 深色 |
+| --- | --- |
+| ![连不上设备浅色](../docs/images/desktop-connect-error-light.png) | ![连不上设备深色](../docs/images/desktop-connect-error-dark.png) |
+
+重新生成：`python -m xscript_desktop --data-dir <临时目录> --screenshot out.png --run-js tools/screenshot-connect-error.js --screenshot-delay 5 --theme light --size 1180x760`（脚本在设备页连接 `127.0.0.1:1`，不需要设备）。
+
 ## P5 安装包与更新（已实现）
 
 | 内容 | 说明 | 位置 |

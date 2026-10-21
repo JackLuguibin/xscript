@@ -59,4 +59,11 @@ class DeviceStatusTest {
         assertEquals("status.unknown", statusLabel(DeviceState.Unknown, msg))
         assertFalse(clickOpensConnect(DeviceState.Unknown))
     }
+
+    @Test
+    fun `troubleshooting link points at a page in this repo`() {
+        val path = TROUBLESHOOTING_URL.substringAfter("/blob/main/")
+        assertTrue(TROUBLESHOOTING_URL.startsWith("https://github.com/JackLuguibin/xscript/blob/main/"))
+        assertTrue(java.io.File("../../$path").isFile)
+    }
 }
