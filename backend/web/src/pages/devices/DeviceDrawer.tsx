@@ -7,6 +7,7 @@ import { CopyText, Pill } from "../../components";
 import { fmtTime } from "../../format";
 import { RemoteControl } from "../../remote";
 import { DeviceLogs } from "../../logs";
+import { DeviceRuns } from "./DeviceRuns";
 
 export function DeviceDrawer({
   id,
@@ -125,6 +126,13 @@ export function DeviceDrawer({
                         lastRun={d.last_run}
                         historyDays={settings.data?.device_log_days}
                       />
+                    ),
+                  },
+                  {
+                    key: "runs",
+                    label: "最近运行",
+                    children: tab === "runs" && (
+                      <DeviceRuns id={d.id} online={d.online} defaultProject={d.project || d.last_run?.project} />
                     ),
                   },
                 ]
