@@ -85,8 +85,8 @@ describe("file new / rename / delete", () => {
       await screen.findByRole("button", { name: new RegExp("^" + path.replace(/[/.]/g, "\\$&")) });
     }
     const folders = screen.getByRole("list", { name: "文件夹" });
-    expect(within(folders).getByText(/pkg\/$/).textContent).toContain("2 个文件");
-    expect(within(folders).getByText(/pkg\/sub\/$/).textContent).toContain("1 个文件");
+    expect(within(folders).getByText(/pkg\/$/).parentElement!.textContent).toContain("2 个文件");
+    expect(within(folders).getByText(/pkg\/sub\/$/).parentElement!.textContent).toContain("1 个文件");
 
     fireEvent.click(screen.getByRole("button", { name: /^pkg\/sub\/b\.py/ }));
     await screen.findByText(/demo\/pkg\/sub\/b\.py/);
