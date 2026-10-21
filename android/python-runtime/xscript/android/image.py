@@ -4,10 +4,12 @@ Frames come from the device as raw RGBA (8-byte w/h header). numpy is required f
 color and template work; OpenCV (cv2) for template matching. Both ship in the APK.
 """
 
+import json
 import math
 import os
 import re
 import struct
+import sys
 import threading
 import time
 
@@ -126,9 +128,45 @@ def capture_rgba(rect=None, use_cache=True):
         raw = bridge.capture_raw(*(rect or (0, 0, 0, 0)))
         last = raw_to_rgba(raw) if raw else None
         if last is not None:
+            _capture_warned["done"] = False
             return last
         time.sleep(0.1)
+    _warn_no_capture()
     return last
+
+
+_CAPTURE_LOST_HINT = (
+    "截图失败：系统录屏授权已失效（手机重启或被系统收回）。"
+    "请打开 XScript 主页点「图色权限」重新授权，或开启无障碍 / Root 截图。"
+)
+_CAPTURE_NONE_HINT = (
+    "截图失败：没有可用的截图方式。请在 XScript 主页授予「图色权限」，"
+    "或开启无障碍（Android 11+）/ Root。"
+)
+_capture_warned = {"done": False}
+
+
+def _capture_problem():
+    """Why the last capture came back empty, as a user-facing sentence ("" when capture works)."""
+    try:
+        info = json.loads(bridge.control("capture_status", "") or "{}")
+    except Exception:
+        info = {}
+    if info.get("lost"):
+        return _CAPTURE_LOST_HINT
+    if info and not info.get("available", True):
+        return _CAPTURE_NONE_HINT
+    return ""
+
+
+def _warn_no_capture():
+    """Log once per outage why find/compare calls see no screen (they return None/False/[])."""
+    if _capture_warned["done"]:
+        return
+    _capture_warned["done"] = True
+    msg = _capture_problem()
+    if msg:
+        print("[xscript] " + msg, file=sys.stderr)
 
 
 def capture_bgr(rect=None):

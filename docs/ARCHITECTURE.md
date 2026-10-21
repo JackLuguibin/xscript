@@ -195,7 +195,7 @@ sequenceDiagram
 
 来源按优先级降级：
 
-1. MediaProjection（系统录屏，需要一次授权，最快）。屏幕静止时不会产生新帧，所以缓存最后一帧。
+1. MediaProjection（系统录屏，需要一次授权，最快）。屏幕静止时不会产生新帧，所以缓存最后一帧。授权不会跨进程保留：`CaptureGrant` 记住“用户授过权”，系统停止投屏（`MediaProjection.Callback.onStop`）或进程重启后发现授权没了，就发「图色权限已失效」通知（`CaptureNotice`，点开即重新申请），脚本可通过 `control("capture_status")` 查到原因并在日志里提示。
 2. 无障碍截图（API 30+），系统限流约 3 fps，代码里做了 340 ms 节流。
 3. Root `screencap`（不带 `-p`，直接读原始 RGBA，省去 PNG 编码）。
 

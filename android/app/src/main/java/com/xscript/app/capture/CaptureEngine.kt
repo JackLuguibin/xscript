@@ -46,6 +46,26 @@ object CaptureEngine {
     var granted: Boolean = false
         private set
 
+    private val grant by lazy {
+        CaptureGrant(
+            object : CaptureGrant.Store {
+                override var wasGranted: Boolean
+                    get() = Settings.captureWasGranted
+                    set(value) {
+                        Settings.captureWasGranted = value
+                    }
+            },
+        )
+    }
+
+    /** True when a system recording grant went away without the user asking (reboot, revoked). */
+    val lost: Boolean get() = grant.lost
+
+    /** Main process start: report a grant that did not survive the restart. */
+    fun checkAfterProcessStart(context: Context) {
+        if (grant.onProcessStart(granted)) CaptureNotice.show(context)
+    }
+
     @Volatile
     var lastSource: String = ""
         private set
@@ -85,6 +105,7 @@ object CaptureEngine {
 
     fun start(context: Context, resultCode: Int, data: Intent) {
         stop()
+        val app = context.applicationContext
         val mgr = context.getSystemService(Context.MEDIA_PROJECTION_SERVICE) as MediaProjectionManager
         val proj = mgr.getMediaProjection(resultCode, data) ?: return
         val metrics = context.resources.displayMetrics
@@ -97,8 +118,10 @@ object CaptureEngine {
         proj.registerCallback(
             object : MediaProjection.Callback() {
                 override fun onStop() {
-                    granted = false
+                    // A projection this object already let go of (stop() before a new grant) is not a loss.
+                    if (projection !== proj) return
                     release()
+                    if (grant.onSystemStopped()) CaptureNotice.show(app)
                 }
             },
             Handler(Looper.getMainLooper()),
@@ -117,14 +140,18 @@ object CaptureEngine {
         reader = imgReader
         display = vd
         granted = true
+        grant.onGranted()
+        CaptureNotice.cancel(app)
     }
 
     fun stop() {
+        val old = projection
+        release()
+        grant.onAppStopped()
         try {
-            projection?.stop()
+            old?.stop()
         } catch (_: Exception) {
         }
-        release()
     }
 
     private fun release() {
@@ -314,12 +341,20 @@ object CaptureEngine {
     /** Label for the home screen "图色权限" row. */
     fun sourceLabel(): String = when {
         granted -> "系统录屏"
+        lost -> "已失效，点此重新授权"
         lastSource == SOURCE_ROOT && RootShell.known() == true -> "Root截图"
         Settings.runMode == Settings.MODE_ROOT && RootShell.known() == true -> "Root截图"
         AccessibilityEngine.isOn() && android.os.Build.VERSION.SDK_INT >= 30 -> "无障碍截图"
         RootShell.known() == true -> "Root截图"
         else -> "未授权"
     }
+
+    /** For scripts (`capture_status`): why a capture may have come back empty. */
+    fun status(): org.json.JSONObject = org.json.JSONObject()
+        .put("granted", granted)
+        .put("lost", lost)
+        .put("available", available())
+        .put("source", lastSource)
 
     const val RESULT_OK = Activity.RESULT_OK
 }

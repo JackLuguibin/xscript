@@ -59,6 +59,11 @@ object Settings {
         get() = prefs().getBoolean("keep_screen_on", false)
         set(value) = prefs().edit().putBoolean("keep_screen_on", value).apply()
 
+    /** The user granted system screen recording and has not taken it back (see CaptureGrant). */
+    var captureWasGranted: Boolean
+        get() = prefs().getBoolean("capture_was_granted", false)
+        set(value) = prefs().edit().putBoolean("capture_was_granted", value).apply()
+
     var cloudUrl: String
         get() = prefs().getString("cloud_url", "") ?: ""
         set(value) = prefs().edit().putString("cloud_url", value.trim()).apply()
