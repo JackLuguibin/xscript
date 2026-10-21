@@ -286,6 +286,8 @@ test('unused imports and local variables, and removing an import', () => {
     {path: 'mod.py', content: 'from os import sep\ndef g():\n    return 1\n'}, {path: 'user.py', content: 'from mod import sep\nprint(sep)\n'},
     {path: 'dyn.py', content: 'def h():\n    v = 1\n    return locals()\n'}], XSDocs);
   for (const path of ['pkg/__init__.py', 'facade.py', 'withall.py', 'mod.py', 'dyn.py']) assert.deepEqual(re.unusedIn(path), [], path);
+  const entry = EditorSymbols.build([{path: '__init__.py', content: 'import os\nprint(1)\n'}], XSDocs);
+  assert.deepEqual(entry.unusedIn('__init__.py').map(w => w.name), ['os'], 'the entry script is not a re-exporting package');
   const t = 'import os\nfrom a import (x,\n    y, z)  # c\nimport p.q, r as rr\nfrom b import u as uu, v\nprint(1)\n';
   const apply = (l, n, c) => { const r = EditorSymbols.removeImport(t, l, n, c); return t.slice(0, r.from) + r.text + t.slice(r.to); };
   assert.equal(apply(1, 'os', 1), t.replace('import os\n', ''));

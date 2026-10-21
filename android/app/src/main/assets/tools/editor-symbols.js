@@ -516,7 +516,7 @@
     /**
      * Unused imports (any scope) and unused local variables (function scopes) of one file, for greying out:
      * [{line,col,length,message,severity:"unused",kind:"import"|"variable",name}]. Package `__init__.py` files and
-     * files with `__all__` keep their imports (re-exports); names starting with "_" and functions using
+     * files with `__all__` keep their imports (re-exports; the root __init__.py is the entry script and is checked); names starting with "_" and functions using
      * locals()/vars()/eval/exec are skipped; an import another project file imports from this module counts as used.
      */
     unusedIn(path) {
@@ -532,11 +532,13 @@
       // names other files import from this module, and strings like __all__ / getattr(mod, "x")
       const exported = new Set();
       for (const g of this.files.values()) for (const o of g.occ) if (o.kind === "import" && o.module === f.module) exported.add(o.imported);
-      const out = [], reexports = /(^|\/)__init__\.py$/.test(path) || f.root.defs.has("__all__");
+      const out = [], reexports = /\/__init__\.py$/.test(path) ||   // a sub-package; the project's own __init__.py is the entry script
+         f.root.defs.has("__all__");
       f.lines = f.lines || f.text.split("\n");
       const dynamic = /\b(locals|vars|eval|exec)\s*\(/.test(f.text);
       // a module made only of imports is a facade that re-exports them
-      const facade = [...f.root.defs.values()].every(ds => ds.every(d => d.kind === "import"));
+      const facade = ((f.root.node && f.root.node.body) || []).every((st, i) => st.type === "Import" || st.type === "ImportFrom" ||
+        (i === 0 && st.type === "Expr" && st.value && st.value.type === "Constant" && st.value.kind === "string"));
       const noqa = d => /#\s*noqa/i.test(f.lines[d.line - 1] || "") || (d.stmtLine && /#\s*noqa/i.test(f.lines[d.stmtLine - 1] || ""));
       // The name is spelled somewhere else in `text` than at its own bindings (f-strings are not parsed into names).
       const esc = name => name.replace(/[$]/g, "\\$&");
