@@ -46,8 +46,8 @@
     {
       "id": "pairing", "clients": ["desktop", "pycharm"], "section": 5,
       "title": {"zh": "配对码", "en": "Pairing code"},
-      "fix": {"zh": "连接后在设备卡片上输入手机首页「开发与连接 → 配对码」显示的配对码。", "en": "After connecting, enter the pairing code from the phone's home screen (Developer & connection → Pairing code) on the device card."},
-      "fixIde": {"zh": "手机开了配对：连接时会弹出输入框，输入手机首页「开发与连接 → 配对码」显示的配对码。", "en": "Pairing is on: when connecting you are asked for the code shown on the phone under Developer & connection → Pairing code."}
+      "fix": {"zh": "连接后在设备卡片上输入手机首页「开发与连接 → 配对码」显示的配对码。", "en": "After connecting, enter the pairing code from the phone's home screen (Development and connection → Pairing code) on the device card."},
+      "fixIde": {"zh": "手机开了配对：连接时会弹出输入框，输入手机首页「开发与连接 → 配对码」显示的配对码。", "en": "Pairing is on: when connecting you are asked for the code shown on the phone under Development and connection → Pairing code."}
     }
   ]
 }

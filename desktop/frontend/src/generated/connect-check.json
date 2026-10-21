@@ -72,7 +72,7 @@
     },
     "pairing": {
       "title": "Pairing code",
-      "fix": "After connecting, enter the pairing code from the phone's home screen (Developer & connection → Pairing code) on the device card."
+      "fix": "After connecting, enter the pairing code from the phone's home screen (Development and connection → Pairing code) on the device card."
     }
   }
 }

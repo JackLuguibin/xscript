@@ -54,8 +54,8 @@ def desktop_json(steps):
 
 
 def prop_escape(text):
-    # MessageFormat: a single quote must be doubled; braces are not used in these texts
-    assert "{" not in text and "}" not in text, text
+    # MessageFormat: a single quote must be doubled; braces are not used. The IDE bundle strips "&" as a mnemonic marker.
+    assert "{" not in text and "}" not in text and "&" not in text, text
     return text.replace("'", "''")
 
 
