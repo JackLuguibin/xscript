@@ -12,7 +12,13 @@ export interface ErrorInfo {
   code: string;
   /** Raw `message [code]` (+ details JSON) for the details / copy section. */
   detail: string;
+  /** Troubleshooting page for connection problems (opens in the system browser). */
+  help?: string;
 }
+
+/** "Can't connect" checklist in the repo docs. */
+export const TROUBLESHOOTING_URL = "https://github.com/JackLuguibin/xscript/blob/main/docs/TROUBLESHOOTING.md";
+const CONNECT_CODES = new Set(["device.unreachable", "device.timeout", "device.unpaired", "device.protocol"]);
 
 function httpStatus(details: unknown): number | undefined {
   if (details && typeof details === "object" && "status" in details) {
@@ -52,7 +58,7 @@ export function describeCode(code: string, message: string, details?: unknown): 
   if (!entry) return { title: message || e.unknown, hint: "", code, detail };
   // entries without a hint of their own: the backend message is already the specific, user-facing part
   const hint = entry.hint ?? (message && message !== entry.title ? message : "");
-  return { title: entry.title, hint, code, detail };
+  return CONNECT_CODES.has(key) ? { title: entry.title, hint, code, detail, help: TROUBLESHOOTING_URL } : { title: entry.title, hint, code, detail };
 }
 
 export function describeError(err: unknown): ErrorInfo {

@@ -336,6 +336,7 @@ const zh = {
     copy: "复制",
     copied: "已复制",
     dismiss: "关闭提示",
+    connectHelp: "连不上怎么办？查看排查步骤",
     unknown: "操作失败",
     sep: "：",
     codes: {
@@ -1119,6 +1120,7 @@ const en: Strings = {
     copy: "Copy",
     copied: "Copied",
     dismiss: "Dismiss",
+    connectHelp: "Can't connect? See the troubleshooting steps",
     unknown: "Something went wrong",
     sep: ": ",
     codes: {

@@ -12,7 +12,7 @@ import { MirrorPage } from "../src/components/MirrorPage";
 import { ProjectsPage } from "../src/components/ProjectsPage";
 import { ACTION_TOAST_MS, TOAST_MS, useToast } from "../src/components/Toast";
 import { createDemoTransport } from "../src/demo";
-import { describeCode, describeError, errorLine } from "../src/errors";
+import { describeCode, describeError, errorLine, TROUBLESHOOTING_URL } from "../src/errors";
 import { setLanguage, t } from "../src/strings";
 
 afterEach(() => {
@@ -98,6 +98,17 @@ describe("ErrorBanner", () => {
     expect(transport.sent.find((m) => m.method === "app.copyText")?.params).toEqual({ text: "cannot reach 1.2.3.4:9860 [device.unreachable]" });
     fireEvent.click(within(alert).getByRole("button", { name: "关闭提示" }));
     expect(onDismiss).toHaveBeenCalledTimes(1);
+  });
+
+  it("links connection errors (and only those) to the troubleshooting page", () => {
+    withServices(<ErrorBanner error={new RpcError({ code: "device.unreachable", message: "x", retryable: true })} />);
+    const link = within(screen.getByRole("alert")).getByRole("link", { name: /连不上怎么办/ });
+    expect(link.getAttribute("href")).toBe(TROUBLESHOOTING_URL);
+    expect(link.getAttribute("target")).toBeNull(); // the desktop shell only hands same-frame link clicks to the browser
+    for (const code of ["device.timeout", "device.unpaired", "device.protocol"]) expect(describeCode(code, "m").help).toBe(TROUBLESHOOTING_URL);
+    expect(describeCode("device.protocol", "invalid device address: x").help).toBeUndefined();
+    expect(describeCode("adb.not_found", "m").help).toBeUndefined();
+    expect(describeCode("", "boom").help).toBeUndefined();
   });
 });
 
