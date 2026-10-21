@@ -106,6 +106,11 @@ screen.find_all_images(["a.png", "b.png"], maxcnt=5, scale_range=[0.8, 1.2])
 screen.find_image("res/img/banner.png", method="auto")      # 先模板匹配，找不到再用特征点（可缩放、旋转）
 screen.find_image("res/img/banner.png", method="feature")   # 只用特征点：hit["angle"]、hit["scale"]、hit["quad"]
 screen.find_image("res/img/page.png", rect=[0, 0, 1080, 300], method="hash")   # 这块区域是不是这张图
+screen.wait_image("res/img/btn.png", timeout=10)            # 等到图片出现 → hit 或 None
+screen.image_state("res/img/claim.png")                     # "enabled" 正常颜色 / "disabled" 变灰或变色 / None 不在屏幕上
+hit = screen.wait_enabled("res/img/claim.png", timeout=30)  # 等「领取」按钮从灰色变亮
+if hit:
+    action.click(hit["center_x"], hit["center_y"])
 
 with_cache = screen.cache(True)      # 冻结一帧，供多次查找使用
 screen.cache(False)
@@ -128,6 +133,8 @@ screen.ocr_click("同意")
 | `"lab"` | ΔE（CIE76，约 2.3 人眼刚能分辨） | 12 | 按人眼色差找，误匹配最少 | 约 9ms |
 
 `find_color_blobs(color, rect=None, sim=0.9, color_space="hsv", tolerance=None, min_area=50, max_num=0)` 用连通域找色块，`color` 可用 `|` 连接多个颜色，`fill` 为面积占外接矩形的比例（1.0 为实心矩形）；全屏约 5ms。`dominant_colors(rect=None, k=3)` 在 Lab 空间用 k-means 取主色（区域抽样到约 2 万像素，随机种子固定，结果稳定）；全屏约 13ms。
+
+按钮状态：`image_state(template, rect=None, confidence=0.9, image=None)` 先按灰度形状找图，再比较找到的区域和模板的颜色（同 `rgb=True` 的色度校验）。模板请从按钮可用（彩色）时截取。`wait_enabled` 和 `wait_image` 跟 `ocr_wait` 一样每 `interval` 秒（默认 0.3）看一次，超时时最后再看一次。
 
 模板匹配默认使用灰度，`rgb=True` 时使用 H+S，并对每个候选结果再做两项校验：灰度形状要达到同样的 `confidence`，颜色（Lab 的 a/b 色度，与亮度无关）的平均差不能超过 `max(8, (1 - confidence) × 150)`（0.9 时为 15）。所以 `rgb=True` 能区分彩色图标和它的灰色（不可用）版本或换了色相的版本，屏幕变暗时仍能找到。透明 PNG 像素会被屏蔽。`scale_range` 先在按对数间隔（约 12%）取值的缩放比例上粗搜，再在最佳几个候选附近细搜比例（精确到模板长边约 1 像素），所以落在两个粗搜步长之间的比例（如 0.8 倍）也能以高置信度找到，并保留最佳结果。大模板会经过由粗到精的匹配流程。模板可以是路径（相对路径基于项目解析）、numpy 数组，或二者组成的列表。
 
