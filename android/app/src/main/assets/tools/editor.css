@@ -2,6 +2,10 @@
 .ide-sidebar { display:flex; flex-direction:column; min-height:0; border-right:1px solid var(--divider); background:var(--bar); padding:12px; gap:14px; }
 .ide-heading { display:flex; align-items:center; gap:8px; min-height:30px; }
 .ide-heading > strong { margin-right:auto; font-size:12px; }
+/* 文件 heading: title + four buttons on one row in the 230px sidebar (they used to wrap to a second line) */
+#files-heading > strong { flex-shrink:0; white-space:nowrap; }
+#files-heading > div { display:flex; flex-wrap:nowrap; gap:3px; min-width:0; }
+#files-heading button { height:26px; padding:0 6px; font-size:12px; white-space:nowrap; }
 .ide-sidebar select { width:100%; }
 #files { overflow:auto; flex:1; margin:0 -12px; padding:2px 0; font-size:13px; outline:none; }
 .ide-sidebar-foot { display:flex; gap:16px; font-size:12px; }
