@@ -51,6 +51,28 @@ class PermissionGuideTest {
     }
 
     @Test
+    fun `save and restore keep the place, skips and step numbers`() {
+        val granted = mutableSetOf<Kind>()
+        val ok = { k: Kind -> k in granted }
+        val g = PermissionGuide(listOf(Kind.OVERLAY, Kind.ACCESSIBILITY, Kind.NOTIFICATIONS), ok)
+        g.skip(g.next(ok)!!)
+        g.opened(g.next(ok)!!) // overlay: off to settings, app killed there
+        granted += Kind.OVERLAY
+        val r = PermissionGuide.restore(g.save())!!
+        assertEquals(3, r.total)
+        assertEquals(Kind.NOTIFICATIONS, r.next(ok))
+        assertEquals(3, r.stepNumber())
+        assertEquals(listOf(Kind.ACCESSIBILITY), r.skipped())
+    }
+
+    @Test
+    fun `restore refuses anything it did not write`() {
+        for (bad in listOf(null, "", "x", "BOGUS|1||", "ACCESSIBILITY|5||", "ACCESSIBILITY|1|OVERLAY|", "ACCESSIBILITY|1||ACCESSIBILITY", "|0||")) {
+            assertNull(bad, PermissionGuide.restore(bad))
+        }
+    }
+
+    @Test
     fun `nothing missing`() {
         val g = PermissionGuide(listOf(Kind.ACCESSIBILITY), { true })
         assertEquals(0, g.total)
