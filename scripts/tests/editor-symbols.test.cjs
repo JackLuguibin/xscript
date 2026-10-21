@@ -108,6 +108,29 @@ test('find references across files, grouped on one symbol', () => {
   assert.deepEqual(lib.refs.map(x => `${x.line}:${x.col}`), ['2:35', '2:44', '14:11', '15:4']);
 });
 
+test('rename symbol: every occurrence of the same definition, with safety checks', () => {
+  const p = project();
+  const at = (path, line, word, nth = 0) => { const l = FILES[path].split('\n')[line - 1]; let c = -1; for (let i = 0; i <= nth; i++) c = l.indexOf(word, c + 1); assert.ok(c >= 0); return [path, line, c + 1]; };
+  const places = r => r.edits.map(e => `${e.path}:${e.line}:${e.col}`);
+  assert.deepEqual(p.renameAt(...at('__init__.py', 13, 'log')), {name: 'log'});                  // probe only
+  const r = p.renameAt(...at('__init__.py', 13, 'log'), 'write');                              // util.log -> def in util.py
+  assert.deepEqual([r.name, r.newName, r.files], ['log', 'write', 3]);
+  assert.deepEqual(places(r), ['__init__.py:13:9', 'pkg/shapes.py:2:23', 'pkg/shapes.py:8:8', 'util.py:1:4']);
+  // an attribute: self.side everywhere, but not the same-named parameter side
+  assert.deepEqual(places(p.renameAt(...at('__init__.py', 17, 'side'), 'size')),
+    ['__init__.py:17:14', 'pkg/shapes.py:6:13', 'pkg/shapes.py:8:17', 'pkg/shapes.py:9:20', 'pkg/shapes.py:9:32']);
+  assert.match(p.renameAt(...at('__init__.py', 14, 'click'), 'x').error, /库符号 xscript\.android\.action\.click 不能重命名/);
+  assert.match(p.renameAt(...at('__init__.py', 12, 'sh'), 'x').error, /模块名/);
+  assert.match(p.renameAt(...at('__init__.py', 10, 'COUNT'), 'main').error, /main 在同一作用域里已经有定义/);
+  assert.match(p.renameAt(...at('__init__.py', 10, 'COUNT'), 'class').error, /不是合法的 Python 名字/);
+  assert.match(p.renameAt(...at('__init__.py', 10, 'COUNT'), '2x').error, /不是合法的 Python 名字/);
+  assert.match(p.renameAt(...at('__init__.py', 10, 'COUNT'), 'COUNT').error, /和原来一样/);
+  assert.match(p.renameAt('__init__.py', 7, 0, 'x').error, /没有可重命名的名字/);
+  // an `as` alias keeps its own name; the imported name on the import line is renamed
+  const q = EditorSymbols.build([{path: 'a.py', content: 'def f():\n    pass\n'}, {path: 'b.py', content: 'from a import f as g\ng()\nfrom a import f\nf()\n'}]);
+  assert.deepEqual(places(q.renameAt('b.py', 4, 0, 'h')), ['a.py:1:4', 'b.py:1:14', 'b.py:3:14', 'b.py:4:0']);
+});
+
 test('broken files still index up to the error; non-Python files are ignored', () => {
   const p = EditorSymbols.build([{path: 'a.py', content: 'def ok():\n    pass\nx = (\n'}, {path: 'b.py', content: 'from a import ok\nok()\n'}, {path: 'n.txt', content: 'x'}]);
   assert.deepEqual(p.definitionAt('b.py', 2, 0), {path: 'a.py', line: 1, col: 4, name: 'ok', kind: 'function'});

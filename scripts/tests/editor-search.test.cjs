@@ -100,6 +100,21 @@ test('replaceInFiles: saves clean files, leaves unsaved ones dirty, reports coun
   assert.equal(d.disk.get('b.py'), 'old\n', 'disk untouched for a file with unsaved edits'); assert.equal(b.content, 'new # mine\n'); assert.ok(model.dirty(b));
   assert.equal(d.disk.get('c.py'), 'keep\n');
 });
+test('renameInFiles: exact positions, all-or-nothing when stale, undoable like a replace', async () => {
+  const d = fakeDevice({'a.py': 'def f():\n    return f_x\n', 'b.py': 'from a import f\nf()\n'});
+  const model = new EditorModel(d.api); model.project = 'p';
+  const edits = [{path: 'a.py', line: 1, col: 4, length: 1}, {path: 'b.py', line: 1, col: 14, length: 1}, {path: 'b.py', line: 2, col: 0, length: 1}];
+  const r = await model.renameInFiles(edits, 'f', 'go');
+  assert.deepEqual({files: r.files, count: r.count, unsaved: r.unsaved, undoable: r.undoable}, {files: 2, count: 3, unsaved: [], undoable: true});
+  assert.equal(d.disk.get('a.py'), 'def go():\n    return f_x\n', 'f_x is not touched');
+  assert.equal(d.disk.get('b.py'), 'from a import go\ngo()\n');
+  await model.undoReplace();
+  assert.equal(d.disk.get('a.py'), 'def f():\n    return f_x\n'); assert.equal(d.disk.get('b.py'), 'from a import f\nf()\n');
+  // a file changed since the analysis: nothing is written anywhere
+  const b = await model.open('b.py'); model.edit(b, '\nfrom a import f\nf()\n');
+  await assert.rejects(model.renameInFiles(edits, 'f', 'go'), /b\.py 在分析之后改过/);
+  assert.equal(d.disk.get('a.py'), 'def f():\n    return f_x\n');
+});
 test('tab helpers: which tabs close and which becomes active', () => {
   const t = ['a', 'b', 'c', 'd'].map(n => ({path: n}));
   const dirty = x => x.path === 'b';
