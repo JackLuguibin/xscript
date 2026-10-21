@@ -21,6 +21,7 @@ import com.xscript.app.permission.PermissionStatus
 import com.xscript.app.project.PermissionGuide
 import com.xscript.app.project.PermissionNeeds
 import com.xscript.app.project.ProjectStore
+import com.xscript.app.runtime.RunHistory
 import com.xscript.app.runtime.RunState
 import com.xscript.app.runtime.ScriptService
 import com.xscript.app.schedule.Schedule
@@ -41,6 +42,7 @@ class ProjectActivity : AppCompatActivity() {
     private lateinit var store: ProjectStore
     private lateinit var perms: LinearLayout
     private lateinit var options: LinearLayout
+    private lateinit var history: LinearLayout
 
     /** What this project's code uses (scanned on resume); null until the first scan finished. */
     @Volatile
@@ -94,6 +96,8 @@ class ProjectActivity : AppCompatActivity() {
         col.addView(perms)
         options = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
         col.addView(options)
+        history = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
+        col.addView(history)
         files = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
         col.addView(files)
         UiKit.note(col, "位置：" + store.dir(name).absolutePath).setTextIsSelectable(true)
@@ -105,6 +109,7 @@ class ProjectActivity : AppCompatActivity() {
         if (guide != null && guideDialog?.isShowing != true) handler.postDelayed({ continueGuide() }, 600)
         scanNeeds()
         renderOptions()
+        renderHistory()
         renderFiles()
         handler.post(tick)
     }
@@ -442,6 +447,32 @@ class ProjectActivity : AppCompatActivity() {
             .show()
     }
 
+    // ------------------------------------------------------------------ 最近运行
+
+    private fun renderHistory() {
+        history.removeAllViews()
+        val runs = RunHistory.of(this, name)
+        UiKit.section(history, "最近运行")
+        val card = UiKit.card(history, UiKit.Space.S)
+        if (runs.isEmpty()) {
+            UiKit.row(card, 0, "还没有运行记录", "", chevron = false)
+            return
+        }
+        for (r in runs.take(HISTORY_ROWS)) {
+            val at = LocalDateTime.ofInstant(java.time.Instant.ofEpochMilli(r.start), ZoneId.systemDefault()).format(NEXT_FORMAT)
+            val row = UiKit.row(card, 0, "$at · ${RunHistory.duration(r.durationMs)}", "") {
+                startActivity(
+                    Intent(this, LogActivity::class.java)
+                        .putExtra(LogActivity.EXTRA_FROM, r.logFrom)
+                        .putExtra(LogActivity.EXTRA_TO, r.logTo)
+                        .putExtra(LogActivity.EXTRA_TITLE, "运行日志 · $at"),
+                )
+            }
+            row.value(RunHistory.outcome(r.exit, r.userStop), if (RunHistory.failed(r.exit, r.userStop)) ui.danger else ui.muted)
+        }
+        if (runs.size > HISTORY_ROWS) UiKit.note(history, "只显示最近 $HISTORY_ROWS 次（保存最近 ${RunHistory.PER_PROJECT} 次）。")
+    }
+
     // ------------------------------------------------------------------ files
 
     private fun renderFiles() {
@@ -492,5 +523,6 @@ class ProjectActivity : AppCompatActivity() {
         private const val STATE_GUIDE = "permission_guide"
         val EDITABLE = setOf("py", "txt", "md", "json", "yaml", "yml", "html", "js", "css", "as", "ini", "cfg", "toml", "csv")
         private val NEXT_FORMAT = DateTimeFormatter.ofPattern("MM-dd HH:mm")
+        private const val HISTORY_ROWS = 5
     }
 }

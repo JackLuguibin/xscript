@@ -33,6 +33,9 @@ class LogActivity : AppCompatActivity() {
     private val buffer = SpannableStringBuilder()
     private val fmt = SimpleDateFormat("HH:mm:ss", Locale.getDefault())
 
+    /** Set when opened from 最近运行: show only that run's lines (seq in (from, to]) and do not follow new ones. */
+    private var range: LongRange? = null
+
     private val tick = object : Runnable {
         override fun run() {
             poll()
@@ -42,16 +45,25 @@ class LogActivity : AppCompatActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        val col = UiKit.screen(this, "运行日志")
+        val from = intent.getLongExtra(EXTRA_FROM, -1L)
+        val to = intent.getLongExtra(EXTRA_TO, -1L)
+        if (from >= 0 && to >= from) range = (from + 1)..to
+        val col = UiKit.screen(this, intent.getStringExtra(EXTRA_TITLE) ?: "运行日志")
         stopAction = UiKit.barAction(col, "停止") { ScriptService.stop(this) }
-        UiKit.barAction(col, "清空") {
-            LogBuffer.clear(this)
-            buffer.clear()
-            text.text = ""
-            showEmpty(true)
+        if (range == null) {
+            UiKit.barAction(col, "清空") {
+                LogBuffer.clear(this)
+                buffer.clear()
+                text.text = ""
+                showEmpty(true)
+            }
         }
         scroll = col.parent as ScrollView
-        emptyHint = UiKit.empty(col, "还没有日志", "运行小程序后，print 输出和报错会显示在这里")
+        emptyHint = if (range == null) {
+            UiKit.empty(col, "还没有日志", "运行小程序后，print 输出和报错会显示在这里")
+        } else {
+            UiKit.empty(col, "这次运行的日志已经没有了", "日志被清空过，或已被更新的日志挤掉（最多保留约 2 MB）")
+        }
         val card = UiKit.card(col, UiKit.Space.S)
         text = TextView(this).apply {
             typeface = Typeface.MONOSPACE
@@ -63,6 +75,17 @@ class LogActivity : AppCompatActivity() {
         }
         card.addView(text, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT))
         logCard = card
+        val r = range
+        if (r != null) {
+            val (entries, _) = LogBuffer.since(this, r.first - 1, limit = 20000)
+            val mine = entries.filter { it.seq in r }
+            if (mine.isNotEmpty() && mine.first().seq > r.first) {
+                UiKit.note(col, "开头部分已被更新的日志挤掉，只剩后面 ${mine.size} 行。")
+            }
+            append(mine)
+            showEmpty(buffer.isEmpty())
+            return
+        }
         // Start from the last ~300 entries rather than the whole history.
         val (all, last) = LogBuffer.since(this, 0, limit = 300)
         append(all)
@@ -72,7 +95,16 @@ class LogActivity : AppCompatActivity() {
 
     override fun onResume() {
         super.onResume()
-        handler.post(tick)
+        if (range == null) handler.post(tick) else updateStop()
+    }
+
+    private fun updateStop() {
+        // Disabled (not only dimmed) while nothing runs, so TalkBack reports it; set only on a change.
+        val running = RunState.current(this) != null
+        if (stopAction.isEnabled != running) {
+            stopAction.isEnabled = running
+            stopAction.alpha = if (running) 1f else 0.38f
+        }
     }
 
     override fun onPause() {
@@ -81,12 +113,7 @@ class LogActivity : AppCompatActivity() {
     }
 
     private fun poll() {
-        // Disabled (not only dimmed) while nothing runs, so TalkBack reports it; set only on a change.
-        val running = RunState.current(this) != null
-        if (stopAction.isEnabled != running) {
-            stopAction.isEnabled = running
-            stopAction.alpha = if (running) 1f else 0.38f
-        }
+        updateStop()
         showEmpty(buffer.isEmpty())
         val (entries, n) = LogBuffer.since(this, next)
         if (n < next) {
@@ -116,5 +143,11 @@ class LogActivity : AppCompatActivity() {
         if (buffer.length > 200_000) buffer.delete(0, buffer.length - 150_000)
         text.text = buffer
         if (atBottom) scroll.post { scroll.fullScroll(ScrollView.FOCUS_DOWN) }
+    }
+
+    companion object {
+        const val EXTRA_FROM = "log_from"
+        const val EXTRA_TO = "log_to"
+        const val EXTRA_TITLE = "title"
     }
 }
