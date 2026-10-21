@@ -1,8 +1,6 @@
 package com.xscript.pycharm
 
-import com.intellij.credentialStore.CredentialAttributes
 import com.intellij.credentialStore.Credentials
-import com.intellij.credentialStore.generateServiceName
 import com.intellij.ide.passwordSafe.PasswordSafe
 import com.intellij.openapi.application.ApplicationManager
 import com.intellij.openapi.components.PersistentStateComponent
@@ -44,7 +42,7 @@ class XScriptSettings : PersistentStateComponent<XScriptSettings.State> {
 
     fun client(): DeviceClient = target().let { DeviceClient(it, token = pairingCode(it)) }
 
-    private fun attributes(t: DeviceTarget) = CredentialAttributes(generateServiceName("XScript", "device ${t.host}:${t.port}"), "xscript")
+    private fun attributes(t: DeviceTarget) = DeviceCredentials.attributes(t.host, t.port)
 
     companion object {
         const val DEFAULT_EVAL_TIMEOUT_MS = 8000
