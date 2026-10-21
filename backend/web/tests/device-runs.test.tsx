@@ -11,6 +11,7 @@ const runs = [
   { project: "签到", start: 1_759_999_000_000, duration_ms: 61_000, exit: "0", user_stop: false, outcome: "正常结束", failed: false, log_from: 2, log_to: 5 },
 ];
 let relayed: string[] = [];
+let logEntries: { seq: number; ts: number; stream: string; line: string }[] | null = null;
 
 function stub(runsStatus = 200) {
   relayed = [];
@@ -19,6 +20,7 @@ function stub(runsStatus = 200) {
     vi.fn(async (_url: string, init?: RequestInit) => {
       const path = JSON.parse(String(init?.body ?? "{}")).path as string;
       relayed.push(path);
+      if (path === "/logs" && logEntries) return Response.json({ entries: logEntries, next: 99 });
       if (path === "/logs")
         return Response.json({ entries: [
           { seq: 10, ts: 0, stream: "stdout", line: "before this run\n" },
@@ -44,7 +46,10 @@ function mount(online = true) {
 }
 
 describe("DeviceRuns (云控 设备 → 最近运行)", () => {
-  beforeEach(() => stub());
+  beforeEach(() => {
+    logEntries = null;
+    stub();
+  });
 
   it("reads the device's last project runs through the relay and shows outcome, duration and stats", async () => {
     mount();
@@ -81,6 +86,33 @@ describe("DeviceRuns (云控 设备 → 最近运行)", () => {
     expect(screen.queryByText("next run")).toBeNull();
     fireEvent.click(screen.getByText("正常结束"));
     expect(await screen.findByText(/已不在手机的日志缓冲区里/)).toBeTruthy();
+  });
+
+  it("a failed run with a traceback shows where in the project it failed; a log without one shows no location", async () => {
+    const P = "/storage/emulated/0/Android/data/com.xscript.app/files/projects/签到";
+    logEntries = [
+      { seq: 11, ts: 0, stream: "stderr", line: "Traceback (most recent call last):\n" },
+      { seq: 12, ts: 0, stream: "stderr", line: `  File "${P}/lib/tasks.py", line 3, in run\n` },
+    ];
+    // the run's slice ends at 12; the exception line would be 13, outside it, so widen this run for the test
+    runs[0].log_to = 13;
+    logEntries.push({ seq: 13, ts: 0, stream: "stderr", line: "ZeroDivisionError: division by zero\n" });
+    try {
+      mount();
+      fireEvent.click(await screen.findByText("出错退出（退出码 1）"));
+      const box = await screen.findByLabelText("出错位置");
+      expect(box.textContent).toContain("出错位置：lib/tasks.py:3");
+      expect(box.textContent).toContain("ZeroDivisionError: division by zero");
+    } finally {
+      runs[0].log_to = 12;
+    }
+  });
+
+  it("no location when the failed run's log has no traceback into the project", async () => {
+    mount();
+    fireEvent.click(await screen.findByText("出错退出（退出码 1）"));
+    await screen.findByText("TimeoutError: 找不到「收获」按钮");
+    expect(screen.queryByLabelText("出错位置")).toBeNull();
   });
 
   it("formats", () => {
