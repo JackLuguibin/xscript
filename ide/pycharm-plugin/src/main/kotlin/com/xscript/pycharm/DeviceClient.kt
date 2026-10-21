@@ -191,6 +191,63 @@ fun followTick(client: DeviceClient, state: FollowState, write: (String) -> Unit
     return true
 }
 
+/** A network failure (device off, app closed, Wi-Fi dropped, timeout), as opposed to an HTTP error reply. */
+fun isUnreachable(e: Throwable): Boolean = e !is DeviceHttpException && e is java.io.IOException
+
+/** How a log follow ended. */
+sealed class FollowEnd {
+    object Finished : FollowEnd()
+    object Cancelled : FollowEnd()
+    /** The device stayed unreachable through every reconnect attempt. */
+    class Lost(val error: Throwable) : FollowEnd()
+}
+
+/** Waits between reconnect attempts while following logs: about 30 s in total. */
+val RECONNECT_DELAYS_MS = listOf(1000L, 2000L, 4000L, 8000L, 15000L)
+
+/**
+ * Polls `tick` until the script finishes or `alive` turns false. A network failure does not stop the follow:
+ * it reports `onLost` once, retries after each of `delays`, reports `onBack` when the device answers again
+ * and keeps going from the same log cursor (so no lines are lost or repeated). Other errors propagate.
+ */
+fun followLoop(
+    tick: () -> Boolean,
+    alive: () -> Boolean,
+    sleep: (Long) -> Unit,
+    pollMs: Long = 700,
+    delays: List<Long> = RECONNECT_DELAYS_MS,
+    onLost: () -> Unit = {},
+    onBack: () -> Unit = {},
+): FollowEnd {
+    while (alive()) {
+        val more = try {
+            tick()
+        } catch (e: Exception) {
+            if (!isUnreachable(e)) throw e
+            onLost()
+            var last: Throwable = e
+            var back: Boolean? = null
+            for (d in delays) {
+                sleep(d)
+                if (!alive()) return FollowEnd.Cancelled
+                try {
+                    back = tick()
+                    break
+                } catch (e2: Exception) {
+                    if (!isUnreachable(e2)) throw e2
+                    last = e2
+                }
+            }
+            if (back == null) return FollowEnd.Lost(last)
+            onBack()
+            back
+        }
+        if (!more) return FollowEnd.Finished
+        sleep(pollMs)
+    }
+    return FollowEnd.Cancelled
+}
+
 /** Code to evaluate: the selection, else the caret line; null when blank. */
 fun evalCode(selection: String?, caretLine: String): String? =
     (if (selection.isNullOrEmpty()) caretLine else selection).takeIf { it.isNotBlank() }

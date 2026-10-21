@@ -350,12 +350,13 @@ class XScriptService(private val project: Project) : Disposable {
                 body(settings.client())
             }
         } catch (e: Exception) {
-            val why = when (e) {
-                is DeviceHttpException -> e.message
-                is java.net.ConnectException, is java.net.http.HttpConnectTimeoutException ->
-                    XScriptBundle.message("notify.unreachable", settings.target().baseUrl)
-                else -> e.message ?: e.toString()
+            if (isUnreachable(e)) {
+                val why = XScriptBundle.message("notify.unreachable", settings.target().baseUrl)
+                print("$why\n", ConsoleViewContentType.ERROR_OUTPUT)
+                notifyRetry(why, XScriptBundle.message("notify.retry")) { withPairing(body) }
+                return
             }
+            val why = if (e is DeviceHttpException) e.message else e.message ?: e.toString()
             print("$why\n", ConsoleViewContentType.ERROR_OUTPUT)
             notify(why ?: "error", NotificationType.ERROR)
         }
@@ -379,18 +380,37 @@ class XScriptService(private val project: Project) : Disposable {
         follower = ApplicationManager.getApplication().executeOnPooledThread {
             val state = FollowState(since)
             try {
-                while (gen == generation.get() && !project.isDisposed) {
-                    if (!followTick(client, state) { print(it) }) {
-                        print(XScriptBundle.message("log.finished") + "\n", ConsoleViewContentType.SYSTEM_OUTPUT)
-                        break
+                val end = followLoop(
+                    tick = { followTick(client, state) { print(it) } },
+                    alive = { gen == generation.get() && !project.isDisposed },
+                    sleep = { Thread.sleep(it) },
+                    onLost = { print(XScriptBundle.message("log.reconnecting") + "\n", ConsoleViewContentType.SYSTEM_OUTPUT) },
+                    onBack = { print(XScriptBundle.message("log.reconnected") + "\n", ConsoleViewContentType.SYSTEM_OUTPUT) },
+                )
+                when (end) {
+                    FollowEnd.Finished -> print(XScriptBundle.message("log.finished") + "\n", ConsoleViewContentType.SYSTEM_OUTPUT)
+                    is FollowEnd.Lost -> {
+                        print(XScriptBundle.message("log.lost") + "\n", ConsoleViewContentType.ERROR_OUTPUT)
+                        notifyRetry(XScriptBundle.message("log.lost"), XScriptBundle.message("log.resume")) {
+                            if (gen == generation.get()) follow(client, state.since)
+                        }
                     }
-                    Thread.sleep(700)
+                    FollowEnd.Cancelled -> {}
                 }
             } catch (_: InterruptedException) {
             } catch (e: Exception) {
                 print(XScriptBundle.message("log.followStopped", e.message ?: e.toString()) + "\n", ConsoleViewContentType.ERROR_OUTPUT)
             }
         }
+    }
+
+    /** Error notification with one action button (e.g. retry). */
+    private fun notifyRetry(text: String, action: String, run: () -> Unit) {
+        NotificationGroupManager.getInstance().getNotificationGroup("XScript").createNotification(text, NotificationType.ERROR)
+            .addAction(NotificationAction.createSimpleExpiring(action) {
+                ApplicationManager.getApplication().executeOnPooledThread { run() }
+            })
+            .notify(project)
     }
 
     fun notify(text: String, type: NotificationType) {
