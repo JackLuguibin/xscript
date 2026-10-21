@@ -753,9 +753,11 @@
         }
         while (lines.length && !f.lines[lines[lines.length - 1] - 1].trim()) lines.pop();
         if (lines.some(n => /#\s*noqa/i.test(f.lines[n - 1]))) return;
+        // Ctrl+. deletes the whole dead run (whole lines, from its first to its last line)
+        const dead = { from: lines[0], to: lines[lines.length - 1] };
         for (const n of lines) {
           const raw = f.lines[n - 1], lead = raw.length - raw.trimStart().length; if (!raw.trim()) continue;
-          out.push({ line: n, col: lead, length: raw.trimEnd().length - lead, message: "执行不到的代码（前面已经 " + WHY[list[i].type] + "）", severity: "unused", kind: "unreachable" });
+          out.push({ line: n, col: lead, length: raw.trimEnd().length - lead, message: "执行不到的代码（前面已经 " + WHY[list[i].type] + "；Ctrl+. 删除）", severity: "unused", kind: "unreachable", dead });
         }
       };
       const walk = node => {

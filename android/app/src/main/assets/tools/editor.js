@@ -643,6 +643,15 @@
     const hit = x => x.line === s.line && s.col >= x.col && s.col <= x.col + x.length;
     const unused = s.index.unusedIn(s.path).find(x => x.kind === "import" && (hit(x) || x.stmtLine === s.line && x.names === 1));
     if (unused) { removeUnusedImport(unused); return; }
+    const dead = s.index.unreachableIn(s.path).find(x => x.line === s.line);
+    if (dead) {
+      // whole lines from the first to the last dead line, with their line breaks
+      const lines = el("editor").value.split("\n"), d = dead.dead, last = d.to === lines.length;
+      const length = lines.slice(d.from - 1, d.to).reduce((n, l) => n + l.length + 1, 0) - (last ? 1 : 0);
+      if (last && d.from > 1) replaceRange(d.from - 1, lines[d.from - 2].length, length + 1, "");
+      else replaceRange(d.from, 0, length, "");
+      message("已删除 " + (d.to - d.from + 1) + " 行执行不到的代码"); return;
+    }
     const typo = s.index.problemsIn(s.path).find(x => x.suggest && hit(x));
     if (typo) { replaceRange(s.line, typo.col, typo.length, typo.suggest); message("已改为 " + typo.suggest); return; }
     const ed = s.index.problemsIn(s.path).find(x => x.edit && hit(x));
