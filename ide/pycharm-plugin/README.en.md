@@ -25,7 +25,8 @@ Then in PyCharm: **Settings → Plugins → ⚙ → Install Plugin from Disk…*
 
 | Action | Shortcut | What it does |
 | --- | --- | --- |
-| Upload and Run on Device | Ctrl+Alt+Shift+R; editor and Project view context menus | Stops the script running on the phone, uploads the project of the current file and runs it; the log streams into the XScript tool window |
+| Upload and Run on Device | Ctrl+Alt+Shift+R; editor and Project view context menus | Stops the script running on the phone, uploads the project of the current file and runs it; the log streams into the XScript tool window. Only files new or changed since the last upload from this IDE are sent (device file size + local content hash, the VS Code extension's rule); the log says how many were skipped |
+| Upload All and Run on Device | | Same, but sends every file again (use it after editing the project on the phone) |
 | Stop Script on Device | | Stops the running script |
 | Pull Project from Device… | | Pick one of the device's projects and download it: into the IDE project (or its sub-folder) when it has the same name, else into a new folder of that name under a folder you choose. Only new and different files are written; overwriting local edits asks first, listing them; local files the device does not have are kept |
 | Run Selection on Device | Ctrl+Alt+Shift+E; editor context menu | Evaluates the selected code (or the current line) in the phone's eval process and prints the result in the XScript tool window; assign `_result` to see a value; times out after 8 s by default, adjustable in Settings (200–15000 ms) |

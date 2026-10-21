@@ -50,15 +50,25 @@ class XScriptService(private val project: Project) : Disposable {
         return LocalProject.findRoot(start, base) ?: base?.takeIf { LocalProject.isProjectDir(it) }
     }
 
-    fun uploadAndRun(root: Path) {
+    /** Unless `full`, only files new or changed since the last upload from this IDE project are sent. */
+    fun uploadAndRun(root: Path, full: Boolean = false) {
         val name = root.fileName.toString()
         object : Task.Backgroundable(project, XScriptBundle.message("task.upload", name), true) {
             override fun run(indicator: ProgressIndicator) {
                 withPairing { client ->
                     client.stopIfRunning()?.let { print(XScriptBundle.message("log.stopped", it) + "\n", ConsoleViewContentType.SYSTEM_OUTPUT) }
                     val files = LocalProject.collectFiles(root)
-                    print(XScriptBundle.message("log.upload", files.size, name, client.target.baseUrl) + "\n", ConsoleViewContentType.SYSTEM_OUTPUT)
-                    client.uploadFiles(name, files)
+                    val key = UploadPlanner.cacheKey(client.target, name)
+                    val props = com.intellij.ide.util.PropertiesComponent.getInstance(project)
+                    val remote = if (full) null else client.projectFiles(name)
+                    val cache: Map<String, String> = if (full) emptyMap() else props.getValue(key)?.let {
+                        try { com.google.gson.Gson().fromJson<Map<String, String>>(it, object : com.google.gson.reflect.TypeToken<Map<String, String>>() {}.type) } catch (_: Exception) { null }
+                    } ?: emptyMap()
+                    val plan = UploadPlanner.plan(files, remote, cache)
+                    print(XScriptBundle.message("log.upload", plan.upload.size, name, client.target.baseUrl) +
+                        (if (plan.skipped > 0) XScriptBundle.message("log.upload.skipped", plan.skipped) else "") + "\n", ConsoleViewContentType.SYSTEM_OUTPUT)
+                    if (plan.upload.isNotEmpty() || remote == null) client.uploadFiles(name, plan.upload)
+                    props.setValue(key, com.google.gson.Gson().toJson(plan.hashes))
                     val since = client.currentSeq()
                     val r = client.run(name)
                     r.get("error")?.let { throw IllegalStateException(it.asString) }
