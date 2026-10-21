@@ -84,7 +84,9 @@ tasks.runIde {
     if (providers.gradleProperty("runIdeHeadlessConsent").isPresent) {
         jvmArgs("-Djb.privacy.policy.text=<!--999.999-->", "-Djb.consents.confirmation.enabled=false", "-Didea.initially.ask.config=never", "-Didea.trust.all.projects=true")
     }
-    // -PrunIdeScreenshotDemo=run|settings: ScreenshotDemoActivity runs the demo project or opens the settings (docs screenshots)
+    // -PrunIdeScreenshotDemo=run|settings|eval|pull: ScreenshotDemoActivity drives one feature for docs screenshots
+    // -PrunIdeScreenshotOut=<dir>: the demo also saves PNGs of the IDE window there (no screen-recording permission needed)
+    providers.gradleProperty("runIdeScreenshotOut").orNull?.let { jvmArgs("-Dxscript.screenshotOut=$it") }
     providers.gradleProperty("runIdeScreenshotDemo").orNull?.let {
         jvmArgs("-Dxscript.screenshotDemo=$it", "-Dide.show.tips.on.startup.default.value=false", "-Didea.fatal.error.notification=disabled")
     }

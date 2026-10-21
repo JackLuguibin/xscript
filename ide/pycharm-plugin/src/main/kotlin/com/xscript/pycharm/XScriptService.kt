@@ -155,7 +155,10 @@ class XScriptService(private val project: Project) : Disposable {
                         if (!ok) return@withPairing
                     }
                     val written = ProjectPull.write(d, pulled, diff)
-                    com.intellij.openapi.vfs.LocalFileSystem.getInstance().refreshAndFindFileByNioFile(d)?.refresh(true, true)
+                    // mark the folder dirty and rescan it before reporting, so open editors and the project tree show the pulled files
+                    com.intellij.openapi.vfs.LocalFileSystem.getInstance().refreshAndFindFileByNioFile(d)?.let {
+                        com.intellij.openapi.vfs.VfsUtil.markDirtyAndRefresh(false, true, true, it)
+                    }
                     print(XScriptBundle.message("log.pulled", n, d, diff.added.size, diff.changed.size, diff.unchanged.size) + "\n",
                         ConsoleViewContentType.SYSTEM_OUTPUT)
                     notify(XScriptBundle.message("notify.pulled", n, written, d), NotificationType.INFORMATION)

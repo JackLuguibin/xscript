@@ -8,9 +8,13 @@
 
 ![运行后底部 XScript 工具窗口实时输出日志](../../docs/images/pycharm-run.png)
 
-![Settings → Tools → XScript：设备地址和配对码](../../docs/images/pycharm-settings.png)
+![Settings → Tools → XScript：设备地址、配对码和运行选中代码超时](../../docs/images/pycharm-settings.png)
 
-（沙盒 PyCharm 2024.2.6，连接本机模拟设备 `scripts/mock_device.py`。）
+![选中一行按 Ctrl+Alt+Shift+E：代码和设备返回的结果显示在 XScript 工具窗口](../../docs/images/pycharm-eval.png)
+
+![Pull Project from Device：选择设备上的工程、确认覆盖后，拉取的文件出现在编辑器和工程树里，日志列出新增 / 更新数量](../../docs/images/pycharm-pull.png)
+
+（沙盒 PyCharm 2024.2.6，连接本机模拟设备 `scripts/mock_device.py`，结果是模拟数据。）
 
 ## 安装
 
@@ -56,5 +60,5 @@ cd ide/pycharm-plugin
 ```
 
 - 新建工程模板 `src/main/resources/templates.json` 是生成的：改 `ide/vscode-extension/src/newProject.ts` 后，在 `ide/vscode-extension` 里 `npm run compile && node scripts/export-templates.js`。CI 用 `--check` 检查。
-- 截图：先在 `.intellijPlatform/sandbox/xscript-pycharm/PC-2024.2.6/config_runIde/options/xscript.xml` 里把设备地址设为本机 mock 设备，再 `./gradlew runIde -PrunIdeProject=<演示工程> -PrunIdeHeadlessConsent -PrunIdeScreenshotDemo=run`（或 `settings`）。这两个开关只用于这个一次性的沙盒：跳过用户协议、自动打开演示工程并运行。
+- 截图：先在 `.intellijPlatform/sandbox/xscript-pycharm/PC-2024.2.6/config_runIde/options/xscript.xml` 里把设备地址设为本机 mock 设备，再 `./gradlew runIde -PrunIdeProject=<演示工程> -PrunIdeHeadlessConsent -PrunIdeScreenshotDemo=run -PrunIdeScreenshotOut=<目录>`（模式还有 `settings`、`eval`、`pull`）。这些开关只用于这个一次性的沙盒：跳过用户协议，打开演示工程，执行对应功能（`pull` 会自动按下选择和覆盖对话框的默认按钮；演示工程里要有与设备工程同名的文件夹），约 25 秒后把 IDE 窗口（有对话框时截对话框）存成 `<目录>/<模式>.png`，不需要系统录屏权限。
 - 本机没有系统 JDK 时可以用 Android Studio 自带的：`JAVA_HOME="/Applications/Android Studio.app/Contents/jbr/Contents/Home"`。
