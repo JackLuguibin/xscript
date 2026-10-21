@@ -58,6 +58,29 @@ class DeviceScriptsTest(unittest.TestCase):
         bad = [p.name for p in dumping if not re.search(r"devauth\.mask|from devauth import mask", p.read_text(encoding="utf-8"))]
         self.assertEqual(bad, [], "use devauth.mask on printed UI text")
 
+    def test_guide_smoke_run_waits_for_the_previous_run(self):
+        # "finished" is logged just before /status stops reporting the run: starting the next run then is a 409
+        import sys
+        from unittest import mock
+        sys.path.insert(0, str(SCRIPTS))
+        import device_guide_smoke as m
+        calls, busy = [], iter([True, True, False])
+
+        def call(method, path, data=None, ctype=None):
+            calls.append((method, path.split("?")[0]))
+            if path == "/status":
+                return {"running": next(busy)}
+            if path.endswith("/run"):
+                return {"running": True}
+            if path.startswith("/logs?"):
+                return {"entries": [{"line": "xscript: finished xs_t"}], "next": 1}
+            return {}
+
+        with mock.patch.object(m, "call", call), mock.patch.object(m.time, "sleep"):
+            m.run("xs_t", "print(1)", quiet=True)
+        self.assertEqual([c for c in calls if c[1] in ("/status", "/projects/xs_t/run")],
+                         [("GET", "/status")] * 3 + [("POST", "/projects/xs_t/run")])
+
 
 if __name__ == "__main__":
     unittest.main()
