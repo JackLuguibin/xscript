@@ -77,6 +77,23 @@ class PackActivity : AppCompatActivity() {
         }
     }
 
+    private fun requestCapture() {
+        val mgr = getSystemService(MEDIA_PROJECTION_SERVICE) as MediaProjectionManager
+        capturePermission.launch(mgr.createScreenCaptureIntent())
+    }
+
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        askCaptureIfRequested(intent)
+    }
+
+    /** Opened from the "图色权限已失效" notification: ask for the grant right away. */
+    private fun askCaptureIfRequested(intent: Intent?) {
+        if (intent?.getBooleanExtra(com.xscript.app.capture.CaptureNotice.EXTRA_REQUEST_CAPTURE, false) != true) return
+        intent.removeExtra(com.xscript.app.capture.CaptureNotice.EXTRA_REQUEST_CAPTURE)
+        requestCapture()
+    }
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         val label = applicationInfo.loadLabel(packageManager).toString()
@@ -114,10 +131,7 @@ class PackActivity : AppCompatActivity() {
         rowOverlay = UiKit.row(perms, R.drawable.ic_sym_layers, "悬浮窗权限") {
             startActivity(FloatControl.permissionIntent(this))
         }
-        rowCapture = UiKit.row(perms, R.drawable.ic_sym_screenshot_monitor, "截图权限") {
-            val mgr = getSystemService(MEDIA_PROJECTION_SERVICE) as MediaProjectionManager
-            capturePermission.launch(mgr.createScreenCaptureIntent())
-        }
+        rowCapture = UiKit.row(perms, R.drawable.ic_sym_screenshot_monitor, "截图权限") { requestCapture() }
         rowRoot = UiKit.row(perms, R.drawable.ic_sym_terminal, "Root 权限") { RootShell.probeAsync { runOnUiThread { refresh() } } }
         rowBattery = UiKit.row(perms, R.drawable.ic_sym_battery_saver, "后台运行") {
             startActivity(Intent(AndroidSettings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS).apply {
@@ -130,6 +144,7 @@ class PackActivity : AppCompatActivity() {
             rowCloud = UiKit.row(cloud, R.drawable.ic_sym_cloud, "云端控制", chevron = false)
         }
         UiKit.note(col, "设备 ID：" + CloudClient.deviceId(this))
+        askCaptureIfRequested(intent)
 
         if (Build.VERSION.SDK_INT >= 33) notifyPermission.launch(Manifest.permission.POST_NOTIFICATIONS) else DeviceHttpService.start(this)
     }
@@ -184,7 +199,14 @@ class PackActivity : AppCompatActivity() {
         val overlay = FloatControl.canShow(this)
         rowOverlay.value(if (overlay) "已授权" else "未授权，点此开启", if (overlay) ui.success else ui.muted)
         rowFloat.value(FloatControl.modeSummary(this))
-        rowCapture.value(CaptureEngine.sourceLabel(), if (CaptureEngine.available()) ui.success else ui.muted)
+        rowCapture.value(
+            CaptureEngine.sourceLabel(),
+            when {
+                CaptureEngine.lost -> ui.danger
+                CaptureEngine.available() -> ui.success
+                else -> ui.muted
+            },
+        )
         when (RootShell.known()) {
             true -> rowRoot.value("已获取", ui.success)
             false -> rowRoot.value("未获取")

@@ -23,6 +23,8 @@ class XscriptApp : Application() {
                 android.util.Log.e("XScript", "pack install failed", t)
             }
             RootShell.probeAsync()
+            // System recording grants do not survive a restart: tell the user instead of letting scripts fail.
+            com.xscript.app.capture.CaptureEngine.checkAfterProcessStart(this)
             // Floating window: shown while the app is in the background; also back after a process restart.
             com.xscript.app.ui.FloatControl.install(this)
             com.xscript.app.ui.FloatControl.restore(this)

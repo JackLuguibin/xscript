@@ -88,6 +88,7 @@ class MainActivity : AppCompatActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         build()
+        askCaptureIfRequested(intent)
         if (Build.VERSION.SDK_INT >= 33) {
             notifyPermission.launch(Manifest.permission.POST_NOTIFICATIONS)
         } else {
@@ -186,7 +187,8 @@ class MainActivity : AppCompatActivity() {
         }
 
         val cap = CaptureEngine.sourceLabel()
-        rowCapture.value(cap, if (CaptureEngine.available()) ui.success else ui.danger)
+        val capOk = CaptureEngine.available() && !CaptureEngine.lost
+        rowCapture.value(cap, if (capOk) ui.success else ui.danger)
 
         val cloud = CloudClient.label()
         rowCloud.value(cloud, if (CloudClient.state == CloudClient.State.CONNECTED) ui.success else ui.muted)
@@ -369,6 +371,18 @@ class MainActivity : AppCompatActivity() {
                 refresh()
             }
         }
+    }
+
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        askCaptureIfRequested(intent)
+    }
+
+    /** Opened from the "图色权限已失效" notification: ask for the grant right away. */
+    private fun askCaptureIfRequested(intent: Intent?) {
+        if (intent?.getBooleanExtra(com.xscript.app.capture.CaptureNotice.EXTRA_REQUEST_CAPTURE, false) != true) return
+        intent.removeExtra(com.xscript.app.capture.CaptureNotice.EXTRA_REQUEST_CAPTURE)
+        requestCapture()
     }
 
     private fun requestCapture() {

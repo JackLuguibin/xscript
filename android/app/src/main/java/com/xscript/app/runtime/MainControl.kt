@@ -42,6 +42,7 @@ object MainControl {
             "ime_switch" -> com.xscript.app.ime.ImeControl.switch().toString()
             "ime_restore" -> com.xscript.app.ime.ImeControl.restore().toString()
             "status" -> status(ctx).toString()
+            "capture_status" -> CaptureEngine.status().toString()
             "float_show" -> {
                 FloatControl.forceShow(ctx, arg)
                 "ok"
