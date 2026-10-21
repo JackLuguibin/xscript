@@ -119,6 +119,10 @@ class DeviceClient(val target: DeviceTarget, private val timeoutMs: Long = 15000
         return o.getAsJsonArray("files")?.map { gson.fromJson(it, RemoteFile::class.java) } ?: emptyList()
     }
 
+    /** Exact bytes of one project file (GET /projects/{name}/file?raw=1). */
+    fun readFileRaw(project: String, path: String): ByteArray =
+        send("GET", "/projects/${p(project)}/file", query = mapOf("path" to path, "raw" to "1"), timeout = maxOf(timeoutMs, 60000)).body()
+
     /** Stops whatever the device runs (like the VS Code extension before each run, so running again restarts). Returns its name. */
     fun stopIfRunning(): String? {
         val s = status()

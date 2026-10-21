@@ -80,6 +80,43 @@ class DeviceClientTest {
         assertNull(evalCode(null, "   "))
     }
 
+    @Test fun pullProjectWritesOnlyNewOrChangedFiles() {
+        val bin = byteArrayOf(0, 1, 2, -1)
+        open.uploadFiles("pyc_pull", listOf(
+            UploadFile("__init__.py", "print('device')\n", "utf-8"),
+            UploadFile("lib/util.py", "A = 1\n", "utf-8"),
+            UploadFile("res/img/a.png", Base64.getEncoder().encodeToString(bin), "base64"),
+        ))
+        val root = java.nio.file.Files.createTempDirectory("xs-pull-").resolve("pyc_pull")
+        try {
+            val pulled = ProjectPull.fetch(open, "pyc_pull")
+            assertEquals(listOf("__init__.py", "lib/util.py", "res/img/a.png"), pulled.map { it.path }.sorted())
+            assertEquals(3, ProjectPull.write(root, pulled))
+            assertTrue(java.nio.file.Files.readAllBytes(root.resolve("res/img/a.png")).contentEquals(bin))
+
+            // a local edit and a local-only file: the edit shows as changed, the extra file is kept
+            java.nio.file.Files.writeString(root.resolve("lib/util.py"), "A = 2\n")
+            java.nio.file.Files.writeString(root.resolve("local.txt"), "mine\n")
+            val again = ProjectPull.fetch(open, "pyc_pull")
+            val d = ProjectPull.diff(root, again)
+            assertEquals(listOf("lib/util.py"), d.changed)
+            assertEquals(emptyList<String>(), d.added)
+            assertEquals(2, d.unchanged.size)
+            assertEquals(1, ProjectPull.write(root, again, d))
+            assertEquals("A = 1\n", java.nio.file.Files.readString(root.resolve("lib/util.py")))
+            assertTrue(java.nio.file.Files.exists(root.resolve("local.txt")))
+            assertEquals(0, ProjectPull.write(root, again))
+        } finally {
+            root.parent.toFile().deleteRecursively()
+        }
+        try { ProjectPull.fetch(open, "no_such_project"); fail("expected missing project") } catch (_: IllegalStateException) {}
+    }
+
+    @Test fun pullRejectsUnsafePaths() {
+        for (bad in listOf("", "/etc/passwd", "../x", "a/../b", "a//b", "./a", "a\\b", "a\u0000b")) assertFalse(bad, ProjectPull.safeRelative(bad))
+        for (ok in listOf("a", "lib/x.py", "res/img/a b.png", "数据/表.csv")) assertTrue(ok, ProjectPull.safeRelative(ok))
+    }
+
     @Test fun stopIfRunningRestartsCleanly() {
         open.uploadFiles("pyc_again", listOf(UploadFile("__init__.py", "", "utf-8")))
         assertTrue(open.run("pyc_again").get("running").asBoolean)

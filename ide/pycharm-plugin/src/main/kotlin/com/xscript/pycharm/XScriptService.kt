@@ -103,6 +103,68 @@ class XScriptService(private val project: Project) : Disposable {
         }.queue()
     }
 
+    /** Asks which device project to pull and where, downloads it, confirms overwriting changed files, writes and refreshes. */
+    fun pullProject() {
+        object : Task.Backgroundable(project, XScriptBundle.message("task.pull.list"), true) {
+            override fun run(indicator: ProgressIndicator) {
+                withPairing { client ->
+                    val names = client.listProjects()
+                    if (names.isEmpty()) {
+                        notify(XScriptBundle.message("pull.none"), NotificationType.INFORMATION)
+                        return@withPairing
+                    }
+                    var name: String? = null
+                    var dest: Path? = null
+                    ApplicationManager.getApplication().invokeAndWait {
+                        val combo = com.intellij.openapi.ui.ComboBox(names.toTypedArray())
+                        val panel = javax.swing.JPanel(java.awt.BorderLayout(0, 6)).apply {
+                            add(javax.swing.JLabel(XScriptBundle.message("pull.pick", client.target.baseUrl)), java.awt.BorderLayout.NORTH)
+                            add(combo, java.awt.BorderLayout.CENTER)
+                        }
+                        val ok = com.intellij.openapi.ui.DialogBuilder(project).title("XScript").centerPanel(panel)
+                            .apply { setPreferredFocusComponent(combo) }.showAndGet()
+                        val picked = combo.selectedItem as? String
+                        if (!ok || picked == null) return@invokeAndWait
+                        name = picked
+                        dest = pullDestination(picked)
+                    }
+                    val n = name ?: return@withPairing
+                    val d = dest ?: return@withPairing
+                    indicator.text = XScriptBundle.message("task.pull", n)
+                    val pulled = ProjectPull.fetch(client, n) { indicator.text2 = it }
+                    val diff = ProjectPull.diff(d, pulled)
+                    if (diff.changed.isNotEmpty()) {
+                        var ok = false
+                        ApplicationManager.getApplication().invokeAndWait {
+                            val shown = diff.changed.take(3).joinToString(", ") + if (diff.changed.size > 3) ", …" else ""
+                            ok = Messages.showOkCancelDialog(project, XScriptBundle.message("pull.overwrite", diff.changed.size, shown),
+                                "XScript", XScriptBundle.message("pull.overwrite.ok"), Messages.getCancelButton(), Messages.getWarningIcon()) == Messages.OK
+                        }
+                        if (!ok) return@withPairing
+                    }
+                    val written = ProjectPull.write(d, pulled, diff)
+                    com.intellij.openapi.vfs.LocalFileSystem.getInstance().refreshAndFindFileByNioFile(d)?.refresh(true, true)
+                    print(XScriptBundle.message("log.pulled", n, d, diff.added.size, diff.changed.size, diff.unchanged.size) + "\n",
+                        ConsoleViewContentType.SYSTEM_OUTPUT)
+                    notify(XScriptBundle.message("notify.pulled", n, written, d), NotificationType.INFORMATION)
+                }
+            }
+        }.queue()
+    }
+
+    /** The IDE project itself or its sub-folder when it is named like the device project and is a project; else a chosen parent folder + name. EDT. */
+    private fun pullDestination(name: String): Path? {
+        val base = project.basePath?.let { Path.of(it) }
+        if (base != null) {
+            for (c in listOf(base, base.resolve(name))) if (c.fileName.toString() == name && LocalProject.isProjectDir(c)) return c
+        }
+        val desc = com.intellij.openapi.fileChooser.FileChooserDescriptorFactory.createSingleFolderDescriptor()
+            .withTitle(XScriptBundle.message("pull.dest", name))
+        val parent = com.intellij.openapi.fileChooser.FileChooser.chooseFile(desc, project,
+            base?.let { com.intellij.openapi.vfs.LocalFileSystem.getInstance().findFileByNioFile(it) }) ?: return null
+        return parent.toNioPathOrNull()?.resolve(name)
+    }
+
     fun testConnection() {
         object : Task.Backgroundable(project, XScriptBundle.message("task.connect"), true) {
             override fun run(indicator: ProgressIndicator) {
