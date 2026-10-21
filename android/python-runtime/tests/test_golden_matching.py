@@ -181,7 +181,9 @@ class GoldenMatchingTest(unittest.TestCase):
             for tpl, img in ((gray_tpl, gray_scene), (self.tpl(name), gray_scene), (gray_tpl, self.scene_path)):
                 hit = self.screen.find_image(tpl, image=img, confidence=0.95)
                 self.assertIsNotNone(hit, (name, tpl, img))
-                self.assertEqual(hit["rect"], box, (name, tpl, img))
+                # the three coins are identical: the best hit may be any of them (the tie breaks differently by platform)
+                wants = self.exp["coin_rects"] if name == "coin.png" else [box]
+                self.assertIn(hit["rect"], wants, (name, tpl, img))
         coins = self.screen.find_all_images(self.tpl("coin.png"), image=gray_scene, confidence=0.95)
         self.assertEqual(sorted(c["rect"] for c in coins), sorted(self.exp["coin_rects"]))
 
