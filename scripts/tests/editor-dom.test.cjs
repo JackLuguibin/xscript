@@ -619,6 +619,31 @@ test('Web IDE explorer, editor and create/delete flows in a real browser', {skip
       await b.eval(click, '#refresh'); await b.waitFor(idle);
     });
 
+    await t.test('undefined names: "did you mean" a close name; Ctrl+. corrects it (undoable)', async () => {
+      await api('PUT', '/projects/dom/files', {files: [{path: 'nm_main.py', content: 'print("ok")\n'}]});
+      await b.eval(click, '#refresh'); await b.waitFor(idle);
+      await b.eval(click, row('nm_main.py'));
+      await b.waitFor(() => document.getElementById('editor').value === 'print("ok")\n' && !document.getElementById('editor').disabled);
+      await b.eval(v => { const e = document.getElementById('editor'); e.focus(); e.value = v; e.dispatchEvent(new Event('input')); }, 'total = 2\nprnt(totl)\n');
+      await b.waitFor(() => document.querySelectorAll('#diag .sq.warn').length === 2, 5000);
+      await b.eval(click, '#problems');
+      assert.match(await b.eval(() => document.getElementById('problems').textContent), /第 2 行：未定义的名字 prnt（是不是 print？Ctrl\+\. 改正）/);
+      const ctrlDot = () => b.eval(() => document.getElementById('editor').dispatchEvent(new KeyboardEvent('keydown', {key: '.', ctrlKey: true, bubbles: true, cancelable: true})));
+      await ctrlDot();
+      await b.waitFor(() => document.getElementById('editor').value === 'total = 2\nprint(totl)\n');
+      await b.eval(() => { const e = document.getElementById('editor'); e.focus(); const at = e.value.indexOf('totl') + 1; e.setSelectionRange(at, at); });
+      await ctrlDot();
+      await b.waitFor(() => document.getElementById('editor').value === 'total = 2\nprint(total)\n');
+      await b.eval(() => { document.getElementById('editor').focus(); document.execCommand('undo'); });
+      assert.equal(await b.eval(() => document.getElementById('editor').value), 'total = 2\nprint(totl)\n');
+      await b.eval(() => { document.getElementById('editor').focus(); document.execCommand('redo'); });
+      await b.waitFor(() => document.getElementById('problems').dataset.count === '0', 5000);
+      await b.eval(click, '#save'); await b.waitFor(idle);
+      await b.eval(click, row('__init__.py')); await b.waitFor(() => !document.getElementById('editor').disabled);
+      await fetch(base + '/projects/dom/file?path=nm_main.py', {method: 'DELETE'});
+      await b.eval(click, '#refresh'); await b.waitFor(idle);
+    });
+
     await t.test('basic checks: a return value that does not match the return annotation', async () => {
       await api('PUT', '/projects/dom/files', {files: [{path: 'rt_main.py', content: 'print("ok")\n'}]});
       await b.eval(click, '#refresh'); await b.waitFor(idle);
