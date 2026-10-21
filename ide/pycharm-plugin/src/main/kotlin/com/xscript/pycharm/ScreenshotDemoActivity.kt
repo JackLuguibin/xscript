@@ -3,7 +3,6 @@ package com.xscript.pycharm
 import com.intellij.notification.Notification
 import com.intellij.notification.NotificationsManager
 import com.intellij.openapi.application.ApplicationManager
-import com.intellij.openapi.components.service
 import com.intellij.openapi.fileEditor.FileEditorManager
 import com.intellij.openapi.options.ShowSettingsUtil
 import com.intellij.openapi.project.Project
@@ -45,13 +44,11 @@ class ScreenshotDemoActivity : ProjectActivity {
             }
             if (mode == "capture") {
                 // status bar on a device whose screen-recording grant is gone (-Dxscript.screenshotConnect=<address>).
-                // A paired device needs its code: XS_SHOT_CODE from the environment, kept in a memory-only password safe
-                // of this sandbox IDE (never the system keychain).
+                // A paired device needs its code: XS_SHOT_CODE from the environment, stored only when this sandbox IDE's
+                // password safe is memory-only (runIde sets that up for this mode), so it never reaches the system keychain.
                 AppExecutorUtil.getAppScheduledExecutorService().schedule({
                     System.getProperty("xscript.screenshotConnect")?.let { XScriptSettings.get().device = it }
                     System.getenv("XS_SHOT_CODE")?.takeIf { it.isNotBlank() }?.let { code ->
-                        val safe = service<com.intellij.credentialStore.PasswordSafeSettings>()
-                        safe.providerType = com.intellij.credentialStore.ProviderType.MEMORY_ONLY
                         if (com.intellij.ide.passwordSafe.PasswordSafe.instance.isMemoryOnly) XScriptSettings.get().setPairingCode(code)
                     }
                     XScriptService.get(project).refreshStatus()

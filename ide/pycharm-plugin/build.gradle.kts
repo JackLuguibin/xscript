@@ -91,6 +91,17 @@ tasks.runIde {
     providers.gradleProperty("runIdeScreenshotDemo").orNull?.let {
         jvmArgs("-Dxscript.screenshotDemo=$it", "-Dide.show.tips.on.startup.default.value=false", "-Didea.fatal.error.notification=disabled")
     }
+    // capture: the sandbox keeps passwords in memory only, so the pairing code (XS_SHOT_CODE) never goes to the keychain
+    if (providers.gradleProperty("runIdeScreenshotDemo").orNull == "capture") {
+        val options = sandboxConfigDirectory.map { it.dir("options") }
+        doFirst {
+            val dir = options.get().asFile
+            dir.mkdirs()
+            dir.resolve("security.xml").writeText(
+                "<application>\n  <component name=\"PasswordSafe\">\n    <option name=\"PROVIDER\" value=\"MEMORY_ONLY\" />\n  </component>\n</application>\n",
+            )
+        }
+    }
 }
 
 tasks.test {
