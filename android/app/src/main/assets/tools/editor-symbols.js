@@ -95,6 +95,9 @@
     return best && !tie && bestD <= max ? best : null;
   }
 
+  // Standard-library top-level modules (CPython 3.13 sys.stdlib_module_names plus ones removed since 3.9): never "misspelled".
+  const STDLIB = new Set("abc aifc antigravity argparse array ast asynchat asyncio asyncore atexit audioop base64 bdb binascii bisect builtins bz2 cProfile calendar cgi cgitb chunk cmath cmd code codecs codeop collections colorsys compileall concurrent configparser contextlib contextvars copy copyreg crypt csv ctypes curses dataclasses datetime dbm decimal difflib dis distutils doctest email encodings ensurepip enum errno faulthandler fcntl filecmp fileinput fnmatch fractions ftplib functools gc genericpath getopt getpass gettext glob graphlib grp gzip hashlib heapq hmac html http idlelib imaplib imghdr imp importlib inspect io ipaddress itertools json keyword lib2to3 linecache locale logging lzma mailbox mailcap marshal math mimetypes mmap modulefinder msilib msvcrt multiprocessing netrc nis nntplib nt ntpath nturl2path numbers opcode operator optparse os ossaudiodev pathlib pdb pickle pickletools pipes pkgutil platform plistlib poplib posix posixpath pprint profile pstats pty pwd py_compile pyclbr pydoc pydoc_data pyexpat queue quopri random re readline reprlib resource rlcompleter runpy sched secrets select selectors shelve shlex shutil signal site smtpd smtplib sndhdr socket socketserver spwd sqlite3 sre_compile sre_constants sre_parse ssl stat statistics string stringprep struct subprocess sunau symtable sys sysconfig syslog tabnanny tarfile telnetlib tempfile termios textwrap this threading time timeit tkinter token tokenize tomllib trace traceback tracemalloc tty turtle turtledemo types typing unicodedata unittest urllib uu uuid venv warnings wave weakref webbrowser winreg winsound wsgiref xdrlib xml xmlrpc zipapp zipfile zipimport zlib zoneinfo".split(" "));
+
   class Scope {
     constructor(kind, name, parent, file, node) {
       this.kind = kind; this.name = name; this.parent = parent; this.file = file; this.node = node;
@@ -817,6 +820,53 @@
       walk(f.root.node.body);
       return out;
     }
+    /**
+     * Misspelled project module names in absolute imports (`import utlis`, `from pkg.tols import x`):
+     * {line, col, length, message, suggest}. A wrong segment inside a project package is certain; a wrong top-level
+     * name (it might be an installed package) is only reported when the standard library and the API docs do not know
+     * it and everything the file takes from it (`from m import a, b`, or `m.attr` uses) exists in the close project module.
+     */
+    projectImportProblems(path) {
+      const f = this.files.get(path); if (!f || !f.root.node || !this.modules.size) return [];
+      const mods = this.modules, lines = (f.lines = f.lines || f.text.split("\n")), out = [];
+      const kids = pre => { const s = new Set(); for (const m of mods.keys()) { if (pre && !m.startsWith(pre + ".")) continue; const rest = pre ? m.slice(pre.length + 1) : m; s.add(rest.split(".")[0]); } return s; };
+      const docRoots = this.docs ? new Set(Object.keys(this.docs).map(k => k.split(".")[0])) : new Set();
+      const known = name => mods.has(name) || [...mods.keys()].some(m => m.startsWith(name + "."));
+      const provides = (mod, name) => { const m = mods.get(mod); return mods.has(mod + "." + name) || !!(m && m.root.defs.has(name)); };
+      // [index, guess, fixed dotted path] for the first wrong segment, or null
+      const wrong = parts => {
+        if (known(parts.join("."))) return null;
+        let i = 0; while (i < parts.length && known(parts.slice(0, i + 1).join("."))) i++;
+        if (i === 0 && (STDLIB.has(parts[0]) || docRoots.has(parts[0]) || parts[0] === "__future__")) return null;
+        const g = closest(parts[i], kids(parts.slice(0, i).join("."))); if (!g) return null;
+        const fixed = parts.slice(0, i).concat(g, parts.slice(i + 1)).join("."); if (!mods.has(fixed)) return null;
+        return [i, g, fixed];
+      };
+      const report = (line, col, parts, [i, g]) => {
+        const at = col + parts.slice(0, i).reduce((n, p) => n + p.length + 1, 0);
+        out.push({ line, col: at, length: parts[i].length, message: "工程里没有模块 " + parts.slice(0, i + 1).join(".") + "（是不是 " + parts.slice(0, i).concat(g).join(".") + "？Ctrl+. 改正）", suggest: g });
+      };
+      const esc = x => x.replace(/[.$]/g, "\\$&");
+      const walk = node => {
+        if (Array.isArray(node)) return node.forEach(walk);
+        if (!node || typeof node !== "object") return;
+        if (node.type === "Import") for (const a of node.names) {
+          const ps = a.name.split("."), w = wrong(ps); if (!w) continue;
+          if (w[0] === 0) {   // evidence: every `local.attr` use exists in the guessed module
+            const local = a.asname || ps[0], uses = [...f.text.matchAll(new RegExp("(?<![\\w.])" + esc(a.asname ? local : a.name) + "\\.(\\w+)", "gu"))].map(m => m[1]);
+            if (!uses.length || !uses.every(u => provides(w[2], u))) continue;
+          }
+          report(a.line, a.col, ps, w);
+        } else if (node.type === "ImportFrom" && !node.level && node.module) {
+          const ps = node.module.split("."), w = wrong(ps), m = /^(\s*from\s+)([\w.]+)/u.exec(lines[node.line - 1] || "");
+          if (!w || !m || m[2] !== node.module) { /* fine or unsure */ }
+          else if (w[0] > 0 || node.names.every(a => a.name !== "*" && provides(w[2], a.name))) report(node.line, m[1].length, ps, w);
+        }
+        for (const k of Object.keys(node)) if (node[k] && typeof node[k] === "object") walk(node[k]);
+      };
+      walk(f.root.node.body);
+      return out;
+    }
     /** Names visible from `scope` (its bindings, enclosing functions, the module, builtins), for "did you mean". */
     visibleNames(scope) {
       const out = new Set();
@@ -867,6 +917,7 @@
       }
       for (const sc of f.scopes) for (const p of this.returnProblems(sc)) out.push(Object.assign(p, { severity: "warning" }));
       for (const p of this.importProblems(path)) out.push(Object.assign(p, { severity: "warning" }));
+      for (const p of this.projectImportProblems(path)) out.push(Object.assign(p, { severity: "warning" }));
       for (const c of f.calls) for (const a of this.argTypeProblems(c)) {
         const e = a.node, length = e.type === "Constant" ? String(e.value).split("\n")[0].length : e.type === "Name" ? e.id.length : e.type === "JoinedStr" ? 2 : 1;
         out.push(Object.assign({ line: e.line, col: e.col, length: Math.max(1, length), message: a.message, severity: "warning" }, a.suggest ? { suggest: a.suggest } : {}));

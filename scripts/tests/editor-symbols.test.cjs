@@ -519,3 +519,31 @@ test('imports: "did you mean" for misspelled xscript / ascript modules and names
   const own = EditorSymbols.build([{path: 'main.py', content: 'import xscript.andriod\n'}, {path: 'xscript/__init__.py', content: ''}], XSDocs);
   assert.deepEqual(own.problemsIn('main.py'), []);
 });
+
+test('imports: "did you mean" for misspelled project modules, only with evidence for top-level names', () => {
+  const files = [
+    {path: 'utils.py', content: 'def get(): pass\nx = 1\n'}, {path: 'pkg/__init__.py', content: ''}, {path: 'pkg/tools.py', content: 'y = 1\n'},
+    {path: 'main.py', content: [
+      'import utlis',                // 1: utlis.get is in utils
+      'import requests',             // 2: nothing close in the project: an installed package
+      'from utlis import x',         // 3: x is in utils
+      'from pkg.tols import y',      // 4: inside a project package: certain
+      'import pkg.tols',             // 5
+      'from utlis import zz',        // 6: zz is not in utils: maybe another package, not reported
+      'import json',                 // 7: standard library
+      'import utilz as u',           // 8: u.nope is not in utils: not reported
+      'print(utlis.get, requests.get, u.nope, pkg)',
+      'from util import get', 'import xscript', ''].join('\n')},
+  ];
+  const p = EditorSymbols.build(files, XSDocs);
+  assert.deepEqual(p.problemsIn('main.py').map(w => [w.line, w.col, w.length, w.message, w.suggest]), [
+    [1, 7, 5, '工程里没有模块 utlis（是不是 utils？Ctrl+. 改正）', 'utils'],
+    [3, 5, 5, '工程里没有模块 utlis（是不是 utils？Ctrl+. 改正）', 'utils'],
+    [4, 9, 4, '工程里没有模块 pkg.tols（是不是 pkg.tools？Ctrl+. 改正）', 'tools'],
+    [5, 11, 4, '工程里没有模块 pkg.tols（是不是 pkg.tools？Ctrl+. 改正）', 'tools'],
+    [10, 5, 4, '工程里没有模块 util（是不是 utils？Ctrl+. 改正）', 'utils'],
+  ]);
+  // a standard-library name one letter away from a project module is never "misspelled"
+  const std = EditorSymbols.build([{path: 'cod.py', content: 'x = 1\n'}, {path: 'main.py', content: 'from code import x\n'}], XSDocs);
+  assert.deepEqual(std.problemsIn('main.py'), []);
+});
