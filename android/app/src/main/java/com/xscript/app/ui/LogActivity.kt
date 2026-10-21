@@ -4,6 +4,7 @@ import android.graphics.Typeface
 import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
+import android.text.Editable
 import android.text.SpannableStringBuilder
 import android.text.Spanned
 import android.text.style.ForegroundColorSpan
@@ -30,7 +31,9 @@ class LogActivity : AppCompatActivity() {
     private lateinit var emptyHint: View
     private lateinit var logCard: View
     private var next = 0L
-    private val buffer = SpannableStringBuilder()
+
+    /** The TextView's own Editable: new lines are appended to it (see [append]). */
+    private val buffer: Editable get() = text.editableText
     private val fmt = SimpleDateFormat("HH:mm:ss", Locale.getDefault())
 
     /** Set when opened from 最近运行: show only that run's lines (seq in (from, to]) and do not follow new ones. */
@@ -54,7 +57,6 @@ class LogActivity : AppCompatActivity() {
             UiKit.barAction(col, "清空") {
                 LogBuffer.clear(this)
                 buffer.clear()
-                text.text = ""
                 showEmpty(true)
             }
         }
@@ -72,6 +74,9 @@ class LogActivity : AppCompatActivity() {
             setTextIsSelectable(true)
             val p = UiKit.dp(this@LogActivity, UiKit.Space.M)
             setPadding(p, p, p, p)
+            // Editable after setTextIsSelectable (which makes it Spannable): append() then re-lays out and redraws only
+            // the changed end, instead of the whole log (up to 200 KB) on every poll while a script prints.
+            setText("", TextView.BufferType.EDITABLE)
         }
         card.addView(text, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT))
         logCard = card
@@ -131,17 +136,20 @@ class LogActivity : AppCompatActivity() {
     }
 
     private fun append(entries: List<LogBuffer.Entry>) {
+        if (entries.isEmpty()) return
         val atBottom = !scroll.canScrollVertically(1)
+        val chunk = SpannableStringBuilder()
         for (e in entries) {
-            val start = buffer.length
-            buffer.append(fmt.format(Date(e.ts))).append("  ").append(e.line.trimEnd('\n')).append('\n')
+            val start = chunk.length
+            chunk.append(fmt.format(Date(e.ts))).append("  ").append(e.line.trimEnd('\n')).append('\n')
             if (e.stream == "stderr") {
-                buffer.setSpan(ForegroundColorSpan(ui.danger), start, buffer.length, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
+                chunk.setSpan(ForegroundColorSpan(ui.danger), start, chunk.length, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
             }
         }
-        // Cap memory: keep the last ~200 KB.
-        if (buffer.length > 200_000) buffer.delete(0, buffer.length - 150_000)
-        text.text = buffer
+        buffer.append(chunk)
+        // Cap memory: keep the last ~150-200 KB, cut at a line start.
+        val drop = LogText.trimLength(buffer)
+        if (drop > 0) buffer.delete(0, drop)
         if (atBottom) scroll.post { scroll.fullScroll(ScrollView.FOCUS_DOWN) }
     }
 
