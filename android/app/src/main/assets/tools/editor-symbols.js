@@ -737,6 +737,54 @@
       walk(f.root.node);
       return out.sort((a, b) => a.line - b.line);
     }
+    /**
+     * Misspelled parts of imports from the bundled library (xscript / ascript, as described by the API docs):
+     * `import xscript.andriod`, `from xscipt.android import action`, `from xscript.android.action import clik`.
+     * Only reported when a close documented name exists ({line, col, length, message, suggest}); project modules,
+     * relative imports and anything outside the documented roots are never judged.
+     */
+    importProblems(path) {
+      const f = this.files.get(path), docs = this.docs; if (!f || !docs || !f.root.node) return [];
+      if (!this.docKids) {
+        this.docKids = new Map();   // documented prefix -> its next segments
+        for (const k of Object.keys(docs)) { const ps = k.split("."); for (let i = 0; i < ps.length; i++) { const pre = ps.slice(0, i).join("."); if (!this.docKids.has(pre)) this.docKids.set(pre, new Set()); this.docKids.get(pre).add(ps[i]); } }
+      }
+      const kids = this.docKids, out = [], lines = (f.lines = f.lines || f.text.split("\n"));
+      const roots = kids.get("");
+      // first segment of `parts` that is not documented under its parent: [index, suggestion] or null
+      const bad = parts => {
+        if (this.modules.has(parts[0]) || [...this.modules.keys()].some(m => m.startsWith(parts[0] + "."))) return null;
+        if (!roots.has(parts[0])) { const g = closest(parts[0], roots); return g ? [0, g] : null; }
+        for (let i = 1; i < parts.length; i++) {
+          const pre = parts.slice(0, i).join("."), ks = kids.get(pre);
+          if (!ks || ks.has(parts[i])) continue;
+          const g = closest(parts[i], ks); return g ? [i, g] : null;
+        }
+        return null;
+      };
+      const report = (line, col, parts, hit, what) => {
+        const [i, g] = hit, at = col + parts.slice(0, i).reduce((n, p) => n + p.length + 1, 0);
+        out.push({ line, col: at, length: parts[i].length, message: (i ? parts.slice(0, i).join(".") + " 里没有" + what + " " : "没有模块 ") + parts[i] + "（是不是 " + g + "？Ctrl+. 改正）", suggest: g });
+      };
+      const walk = node => {
+        if (Array.isArray(node)) return node.forEach(walk);
+        if (!node || typeof node !== "object") return;
+        if (node.type === "Import") for (const a of node.names) { const ps = a.name.split("."), h = bad(ps); if (h) report(a.line, a.col, ps, h, "模块"); }
+        else if (node.type === "ImportFrom" && !node.level && node.module) {
+          const ps = node.module.split("."), h = bad(ps), m = /^(\s*from\s+)([\w.]+)/u.exec(lines[node.line - 1] || "");
+          if (h) { if (m && m[2] === node.module) report(node.line, m[1].length, ps, h, "模块"); }
+          else if (roots.has(ps[0]) && kids.has(node.module))
+            for (const a of node.names) {
+              if (a.name === "*" || kids.get(node.module).has(a.name)) continue;
+              const g = closest(a.name, kids.get(node.module));
+              if (g) out.push({ line: a.line, col: a.col, length: a.name.length, message: node.module + " 里没有 " + a.name + "（是不是 " + g + "？Ctrl+. 改正）", suggest: g });
+            }
+        }
+        for (const k of Object.keys(node)) if (node[k] && typeof node[k] === "object") walk(node[k]);
+      };
+      walk(f.root.node.body);
+      return out;
+    }
     /** Names visible from `scope` (its bindings, enclosing functions, the module, builtins), for "did you mean". */
     visibleNames(scope) {
       const out = new Set();
@@ -786,6 +834,7 @@
         out.push(Object.assign({ line: o.line, col: o.col, length: o.name.length, message: m.message, severity: "warning" }, m.suggest ? { suggest: m.suggest } : {}));
       }
       for (const sc of f.scopes) for (const p of this.returnProblems(sc)) out.push(Object.assign(p, { severity: "warning" }));
+      for (const p of this.importProblems(path)) out.push(Object.assign(p, { severity: "warning" }));
       for (const c of f.calls) for (const a of this.argTypeProblems(c)) {
         const e = a.node, length = e.type === "Constant" ? String(e.value).split("\n")[0].length : e.type === "Name" ? e.id.length : e.type === "JoinedStr" ? 2 : 1;
         out.push(Object.assign({ line: e.line, col: e.col, length: Math.max(1, length), message: a.message, severity: "warning" }, a.suggest ? { suggest: a.suggest } : {}));

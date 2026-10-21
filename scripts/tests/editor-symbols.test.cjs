@@ -473,3 +473,24 @@ test('unreachable code: none reported anywhere in this repository', () => {
   const p = EditorSymbols.build(files, XSDocs);
   assert.deepEqual(files.flatMap(f => p.unreachableIn(f.path).map(w => f.path + ':' + w.line)), []);
 });
+
+test('imports: "did you mean" for misspelled xscript / ascript modules and names', () => {
+  const main = [
+    'import xscript.andriod.action',                     // 1: submodule typo
+    'from xscipt.android import action',                 // 2: root typo
+    'from xscript.android.action import clik, swipe',    // 3: imported name typo
+    'import numpy, os',                                  // 4: outside the documented roots: never judged
+    'from xscript.android import nothing_like_it',       // 5: nothing close: no guess
+    'import xscript.android.action as a',                // 6: fine
+    'from utils import x', 'from .utils import y',       // 7-8: project / relative imports
+    'from xscript.android.action import *', ''].join('\n');
+  const p = EditorSymbols.build([{path: 'main.py', content: main}, {path: 'utils.py', content: 'x = 1\ny = 2\n'}], XSDocs);
+  assert.deepEqual(p.problemsIn('main.py').map(w => [w.line, w.col, w.length, w.message, w.suggest]), [
+    [1, 15, 7, 'xscript 里没有模块 andriod（是不是 android？Ctrl+. 改正）', 'android'],
+    [2, 5, 6, '没有模块 xscipt（是不是 xscript？Ctrl+. 改正）', 'xscript'],
+    [3, 35, 4, 'xscript.android.action 里没有 clik（是不是 click？Ctrl+. 改正）', 'click'],
+  ]);
+  // a project package that shadows a documented root is the project's own: not judged
+  const own = EditorSymbols.build([{path: 'main.py', content: 'import xscript.andriod\n'}, {path: 'xscript/__init__.py', content: ''}], XSDocs);
+  assert.deepEqual(own.problemsIn('main.py'), []);
+});
