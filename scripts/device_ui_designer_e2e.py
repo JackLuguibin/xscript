@@ -148,6 +148,7 @@ def run(values_literal):
     api("PUT", "/projects/%s/files" % PROJECT, {"files": [
         {"path": "__init__.py", "encoding": "base64", "content": base64.b64encode((MAIN % values_literal).encode()).decode()}]})
     mark = "run-%d" % time.time()
+    devauth.wait_idle(BASE)
     api("POST", "/projects/%s/run" % PROJECT, {})
     return mark
 

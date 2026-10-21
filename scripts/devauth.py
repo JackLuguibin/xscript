@@ -12,6 +12,7 @@ import re
 import shutil
 import socket
 import subprocess
+import time
 import urllib.request
 
 _cache: dict[str, str] = {}
@@ -83,3 +84,18 @@ def headers(base: str, extra: dict | None = None, serial: str | None = None) -> 
     if code:
         h["Authorization"] = "Bearer " + code
     return h
+
+
+def wait_idle(base: str, timeout: float = 30, poll: float = 0.5) -> None:
+    """Wait until the device at `base` runs no script. A script logs "finished" a moment before GET /status stops
+    reporting it, and a POST /projects/<name>/run in that window answers 409 "already running"."""
+    opener = urllib.request.build_opener(urllib.request.ProxyHandler({}))
+    end = time.time() + timeout
+    while True:
+        req = urllib.request.Request(base.rstrip("/") + "/status", headers=headers(base))
+        with opener.open(req, timeout=10) as r:
+            if not json.load(r).get("running"):
+                return
+        if time.time() > end:
+            raise AssertionError("a script is still running on %s after %ds" % (base, timeout))
+        time.sleep(poll)

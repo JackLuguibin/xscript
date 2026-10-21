@@ -88,6 +88,7 @@ class Device:
 def run_and_answer(dev, button):
     """Run _ui_try, wait for the form, tap `button`; the 界面返回 line from this run's log, or None."""
     since = dev.api("GET", "/logs?since=0")[1].get("next", 0)
+    devauth.wait_idle(dev.base)
     code, r = dev.api("POST", "/projects/%s/run" % PROJECT, {})
     if code != 200 or not r.get("running"):
         print(mask("run refused: %s %s" % (code, r)))
