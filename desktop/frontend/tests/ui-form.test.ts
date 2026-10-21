@@ -10,6 +10,12 @@ describe("UI designer core (shared with VS Code / Web IDE)", () => {
     expect(copy === src, "re-copy: cp android/app/src/main/assets/tools/ui-form.js desktop/frontend/src/vendor/").toBe(true);
   });
 
+  it("the vendored designer view is byte-identical to android/app/src/main/assets/tools/ui-designer.js", () => {
+    const src = readFileSync(resolve(__dirname, "../../../android/app/src/main/assets/tools/ui-designer.js"), "utf8");
+    const copy = readFileSync(resolve(__dirname, "../src/vendor/ui-designer.js"), "utf8");
+    expect(copy === src, "re-copy: cp android/app/src/main/assets/tools/ui-designer.js desktop/frontend/src/vendor/").toBe(true);
+  });
+
   it("loads in the page and generates the same two files the other designers do", () => {
     const spec = uiForm.newSpec("设置");
     spec.fields.push(uiForm.newField("text", spec), uiForm.newField("checkbox", spec));

@@ -670,3 +670,25 @@ pre.logs.debug-console { min-height: 4rem; max-height: 10rem; }
 .capture-card li + li { margin-top: 2px; }
 .capture-card .capture-actions { display: flex; flex-direction: column; gap: var(--sp-1); align-items: stretch; }
 .capture-card .capture-requested { margin-top: var(--sp-2); font-weight: 500; }
+
+/* UI designer for res/ui/<name>.ui.json: the shared view (vendor/ui-designer.js), same as VS Code and the Web IDE */
+.ui-designer { min-height: 22rem; display: grid; grid-template-columns: 9rem minmax(12rem, 1fr) 14rem minmax(14rem, 1fr); gap: var(--sp-3); padding: var(--sp-3); border: 1px solid var(--border); border-radius: var(--r-md); background: var(--surface); color: var(--text); }
+.ui-designer .col { overflow: auto; min-height: 0; }
+.ui-designer h4 { margin: 0 0 var(--sp-2); font-weight: 600; }
+.ui-designer .pal button { display: block; width: 100%; margin: 0 0 6px; text-align: left; cursor: grab; }
+.ui-designer .list { min-height: 8rem; border: 1px dashed var(--border-strong); border-radius: var(--r-md); padding: 6px; }
+.ui-designer .list.over { border-color: var(--primary); }
+.ui-designer .item { display: flex; align-items: center; gap: 6px; padding: 6px 8px; margin: 0 0 4px; border-radius: var(--r-md); background: var(--surface-2); cursor: grab; }
+.ui-designer .item.sel { outline: 1px solid var(--primary); background: var(--primary-soft); }
+.ui-designer .item.drop-before { box-shadow: 0 -2px 0 var(--primary); }
+.ui-designer .item .k { color: var(--text-muted); font-size: 90%; min-width: 4rem; }
+.ui-designer .item .t { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ui-designer .item button { background: none; border: 0; color: inherit; cursor: pointer; padding: 2px 4px; min-height: 0; }
+.ui-designer .props label { display: block; margin: 0 0 var(--sp-2); }
+.ui-designer .props label span { display: block; color: var(--text-muted); margin-bottom: 2px; font-size: 90%; }
+.ui-designer .props input, .ui-designer .props textarea, .ui-designer .props select { width: 100%; box-sizing: border-box; }
+.ui-designer .props input[type=checkbox] { width: auto; }
+.ui-designer .errors { color: var(--danger-fg); margin: 6px 0; white-space: pre-wrap; }
+.ui-designer .hint { color: var(--text-muted); margin: var(--sp-2) 0; font-size: 90%; }
+.ui-designer iframe { width: 100%; height: 22rem; border: 1px solid var(--border); background: var(--surface); border-radius: var(--r-md); }
+@media (max-width: 1100px) { .ui-designer { grid-template-columns: 1fr 1fr; } }
