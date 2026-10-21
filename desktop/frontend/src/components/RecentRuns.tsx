@@ -18,6 +18,7 @@ export function RecentRuns({ devId, project, refresh, onError }: { devId: string
   const [unsupported, setUnsupported] = useState(false);
   const [open, setOpen] = useState<number | null>(null);
   const [slice, setSlice] = useState<LogEntry[] | null>(null);
+  const [failedOnly, setFailedOnly] = useState(false);
 
   useEffect(() => {
     let live = true;
@@ -49,14 +50,24 @@ export function RecentRuns({ devId, project, refresh, onError }: { devId: string
   };
 
   if (runs === null) return null;
+  const shown = failedOnly ? runs.filter((r) => r.failed) : runs;
   return (
     <div className="recent-runs">
-      <h3 className="sub-head">{t.projects.recentRuns}</h3>
+      <div style={{ display: "flex", alignItems: "center", gap: "var(--sp-2)" }}>
+        <h3 className="sub-head grow">{t.projects.recentRuns}</h3>
+        {runs.some((r) => r.failed) && (
+          <label className="muted" style={{ display: "flex", alignItems: "center", gap: 4 }}>
+            <input type="checkbox" checked={failedOnly} onChange={(e) => setFailedOnly(e.target.checked)} />
+            {t.projects.runsFailedOnly}
+          </label>
+        )}
+      </div>
       {runs.length === 0 ? (
         <p className="muted">{unsupported ? t.projects.runsUnsupported : t.projects.noRuns}</p>
       ) : (
         <ul aria-label={t.projects.recentRuns} style={{ listStyle: "none", margin: 0, padding: 0, display: "grid", gap: "var(--sp-2)" }}>
-          {runs.map((r) => (
+          {shown.length === 0 && <li className="muted">{t.projects.noFailedRuns}</li>}
+          {shown.map((r) => (
             <li key={r.start} style={{ display: "grid", gap: 4 }}>
               <div style={{ display: "flex", gap: "var(--sp-2)", alignItems: "center" }}>
                 <span className="mono" style={{ whiteSpace: "nowrap" }}>{when(r.start)}</span>

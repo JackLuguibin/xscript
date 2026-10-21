@@ -60,4 +60,11 @@ describe("RecentRuns", () => {
     );
     expect(await screen.findByText("手机端 XScript 版本较旧，不提供运行历史")).toBeTruthy();
   });
+  it("filters to failed runs with the checkbox", async () => {
+    mount();
+    await screen.findByText("正常结束");
+    fireEvent.click(screen.getByRole("checkbox", { name: "只看出错" }));
+    expect(screen.queryByText("正常结束")).toBeNull();
+    expect(screen.getByText("出错退出（退出码 1）")).toBeTruthy();
+  });
 });
