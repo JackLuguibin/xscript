@@ -831,6 +831,28 @@ test('Web IDE explorer, editor and create/delete flows in a real browser', {skip
       await b.eval(click, '#refresh'); await b.waitFor(idle);
     });
 
+    await t.test('imports: "did you mean" a project module; Ctrl+. corrects it (undoable)', async () => {
+      await api('PUT', '/projects/dom/files', {files: [{path: 'pi_helpers.py', content: 'def greet():\n    return "hi"\n'}, {path: 'pi_main.py', content: 'print("ok")\n'}]});
+      await b.eval(click, '#refresh'); await b.waitFor(idle);
+      await b.eval(click, row('pi_main.py'));
+      await b.waitFor(() => document.getElementById('editor').value === 'print("ok")\n' && !document.getElementById('editor').disabled);
+      await b.eval(v => { const e = document.getElementById('editor'); e.focus(); e.value = v; e.dispatchEvent(new Event('input')); }, 'from pi_helper import greet\nprint(greet())\n');
+      await b.waitFor(() => document.querySelectorAll('#diag .sq.warn').length === 1, 5000);
+      await b.eval(click, '#problems');
+      assert.match(await b.eval(() => document.getElementById('problems').textContent), /第 1 行：工程里没有模块 pi_helper（是不是 pi_helpers？Ctrl\+\. 改正）/);
+      await b.eval(() => { const e = document.getElementById('editor'); e.focus(); e.setSelectionRange(7, 7); });
+      await b.eval(() => document.getElementById('editor').dispatchEvent(new KeyboardEvent('keydown', {key: '.', ctrlKey: true, bubbles: true, cancelable: true})));
+      await b.waitFor(() => document.getElementById('editor').value === 'from pi_helpers import greet\nprint(greet())\n');
+      await b.eval(() => { document.getElementById('editor').focus(); document.execCommand('undo'); });
+      assert.equal(await b.eval(() => document.getElementById('editor').value), 'from pi_helper import greet\nprint(greet())\n');
+      await b.eval(() => { document.getElementById('editor').focus(); document.execCommand('redo'); });
+      await b.waitFor(() => document.getElementById('problems').dataset.count === '0', 5000);
+      await b.eval(click, '#save'); await b.waitFor(idle);
+      await b.eval(click, row('__init__.py')); await b.waitFor(() => !document.getElementById('editor').disabled);
+      for (const p of ['pi_helpers.py', 'pi_main.py']) await fetch(base + '/projects/dom/file?path=' + p, {method: 'DELETE'});
+      await b.eval(click, '#refresh'); await b.waitFor(idle);
+    });
+
     await t.test('project search and replace: results, options, jump to match, replace saves clean files and keeps unsaved ones dirty', async () => {
       await api('PUT', '/projects/dom/files', {files: [
         {path: 'search/a.py', content: 'needle = 1\nprint(needle)\n'}, {path: 'search/b.py', content: '# NEEDLE\nx = 2\n'}, {path: 'search/c.txt', content: 'no match here\n'}]});
