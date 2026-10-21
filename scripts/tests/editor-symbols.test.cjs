@@ -276,7 +276,7 @@ test('unused imports and local variables, and removing an import', () => {
     [2, 7, 'import', 'os', '未使用的 import os（Ctrl+. 删除）', 1],
     [3, 12, 'import', 'json', '未使用的 import json（Ctrl+. 删除）', 2],
     [4, 24, 'import', 'bb', '未使用的 import bb（Ctrl+. 删除）', 3],
-    [10, 4, 'variable', 'total', '未使用的变量 total', undefined],
+    [10, 4, 'variable', 'total', '未使用的变量 total（Ctrl+. 删除赋值，保留右边）', undefined],
     [16, 11, 'import', 'inner', '未使用的 import inner（Ctrl+. 删除）', 1],
   ]);
   // re-exports: package __init__, __all__, a module made only of imports, names other files import from it
@@ -518,6 +518,44 @@ test('imports: "did you mean" for misspelled xscript / ascript modules and names
   // a project package that shadows a documented root is the project's own: not judged
   const own = EditorSymbols.build([{path: 'main.py', content: 'import xscript.andriod\n'}, {path: 'xscript/__init__.py', content: ''}], XSDocs);
   assert.deepEqual(own.problemsIn('main.py'), []);
+});
+
+test('duplicate definitions: a later def / class in the same block replaces the earlier one', () => {
+  const src = [
+    'def a():', '    pass', 'def a():', '    pass',                                   // 3
+    'class K:', '    @property', '    def v(self): return 1', '    @v.setter', '    def v(self, x): pass',   // decorated: skipped
+    '    def m(self): pass', '    def m(self): pass',                                 // 11: methods too
+    'if X:', '    def b(): pass', 'else:', '    def b(): pass',                         // branches: skipped
+    'def c(): pass', 'old = c', 'def c(): pass',                                      // used in between: skipped
+    'class D: pass', 'class D: pass  # noqa', 'class E: pass', 'def E(): pass', ''].join('\n');   // noqa; 22: class replaced by a function
+  const p = EditorSymbols.build([{path: 'm.py', content: src}], XSDocs);
+  assert.deepEqual(p.duplicateDefs('m.py').map(w => [w.line, w.col, w.length, w.message, w.jump]), [
+    [3, 4, 1, '重复定义函数 a，会覆盖第 1 行的函数（Ctrl+. 跳过去）', {line: 1, col: 4}],
+    [11, 8, 1, '重复定义函数 m，会覆盖第 10 行的函数（Ctrl+. 跳过去）', {line: 10, col: 8}],
+    [22, 4, 1, '重复定义函数 E，会覆盖第 21 行的类（Ctrl+. 跳过去）', {line: 21, col: 6}],
+  ]);
+  assert.deepEqual(EditorSymbols.build([{path: 'm.pyi', content: 'def a(): ...\ndef a(): ...\n'}], XSDocs).duplicateDefs('m.pyi'), []);
+});
+
+test('unused variables: Ctrl+. drops the line, or only `name = ` when the right side may matter', () => {
+  const src = [
+    'def f():', '    a = 1', '    b = load()', '    c = "x"  # note', '    d = [1,', '         2]', '    e: int = n', '    print(2)',
+    '', '', 'def g():', '    h = 3', ''].join('\n');                   // 12: the only statement: keep `3` so the body stays valid
+  const p = EditorSymbols.build([{path: 'm.py', content: src}], XSDocs);
+  const ws = p.unusedIn('m.py');
+  assert.deepEqual(ws.map(w => [w.line, w.message, w.edit && [w.edit.line, w.edit.col, w.edit.length, w.edit.text]]), [
+    [2, '未使用的变量 a（Ctrl+. 删除这一行）', [2, 0, 10, '']],
+    [3, '未使用的变量 b（Ctrl+. 删除赋值，保留右边）', [3, 4, 4, '']],
+    [4, '未使用的变量 c（Ctrl+. 删除这一行）', [4, 0, 20, '']],
+    [5, '未使用的变量 d（Ctrl+. 删除赋值，保留右边）', [5, 4, 4, '']],
+    [7, '未使用的变量 e（Ctrl+. 删除这一行）', [7, 0, 15, '']],
+    [12, '未使用的变量 h（Ctrl+. 删除赋值，保留右边）', [12, 4, 4, '']],
+  ]);
+  const apply = (t, e) => { const ls = t.split('\n'); let at = 0; for (let i = 0; i < e.line - 1; i++) at += ls[i].length + 1; at += e.col; return t.slice(0, at) + e.text + t.slice(at + e.length); };
+  const fixed = ws.slice().reverse().reduce((t, w) => apply(t, w.edit), src);
+  assert.equal(fixed, 'def f():\n    load()\n    [1,\n         2]\n    print(2)\n\n\ndef g():\n    3\n');
+  // a semicolon line is left alone
+  assert.equal(EditorSymbols.build([{path: 'm.py', content: 'def f():\n    q = 1; print(2)\n'}], XSDocs).unusedIn('m.py')[0].edit, undefined);
 });
 
 test('imports: "did you mean" for misspelled project modules, only with evidence for top-level names', () => {

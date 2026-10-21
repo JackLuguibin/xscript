@@ -643,6 +643,8 @@
     const hit = x => x.line === s.line && s.col >= x.col && s.col <= x.col + x.length;
     const unused = s.index.unusedIn(s.path).find(x => x.kind === "import" && (hit(x) || x.stmtLine === s.line && x.names === 1));
     if (unused) { removeUnusedImport(unused); return; }
+    const uv = s.index.unusedIn(s.path).find(x => x.kind === "variable" && x.edit && hit(x));
+    if (uv) { replaceRange(uv.edit.line, uv.edit.col, uv.edit.length, uv.edit.text); message("已" + uv.edit.label); return; }
     const dead = s.index.unreachableIn(s.path).find(x => x.line === s.line);
     if (dead) {
       // whole lines from the first to the last dead line, with their line breaks
@@ -654,6 +656,14 @@
     }
     const typo = s.index.problemsIn(s.path).find(x => x.suggest && hit(x));
     if (typo) { replaceRange(s.line, typo.col, typo.length, typo.suggest); message("已改为 " + typo.suggest); return; }
+    const jump = s.index.problemsIn(s.path).find(x => x.jump && hit(x));
+    if (jump) {
+      const box = el("editor"), ls = box.value.split("\n");
+      let at = 0; for (let i = 0; i < jump.jump.line - 1 && i < ls.length; i++) at += ls[i].length + 1;
+      at += jump.jump.col; box.focus(); box.setSelectionRange(at, at);
+      box.scrollTop = Math.max(0, (jump.jump.line - 5) * 21); box.dispatchEvent(new Event("keyup"));
+      message("已跳到第 " + jump.jump.line + " 行的定义"); return;
+    }
     const ed = s.index.problemsIn(s.path).find(x => x.edit && hit(x));
     if (ed) { replaceRange(ed.edit.line, ed.edit.col, ed.edit.length, ed.edit.text); message("已" + ed.edit.label); return; }
     const w = s.index.problemsIn(s.path).find(x => x.fix && hit(x));

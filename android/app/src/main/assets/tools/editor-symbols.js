@@ -724,7 +724,10 @@
             out.push({ line: d.line, col: d.col, length: name.length, message: "未使用的 import " + name + "（Ctrl+. 删除）", severity: "unused", kind: "import", name, stmtLine: d.stmtLine, names: count });
           } else if (sc.kind === "function" && sc.name !== "<lambda>" && ds.every(d => d.kind === "variable")) {
             if (dynamic || ds.some(noqa) || !ds.every(plain) || spelled(name, f.text, f.occ.filter(o => o.name === name && o.kind === "def").length)) continue;
-            for (const d of ds) out.push({ line: d.line, col: d.col, length: name.length, message: "未使用的变量 " + name, severity: "unused", kind: "variable", name });
+            for (const d of ds) {
+              const edit = this.dropAssignment(f, d);
+              out.push(Object.assign({ line: d.line, col: d.col, length: name.length, message: "未使用的变量 " + name + (edit ? "（Ctrl+. " + (edit.text === null ? "删除这一行" : "删除赋值，保留右边") + "）" : ""), severity: "unused", kind: "variable", name }, edit ? { edit: Object.assign(edit, { text: edit.text || "" }) } : {}));
+            }
           }
         }
       }
@@ -867,6 +870,58 @@
       walk(f.root.node.body);
       return out;
     }
+    /**
+     * Edit that drops a plain `name = value` assignment (d is a "variable" definition on its own line): the whole line
+     * when the value is a single constant or name and a sibling statement keeps the block non-empty (text null), else
+     * only the `name = ` part so the right-hand side (a call may have side effects) still runs. Null when unsure.
+     */
+    dropAssignment(f, d) {
+      const lines = (f.lines = f.lines || f.text.split("\n")), raw = lines[d.line - 1] || "";
+      if (raw.slice(0, d.col).trim() || /;/.test(raw.replace(/(["'])(?:\\.|(?!\1).)*\1/g, ""))) return null;
+      const m = new RegExp("^" + d.name.replace(/[$]/g, "\\$&") + "\\s*(:[^=]*)?=(?!=)\\s*", "u").exec(raw.slice(d.col));
+      if (!m || !d.value) return null;
+      const rest = raw.slice(d.col + m[0].length).replace(/\s+#.*$/, "").trim();
+      const single = (d.value.type === "Constant" && d.value.kind !== "string" || d.value.type === "Name" || d.value.type === "Constant" && /^(['"])[^'"\\]*\1$/.test(rest)) && !/[([{]/.test(rest);
+      const indentOf = l => l.length - l.trimStart().length, sibling = k => {
+        for (let i = d.line - 1 + k; i >= 0 && i < lines.length; i += k) { if (!lines[i].trim() || /^\s*#/.test(lines[i])) continue; return indentOf(lines[i]) === d.col; }
+        return false;
+      };
+      if (single && (sibling(-1) || sibling(1)))
+        return { line: d.line, col: 0, length: raw.length + 1, text: null, label: "删除未使用的变量 " + d.name };
+      if (!rest) return null;
+      return { line: d.line, col: d.col, length: m[0].length, text: "", label: "删除未使用变量 " + d.name + " 的赋值" };
+    }
+    /**
+     * A `def` / `class` that silently replaces an earlier one of the same name in the same block: warnings at the later
+     * name with `jump` to the earlier one. Decorated definitions (property setters, overloads, register), definitions in
+     * different branches, a name used anywhere between the two, `# noqa` and .pyi stubs are never reported.
+     */
+    duplicateDefs(path) {
+      const f = this.files.get(path); if (!f || !f.root.node || /\.pyi$/.test(path)) return [];
+      const lines = (f.lines = f.lines || f.text.split("\n")), out = [];
+      const DEF = /^(FunctionDef|ClassDef)$/, noqa = n => /#\s*noqa/i.test(lines[n.line - 1] || "");
+      const block = list => {
+        const seen = new Map();
+        for (const st of list) {
+          if (!st) continue;
+          if (!DEF.test(st.type)) continue;
+          const prev = seen.get(st.name); seen.set(st.name, st);
+          if (!prev || (prev.decorators || []).length || (st.decorators || []).length || noqa(prev) || noqa(st)) continue;
+          if (f.occ.some(o => o.name === st.name && o.line > prev.nameLine && o.line < st.nameLine)) continue;
+          const kind = n => n.type === "ClassDef" ? "类" : "函数";
+          out.push({ line: st.nameLine, col: st.nameCol, length: st.name.length, jump: { line: prev.nameLine, col: prev.nameCol },
+            message: "重复定义" + kind(st) + " " + st.name + "，会覆盖第 " + prev.nameLine + " 行的" + kind(prev) + "（Ctrl+. 跳过去）" });
+        }
+      };
+      const walk = node => {
+        if (Array.isArray(node)) return node.forEach(walk);
+        if (!node || typeof node !== "object") return;
+        for (const k of ["body", "orelse", "finalbody"]) if (Array.isArray(node[k])) block(node[k]);
+        for (const k of Object.keys(node)) if (node[k] && typeof node[k] === "object") walk(node[k]);
+      };
+      walk(f.root.node);
+      return out.sort((a, b) => a.line - b.line);
+    }
     /** Names visible from `scope` (its bindings, enclosing functions, the module, builtins), for "did you mean". */
     visibleNames(scope) {
       const out = new Set();
@@ -918,6 +973,7 @@
       for (const sc of f.scopes) for (const p of this.returnProblems(sc)) out.push(Object.assign(p, { severity: "warning" }));
       for (const p of this.importProblems(path)) out.push(Object.assign(p, { severity: "warning" }));
       for (const p of this.projectImportProblems(path)) out.push(Object.assign(p, { severity: "warning" }));
+      for (const p of this.duplicateDefs(path)) out.push(Object.assign(p, { severity: "warning" }));
       for (const c of f.calls) for (const a of this.argTypeProblems(c)) {
         const e = a.node, length = e.type === "Constant" ? String(e.value).split("\n")[0].length : e.type === "Name" ? e.id.length : e.type === "JoinedStr" ? 2 : 1;
         out.push(Object.assign({ line: e.line, col: e.col, length: Math.max(1, length), message: a.message, severity: "warning" }, a.suggest ? { suggest: a.suggest } : {}));

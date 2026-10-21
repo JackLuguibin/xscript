@@ -786,6 +786,51 @@ test('Web IDE explorer, editor and create/delete flows in a real browser', {skip
       await b.eval(click, '#refresh'); await b.waitFor(idle);
     });
 
+    await t.test('duplicate definitions: warning on the later def; Ctrl+. jumps to the earlier one', async () => {
+      await api('PUT', '/projects/dom/files', {files: [{path: 'dd_main.py', content: 'print("ok")\n'}]});
+      await b.eval(click, '#refresh'); await b.waitFor(idle);
+      await b.eval(click, row('dd_main.py'));
+      await b.waitFor(() => document.getElementById('editor').value === 'print("ok")\n' && !document.getElementById('editor').disabled);
+      await b.eval(v => { const e = document.getElementById('editor'); e.focus(); e.value = v; e.dispatchEvent(new Event('input')); },
+        'def login():\n    return 1\n\n\ndef login():\n    return 2\n\n\nprint(login())\n');
+      await b.waitFor(() => document.querySelectorAll('#diag .sq.warn').length === 1, 5000);
+      await b.eval(click, '#problems');
+      assert.match(await b.eval(() => document.getElementById('problems').textContent), /第 5 行：重复定义函数 login，会覆盖第 1 行的函数（Ctrl\+\. 跳过去）/);
+      await b.eval(() => { const e = document.getElementById('editor'); e.focus(); const at = e.value.lastIndexOf('def login') + 5; e.setSelectionRange(at, at); });
+      await b.eval(() => document.getElementById('editor').dispatchEvent(new KeyboardEvent('keydown', {key: '.', ctrlKey: true, bubbles: true, cancelable: true})));
+      await b.waitFor(() => document.getElementById('editor').selectionStart === 4);
+      await b.eval(click, '#save'); await b.waitFor(idle);
+      await b.eval(click, row('__init__.py')); await b.waitFor(() => !document.getElementById('editor').disabled);
+      await fetch(base + '/projects/dom/file?path=dd_main.py', {method: 'DELETE'});
+      await b.eval(click, '#refresh'); await b.waitFor(idle);
+    });
+
+    await t.test('unused variables: Ctrl+. removes the assignment (undoable)', async () => {
+      await api('PUT', '/projects/dom/files', {files: [{path: 'uv_main.py', content: 'print("ok")\n'}]});
+      await b.eval(click, '#refresh'); await b.waitFor(idle);
+      await b.eval(click, row('uv_main.py'));
+      await b.waitFor(() => document.getElementById('editor').value === 'print("ok")\n' && !document.getElementById('editor').disabled);
+      const src = 'def f():\n    total = 0\n    rows = len("abc")\n    return 1\n\n\nprint(f())\n';
+      await b.eval(v => { const e = document.getElementById('editor'); e.focus(); e.value = v; e.dispatchEvent(new Event('input')); }, src);
+      await b.waitFor(() => document.querySelectorAll('#diag .fade').length === 2, 5000);
+      const ctrlDot = () => b.eval(() => document.getElementById('editor').dispatchEvent(new KeyboardEvent('keydown', {key: '.', ctrlKey: true, bubbles: true, cancelable: true})));
+      await b.eval(() => { const e = document.getElementById('editor'); e.focus(); const at = e.value.indexOf('rows') + 1; e.setSelectionRange(at, at); e.dispatchEvent(new Event('keyup')); });
+      await b.waitFor(() => document.getElementById('problems').textContent.includes('第 3 行：未使用的变量 rows（Ctrl+. 删除赋值，保留右边）'), 5000);
+      await ctrlDot();
+      await b.waitFor(() => document.getElementById('editor').value === 'def f():\n    total = 0\n    len("abc")\n    return 1\n\n\nprint(f())\n');
+      await b.waitFor(() => document.querySelectorAll('#diag .fade').length === 1, 5000);
+      await b.eval(() => { const e = document.getElementById('editor'); e.focus(); const at = e.value.indexOf('total') + 1; e.setSelectionRange(at, at); });
+      await ctrlDot();
+      await b.waitFor(() => document.getElementById('editor').value === 'def f():\n    len("abc")\n    return 1\n\n\nprint(f())\n');
+      await b.eval(() => { document.getElementById('editor').focus(); document.execCommand('undo'); });
+      assert.equal(await b.eval(() => document.getElementById('editor').value), 'def f():\n    total = 0\n    len("abc")\n    return 1\n\n\nprint(f())\n');
+      await b.eval(() => { document.getElementById('editor').focus(); document.execCommand('redo'); });
+      await b.eval(click, '#save'); await b.waitFor(idle);
+      await b.eval(click, row('__init__.py')); await b.waitFor(() => !document.getElementById('editor').disabled);
+      await fetch(base + '/projects/dom/file?path=uv_main.py', {method: 'DELETE'});
+      await b.eval(click, '#refresh'); await b.waitFor(idle);
+    });
+
     await t.test('imports: "did you mean" a project module; Ctrl+. corrects it (undoable)', async () => {
       await api('PUT', '/projects/dom/files', {files: [{path: 'pi_helpers.py', content: 'def greet():\n    return "hi"\n'}, {path: 'pi_main.py', content: 'print("ok")\n'}]});
       await b.eval(click, '#refresh'); await b.waitFor(idle);
