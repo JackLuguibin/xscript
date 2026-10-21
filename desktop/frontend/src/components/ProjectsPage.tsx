@@ -159,16 +159,30 @@ export function ProjectsPage({ pollMs = LOG_POLL_MS, onDirtyChange }: { pollMs?:
   };
 
   const [formText, setFormText] = useState(false); // .ui.json: false = designer, true = raw JSON
-  const [fileForm, setFileForm] = useState<{ mode: "new" | "rename"; from: string; value: string } | null>(null);
+  const [fileForm, setFileForm] = useState<{ mode: "new" | "rename" | "form"; from: string; value: string } | null>(null);
   const reloadFiles = async () => setFiles(await api.files(devId, project));
 
   const submitFileForm = () => {
     const f = fileForm;
     if (!f || !f.value.trim()) return;
-    const to = f.value.trim();
+    let to = f.value.trim();
+    const isForm = f.mode === "form";
+    if (isForm) {
+      // 新建界面: a name, not a path; the designer files go to res/ui/<name>.ui.json (+ .html, ui_<name>.py on save)
+      if (!/^[A-Za-z_][A-Za-z0-9_]*$/.test(to)) {
+        setNotice(t.files.formNameInvalid);
+        return;
+      }
+      to = `res/ui/${to}.ui.json`;
+      if ((files?.files ?? []).some((x) => x.path === to)) {
+        setNotice(t.files.formExists(to));
+        return;
+      }
+    }
+    const isNew = f.mode !== "rename";
     void act("fileform", async () => {
-      const seed = f.mode === "new" && uiForm.formName(to) ? uiForm.serializeSpec(uiForm.newSpec()) : "";
-      if (f.mode === "new") {
+      const seed = isNew && uiForm.formName(to) ? uiForm.serializeSpec(uiForm.newSpec(isForm ? f.value.trim() : undefined)) : "";
+      if (isNew) {
         await api.writeFile(devId, project, to, seed, true);
       } else {
         await api.moveFile(devId, project, f.from, to);
@@ -176,10 +190,11 @@ export function ProjectsPage({ pollMs = LOG_POLL_MS, onDirtyChange }: { pollMs?:
       }
       setFileForm(null);
       await reloadFiles();
+      if (isForm) await openFile(to);
       const dev = devId;
       const proj = project;
       const from = f.from;
-      if (f.mode === "new") {
+      if (isNew) {
         toast(t.files.created(to), {
           label: t.files.undo,
           run: () =>
@@ -538,6 +553,9 @@ export function ProjectsPage({ pollMs = LOG_POLL_MS, onDirtyChange }: { pollMs?:
                 <Button size="sm" onClick={() => setFileForm({ mode: "new", from: "", value: "" })} disabled={has("fileform")}>
                   {t.files.newFile}
                 </Button>
+                <Button size="sm" onClick={() => setFileForm({ mode: "form", from: "", value: "" })} disabled={has("fileform")} title={t.files.newFormHint}>
+                  {t.files.newForm}
+                </Button>
               </div>
               <ProjectSearch key={`${devId}/${project}`} devId={devId} project={project} inputRef={searchInput} onOpen={(m) => void openMatch(m)} onError={(e) => setError(e)} />
               {fileForm && (
@@ -551,8 +569,8 @@ export function ProjectsPage({ pollMs = LOG_POLL_MS, onDirtyChange }: { pollMs?:
                 >
                   <Input
                     autoFocus
-                    aria-label={fileForm.mode === "new" ? t.files.newFilePrompt : t.files.renamePrompt}
-                    placeholder={fileForm.mode === "new" ? t.files.newFilePrompt : t.files.renamePrompt}
+                    aria-label={fileForm.mode === "new" ? t.files.newFilePrompt : fileForm.mode === "form" ? t.files.newFormPrompt : t.files.renamePrompt}
+                    placeholder={fileForm.mode === "new" ? t.files.newFilePrompt : fileForm.mode === "form" ? t.files.newFormPrompt : t.files.renamePrompt}
                     className="grow mono w-auto"
                     value={fileForm.value}
                     spellCheck={false}
