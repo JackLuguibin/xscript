@@ -2,11 +2,12 @@ import * as fs from "fs";
 import * as path from "path";
 import * as vscode from "vscode";
 import { DeviceClient, DeviceTarget, currentSeq as latestSeq, describeError, followTick, isPairingError, normalizeCode, parseTarget, validateCode } from "./client";
-import { collectFiles, findProjectRoot, isProjectDir } from "./project";
+import type { RemoteFile } from "./client";
+import { collectFiles, findProjectRoot, isProjectDir, isSyncedPath } from "./project";
 import { registerDebugger, startDebugging } from "./debugAdapter";
 import { execFile } from "child_process";
 import { DeviceStore, FoundDevice, SavedDevice, httpProbe, lanCandidates, normalizeAddress, scanAdb, scanLan } from "./devices";
-import { DEFAULT_SYNCIGNORE, SYNCIGNORE_PATH, SyncCache, diffAgainstLocal, fetchProject, loadIgnoreRules, planUpload, writePulled } from "./sync";
+import { DEFAULT_SYNCIGNORE, IgnoreRules, SYNCIGNORE_PATH, SyncCache, describeDeletes, diffAgainstLocal, fetchProject, loadIgnoreRules, planDeletes, planUpload, writePulled } from "./sync";
 import { TEMPLATES, createProject, validateProjectName } from "./newProject";
 import { Node, XScriptTree } from "./tree";
 import { newUiForm, registerUiDesigner } from "./uiDesigner";
@@ -180,14 +181,18 @@ async function resolveProject(uri?: vscode.Uri): Promise<string | undefined> {
 async function upload(root: string, full = true): Promise<boolean> {
   const name = path.basename(root);
   await vscode.workspace.saveAll(false);
-  const files = collectFiles(root, loadIgnoreRules(root));
+  const ignore = loadIgnoreRules(root);
+  const files = collectFiles(root, ignore);
+  const syncDeletes = config().get<boolean>("syncDeletes", false);
+  let remoteList: RemoteFile[] | undefined;
   const key = "sync:" + client.target.host + ":" + client.target.port + ":" + name;
   const plan = await guard("upload", () =>
     vscode.window.withProgress(
       { location: vscode.ProgressLocation.Notification, title: "XScript: uploading " + name },
       async () => {
-        const remote = full ? undefined : await client.projectFiles(name);
-        const p = planUpload(files, remote, full ? {} : extCtx.workspaceState.get<SyncCache>(key, {}));
+        const remote = full && !syncDeletes ? undefined : await client.projectFiles(name);
+        remoteList = remote;
+        const p = planUpload(files, full ? undefined : remote, full ? {} : extCtx.workspaceState.get<SyncCache>(key, {}));
         if (p.upload.length || !remote) await client.uploadFiles(name, p.upload);
         await extCtx.workspaceState.update(key, p.hashes);
         return p;
@@ -198,7 +203,38 @@ async function upload(root: string, full = true): Promise<boolean> {
   output.appendLine(
     "uploaded " + name + " to " + client.baseUrl + ": " + plan.upload.length + " file(s) sent" + (plan.skipped ? ", " + plan.skipped + " unchanged" : ""),
   );
+  if (syncDeletes) await deleteRemoved(name, files.map((f) => f.path), remoteList, ignore);
   return true;
+}
+
+/**
+ * `xscript.syncDeletes` (off by default): device files that are not in the local project and that an upload manages
+ * (.syncignore'd and skipped paths are never touched) are listed in a modal and deleted only when confirmed.
+ */
+async function deleteRemoved(name: string, local: string[], remote: RemoteFile[] | undefined, ignore: IgnoreRules): Promise<void> {
+  const gone = planDeletes(local, remote, (rel) => isSyncedPath(rel, ignore));
+  if (!gone.length) return;
+  const ok = "Delete " + gone.length + " on Device";
+  const pick = await vscode.window.showWarningMessage(
+    "XScript: " + gone.length + " file(s) of \"" + name + "\" are on the device but no longer in your local project. Delete them on the device? This cannot be undone.",
+    { modal: true, detail: describeDeletes(gone) },
+    ok,
+  );
+  if (pick !== ok) {
+    output.appendLine("kept " + gone.length + " file(s) on the device that are not in the local project");
+    return;
+  }
+  const failed: string[] = [];
+  for (const p of gone) {
+    try {
+      if (!(await client.deleteFile(name, p))) failed.push(p);
+    } catch {
+      failed.push(p);
+    }
+  }
+  output.appendLine(
+    "deleted " + (gone.length - failed.length) + " file(s) on the device that were removed locally" + (failed.length ? "; could not delete: " + failed.join(", ") : ""),
+  );
 }
 
 function stopFollowing(): void {

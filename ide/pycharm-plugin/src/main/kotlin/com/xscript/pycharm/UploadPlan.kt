@@ -31,6 +31,23 @@ object UploadPlanner {
         return UploadPlan(upload, skipped, hashes)
     }
 
+    /** The device refuses to delete a project's entry. */
+    private val PROTECTED = setOf("__init__.py", "__init__.pyc")
+
+    /**
+     * Device files an upload with "delete files removed locally" would delete: on the device, not in `local`,
+     * and managed by uploads (`synced`, e.g. not matched by .syncignore). Sorted. `remote` null (no list) deletes nothing.
+     */
+    fun planDeletes(local: Collection<String>, remote: List<RemoteFile>?, synced: (String) -> Boolean): List<String> {
+        remote ?: return emptyList()
+        val have = local.toHashSet()
+        return remote.map { it.path }.filter { it !in have && it !in PROTECTED && synced(it) }.distinct().sorted()
+    }
+
+    /** The file list for the confirmation: at most `max` lines, then "… and N more". */
+    fun describeDeletes(paths: List<String>, max: Int = 30, more: (Int) -> String = { "… and $it more" }): String =
+        (paths.take(max).map { "  $it" } + (if (paths.size > max) listOf("  " + more(paths.size - max)) else emptyList())).joinToString("\n")
+
     /** One cache per device address and project, like the VS Code workspaceState key. */
     fun cacheKey(target: DeviceTarget, project: String) = "xscript.sync:${target.host}:${target.port}:$project"
 }

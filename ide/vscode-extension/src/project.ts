@@ -35,6 +35,19 @@ export function findProjectRoot(start: string, boundary?: string): string | unde
   return found;
 }
 
+/**
+ * Whether a device path is one an upload manages, i.e. collectFiles would pick it up if it existed here:
+ * no dot names, no skipped folders, no .pyc/.pyo, not matched by .syncignore (nor any of its folders).
+ */
+export function isSyncedPath(rel: string, ignore: IgnoreRules): boolean {
+  const segs = rel.split("/");
+  if (segs.some((s) => s === "" || s.startsWith("."))) return false;
+  for (let i = 0; i < segs.length - 1; i++) {
+    if (SKIP_DIRS.has(segs[i]) || ignore.ignores(segs.slice(0, i + 1).join("/"), true)) return false;
+  }
+  return !/\.py[co]$/.test(segs[segs.length - 1]) && !ignore.ignores(rel, false);
+}
+
 export function collectFiles(root: string, ignore?: IgnoreRules): UploadFile[] {
   const out: UploadFile[] = [];
   const walk = (dir: string) => {

@@ -5,9 +5,9 @@ import * as fs from "node:fs";
 import * as os from "node:os";
 import * as path from "node:path";
 import { DeviceClient } from "../client";
-import { collectFiles, findProjectRoot, isProjectDir } from "../project";
+import { collectFiles, findProjectRoot, isProjectDir, isSyncedPath } from "../project";
 import {
-  DEFAULT_SYNCIGNORE, IgnoreRules, SYNCIGNORE_PATH, diffAgainstLocal, fetchProject, loadIgnoreRules, planUpload, safeRelative, writePulled,
+  DEFAULT_SYNCIGNORE, IgnoreRules, SYNCIGNORE_PATH, describeDeletes, diffAgainstLocal, fetchProject, loadIgnoreRules, planDeletes, planUpload, safeRelative, writePulled,
 } from "../sync";
 
 const REPO = path.resolve(__dirname, "..", "..", "..", "..");
@@ -124,4 +124,53 @@ test("pull: round trip against the mock device, diff, and writes only what diffe
   assert.equal(writePulled(dest, pulled, d), 1);
   assert.equal(fs.readFileSync(path.join(dest, "local_only.py"), "utf-8"), "keep", "files the device lacks are left alone");
   await assert.rejects(fetchProject(client, "no_such_project_" + Date.now()), /does not exist/);
+});
+
+test("planDeletes: only device files an upload manages and that are gone locally", () => {
+  const ignore = new IgnoreRules("*.log\ndata/\n");
+  const remote = ["__init__.py", "old.py", "lib/gone.py", "lib/keep.py", "run.log", "data/cache.json",
+    ".hidden", "__pycache__/x.pyc", "lib/__pycache__/y.pyc", "stale.pyc", "zz.txt"].map((p) => ({ path: p, size: 1 }));
+  const local = ["lib/keep.py", "build.as"];
+  // __init__.py is protected; .syncignore'd, dot, __pycache__ and .pyc paths are never managed by uploads
+  assert.deepEqual(planDeletes(local, remote, (r) => isSyncedPath(r, ignore)), ["lib/gone.py", "old.py", "zz.txt"]);
+  assert.deepEqual(planDeletes(local, undefined, () => true), []);
+  assert.deepEqual(planDeletes(remote.map((f) => f.path), remote, () => true), []);
+});
+
+test("isSyncedPath follows collectFiles rules", () => {
+  const ignore = new IgnoreRules("/build/\n*.log\n!keep.log\n");
+  assert.equal(isSyncedPath("a/b.py", ignore), true);
+  assert.equal(isSyncedPath("build/out.py", ignore), false);
+  assert.equal(isSyncedPath("src/build/out.py", ignore), true);
+  assert.equal(isSyncedPath("venv/x.py", ignore), false);
+  assert.equal(isSyncedPath("a/.git/x", ignore), false);
+  assert.equal(isSyncedPath("x.pyo", ignore), false);
+  assert.equal(isSyncedPath("a//b.py", ignore), false);
+  // whatever collectFiles uploads is "synced"
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), "xs-synced-"));
+  for (const rel of ["__init__.py", "lib/a.py", "build/x.py", "x.log", "keep.log", "venv/v.py", ".h/y.py"]) {
+    fs.mkdirSync(path.dirname(path.join(root, rel)), { recursive: true });
+    fs.writeFileSync(path.join(root, rel), "x");
+  }
+  for (const f of collectFiles(root, ignore)) assert.equal(isSyncedPath(f.path, ignore), true, f.path);
+  assert.deepEqual(collectFiles(root, ignore).map((f) => f.path), ["__init__.py", "keep.log", "lib/a.py"]);
+});
+
+test("describeDeletes caps the list", () => {
+  const paths = Array.from({ length: 33 }, (_, i) => "f" + (i + 1) + ".py");
+  const lines = describeDeletes(paths).split("\n");
+  assert.equal(lines.length, 31);
+  assert.equal(lines[0], "f1.py");
+  assert.equal(lines[30], "… and 3 more");
+  assert.equal(describeDeletes(["a.py", "b.py"]), "a.py\nb.py");
+});
+
+test("deleteFile removes a device file; a missing one counts as removed", async () => {
+  await client.uploadFiles("del_demo", [
+    { path: "__init__.py", content: "print(1)\n", encoding: "utf-8" },
+    { path: "old.py", content: "x\n", encoding: "utf-8" },
+  ]);
+  assert.equal(await client.deleteFile("del_demo", "old.py"), true);
+  assert.equal(await client.deleteFile("del_demo", "old.py"), true);
+  assert.deepEqual((await client.projectFiles("del_demo"))!.map((f) => f.path), ["__init__.py"]);
 });

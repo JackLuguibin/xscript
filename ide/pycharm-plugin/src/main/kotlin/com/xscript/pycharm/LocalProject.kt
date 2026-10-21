@@ -38,6 +38,20 @@ object LocalProject {
     fun loadIgnore(root: Path): IgnoreRules =
         try { IgnoreRules(Files.readString(root.resolve(SYNCIGNORE))) } catch (_: Exception) { IgnoreRules("") }
 
+    /**
+     * Whether a device path is one an upload manages, i.e. collectFiles would pick it up if it existed here:
+     * no dot names, no skipped folders, no .pyc/.pyo, not matched by .syncignore (nor any of its folders).
+     */
+    fun isSyncedPath(rel: String, ignore: IgnoreRules): Boolean {
+        val segs = rel.split("/")
+        if (segs.any { it.isEmpty() || it.startsWith(".") }) return false
+        for (i in 0 until segs.size - 1) {
+            if (segs[i] in SKIP_DIRS || ignore.ignores(segs.subList(0, i + 1).joinToString("/"), true)) return false
+        }
+        val name = segs.last()
+        return !(name.endsWith(".pyc") || name.endsWith(".pyo")) && !ignore.ignores(rel, false)
+    }
+
     fun collectFiles(root: Path, ignore: IgnoreRules = loadIgnore(root)): List<UploadFile> {
         val out = mutableListOf<UploadFile>()
         fun walk(dir: Path) {
