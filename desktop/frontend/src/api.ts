@@ -121,6 +121,26 @@ export interface FileContent {
   content: string;
 }
 
+export interface SearchMatch {
+  path: string;
+  /** 1-based */
+  line: number;
+  /** 1-based */
+  column: number;
+  length: number;
+  /** the line (shortened around the match when long) */
+  text: string;
+  /** 0-based position of the match in `text` */
+  offset: number;
+}
+
+export interface SearchResult {
+  matches: SearchMatch[];
+  filesSearched: number;
+  filesSkipped: number;
+  truncated: boolean;
+}
+
 export interface LogEntry {
   seq: number;
   ts: number;
@@ -236,6 +256,8 @@ export function createApi(rpc: RpcClient) {
     createProject: (id: string, project: string) => rpc.call<{ ok: boolean }>("project.create", { id, project }),
     files: (id: string, project: string) => rpc.call<ProjectFiles>("project.files", { id, project }),
     readFile: (id: string, project: string, path: string) => rpc.call<FileContent>("project.read", { id, project, path }),
+    searchProject: (id: string, project: string, query: string, opts: { regex?: boolean; caseSensitive?: boolean } = {}) =>
+      rpc.call<SearchResult>("project.search", { id, project, query, regex: !!opts.regex, caseSensitive: !!opts.caseSensitive }, { timeoutMs: 60_000 }),
     writeFile: (id: string, project: string, path: string, content: string, create = false, encoding: "utf-8" | "base64" = "utf-8") =>
       rpc.call<{ ok: boolean }>("project.write", { id, project, path, content, create, ...(encoding === "base64" ? { encoding } : {}) }, { timeoutMs: 60_000 }),
     deleteFile: (id: string, project: string, path: string) => rpc.call<{ ok: boolean }>("project.deleteFile", { id, project, path }),

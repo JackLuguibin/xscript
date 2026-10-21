@@ -141,6 +141,8 @@ export interface EditorHandle {
   setBreakpoints(lines: number[], kinds?: Record<number, BpKind>): void;
   /** the paused line (highlighted and revealed), or null */
   setCurrentLine(line: number | null): void;
+  /** select `length` characters at line/column (1-based), scroll them to the middle and focus the editor */
+  reveal(line: number, column: number, length: number): void;
   dispose(): void;
 }
 
@@ -225,6 +227,11 @@ export function createEditor(
     setTheme: (dark) => monaco.editor.setTheme(dark ? "vs-dark" : "vs"),
     setBreakpoints,
     setCurrentLine,
+    reveal: (line, column, length) => {
+      ed.setSelection(new monaco.Range(line, column, line, column + length));
+      ed.revealLineInCenter(line);
+      ed.focus();
+    },
     dispose: () => {
       ed.getModel()?.dispose();
       ed.dispose();
