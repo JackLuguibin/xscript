@@ -1149,10 +1149,86 @@ def _match_many(source, parts, rect, confidence, rgb, maxcnt, scale_range, offse
             raw = list(ex.map(run, tpls))
     else:
         raw = [run(t) for t in tpls]
+    if rgb:
+        raw = [_colour_filter(src, parts[i], hits, confidence) for i, hits in enumerate(raw)]
     out = []
     for i, hits in enumerate(raw):
         out.extend(_to_dicts(hits, ox, oy, first_index + i, tpls[i].w))
     return out
+
+
+def _colour_tolerance(confidence):
+    """Largest mean chroma difference (Lab a/b units) a rgb=True hit may have; 0.9 -> 15, 0.8 -> 30."""
+    return max(8.0, (1.0 - confidence) * 150.0)
+
+
+def chroma_difference(region, template):
+    """Mean per-pixel distance in Lab a/b (colour, not brightness) between a BGR region and a BGR/BGRA template
+    of the same picture. Transparent template pixels are ignored. 0 = same colours; a grey copy of a red
+    icon scores ~50+."""
+    mask = None
+    if template.ndim == 3 and template.shape[2] == 4:
+        if _significant_alpha(template[:, :, 3]):
+            mask = template[:, :, 3] > 127
+        template = template[:, :, :3]
+    if template.ndim == 2:
+        template = cv2.cvtColor(template, cv2.COLOR_GRAY2BGR)
+    if region.ndim == 2:
+        region = cv2.cvtColor(region, cv2.COLOR_GRAY2BGR)
+    region = region[:, :, :3]
+    h, w = region.shape[:2]
+    if template.shape[:2] != (h, w):
+        template = cv2.resize(template, (w, h), interpolation=cv2.INTER_AREA)
+        if mask is not None:
+            mask = cv2.resize(mask.view(np.uint8), (w, h), interpolation=cv2.INTER_NEAREST) > 0
+    a = cv2.cvtColor(np.ascontiguousarray(region), cv2.COLOR_BGR2LAB)[:, :, 1:].astype(np.float32)
+    b = cv2.cvtColor(np.ascontiguousarray(template), cv2.COLOR_BGR2LAB)[:, :, 1:].astype(np.float32)
+    d = np.sqrt(((a - b) ** 2).sum(axis=2))
+    if mask is not None and mask.any():
+        d = d[mask]
+    return float(d.mean())
+
+
+def _shape_score(region, template):
+    """Grayscale TM_CCOEFF_NORMED of a template against an equally sized region (alpha used as mask).
+    A flat template or region has no shape: they agree only if both are flat and of similar brightness."""
+    mask = None
+    if template.ndim == 3 and template.shape[2] == 4 and _significant_alpha(template[:, :, 3]):
+        mask = template[:, :, 3]
+    g_t = _to_match_space(template, False)
+    g_r = _to_match_space(region, False)
+    h, w = g_r.shape[:2]
+    if g_t.shape[:2] != (h, w):
+        g_t = cv2.resize(g_t, (w, h), interpolation=cv2.INTER_AREA)
+        if mask is not None:
+            mask = cv2.resize(mask, (w, h), interpolation=cv2.INTER_NEAREST)
+    if g_t.std() < 1.0 or g_r.std() < 1.0:
+        return 1.0 if g_t.std() < 1.0 and g_r.std() < 1.0 and abs(float(g_t.mean()) - float(g_r.mean())) < 16 else 0.0
+    if mask is not None:
+        r = cv2.matchTemplate(g_r, g_t, cv2.TM_CCORR_NORMED, mask=mask)
+    else:
+        r = cv2.matchTemplate(g_r, g_t, cv2.TM_CCOEFF_NORMED)
+    v = float(r[0, 0])
+    return v if np.isfinite(v) else 0.0
+
+
+def _colour_filter(src, part, hits, confidence):
+    """rgb=True verifies each H+S hit. H+S correlation sees neither shape nor colour when the template has no
+    hue/saturation variance: a grey icon scores 1.0 on its coloured version and on any flat grey area. A hit is
+    kept only if its grayscale shape also matches (same confidence) and its colours are close to the template's."""
+    if not hits or src.ndim != 3:
+        return hits
+    tpl = _raw_template(part)
+    tol = _colour_tolerance(confidence)
+    keep = []
+    for hit in hits:
+        _, x, y, w, h = hit
+        x, y, w, h = int(x), int(y), int(w), int(h)
+        region = src[max(0, y):y + h, max(0, x):x + w]
+        if region.size and region.shape[:2] == (h, w) and _shape_score(region, tpl) >= confidence \
+                and chroma_difference(region, tpl) <= tol:
+            keep.append(hit)
+    return keep
 
 
 def sort_by_ori(items, ori):
