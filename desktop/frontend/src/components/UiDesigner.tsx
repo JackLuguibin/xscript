@@ -89,6 +89,7 @@ export function UiDesigner({ text, onChange }: { text: string; onChange: (text: 
 
   return (
     <div
+      className="ui-designer-host"
       onKeyDown={(e) => {
         if (!(e.metaKey || e.ctrlKey) || isTextField(e.target)) return;
         const k = e.key.toLowerCase();
