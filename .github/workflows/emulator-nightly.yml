@@ -54,7 +54,12 @@ jobs:
           echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
           sudo udevadm control --reload-rules
           sudo udevadm trigger --name-match=kvm
+      # Each attempt's script first touches .emulator-booted-N, so the emulator came up. An attempt that fails before
+      # that (the runner's emulator never connected, e.g. "could not connect to TCP port 5554") is retried once; a
+      # failing check is not retried and fails the job.
       - name: Emulator checks
+        id: emu
+        continue-on-error: true
         uses: reactivecircus/android-emulator-runner@a421e43855164a8197daf9d8d40fe71c6996bb0d # v2.38.0
         with:
           api-level: 34
@@ -65,4 +70,20 @@ jobs:
           profile: pixel_6
           disable-animations: true
           emulator-options: -no-window -gpu swiftshader_indirect -no-snapshot -noaudio -no-boot-anim
-          script: ANDROID_SERIAL=emulator-5554 bash scripts/ci_emulator_checks.sh
+          script: touch .emulator-booted-1 && ANDROID_SERIAL=emulator-5554 bash scripts/ci_emulator_checks.sh
+      - name: Emulator checks (retry after a failed emulator boot)
+        if: steps.emu.outcome == 'failure' && hashFiles('.emulator-booted-1') == ''
+        uses: reactivecircus/android-emulator-runner@a421e43855164a8197daf9d8d40fe71c6996bb0d # v2.38.0
+        with:
+          api-level: 34
+          target: google_apis
+          arch: x86_64
+          cores: 4
+          ram-size: 4096M
+          profile: pixel_6
+          disable-animations: true
+          emulator-options: -no-window -gpu swiftshader_indirect -no-snapshot -noaudio -no-boot-anim
+          script: touch .emulator-booted-2 && ANDROID_SERIAL=emulator-5554 bash scripts/ci_emulator_checks.sh
+      - name: Fail when the checks failed on the first try
+        if: steps.emu.outcome == 'failure' && hashFiles('.emulator-booted-1') != ''
+        run: exit 1
