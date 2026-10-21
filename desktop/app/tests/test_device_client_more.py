@@ -153,3 +153,12 @@ def test_is_xscript_status(st, ok):
 def test_summarize_status_defaults_for_a_sparse_device():
     s = summarize_status({"model": "X"})
     assert s["name"] == "X" and s["running"] is False and s["project"] == "" and s["sdk"] is None and s["capture"] is False
+
+
+def test_summarize_status_capture_method():
+    """capture_via / capture_lost feed the screen page's 截图状态; None when the app is too old to report them."""
+    assert summarize_status({"model": "m"})["captureVia"] is None
+    s = summarize_status({"model": "m", "capture": True, "capture_via": "accessibility", "capture_lost": True})
+    assert (s["captureVia"], s["captureLost"]) == ("accessibility", True)
+    s = summarize_status({"model": "m", "capture": True, "capture_via": "", "capture_lost": False})
+    assert (s["captureVia"], s["captureLost"]) == ("", False)
