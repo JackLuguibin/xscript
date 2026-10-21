@@ -701,3 +701,8 @@ pre.logs.debug-console { min-height: 4rem; max-height: 10rem; }
 /* 最近运行 → 跳到出错行 (the class itself is a Monaco decoration in overrides.css) */
 @keyframes err-flash { from { background: var(--danger-bg); } to { background: transparent; } }
 @media (prefers-reduced-motion: reduce) { .monaco-host .err-flash-line { animation: none !important; } }
+/* Forced colors (Windows high contrast) replace backgrounds with Canvas, which would hide the failing line and the
+   paused line; an outline in a system color keeps both visible. */
+@media (forced-colors: active) {
+  .monaco-host .err-flash-line, .monaco-host .dbg-current-line { outline: 2px solid Highlight; outline-offset: -2px; }
+}

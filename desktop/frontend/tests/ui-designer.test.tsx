@@ -30,8 +30,8 @@ describe("desktop UI designer (D.3 / D.4)", () => {
     const { api, id } = await setup(uiForm.serializeSpec(uiForm.newSpec("挂机设置")));
     const designer = await screen.findByLabelText("界面设计器", undefined, { timeout: 3000 });
     // palette: 单行文本 then 复选框
-    fireEvent.click(within(designer).getByRole("button", { name: /单行文本/ }));
-    fireEvent.click(within(designer).getByRole("button", { name: /复选框/ }));
+    fireEvent.click(await within(designer).findByRole("button", { name: /单行文本/ }, { timeout: 3000 }));
+    fireEvent.click(await within(designer).findByRole("button", { name: /复选框/ }, { timeout: 3000 }));
     expect(screen.getByText("未保存")).toBeTruthy();
     expect(designer.querySelector("iframe")?.getAttribute("sandbox")).toBe("");
     fireEvent.click(screen.getByRole("button", { name: "保存" }));
@@ -96,9 +96,9 @@ describe("desktop UI designer (D.3 / D.4)", () => {
       fireEvent.click(screen.getByRole("button", { name: "设计" }));
       return uiForm.parseSpec(v).fields.map((f) => f.kind);
     };
-    fireEvent.click(within(designer).getByRole("button", { name: /单行文本/ }));
+    fireEvent.click(await within(designer).findByRole("button", { name: /单行文本/ }, { timeout: 3000 }));
     await new Promise((r) => setTimeout(r, 700)); // separate steps, not merged
-    fireEvent.click(within(designer).getByRole("button", { name: /复选框/ }));
+    fireEvent.click(await within(designer).findByRole("button", { name: /复选框/ }, { timeout: 3000 }));
     expect(undo.disabled).toBe(false);
     fireEvent.click(undo);
     expect(redo.disabled).toBe(false);
@@ -115,7 +115,7 @@ describe("desktop UI designer (D.3 / D.4)", () => {
   it("unsaved designer edits ask before another file replaces them", async () => {
     await setup(uiForm.serializeSpec(uiForm.newSpec()));
     const designer = await screen.findByLabelText("界面设计器", undefined, { timeout: 3000 });
-    fireEvent.click(within(designer).getByRole("button", { name: /单行文本/ }));
+    fireEvent.click(await within(designer).findByRole("button", { name: /单行文本/ }, { timeout: 3000 }));
     expect(screen.getByText("未保存")).toBeTruthy();
     fireEvent.click(screen.getByRole("button", { name: /^__init__\.py/ }));
     expect(await screen.findByText("未保存，确定放弃修改？")).toBeTruthy();
@@ -162,7 +162,7 @@ describe("desktop UI designer (D.3 / D.4)", () => {
     spec.fields.push({ kind: "text", id: "account", label: "账号" } as never);
     const { api, id } = await setup(uiForm.serializeSpec(spec));
     const designer = await screen.findByLabelText("界面设计器", undefined, { timeout: 3000 });
-    fireEvent.click(within(designer).getByRole("button", { name: /复选框/ }));
+    fireEvent.click(await within(designer).findByRole("button", { name: /复选框/ }, { timeout: 3000 }));
     fireEvent.click(screen.getByRole("button", { name: "在手机上试运行" }));
     expect(await screen.findByText(/已在手机上打开界面 main/, undefined, { timeout: 3000 })).toBeTruthy();
     // saved first (the user's project got the edit and the generated files) ...

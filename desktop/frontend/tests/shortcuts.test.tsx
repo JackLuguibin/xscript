@@ -379,5 +379,7 @@ describe("command palette, settings, and chords", () => {
     for (const name of ["Canvas", "CanvasText", "Highlight", "ButtonText"]) expect(css).toContain(name);
     const sheets = readFileSync("src/styles/base.css", "utf8") + readFileSync("src/styles/components.css", "utf8");
     expect(sheets.match(/#[0-9a-fA-F]{3,8}\b/g) ?? []).toEqual([]);
+    // the editor's failing-line flash and paused line stay visible when backgrounds are forced to Canvas
+    expect(sheets).toMatch(/@media \(forced-colors: active\) \{\s*\.monaco-host \.err-flash-line, \.monaco-host \.dbg-current-line \{ outline: 2px solid Highlight;/);
   });
 });

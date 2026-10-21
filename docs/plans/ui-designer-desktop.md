@@ -22,6 +22,8 @@
 - [x] **D.5 真机验证**：在模拟器 XS_Verify_API34 的 perf 应用上运行生成的 `ui_<name>.py`，填表并读回值。2026-10-21 用 `scripts/device_ui_designer_e2e.py emulator-5556 http://127.0.0.1:19861`（perf 应用 0.5.0，需悬浮窗权限）跑通 15 项：8 种控件填写、提交返回值和类型、取消返回 None、`show(values)` 预填。桌面端写出的文件来自 `src/vendor/ui-form.js`，`tests/ui-form.test.ts` 保证它与这里用的生成器逐字节一致
 - [x] **D.6 文档与截图**：使用手册「界面设计器」、功能对照、桌面端设计 1.3、`desktop/README.md` 浅色/深色截图
 
+- [x] **在手机上试运行**（设计器按钮）：`scripts/device_ui_try_e2e.py SERIAL URL` 按桌面端同样的步骤写入临时工程 `_ui_try` 并运行，点「开始」读到默认值、点「取消」读到 `null`，最后删除 `_ui_try`；界面 dump 只在内存里解析，输出一律经 `mask()` 遮住配对码。2026-10-21 在 XS_Verify_API34 上 9 项全部通过
+
 ## 测试计划
 
 - 每步 vitest（jsdom）覆盖；D.2 起检查 iframe 有 `sandbox` 且不含 `allow-scripts`。

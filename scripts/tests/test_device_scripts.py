@@ -36,6 +36,20 @@ class DeviceScriptsTest(unittest.TestCase):
         self.assertEqual(ns["LINKS"]["PARAMLINK"], 'xscript://run?name=linkdemo&params={"k":"v"}')
         self.assertIn('"--no-browser" in sys.argv', src)
 
+    def test_ui_try_e2e_masks_codes_and_mirrors_the_desktop_entry(self):
+        import sys
+        sys.path.insert(0, str(SCRIPTS))
+        import device_ui_try_e2e as m
+        self.assertEqual(m.mask("码 ABCD-EF12 / WXYZ5678，进度 12%"), "码 ****-**** / ****-****，进度 12%")
+        main = m.try_main("settings")
+        self.assertIn("from ui_settings import show\n", main)
+        self.assertIn('print("界面返回：" + json.dumps(values, ensure_ascii=False), flush=True)', main)
+        # the script prints UI text only through mask(); the raw dump never reaches print()
+        src = (SCRIPTS / "device_ui_try_e2e.py").read_text(encoding="utf-8")
+        for line in src.splitlines():
+            if "print(" in line and "mask(" not in line:
+                self.assertNotRegex(line, r"nodes\(|dump|ns\b", line)
+
 
 if __name__ == "__main__":
     unittest.main()
