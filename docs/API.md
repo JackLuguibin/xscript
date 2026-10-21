@@ -147,7 +147,7 @@ screen.ocr_click("同意")
 
 截图状态：`capture_status()` 返回 `ok`（现在能否截图）、`source`（将使用的方式：`projection` 系统录屏、`accessibility` 无障碍截图、`root`，不能截图时为空）、`lost`（系统录屏授权在重启或被系统收回后失效）和 `reason`（不能截图时该怎么做）。截图失败时找图找色只会返回空结果，所以长时间运行的脚本最好在开头检查一次。
 
-截图失败时的行为：默认和以前一样，`capture()` / `capture_cv()` / `capture_bitmap()` 返回 `None`，`find_*` / `ocr*` 返回 `None` / `False` / `[]`，脚本不会因此中断；同时在日志里写一次原因和修法（每次截图恢复后重新计数）。**变化**：以前只有截图权限失效或没有可用方式时才写这条日志，现在原因不明（例如锁屏、安全页面禁止截图）时也会写一条，`screen.capture()` 和 OCR 截屏失败也会写。想让脚本在截图失败时立刻停下，调用 `screen.strict_capture(True)`：之后上面这些调用在截不到屏幕时抛出 `screen.CaptureError`（`RuntimeError` 的子类，消息就是修法）；传入图片的调用（`find_image(..., image=img)` 等）不受影响。这个开关默认关闭，每次运行开始时都会恢复为关闭，返回值是之前的设置。
+截图失败时的行为：默认和以前一样，`capture()` / `capture_cv()` / `capture_bitmap()` 返回 `None`，`find_*` / `ocr*` 返回 `None` / `False` / `[]`，脚本不会因此中断；同时在日志里写一次原因和修法（每次截图恢复后重新计数）。**变化**：以前只有截图权限失效或没有可用方式时才写这条日志，现在原因不明（例如锁屏、安全页面禁止截图）时也会写一条，`screen.capture()` 和 OCR 截屏失败也会写。想让脚本在截图失败时立刻停下，调用 `screen.strict_capture(True)`：之后上面这些调用在截不到屏幕时抛出 `screen.CaptureError`（`RuntimeError` 的子类，消息就是修法）；传入图片的调用（`find_image(..., image=img)` 等）不受影响。这个开关默认关闭，每次运行开始时都会恢复为关闭，返回值是之前的设置。不想改代码时，可以在手机上小程序详情页的运行选项里打开 **截图失败时停止脚本**（或 HTTP `PUT /projects/<名称>/config {"strict_capture": true}`）：之后每次运行开始时自动打开严格模式，日志里会写一行「xscript: 截图失败时停止脚本（运行选项已开启）」；代码里再调用 `screen.strict_capture(False)` 仍然可以关掉。
 
 按钮状态：`image_state(template, rect=None, confidence=0.9, image=None)` 先按灰度形状找图，再比较找到的区域和模板的颜色（同 `rgb=True` 的色度校验）。模板请从按钮可用（彩色）时截取。`wait_enabled` 和 `wait_image` 跟 `ocr_wait` 一样每 `interval` 秒（默认 0.3）看一次，超时时最后再看一次。
 
