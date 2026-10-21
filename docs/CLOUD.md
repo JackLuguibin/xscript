@@ -121,7 +121,7 @@ AScript 写法照常可用：`cloud_control.connect_to_ws(url)`、`cloud_control
 | `GET /api/devices/<id>/logs?q=&stream=&since_ts=&until_ts=&before=&after=&limit=` | 服务器保存的运行日志（设备离线也能查），默认最新 500 行，`before=<id>` 往前翻页，`after=<id>` 取新增；时间为秒 |
 | `GET /api/devices/<id>/logs/export` | 按同样的条件导出为文本文件（最多 10 万行） |
 | `POST /api/command` `{"target","command","timeout"}` | `target`：`all`、`group:<分组>`、`app:<包名>`、设备 id（多个用逗号分隔）。返回 `{"results": {设备: 回执}, "devices", "ok"}` |
-| `POST /api/devices/<id>/http` `{"method","path","query","body"\|"body_b64"}` | 转发到设备 HTTP 接口，原样返回设备的回复。操作员只能调用只读接口、`/action`（远程操控的点击 / 滑动 / 按键）和运行 / 停止；上传文件、`/eval` 等需要管理员。远程操控用 `GET /screen?format=jpg&max=480&quality=40` 取小尺寸画面 |
+| `POST /api/devices/<id>/http` `{"method","path","query","body"\|"body_b64"}` | 转发到设备 HTTP 接口，原样返回设备的回复。操作员只能调用只读接口（含 `GET /projects/<名称>/runs` 运行记录，设备详情「最近运行」用它）、`/action`（远程操控的点击 / 滑动 / 按键）和运行 / 停止；上传文件、`/eval` 等需要管理员。远程操控用 `GET /screen?format=jpg&max=480&quality=40` 取小尺寸画面 |
 | `GET/POST /api/tasks`、`PATCH/DELETE /api/tasks/<id>`、`POST /api/tasks/<id>/run` | 服务端定时任务：`{"target","command","daily":"08:30"}` 或 `{"every": 分钟}` |
 | `GET/POST /api/device-keys`、`POST /api/device-keys/<id>/revoke` | 设备密钥（管理员） |
 | `GET/POST /api/scripts`、`POST /api/scripts/<id>/versions`（multipart `file`、`version`、`notes`、`publish`） | 小程序和版本 |

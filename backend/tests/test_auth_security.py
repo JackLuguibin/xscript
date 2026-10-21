@@ -228,7 +228,7 @@ class RelayAllowlistTest(unittest.TestCase):
         op = Principal(1, "op", "operator", "web", 1)
         admin = Principal(2, "ad", "admin", "web", 2)
         allowed = [("GET", "/status"), ("GET", "/logs"), ("POST", "/action"), ("POST", "/projects/demo/run"),
-                   ("POST", "/projects/demo/stop"), ("GET", "/projects/demo/files"), ("GET", "/projects/demo/config")]
+                   ("POST", "/projects/demo/stop"), ("GET", "/projects/demo/files"), ("GET", "/projects/demo/config"), ("GET", "/projects/demo/runs")]
         denied = [("POST", "/eval"), ("PUT", "/projects/demo/files"), ("GET", "/projects/demo/zip"),
                   ("PUT", "/projects/demo/zip"), ("DELETE", "/projects/demo"), ("DELETE", "/projects/demo/file"),
                   ("POST", "/projects/demo/debug"), ("GET", "/projects/demo/file"), ("POST", "/status"),
