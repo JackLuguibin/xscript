@@ -67,12 +67,18 @@ class EvalSelectionAction : AnAction() {
 
     override fun actionPerformed(e: AnActionEvent) {
         val project = e.project ?: return
-        val editor = e.getData(CommonDataKeys.EDITOR) ?: return
-        val doc = editor.document
-        val line = doc.getLineNumber(editor.caretModel.offset)
-        val lineText = doc.getText(com.intellij.openapi.util.TextRange(doc.getLineStartOffset(line), doc.getLineEndOffset(line)))
-        val code = evalCode(editor.selectionModel.selectedText, lineText) ?: return
-        XScriptService.get(project).eval(code)
+        evalIn(project, e.getData(CommonDataKeys.EDITOR) ?: return)
+    }
+
+    companion object {
+        /** Evaluates the editor's selection, or its caret line, on the device. */
+        fun evalIn(project: com.intellij.openapi.project.Project, editor: com.intellij.openapi.editor.Editor) {
+            val doc = editor.document
+            val line = doc.getLineNumber(editor.caretModel.offset)
+            val lineText = doc.getText(com.intellij.openapi.util.TextRange(doc.getLineStartOffset(line), doc.getLineEndOffset(line)))
+            val code = evalCode(editor.selectionModel.selectedText, lineText) ?: return
+            XScriptService.get(project).eval(code)
+        }
     }
 }
 

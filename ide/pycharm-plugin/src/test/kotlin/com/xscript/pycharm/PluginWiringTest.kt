@@ -77,8 +77,17 @@ class PluginWiringTest : BasePlatformTestCase() {
         panel.setRows(listOf(DeviceProjectRow("beta", false), DeviceProjectRow("alpha", false), DeviceProjectRow("gamma", false)))
         assertEquals("beta", panel.selected?.name)
         assertFalse(enabled(panel.stopAction))
+        assertTrue(enabled(panel.openLocalAction))
+        assertTrue(enabled(panel.copyNameAction))
+        assertFalse(enabled(panel.evalAction))     // no editor open
+        myFixture.configureByText("x.py", "print(1)\n")
+        assertTrue(enabled(panel.evalAction))
+        assertEquals(listOf(panel.runAction, panel.stopAction, panel.pullAction, panel.openLocalAction, panel.evalAction,
+            panel.copyNameAction, panel.refreshAction),
+            panel.popupGroup.getChildren(null).filter { it !is com.intellij.openapi.actionSystem.Separator })
         panel.setRows(emptyList())
         assertNull(panel.selected)
+        assertFalse(enabled(panel.openLocalAction))
     }
 
     fun testProjectRootFindsTopmostPackage() {
