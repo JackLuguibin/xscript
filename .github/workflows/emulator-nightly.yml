@@ -14,6 +14,9 @@ on:
       - scripts/device_guide_smoke.py
       - scripts/device_pairing_copy_e2e.py
       - scripts/device_float_e2e.py
+      - scripts/device_ui_try_e2e.py
+      - desktop/frontend/src/ui-try.ts
+      - android/app/src/main/assets/tools/ui-form.js
 
 permissions:
   contents: read
