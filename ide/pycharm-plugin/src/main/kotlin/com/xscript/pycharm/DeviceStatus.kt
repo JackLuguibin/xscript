@@ -51,6 +51,9 @@ fun statusTooltip(state: DeviceState, address: String, msg: (String, Array<out A
     is DeviceState.Failed -> msg("status.tip.error", arrayOf(address, state.detail))
 }
 
+/** "Can't connect" checklist; linked from the unreachable notification. */
+const val TROUBLESHOOTING_URL = "https://github.com/JackLuguibin/xscript/blob/main/docs/TROUBLESHOOTING.md"
+
 /** A click opens the connect dialog when something is wrong, else the XScript tool window. */
 fun clickOpensConnect(state: DeviceState): Boolean =
     state is DeviceState.Unreachable || state is DeviceState.PairingNeeded || state is DeviceState.Failed

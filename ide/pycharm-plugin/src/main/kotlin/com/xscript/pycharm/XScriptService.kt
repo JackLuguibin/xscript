@@ -370,7 +370,7 @@ class XScriptService(private val project: Project) : Disposable {
             if (isUnreachable(e)) {
                 val why = XScriptBundle.message("notify.unreachable", settings.target().baseUrl)
                 print("$why\n", ConsoleViewContentType.ERROR_OUTPUT)
-                notifyRetry(why, XScriptBundle.message("notify.retry")) { withPairing(body) }
+                notifyRetry(why, XScriptBundle.message("notify.retry"), helpUrl = TROUBLESHOOTING_URL) { withPairing(body) }
                 return
             }
             val why = if (e is DeviceHttpException) e.message else e.message ?: e.toString()
@@ -423,12 +423,17 @@ class XScriptService(private val project: Project) : Disposable {
     }
 
     /** Error notification with one action button (e.g. retry). */
-    private fun notifyRetry(text: String, action: String, run: () -> Unit) {
-        NotificationGroupManager.getInstance().getNotificationGroup("XScript").createNotification(text, NotificationType.ERROR)
+    private fun notifyRetry(text: String, action: String, helpUrl: String? = null, run: () -> Unit) {
+        val n = NotificationGroupManager.getInstance().getNotificationGroup("XScript").createNotification(text, NotificationType.ERROR)
             .addAction(NotificationAction.createSimpleExpiring(action) {
                 ApplicationManager.getApplication().executeOnPooledThread { run() }
             })
-            .notify(project)
+        if (helpUrl != null) {
+            n.addAction(NotificationAction.createSimple(XScriptBundle.message("notify.help")) {
+                com.intellij.ide.BrowserUtil.browse(helpUrl)
+            })
+        }
+        n.notify(project)
     }
 
     fun notify(text: String, type: NotificationType) {
