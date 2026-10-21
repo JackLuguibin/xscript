@@ -3,7 +3,7 @@ from __future__ import annotations
 
 import pytest
 
-from xscript_desktop.services.device_client import DeviceClient
+from xscript_desktop.services.device_client import DeviceClient, DeviceTarget
 
 from .conftest import FakeAdb
 from .test_context import make_ctx, rpc
@@ -168,3 +168,21 @@ async def test_request_capture_on_an_old_app_is_unsupported_not_an_error():
     finally:
         await c.aclose()
     assert seen == ["POST /capture/request"]
+
+
+async def test_project_runs_lists_the_phone_history(ctx_dev):
+    ctx, dev = ctx_dev
+    await rpc(ctx, "project.create", id=dev, project="runs_x")
+    runs = (await rpc(ctx, "project.runs", id=dev, project="runs_x"))["result"]["runs"]
+    assert [r["failed"] for r in runs] == [True, False]
+    assert runs[0]["stats"]["captures"] == 12 and "unsupported" not in runs[0]
+
+
+async def test_runs_on_an_app_without_the_route_is_unsupported_not_an_error():
+    import httpx
+
+    def handler(req: httpx.Request) -> httpx.Response:
+        return httpx.Response(404, json={"error": "not found"})
+
+    c = DeviceClient(DeviceTarget("127.0.0.1", 9860), transport=httpx.MockTransport(handler))
+    assert await c.runs("p") == {"runs": [], "unsupported": True}

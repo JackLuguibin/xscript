@@ -210,6 +210,17 @@ class DeviceClient:
         r = await self._request("GET", "/projects/%s/file" % self._p(project), params={"path": path, "raw": "1"}, timeout=max(self.timeout, 60))
         return r.content
 
+    async def runs(self, project: str) -> dict[str, Any]:
+        """GET /projects/{name}/runs: the phone's recent runs of this project, newest first.
+
+        Older apps have no such route (404): reported as `{"runs": [], "unsupported": True}` instead of an error."""
+        r = await self._request("GET", "/projects/%s/runs" % self._p(project), ok_status=(404,))
+        if r.status_code == 404:
+            return {"runs": [], "unsupported": True}
+        data = r.json()
+        runs = data.get("runs") if isinstance(data, dict) else None
+        return {"runs": [x for x in runs if isinstance(x, dict)] if isinstance(runs, list) else []}
+
     async def files_or_none(self, project: str) -> list[dict[str, Any]] | None:
         """The project's file list, or None when the project does not exist yet (404)."""
         r = await self._request("GET", "/projects/%s/files" % self._p(project), ok_status=(404,))

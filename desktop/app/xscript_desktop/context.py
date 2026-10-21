@@ -682,6 +682,11 @@ class AppContext:
         async def project_files(params: dict[str, Any]) -> dict[str, Any]:
             return await self._client(params).files(param(params, "project", str))
 
+        @d.method("project.runs")
+        @_map_errors
+        async def project_runs(params: dict[str, Any]) -> dict[str, Any]:
+            return await self._client(params).runs(param(params, "project", str))
+
         @d.method("project.read")
         @_map_errors
         async def project_read(params: dict[str, Any]) -> dict[str, Any]:

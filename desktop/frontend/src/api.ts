@@ -159,6 +159,20 @@ export interface SearchResult {
   truncated: boolean;
 }
 
+/** One entry of GET /projects/{name}/runs (the phone's run history). */
+export interface RunRecord {
+  project: string;
+  start: number;
+  duration_ms: number;
+  exit?: string | null;
+  user_stop?: boolean;
+  log_from: number;
+  log_to: number;
+  outcome: string;
+  failed: boolean;
+  stats?: { captures: number; capture_avg_ms: number; peak_mb: number } | null;
+}
+
 export interface LogEntry {
   seq: number;
   ts: number;
@@ -287,6 +301,7 @@ export function createApi(rpc: RpcClient) {
     moveFile: (id: string, project: string, from: string, to: string) => rpc.call<{ ok: boolean }>("project.move", { id, project, from, to }),
     run: (id: string, project: string) => rpc.call<RunResult>("project.run", { id, project }),
     stop: (id: string, project: string) => rpc.call<RunResult>("project.stop", { id, project }),
+    runs: (id: string, project: string) => rpc.call<{ runs: RunRecord[]; unsupported?: boolean }>("project.runs", { id, project }),
     logs: (id: string, since: number) => rpc.call<{ entries: LogEntry[]; next: number }>("device.logs", { id, since }),
     recordRun: (body: { flow: string; startedAt: number; endedAt: number; status: string; errorNode?: string; errorLine?: number | null; nodes: Array<{ seq: number; node: string; enter_ms: number | null; exit_ms: number | null; summary: string }> }) =>
       rpc.call<{ id: number }>("flow.recordRun", body),

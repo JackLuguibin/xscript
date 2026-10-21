@@ -11,6 +11,7 @@ import { useConfirm } from "./ConfirmDialog";
 import { DebugPanel, useDebugSession } from "./DebugPanel";
 import { ErrorBanner } from "./ErrorBanner";
 import { ProjectSearch } from "./ProjectSearch";
+import { RecentRuns } from "./RecentRuns";
 import { SyncPanel } from "./SyncPanel";
 import { EmptyState } from "./EmptyState";
 import { IconAlert, IconFolder, IconMark, IconPhone, IconRefresh, Spinner } from "./icons";
@@ -600,6 +601,7 @@ export function ProjectsPage({ pollMs = LOG_POLL_MS, onDirtyChange }: { pollMs?:
                 onError={(e) => setError(e)}
                 onSynced={() => void api.files(devId, project).then(setFiles).catch(() => undefined)}
               />
+              <RecentRuns devId={devId} project={project} refresh={running} onError={(e) => setError(e)} />
             </>
           )}
         </section>
