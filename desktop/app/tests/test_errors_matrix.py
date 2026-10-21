@@ -140,13 +140,19 @@ async def test_poll_goes_offline_on_each_failure_mode_then_recovers():
         events = []
         ctx.dispatcher.set_event_sink(lambda t, d: events.append((t, d["state"] if isinstance(d, dict) and "state" in d else None)))
         await call(ctx, "device.connect", transport="lan", address="192.0.2.77:9860")
+        async def reaches(state: str, timeout: float = 5.0) -> str:
+            # wait for the poller instead of a fixed sleep: on a busy CI runner one 50 ms poll can take >0.25 s
+            loop = asyncio.get_running_loop()
+            end = loop.time() + timeout
+            while ctx.devices.list()[0].state != state and loop.time() < end:
+                await asyncio.sleep(0.02)
+            return ctx.devices.list()[0].state
+
         for mode in ("500", "bad_json", "reset"):
             fd.mode = mode
-            await asyncio.sleep(0.25)
-            assert ctx.devices.list()[0].state == "offline", mode
+            assert await reaches("offline") == "offline", mode
             fd.mode = "ok"
-            await asyncio.sleep(0.25)
-            assert ctx.devices.list()[0].state == "online", mode
+            assert await reaches("online") == "online", mode
         assert ("device.state", "offline") in events and ("device.state", "online") in events
         await ctx.shutdown()
     finally:
