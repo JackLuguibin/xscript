@@ -478,9 +478,9 @@
         const p = t.params.find(a => a.arg === k.arg && (a.kind === "arg" || a.kind === "kwonly"));
         if (!p) {
           if (kwarg) continue;
-          // a close parameter name that this call does not fill otherwise: offer it (Ctrl+. renames the keyword)
+          // a close parameter name that this call does not fill otherwise (names of 3+ letters): offer it (Ctrl+. renames the keyword)
           const used = new Set(pos.slice(0, n.args.length).map(a => a.arg).concat(n.keywords.map(x => x.arg)));
-          const suggest = closest(k.arg, t.params.filter(a => (a.kind === "arg" || a.kind === "kwonly") && !used.has(a.arg)).map(a => a.arg));
+          const suggest = k.arg.length > 2 && closest(k.arg, t.params.filter(a => (a.kind === "arg" || a.kind === "kwonly") && !used.has(a.arg)).map(a => a.arg));
           const message = t.label + "() 没有名为 " + k.arg + " 的参数";
           return suggest ? { message: message + "（是不是 " + suggest + "？Ctrl+. 改正）", suggest, at: { line: k.line, col: k.col, length: k.arg.length } } : message;
         }
