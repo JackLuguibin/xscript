@@ -585,3 +585,27 @@ test('imports: "did you mean" for misspelled project modules, only with evidence
   const std = EditorSymbols.build([{path: 'cod.py', content: 'x = 1\n'}, {path: 'main.py', content: 'from code import x\n'}], XSDocs);
   assert.deepEqual(std.problemsIn('main.py'), []);
 });
+
+test('async / await: a bare call of an async def, and await on a plain function', () => {
+  const src = [
+    'import asyncio', 'async def fetch():', '    return 1', 'def plain():', '    return 2',
+    'def wrap():', '    return asyncio.sleep(1)',          // may return an awaitable: not judged
+    'def gen():', '    yield 1',
+    'class C:', '    async def run(self):', '        pass', '    def go(self):', '        pass',
+    'async def main():',
+    '    fetch()',                                         // 16
+    '    await plain()',                                   // 17
+    '    await wrap()', '    x = fetch()', '    await x', '    asyncio.create_task(fetch())', '    await gen()',
+    '    c2 = C()', '    c2.run()',                       // 24
+    '    await c2.go()', ''].join('\n');                  // 25
+  const p = EditorSymbols.build([{path: 'm.py', content: src}], XSDocs);
+  assert.deepEqual(p.problemsIn('m.py').map(w => [w.line, w.col, w.length, w.message]), [
+    [16, 4, 5, 'fetch() 是 async 函数，这样调用不会执行，前面要加 await'],
+    [17, 10, 5, 'plain() 不是 async 函数，返回值不能 await'],
+    [24, 7, 3, 'C.run() 是 async 函数，这样调用不会执行，前面要加 await'],
+    [25, 13, 2, 'C.go() 不是 async 函数，返回值不能 await'],
+  ]);
+  // decorated functions may change what they return: not judged
+  const deco = EditorSymbols.build([{path: 'm.py', content: 'def d(f):\n    return f\n@d\nasync def a():\n    pass\nasync def m():\n    a()\n'}], XSDocs);
+  assert.deepEqual(deco.problemsIn('m.py'), []);
+});
