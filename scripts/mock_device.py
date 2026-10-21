@@ -134,6 +134,66 @@ MIME = {"html": "text/html; charset=utf-8", "js": "text/javascript; charset=utf-
         "svg": "image/svg+xml", "png": "image/png"}
 
 
+# Canned answers for read-only calls a snippet commonly asks about, matching this mock's /status (1080x2400).
+_EVAL_CANNED = {
+    "size": [1080, 2400],
+    "screen_size": [1080, 2400],
+    "current_app": {"packageName": "com.android.launcher3", "activity": ".Launcher"},
+}
+
+
+def _eval_format(value):
+    """Like xscript/runtime/eval_runner.py: None -> "", str as is, everything else JSON."""
+    if value is None:
+        return ""
+    if isinstance(value, str):
+        return value
+    return json.dumps(value, ensure_ascii=False, default=str)
+
+
+def _eval_literal(node):
+    """ast.literal_eval plus + - * / // % on small numbers (`_result = 1 + 1`); anything else raises ValueError."""
+    import ast
+    import operator
+    ops = {ast.Add: operator.add, ast.Sub: operator.sub, ast.Mult: operator.mul, ast.Div: operator.truediv,
+           ast.FloorDiv: operator.floordiv, ast.Mod: operator.mod}
+    if isinstance(node, ast.BinOp) and type(node.op) in ops:
+        a, b = _eval_literal(node.left), _eval_literal(node.right)
+        if not all(isinstance(v, (int, float)) and not isinstance(v, bool) and abs(v) < 1e12 for v in (a, b)):
+            raise ValueError("not a small number")
+        return ops[type(node.op)](a, b)
+    if isinstance(node, ast.UnaryOp) and isinstance(node.op, ast.USub):
+        return -_eval_literal(node.operand)
+    return ast.literal_eval(node)
+
+
+def mock_eval(code):
+    """POST /eval for the mock. Never executes the snippet: it is parsed, and the last `_result = …` is answered when its
+    value is a literal or a known read-only call (`_EVAL_CANNED`, by the called function's name); other calls say they are
+    not simulated. A syntax error comes back as ok=false with the device's traceback-style text."""
+    import ast
+    try:
+        tree = ast.parse(code, "<eval>", "exec")
+    except SyntaxError as e:
+        return {"ok": False, "result": "", "error": "SyntaxError: %s (line %s)" % (e.msg, e.lineno)}
+    value = None
+    for node in tree.body:
+        if isinstance(node, ast.Assign) and any(isinstance(t, ast.Name) and t.id == "_result" for t in node.targets):
+            value = node.value
+    if value is None:
+        return {"ok": True, "result": "", "error": ""}
+    try:
+        return {"ok": True, "result": _eval_format(_eval_literal(value)), "error": ""}
+    except (ValueError, TypeError, SyntaxError, MemoryError, RecursionError, ArithmeticError):
+        pass
+    if isinstance(value, ast.Call):
+        fn = value.func
+        name = fn.attr if isinstance(fn, ast.Attribute) else fn.id if isinstance(fn, ast.Name) else ""
+        if name in _EVAL_CANNED:
+            return {"ok": True, "result": _eval_format(_EVAL_CANNED[name]), "error": ""}
+        return {"ok": True, "result": "<mock device: %s() is not simulated>" % (ast.unparse(fn) if name else "call"), "error": ""}
+    return {"ok": True, "result": "<mock device: expression is not simulated>", "error": ""}
+
 def _png_size(raw):
     """(width, height) from the IHDR chunk, or None when `raw` is not a PNG."""
     if len(raw) < 24 or raw[:8] != b"\x89PNG\r\n\x1a\n" or raw[12:16] != b"IHDR":
@@ -749,7 +809,7 @@ class Handler(BaseHTTPRequestHandler):
             return
         if path == "/eval":
             body = self._body()
-            self._json(200, {"ok": True, "result": "mock:" + (body.get("code") or "")[:20], "error": ""})
+            self._json(200, mock_eval(body.get("code") or ""))
             return
         if path == "/action":
             body = self._body()

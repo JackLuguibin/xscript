@@ -71,7 +71,7 @@ class DeviceClientTest {
     @Test fun evalSelection() {
         val r = open.eval("_result = 1 + 1")
         assertTrue(r.ok)
-        assertEquals("mock:_result = 1 + 1", r.result)
+        assertEquals("2", r.result)
         assertEquals(">>> a = 1\n... _result = a\nmock:a = 1\n_result = a\n",
             formatEval("a = 1\n_result = a\n", EvalResult(true, "mock:a = 1\n_result = a", "")))
         assertEquals(">>> x\nerror: timeout\n", formatEval("x", EvalResult(false, "", "timeout")))
