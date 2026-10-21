@@ -320,4 +320,6 @@ def summarize_status(st: dict[str, Any]) -> dict[str, Any]:
         "running": bool(st.get("running")), "project": st.get("project") or "",
         "accessibility": bool(st.get("accessibility")), "root": bool(st.get("root")),
         "capture": bool(st.get("capture")), "channel": st.get("channel", ""), "cloud": st.get("cloud", ""),
+        # None: an app that does not report capture_via yet (the screen page then shows nothing about capture)
+        "captureVia": str(st.get("capture_via") or "") if "capture_via" in st else None, "captureLost": bool(st.get("capture_lost")),
     }

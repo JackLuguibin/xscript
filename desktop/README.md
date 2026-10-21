@@ -24,7 +24,7 @@
 | **工程页** | 选在线设备 → 工程列表 / 新建 → 文件列表 → 编辑与保存（⌘/Ctrl+S）→ 保存并运行（F6）/ 停止（Shift+F6）→ 按 `seq` 游标跟随 `/logs`（约 1 s 轮询，最多 2000 行）；文件 **新建 / 重命名 / 删除**（入口 `__init__.py` 受保护）；文件夹整体删除（确认框列出其中的文件，`project.deleteFile` 带 `recursive: true`）；**在工程中搜索**（⌘⇧F / Ctrl+Shift+F；区分大小写、正则；结果按文件分组，点开选中匹配；RPC `project.search`）；返回 / 主页 / 最近任务 按键 | `frontend/src/components/ProjectsPage.tsx`、`ProjectSearch.tsx`、`app/xscript_desktop/services/project_search.py` |
 | **Monaco 编辑器** | 本地打包（无 CDN，CSP 下可用），只注册 Python；按需加载（约 4 MB 的独立 chunk）；**补全** 来自 `ide/python-stubs`：`import` / `from … import` / 别名 `x.` / 类成员，带签名与文档。数据重新生成：`python3 frontend/scripts/gen_stub_completions.py`（`--check` 由 pytest 守着）。浏览器演示模式与 jsdom 测试里回退为 `<textarea>` | `frontend/src/editor/`、`components/CodeEditor.tsx` |
 | **本地文件夹同步** | 移植 VS Code 插件 `sync.ts`：`.vscode/.syncignore`、跳过点文件 / `__pycache__` / `*.pyc` / 虚拟环境；**增量**＝设备上大小相同 *且* 内容哈希等于上次本机上传的才跳过；分批 `PUT /files`（每批约 2 MB，推送 `sync.progress`）；全量上传；拉取到本地（只写新增/变化，本地多出的不动）。哈希在应用数据库的 `sync_cache` 表（设计 §14.5）；若数据目录里还有旧的 `sync-cache.json`，启动时导入一次。文件夹必须含 `__init__.py` 或 `build.as`，上限 5000 个文件 / 200 MB。原生「选择文件夹」对话框 | `app/xscript_desktop/services/sync.py`、`store.py`、`dialogs.py`、`frontend/src/components/SyncPanel.tsx` |
-| **屏幕（投屏 + 操控）** | 每台设备只开一条 `GET /screen/stream`（MJPEG，默认 fps=12、scale=0.5、quality=60），扇出给订阅者。最新一帧放内存，页面用 `xsapp://app/_frame/<id>?seq=N` 取（事件 `mirror.frame`，加载中到达的帧丢掉）。开流前先看 `/status.capture`，未授权绝不开流。429 时改轮询 `GET /screen`（约 2 fps，max=480）并按 0.5–8 秒退避重试（每次不早于关闭后 1.5 秒），成功后回到流。3 秒无帧则主动断开且不自动重试。最后一个订阅者离开、断开设备或退出时立刻关闭上游。点按/长按/滑动与按键、文字仍走 `device.action`。设备卡片上的单张截图仍走 `/_shot/`，不占观看槽 | `app/xscript_desktop/services/mirror.py`、`frontend/src/components/MirrorPage.tsx` |
+| **屏幕（投屏 + 操控）** | 每台设备只开一条 `GET /screen/stream`（MJPEG，默认 fps=12、scale=0.5、quality=60），扇出给订阅者。最新一帧放内存，页面用 `xsapp://app/_frame/<id>?seq=N` 取（事件 `mirror.frame`，加载中到达的帧丢掉）。开流前先看 `/status.capture`，未授权绝不开流。页面顶部的「截图状态」读 `/status.capture_via` / `capture_lost`（`components/CaptureStatus.tsx`）：能截图时工具栏显示方式，不能时显示原因和恢复步骤，「重新检查」调 `device.refresh`。429 时改轮询 `GET /screen`（约 2 fps，max=480）并按 0.5–8 秒退避重试（每次不早于关闭后 1.5 秒），成功后回到流。3 秒无帧则主动断开且不自动重试。最后一个订阅者离开、断开设备或退出时立刻关闭上游。点按/长按/滑动与按键、文字仍走 `device.action`。设备卡片上的单张截图仍走 `/_shot/`，不占观看槽 | `app/xscript_desktop/services/mirror.py`、`frontend/src/components/MirrorPage.tsx` |
 | **断点调试** | 移植 VS Code 插件 `dap.ts`：Python 侧 `DebugSession` 当 DAP 客户端（页面不能联网），经 `POST /projects/{name}/debug` → `/debug/connect`（409 时重试）→ `/debug/request` + `/debug/messages?since=` 轮询驱动设备上的 debugpy；握手顺序 initialize → attach（不等响应）→ `initialized` → setBreakpoints → setExceptionBreakpoints(uncaught) → configurationDone。Monaco **装订线断点**（点行号左侧或 F9），暂停行高亮并自动打开对应文件；工具栏 调试/继续（F5）、单步跳过（F10）、进入（F11）、跳出（Shift+F11）、暂停、分离、停止（Shift+F5）；**调用栈**（工程外的帧会标出来）、**变量**（Locals 自动展开，Globals 与子对象按需展开）、在栈帧上**求值**、调试控制台。停止时先发 DAP `disconnect(terminateDebuggee=false)` 再关通道，然后只停自己启动的脚本（设备忙时报 409「已在运行」，不会停别人的脚本）；会话中切换断点会立即下发 | `app/xscript_desktop/services/debugger.py`、`frontend/src/components/DebugPanel.tsx` |
 | **中 / 英界面** | 侧栏底部切换，记住选择，设置 `<html lang>`；两套词典键由类型和测试保证一致 | `frontend/src/strings.ts`、`src/i18n.ts` |
 | **已保存设备** | SQLite `desktop.db`（WAL，专用线程）。连接成功后记住设备；**不保存 adb 自动分配的本地端口**，下次按序列号重新 `forward`。断开后卡片留在列表里显示离线，忘记才删除。可改名称、分组、备注，以及「自动重连」：第一次连上的设备默认勾上，打开窗口时并行重连，ADB 设备重新插上（或刚授权）时也会自动连接；设备页顶部「自动重连设备」是全局开关（设计 §14.5）。数据库损坏会改名后重建并提示；来自更新版本则只读。不写密钥 | `app/xscript_desktop/services/store.py`、`frontend/src/components/DevicePage.tsx` |
@@ -79,6 +79,14 @@
 | ![逐项检查浅色](../docs/images/desktop-connect-check-light.png) | ![逐项检查深色](../docs/images/desktop-connect-check-dark.png) |
 
 重新生成：手机上先强制停止 XScript，然后把上面的 `--run-js` 换成 `tools/screenshot-connect-check.js`、`--screenshot-delay 9`。
+
+屏幕页的「截图状态」卡片（模拟器冷启动后系统录屏授权失效、无障碍关闭）：
+
+| 浅色 | 深色 |
+| --- | --- |
+| ![截图权限已失效浅色](../docs/images/desktop-capture-lost-light.png) | ![截图权限已失效深色](../docs/images/desktop-capture-lost-dark.png) |
+
+重新生成：模拟器冷启动后关闭无障碍、打开 XScript，然后 `PYTHON_KEYRING_BACKEND=keyring.backends.null.Keyring python -m xscript_desktop --data-dir <临时目录> --adb <adb> --connect-adb <serial> --screenshot out.png --run-js tools/screenshot-capture-status.js --screenshot-delay 8 --theme light --size 1180x760`（`PYTHON_KEYRING_BACKEND` 让这次运行不把配对码写进系统钥匙串）。
 
 ## P5 安装包与更新（已实现）
 

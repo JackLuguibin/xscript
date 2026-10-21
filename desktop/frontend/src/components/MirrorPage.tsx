@@ -7,6 +7,7 @@ import {
 } from "../mirror";
 import { t } from "../strings";
 import { useCurrentDevice } from "../device-context";
+import { CaptureCard, CaptureChip, captureState } from "./CaptureStatus";
 import { EmptyState } from "./EmptyState";
 import { ErrorBanner } from "./ErrorBanner";
 import { IconAlert, IconMonitor, IconPhone } from "./icons";
@@ -49,6 +50,7 @@ export function MirrorPage() {
   const [mirrorState, setMirrorState] = useState("");
   const [reason, setReason] = useState("");
   const [error, setError] = useState<unknown>(null);
+  const [rechecking, setRechecking] = useState(false);
   const { toast, toasts } = useToast();
   const [text, setText] = useState("");
   const [mode, setMode] = useState<PointerMode>("control");
@@ -352,9 +354,22 @@ export function MirrorPage() {
 
   const blocked = mirrorState === "blocked";
   const stalled = mirrorState === "stalled";
+  const capture = captureState(device.info);
   return (
     <div className="page">
       {error !== null && <ErrorBanner error={error} onDismiss={() => setError(null)} />}
+      <CaptureCard
+        state={capture}
+        busy={rechecking}
+        onRecheck={() => {
+          setRechecking(true);
+          void api
+            .refresh(devId)
+            .then(() => (playing ? api.mirrorRetry(devId).then(applySnap) : undefined))
+            .catch((e) => setError(e))
+            .finally(() => setRechecking(false));
+        }}
+      />
       {reason === "viewers_full" && (
         <Alert tone="warn" role="status">
           <IconAlert size={16} />
@@ -382,6 +397,7 @@ export function MirrorPage() {
             </Button>
           ))}
         </div>
+        <CaptureChip state={capture} />
         <span className="grow" />
         {(["back", "home", "recents"] as const).map((k) => (
           <Button size="sm" key={k} onClick={() => void send({ type: "key", name: k })}>

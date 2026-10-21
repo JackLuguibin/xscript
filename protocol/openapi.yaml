@@ -1154,7 +1154,12 @@ components:
           type: string
           description: Channel currently used for gestures and node actions
         capture: { type: boolean }
-        capture_source: { type: string }
+        capture_source: { type: string, description: "Home-screen label of the capture state (localized, for display)" }
+        capture_via:
+          type: string
+          enum: [projection, accessibility, root, ""]
+          description: Capture method the next screenshot will use under the current run mode; "" when none can capture. Absent on v0.4.0 and older apps.
+        capture_lost: { type: boolean, description: "The system screen-recording grant went away (reboot, revoked); another method may still capture" }
         notification_listener:
           type: boolean
           description: 通知使用权 granted and connected (full notification events)

@@ -29,6 +29,10 @@ export interface DeviceInfo {
   accessibility: boolean;
   root: boolean;
   capture: boolean;
+  /** Method the next screenshot uses: projection / accessibility / root, "" when none; null on older apps. */
+  captureVia?: string | null;
+  /** The system screen-recording grant went away (reboot, revoked). */
+  captureLost?: boolean;
   channel: string;
   cloud: string;
 }
