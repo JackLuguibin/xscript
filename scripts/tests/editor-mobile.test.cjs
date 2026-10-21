@@ -185,6 +185,17 @@ test('Web IDE on phone-sized viewports', {skip: CHROME || REMOTE ? false : 'no l
       assert.equal(await b.eval(() => getComputedStyle(document.getElementById('sidebar-toggle')).display), 'none');
       assert.equal(await b.eval(() => getComputedStyle(document.getElementById('files-drawer')).visibility), 'visible');
       assert.equal((await b.eval(rect, '#files-drawer')).w, 230);
+      // the 文件 heading (title + 搜索 / 新建 / 文件夹 / 刷新) stays on one line and inside the sidebar
+      const head = await b.eval(() => {
+        const h = document.getElementById('files-heading'), side = document.getElementById('files-drawer').getBoundingClientRect();
+        const items = [h.querySelector('strong'), ...h.querySelectorAll('button')].map(e => e.getBoundingClientRect());
+        const title = h.querySelector('strong').getBoundingClientRect();
+        return {titleH: title.height, titleW: title.width, h: h.getBoundingClientRect().height, tops: items.map(r => Math.round(r.top + r.height / 2)), right: Math.max(...items.map(r => r.right)), sideRight: side.right};
+      });
+      assert.ok(head.titleH < 20 && head.titleW > 20, 'the 文件 title is not squeezed into a vertical stack: ' + JSON.stringify(head));
+      assert.ok(head.h < 44, 'heading is one row high (two rows measured 56 px): ' + JSON.stringify(head));
+      assert.equal(new Set(head.tops).size, 1, 'title and buttons share one row: ' + JSON.stringify(head));
+      assert.ok(head.right <= head.sideRight, 'buttons stay inside the sidebar: ' + JSON.stringify(head));
     });
     assert.deepEqual(b.errors, [], 'no page errors');
   } finally {
