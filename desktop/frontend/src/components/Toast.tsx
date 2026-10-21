@@ -21,7 +21,7 @@ interface Item {
 }
 
 /** Page-local success toasts that dismiss themselves (an error stays a banner the user dismisses). */
-export function useToast(): { toast: (text: string, action?: ToastAction) => void; toasts: ReactNode } {
+export function useToast(): { toast: (text: string, action?: ToastAction) => void; toasts: ReactNode; runLatestAction: () => boolean } {
   const [items, setItems] = useState<Item[]>([]);
   const seq = useRef(0);
   const timers = useRef(new Map<number, ReturnType<typeof setTimeout>>());
@@ -37,6 +37,17 @@ export function useToast(): { toast: (text: string, action?: ToastAction) => voi
     const id = ++seq.current;
     setItems((cur) => [...cur, { id, text, action }].slice(-MAX_TOASTS));
     timers.current.set(id, setTimeout(() => close(id), action ? ACTION_TOAST_MS : TOAST_MS));
+  }, [close]);
+
+  /** Runs (and closes) the newest toast that still offers an action, such as 撤销 for Ctrl/Cmd+Z; false when none. */
+  const itemsRef = useRef(items);
+  itemsRef.current = items;
+  const runLatestAction = useCallback(() => {
+    const latest = [...itemsRef.current].reverse().find((x) => x.action);
+    if (!latest) return false;
+    close(latest.id);
+    latest.action!.run();
+    return true;
   }, [close]);
 
   useEffect(() => {
@@ -64,5 +75,5 @@ export function useToast(): { toast: (text: string, action?: ToastAction) => voi
       ))}
     </div>
   );
-  return { toast, toasts };
+  return { toast, toasts, runLatestAction };
 }

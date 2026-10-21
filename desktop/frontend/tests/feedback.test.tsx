@@ -1,4 +1,5 @@
 import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
+import { useState } from "react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { ServicesContext } from "../src/app-context";
 import { createApi, type Device } from "../src/api";
@@ -101,11 +102,14 @@ describe("ErrorBanner", () => {
 });
 
 function ToastProbe({ onUndo = () => {} }: { onUndo?: () => void } = {}) {
-  const { toast, toasts } = useToast();
+  const { toast, toasts, runLatestAction } = useToast();
+  const [latest, setLatest] = useState("");
   return (
     <>
       <button onClick={() => toast("已发送")}>go</button>
       <button onClick={() => toast("已删除 a.py", { label: "撤销", run: onUndo })}>del</button>
+      <button onClick={() => setLatest(String(runLatestAction()))}>latest</button>
+      <span data-testid="latest">{latest}</span>
       {toasts}
     </>
   );
@@ -128,6 +132,21 @@ describe("toasts", () => {
 });
 
 describe("action toasts", () => {
+  it("runLatestAction runs the newest action toast once, then reports none left", () => {
+    const onUndo = vi.fn();
+    render(<ToastProbe onUndo={onUndo} />);
+    fireEvent.click(screen.getByRole("button", { name: "go" }));
+    fireEvent.click(screen.getByRole("button", { name: "latest" }));
+    expect(screen.getByTestId("latest").textContent).toBe("false");
+    fireEvent.click(screen.getByRole("button", { name: "del" }));
+    fireEvent.click(screen.getByRole("button", { name: "latest" }));
+    expect(onUndo).toHaveBeenCalledTimes(1);
+    expect(screen.getByTestId("latest").textContent).toBe("true");
+    fireEvent.click(screen.getByRole("button", { name: "latest" }));
+    expect(screen.getByTestId("latest").textContent).toBe("false");
+    expect(onUndo).toHaveBeenCalledTimes(1);
+  });
+
   it("show the action, run it once and close; stay up for ACTION_TOAST_MS", () => {
     vi.useFakeTimers();
     const onUndo = vi.fn();

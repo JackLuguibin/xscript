@@ -31,7 +31,7 @@ export const LOG_POLL_MS = 1000;
 export function ProjectsPage({ pollMs = LOG_POLL_MS, onDirtyChange }: { pollMs?: number; onDirtyChange?: (dirty: boolean) => void }) {
   const { api } = useServices();
   const { confirm, dialog } = useConfirm();
-  const { toast, toasts } = useToast();
+  const { toast, toasts, runLatestAction } = useToast();
   // the device comes from the shell (top-bar switcher); switching while dirty asks there (design §14.5)
   const { devices, devId } = useCurrentDevice();
   const [projects, setProjects] = useState<ProjectSummary[] | null>(null);
@@ -168,8 +168,54 @@ export function ProjectsPage({ pollMs = LOG_POLL_MS, onDirtyChange }: { pollMs?:
       }
       setFileForm(null);
       await reloadFiles();
+      const dev = devId;
+      const proj = project;
+      const from = f.from;
+      if (f.mode === "new") {
+        toast(t.files.created(to), {
+          label: t.files.undo,
+          run: () =>
+            void act("undo", async () => {
+              // only an untouched new file is removed: anything typed into it since is kept
+              const now = await api.readFile(dev, proj, to);
+              if (now.content !== "") {
+                setNotice(t.files.undoCreateChanged(to));
+                return;
+              }
+              await api.deleteFile(dev, proj, to);
+              if (proj !== projectRef.current) return;
+              setFile((cur) => (cur?.path === to ? null : cur));
+              await reloadFiles();
+              toast(t.files.undone);
+            }),
+        });
+      } else {
+        toast(t.files.renamed(from, to), {
+          label: t.files.undo,
+          run: () =>
+            void act("undo", async () => {
+              await api.moveFile(dev, proj, to, from);
+              if (proj !== projectRef.current) return;
+              setFile((cur) => (cur?.path === to ? { ...cur, path: from } : cur));
+              await reloadFiles();
+              toast(t.files.undone);
+            }),
+        });
+      }
     });
   };
+
+  // Ctrl/Cmd+Z outside text fields and the code editor undoes the latest file operation that still offers 撤销.
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key.toLowerCase() !== "z" || !(e.ctrlKey || e.metaKey) || e.shiftKey || e.altKey) return;
+      const el = e.target as HTMLElement | null;
+      if (el && (el.closest("input, textarea, select, [contenteditable=''], [contenteditable='true'], .monaco-editor"))) return;
+      if (runLatestAction()) e.preventDefault();
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [runLatestAction]);
 
   const deleteFile = async (path: string) => {
     if (!(await confirm({ message: t.files.confirmDelete(path), confirmLabel: t.confirm.del, danger: true }))) return;
@@ -489,7 +535,14 @@ export function ProjectsPage({ pollMs = LOG_POLL_MS, onDirtyChange }: { pollMs?:
                   const entry = f.path === "__init__.py";
                   return (
                     <li key={f.path} className="file-row">
-                      <Button variant="bare" className={"list-btn mono" + (file?.path === f.path ? " active" : "")} onClick={() => void openFile(f.path)}>
+                      <Button variant="bare" className={"list-btn mono" + (file?.path === f.path ? " active" : "")} onClick={() => void openFile(f.path)}
+                        aria-keyshortcuts={entry ? undefined : "Delete"}
+                        onKeyDown={(e) => {
+                          if (entry || !(e.key === "Delete" || (e.key === "Backspace" && e.metaKey))) return;
+                          e.preventDefault();
+                          void deleteFile(f.path);
+                        }}
+                      >
                         <span className="list-name" title={f.path}>{f.path}</span>
                         <span className="muted">{f.size} B</span>
                       </Button>
