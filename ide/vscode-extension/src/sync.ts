@@ -168,6 +168,54 @@ export function planEmptiedFolders(local: Iterable<string>, remote: RemoteFile[]
   return [...cands].filter((d) => !dirsOf(d).some((a) => cands.has(a))).sort();
 }
 
+export interface SyncPreview {
+  /** Local files the device does not have. */
+  added: string[];
+  /** Local files the device has, but changed since the last upload from here (or never uploaded from here). */
+  changed: string[];
+  unchanged: number;
+  /** With syncDeletes: device files the upload would delete (after the usual confirmation) and the folders they empty. */
+  deletes: string[];
+  folders: string[];
+  /** Without syncDeletes: device-only files an upload leaves alone. */
+  kept: string[];
+}
+
+/** What "Run" (incremental upload) would do, computed without sending or deleting anything. */
+export function previewSync(files: UploadFile[], remote: RemoteFile[], cache: SyncCache, synced: (rel: string) => boolean, syncDeletes: boolean): SyncPreview {
+  const plan = planUpload(files, remote, cache);
+  const onDevice = new Set(remote.map((f) => f.path));
+  const sent = plan.upload.map((f) => f.path).sort();
+  const local = files.map((f) => f.path);
+  const gone = planDeletes(local, remote, synced);
+  return {
+    added: sent.filter((p) => !onDevice.has(p)),
+    changed: sent.filter((p) => onDevice.has(p)),
+    unchanged: plan.skipped,
+    deletes: syncDeletes ? gone : [],
+    folders: syncDeletes ? planEmptiedFolders(local, remote, gone) : [],
+    kept: syncDeletes ? [] : gone,
+  };
+}
+
+/** The preview as text for the output channel. */
+export function describePreview(name: string, p: SyncPreview, max = 30): string {
+  const out = ["Preview of \"" + name + "\" (nothing was sent or deleted):"];
+  const section = (title: string, paths: string[]) => {
+    if (!paths.length) return;
+    out.push("", title + " (" + paths.length + "):", ...describeDeletes(paths, max).split("\n").map((l) => "  " + l));
+  };
+  section("New on the device", p.added);
+  section("Changed, would be sent again", p.changed);
+  out.push("", "Unchanged, skipped: " + p.unchanged);
+  section("Would be deleted on the device after you confirm (xscript.syncDeletes)", p.deletes);
+  section("Folders those deletes leave empty, removed too", p.folders.map((d) => d + "/"));
+  section("Only on the device, kept (turn on xscript.syncDeletes to delete them)", p.kept);
+  if (!p.added.length && !p.changed.length && !p.deletes.length) out.push("", "Everything is up to date.");
+  out.push("", "Run uploads exactly this; Upload Project sends every file again.");
+  return out.join("\n");
+}
+
 /** The file list for the confirmation: at most `max` lines, then "… and N more". */
 export function describeDeletes(paths: string[], max = 30): string {
   const lines = paths.slice(0, max);

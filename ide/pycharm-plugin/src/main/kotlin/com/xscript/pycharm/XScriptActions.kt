@@ -27,6 +27,23 @@ open class UploadAndRunAction(private val full: Boolean = false) : AnAction() {
 /** Sends every file again (after the project was changed on the phone, or to be sure), then runs. */
 class FullUploadAndRunAction : UploadAndRunAction(full = true)
 
+/** Shows in the XScript tool window what Upload and Run would send and delete; nothing on the device changes. */
+class PreviewUploadAction : AnAction() {
+    override fun getActionUpdateThread() = ActionUpdateThread.BGT
+    override fun update(e: AnActionEvent) { e.presentation.isEnabled = e.project != null }
+
+    override fun actionPerformed(e: AnActionEvent) {
+        val project = e.project ?: return
+        val svc = XScriptService.get(project)
+        val root = svc.projectRoot(e.getData(CommonDataKeys.VIRTUAL_FILE))
+        if (root == null) {
+            Messages.showWarningDialog(project, XScriptBundle.message("run.noProject"), "XScript")
+            return
+        }
+        svc.previewUpload(root)
+    }
+}
+
 class StopAction : AnAction() {
     override fun getActionUpdateThread() = ActionUpdateThread.BGT
     override fun update(e: AnActionEvent) { e.presentation.isEnabled = e.project != null }

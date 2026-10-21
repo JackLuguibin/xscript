@@ -82,6 +82,42 @@ class XScriptService(private val project: Project) : Disposable {
         }.queue()
     }
 
+    /** Prints what Upload and Run would send and delete for `root`, touching nothing on the device. */
+    fun previewUpload(root: Path) {
+        val name = root.fileName.toString()
+        object : Task.Backgroundable(project, XScriptBundle.message("task.preview", name), true) {
+            override fun run(indicator: ProgressIndicator) {
+                withPairing { client ->
+                    val files = LocalProject.collectFiles(root)
+                    val ignore = LocalProject.loadIgnore(root)
+                    val props = com.intellij.ide.util.PropertiesComponent.getInstance(project)
+                    val cache: Map<String, String> = props.getValue(UploadPlanner.cacheKey(client.target, name))?.let {
+                        try { com.google.gson.Gson().fromJson<Map<String, String>>(it, object : com.google.gson.reflect.TypeToken<Map<String, String>>() {}.type) } catch (_: Exception) { null }
+                    } ?: emptyMap()
+                    val p = UploadPlanner.preview(files, client.projectFiles(name) ?: emptyList(), cache,
+                        { LocalProject.isSyncedPath(it, ignore) }, XScriptSettings.get().syncDeletes)
+                    val more: (Int) -> String = { XScriptBundle.message("delete.more", it) }
+                    val out = StringBuilder(XScriptBundle.message("preview.title", name)).append('\n')
+                    fun section(key: String, paths: List<String>) {
+                        if (paths.isEmpty()) return
+                        out.append('\n').append(XScriptBundle.message(key, paths.size)).append('\n')
+                            .append(UploadPlanner.describeDeletes(paths, more = more)).append('\n')
+                    }
+                    section("preview.added", p.added)
+                    section("preview.changed", p.changed)
+                    out.append('\n').append(XScriptBundle.message("preview.unchanged", p.unchanged)).append('\n')
+                    section("preview.deletes", p.deletes)
+                    section("preview.folders", p.folders.map { "$it/" })
+                    section("preview.kept", p.kept)
+                    if (p.added.isEmpty() && p.changed.isEmpty() && p.deletes.isEmpty()) out.append('\n').append(XScriptBundle.message("preview.upToDate")).append('\n')
+                    out.append('\n').append(XScriptBundle.message("preview.footer")).append('\n')
+                    print(out.toString(), ConsoleViewContentType.SYSTEM_OUTPUT)
+                    showLog()
+                }
+            }
+        }.queue()
+    }
+
     /**
      * "Delete files removed locally" (off by default): device files that are not in the local project and that an
      * upload manages (.syncignore'd and skipped paths are never touched) are listed and deleted only when confirmed.

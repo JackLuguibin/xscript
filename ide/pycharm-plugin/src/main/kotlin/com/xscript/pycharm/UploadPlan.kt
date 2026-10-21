@@ -7,6 +7,18 @@ import java.util.Base64
 /** What to send this time and the hashes to remember once it went through (the VS Code extension's sync.ts planUpload). */
 data class UploadPlan(val upload: List<UploadFile>, val skipped: Int, val hashes: Map<String, String>)
 
+/** What "Upload and Run" would do, computed without sending or deleting anything (VS Code's sync.ts previewSync). */
+data class SyncPreview(
+    val added: List<String>,
+    val changed: List<String>,
+    val unchanged: Int,
+    /** With "delete files removed locally": the files an upload would delete after the confirmation, and the folders they empty. */
+    val deletes: List<String>,
+    val folders: List<String>,
+    /** Without it: device-only files an upload leaves alone. */
+    val kept: List<String>,
+)
+
 object UploadPlanner {
     fun bytes(f: UploadFile): ByteArray =
         if (f.encoding == "base64") Base64.getDecoder().decode(f.content) else f.content.toByteArray(StandardCharsets.UTF_8)
@@ -63,6 +75,22 @@ object UploadPlanner {
         local.forEach { keep += dirsOf(it) }
         val cands = gone.flatMap(::dirsOf).filter { it !in keep }.toSet()
         return cands.filter { d -> dirsOf(d).none { it in cands } }.sorted()
+    }
+
+    fun preview(files: List<UploadFile>, remote: List<RemoteFile>, cache: Map<String, String>, synced: (String) -> Boolean, syncDeletes: Boolean): SyncPreview {
+        val p = plan(files, remote, cache)
+        val onDevice = remote.map { it.path }.toHashSet()
+        val sent = p.upload.map { it.path }.sorted()
+        val local = files.map { it.path }
+        val gone = planDeletes(local, remote, synced)
+        return SyncPreview(
+            added = sent.filter { it !in onDevice },
+            changed = sent.filter { it in onDevice },
+            unchanged = p.skipped,
+            deletes = if (syncDeletes) gone else emptyList(),
+            folders = if (syncDeletes) planEmptiedFolders(local, remote, gone) else emptyList(),
+            kept = if (syncDeletes) emptyList() else gone,
+        )
     }
 
     /** The file list for the confirmation: at most `max` lines, then "… and N more". */

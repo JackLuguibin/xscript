@@ -49,6 +49,7 @@ cd ide/pycharm-plugin
 | Enable / Disable XScript Completion | | 把插件自带的存根作为模块库 “XScript stubs” 加入或移除 |
 | XScript Settings… | | 打开 **Settings → Tools → XScript** |
 
+- **预览上传**：Tools → XScript → Preview Upload (Dry Run)，不改动手机，只在 XScript 工具窗口里列出「上传并运行」会新增、重新发送、跳过和删除的文件。
 - **工程**：当前文件之上、含有 `__init__.py` 或 `build.as` 的最顶层文件夹；文件夹名就是手机上的工程名。上传时跳过隐藏文件、`__pycache__`、`.pyc`、虚拟环境，并遵守 `.vscode/.syncignore`（与 VS Code 扩展同一个文件）。设备上有、本地已删除的文件默认保留；在设置里勾选「上传时同步删除本地已删除的文件」后，每次上传会先列出这些文件，确认后才在设备上删除（被 `.syncignore` 忽略的文件、点开头的文件、`__pycache__` 和工程入口 `__init__.py` 永远不删；删除后变空的文件夹连同其中的 `__pycache__` 一起删除，也在同一个对话框里列出；同 VS Code 的 `xscript.syncDeletes`）。
 - **配对码**：手机默认需要配对码（XScript 首页「开发与连接 → 配对码」）。第一次遇到 401 时插件会弹窗询问，保存在 IDE 的密码库（macOS 钥匙串等），也可以在设置页填写。按设备地址分别保存。
 - **补全**：打开像 XScript 工程的项目时，插件会提示「启用 XScript 补全」。它只是把插件目录里的 `stubs/`（由 `scripts/gen_stubs.py` 生成，与 VS Code 扩展内置的是同一份）加为模块库，不往工程里复制任何文件；关闭时移除这个库。
