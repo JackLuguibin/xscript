@@ -24,4 +24,4 @@ xscript-mcp = "xscript_mcp.server:main"
 include = ["xscript_mcp*"]
 
 [tool.setuptools.package-data]
-xscript_mcp = ["api_catalog.json"]
+xscript_mcp = ["api_catalog.json", "agent_rules.md"]

@@ -237,7 +237,8 @@ python3.10 -m venv .venv
 ### 编辑器与 MCP
 
 - [IDE 工具说明](ide/README.md)：安装 VS Code / Cursor 扩展，上传工程并查看日志。
-- [MCP 服务说明](ide/mcp-server/README.md)：为支持 MCP 的客户端配置设备访问。
+- [Trae](ide/README.md#trae)：Trae 直接安装同一个 vsix 扩展，并按相同 JSON 配置 MCP。
+- [MCP 服务说明](ide/mcp-server/README.md)：为支持 MCP 的客户端配置设备访问；`get_coding_rules` 提供 XScript 编码规则，`get_module_apis` / `search_api` 提供 API 目录，方便 AI 生成和检查符合规则的代码。
 - [类型存根](ide/python-stubs/README.md)：配置 `xscript.*` 与 `ascript.*` 自动补全。
 
 ## 开发与测试

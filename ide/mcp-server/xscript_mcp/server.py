@@ -24,6 +24,11 @@ def _catalog() -> dict:
     return json.loads(path.read_text(encoding="utf-8"))
 
 
+def _rules() -> str:
+    # Packaged copy of docs/AGENT_RULES.md (tests keep the two identical), so non-editable installs have it too.
+    return Path(__file__).with_name("agent_rules.md").read_text(encoding="utf-8")
+
+
 def _json(data) -> str:
     return json.dumps(data, ensure_ascii=False, indent=2)
 
@@ -414,6 +419,22 @@ def search_api(query: str) -> str:
         if needle in blob:
             found.append(mod)
     return _json({"query": query, "modules": found})
+
+
+@mcp.tool()
+def get_coding_rules() -> str:
+    """XScript coding rules (docs/AGENT_RULES.md). Read before writing or reviewing a script.
+
+    Covers how to locate UI elements, which API family to use, project layout and the device workflow. Use
+    get_module_apis / search_api for exact signatures.
+    """
+    return _rules()
+
+
+@mcp.resource("xscript://rules", name="coding_rules", description="XScript coding rules for AI agents",
+              mime_type="text/markdown")
+def coding_rules_resource() -> str:
+    return _rules()
 
 
 def main() -> None:
