@@ -11,10 +11,11 @@
   --divider: #e5e5e5;
   --text: #3b3b3b;
   --text-strong: #1f1f1f;
-  --muted: #8a8a8a;
+  --muted: #6e6e6e;
   --input: #ffffff;
   --accent: #007acc;
   --accent-hover: #0062a3;
+  --link: #0063b1; /* links on page / sidebar backgrounds: ≥4.5:1 (the accent blue is 4.3 on #f3f3f3) */
   --accent-soft: rgba(0, 122, 204, 0.12);
   --ok: #2e8b57;
   --bad: #d93a3a;
@@ -47,7 +48,8 @@
   --divider: #3c3c3c;
   --text: #cccccc;
   --text-strong: #e7e7e7;
-  --muted: #8b8b8b;
+  --muted: #9d9d9d;
+  --link: #4daafc; /* the accent #007acc is only ~3:1 on dark backgrounds */
   --input: #3c3c3c;
   --accent-soft: rgba(0, 122, 204, 0.22);
   --ok: #4ec9b0;
@@ -68,7 +70,7 @@
 * { box-sizing: border-box; }
 html, body { margin: 0; height: 100%; }
 body { background: var(--bg); color: var(--text); }
-a { color: var(--accent); }
+a { color: var(--link); }
 [hidden] { display: none !important; }
 
 ::-webkit-scrollbar { width: 8px; height: 8px; }
