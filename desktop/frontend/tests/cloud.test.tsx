@@ -120,6 +120,16 @@ describe("CloudPage batch commands (P4.3)", () => {
     expect(transport.sent.find((m) => m.method === "cloud.command")?.params).toMatchObject({ ids: ["farm-01", "farm-05"], action: "run", project: "night-run" });
   });
 
+  it("marks a device whose last run crashed with a red badge and the error in its tooltip", async () => {
+    await openDevices("xsk_view", "victor", "viewer");
+    const badges = screen.getAllByText(t.cloud.dev.crashed);
+    expect(badges).toHaveLength(1);
+    const badge = badges[0].closest(".badge") as HTMLElement;
+    expect(badge.className).toContain("bad");
+    expect(badge.getAttribute("title")).toContain("CaptureError");
+    expect(badge.closest("tr")?.textContent).toContain("farm-02");
+  });
+
   it("stop asks first", async () => {
     const { transport } = await openDevices("xsk_admin", "alice", "admin");
     fireEvent.click(screen.getByLabelText(t.cloud.dev.selectRow("farm-01")));

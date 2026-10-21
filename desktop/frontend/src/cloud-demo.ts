@@ -27,6 +27,7 @@ export function demoCloudDevices(): CloudDevice[] {
       width: 1080,
       height: 2400,
       last_seen: 1_792_000_000 - i * 3600,
+      crash: i === 1 ? { project: "daily-signin", exit: "1", time: 1_791_999_000, error: "CaptureError: 截图失败：系统录屏授权已失效" } : null,
     };
   });
 }

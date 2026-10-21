@@ -223,7 +223,19 @@ def device_view(d: dict[str, Any]) -> dict[str, Any]:
     out["id"] = str(out["id"] or "")
     out["online"] = bool(out["online"])
     out["running"] = bool(out["running"])
+    out["crash"] = crash_view(d.get("last_run"), out["running"])
     return out
+
+
+def crash_view(last_run: Any, running: bool) -> dict[str, Any] | None:
+    """The last run's crash (project, exit, time, last stderr line), or None when it ended cleanly or a run is in progress."""
+    if running or not isinstance(last_run, dict) or not last_run.get("crashed"):
+        return None
+    tail = last_run.get("tail") if isinstance(last_run.get("tail"), list) else []
+    error = next((str(t.get("line") or "").strip() for t in reversed(tail)
+                  if isinstance(t, dict) and t.get("stream") == "stderr"), "")
+    return {"project": str(last_run.get("project") or ""), "exit": str(last_run.get("exit") or ""),
+            "time": last_run.get("time") if isinstance(last_run.get("time"), (int, float)) else None, "error": error[:200]}
 
 
 async def list_devices(c: BackendClient, *, q: str = "", group: str = "", app: str = "", online: bool | None = None,
