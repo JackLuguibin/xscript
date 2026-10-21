@@ -672,6 +672,46 @@
       }
       return out.sort((a, b) => a.line - b.line || a.col - b.col);
     }
+    /**
+     * Statements that can never run because an earlier statement of the same block is a return / raise / continue /
+     * break: one faded mark per source line (severity "unused"). A `yield` right after a return (the empty-generator
+     * idiom) and lines marked `# noqa` are left alone.
+     */
+    unreachableIn(path) {
+      const f = this.files.get(path); if (!f || !f.root.node) return [];
+      f.lines = f.lines || f.text.split("\n");
+      const WHY = { Return: "return", Raise: "raise", Continue: "continue", Break: "break" }, out = [];
+      const isYield = st => st.type === "Expr" && st.value && (st.value.type === "Yield" || st.value.type === "YieldFrom");
+      const block = list => {
+        const i = list.findIndex(st => WHY[st.type]); if (i < 0 || i === list.length - 1) return;
+        const first = list[i + 1]; if (isYield(first) || first.line === list[i].line) return;   // `return; x` on one line: not marked
+        // the dead code runs from the next statement to the end of the block: lines indented at least as deep
+        // (past the last line any of its nodes starts on, so continuation lines of a bracket count too)
+        let last = first.line;
+        const deepest = x => { if (Array.isArray(x)) return x.forEach(deepest); if (!x || typeof x !== "object") return; if (x.line > last) last = x.line; for (const k of Object.keys(x)) if (x[k] && typeof x[k] === "object") deepest(x[k]); };
+        deepest(list.slice(i + 1));
+        const indent = first.col, lines = [];
+        for (let n = first.line; n <= f.lines.length; n++) {
+          const raw = f.lines[n - 1], lead = raw.length - raw.trimStart().length;
+          if (n > last && raw.trim() && lead < indent) break;
+          lines.push(n);
+        }
+        while (lines.length && !f.lines[lines[lines.length - 1] - 1].trim()) lines.pop();
+        if (lines.some(n => /#\s*noqa/i.test(f.lines[n - 1]))) return;
+        for (const n of lines) {
+          const raw = f.lines[n - 1], lead = raw.length - raw.trimStart().length; if (!raw.trim()) continue;
+          out.push({ line: n, col: lead, length: raw.trimEnd().length - lead, message: "执行不到的代码（前面已经 " + WHY[list[i].type] + "）", severity: "unused", kind: "unreachable" });
+        }
+      };
+      const walk = node => {
+        if (Array.isArray(node)) { node.forEach(walk); return; }
+        if (!node || typeof node !== "object") return;
+        for (const k of ["body", "orelse", "finalbody"]) if (Array.isArray(node[k])) block(node[k].filter(Boolean));
+        for (const k of Object.keys(node)) if (node[k] && typeof node[k] === "object") walk(node[k]);
+      };
+      walk(f.root.node);
+      return out.sort((a, b) => a.line - b.line);
+    }
     /** Names visible from `scope` (its bindings, enclosing functions, the module, builtins), for "did you mean". */
     visibleNames(scope) {
       const out = new Set();
