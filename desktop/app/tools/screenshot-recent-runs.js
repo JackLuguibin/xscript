@@ -18,5 +18,8 @@
   (await waitBtn((b) => b.textContent.trim().startsWith("lib/tasks.py")))?.click();
   for (let i = 0; i < 60 && !document.querySelector(".recent-runs li"); i++) await sleep(150);
   await sleep(300);
+  // open the failed run's log: shows 复制日志 and 跳到出错行 (the mock device's log has a traceback there)
+  document.querySelector(".recent-runs li button")?.click();
+  await sleep(1500);
   document.querySelector(".recent-runs")?.scrollIntoView({ block: "center" });
 })();
