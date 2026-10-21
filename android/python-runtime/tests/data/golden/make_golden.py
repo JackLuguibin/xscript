@@ -52,6 +52,14 @@ def scene():
     return img
 
 
+def write_masked_coin(coin):
+    """coin_masked.png: the coin with alpha 0 outside its inscribed circle (radius 2px inside the crop)."""
+    h, w = coin.shape[:2]
+    a = np.zeros((h, w), np.uint8)
+    cv2.circle(a, (w // 2, h // 2), min(w, h) // 2 - 2, 255, -1)
+    cv2.imwrite(os.path.join(HERE, "coin_masked.png"), np.dstack([coin, a]))
+
+
 def main():
     img = scene()
     cv2.imwrite(os.path.join(HERE, "scene.png"), img)
@@ -63,6 +71,7 @@ def main():
     }
     for name, (l, t, r, b) in boxes.items():
         cv2.imwrite(os.path.join(HERE, name), img[t:b, l:r])
+    write_masked_coin(img[342:395, 36:89])
     # a template that is NOT in the scene: same style, other content
     absent = np.random.RandomState(99).randint(0, 255, (64, 64, 3)).astype(np.uint8)
     cv2.imwrite(os.path.join(HERE, "absent.png"), cv2.GaussianBlur(absent, (0, 0), 0.8))

@@ -57,6 +57,49 @@ class GoldenMatchingTest(unittest.TestCase):
             t_img = cv2.imread(self.tpl(name))
             self.assertTrue(np.array_equal(t_img, self.scene[t:b, l:r]), name + " is no longer a crop of scene.png")
 
+    def masked_alpha(self):
+        a = cv2.imread(self.tpl("coin_masked.png"), cv2.IMREAD_UNCHANGED)
+        self.assertEqual(a.shape[2], 4)
+        return a
+
+    def test_masked_fixture_is_the_coin_with_a_round_alpha(self):
+        a = self.masked_alpha()
+        l, t, r, b = self.exp["templates"]["coin.png"]
+        self.assertTrue(np.array_equal(a[:, :, :3], self.scene[t:b, l:r]))
+        self.assertEqual(a[0, 0, 3], 0)                                   # corner transparent
+        self.assertEqual(a[a.shape[0] // 2, a.shape[1] // 2, 3], 255)     # centre opaque
+
+    def test_masked_template_ignores_what_is_behind_its_transparent_pixels(self):
+        alpha = self.masked_alpha()[:, :, 3]
+        img = self.scene.copy()
+        h, w = alpha.shape
+        noise = (np.indices((h, w)).sum(0) % 7 * 35).astype(np.uint8)
+        for l, t, r, b in self.exp["coin_rects"]:
+            sub = img[t:b, l:r]
+            sub[alpha == 0] = noise[alpha == 0][:, None]
+        path = self.variant("coin_corners.png", img)
+        hits = self.screen.find_all_images(self.tpl("coin_masked.png"), image=path, confidence=0.85)
+        self.assertEqual(sorted(h_["rect"] for h_ in hits), sorted(self.exp["coin_rects"]))
+        self.assertTrue(all(h_["confidence"] >= 0.99 for h_ in hits), hits)
+        # the same coin without a mask cannot see past the repainted corners
+        self.assertEqual(self.screen.find_all_images(self.tpl("coin.png"), image=path, confidence=0.85), [])
+
+    def test_find_all_multiscale_finds_every_coin_at_the_refined_scale(self):
+        # Measured with the phone's pins: plain 0.7925 / 1.2453 at ~0.985; masked 0.8113 / 1.2453 at 0.835 / 0.908.
+        for s in (0.8, 1.25):
+            img = cv2.resize(self.scene, None, fx=s, fy=s, interpolation=cv2.INTER_AREA if s < 1 else cv2.INTER_CUBIC)
+            path = self.variant("scene_all_x%s.png" % s, img)
+            for name in ("coin.png", "coin_masked.png"):
+                hits = self.screen.find_all_images(self.tpl(name), image=path, confidence=0.8, method="multiscale",
+                                                   scale_range=(0.6, 1.6))
+                self.assertEqual(len(hits), 3, (s, name, hits))
+                for h_ in hits:
+                    self.assertAlmostEqual(h_["scale"], s, delta=0.02, msg=(s, name))
+                want = sorted((center(b)[0] * s, center(b)[1] * s) for b in self.exp["coin_rects"])
+                got = sorted(center(h_["rect"]) for h_ in hits)
+                for g, w_ in zip(got, want):
+                    self.assertNear(g, w_, 3, (s, name, g, w_))
+
     def test_every_template_is_found_exactly(self):
         for name, box in self.exp["templates"].items():
             hit = self.screen.find_image(self.tpl(name), image=self.scene_path, confidence=0.9)
