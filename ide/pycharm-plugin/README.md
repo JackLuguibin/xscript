@@ -14,7 +14,7 @@
 
 ## 安装
 
-插件不上架 JetBrains Marketplace，也还没有附在 GitHub Release 里。可以：
+插件不上架 JetBrains Marketplace。版本号与 App 相同，从 v0.4.0 之后的下一个 Release 起附带 `xscript-pycharm-<版本>.zip`（校验值在 `SHA256SUMS` 里）。也可以：
 
 - 下载 CI 产物：在 GitHub Actions 的 `ci` 运行里下载 artifact **xscript-pycharm-plugin**（一个 zip）；
 - 或自己构建（需要 JDK 17 以上；Gradle 会把 JDK 21 下载到 `~/.gradle`）：

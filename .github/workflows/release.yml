@@ -350,14 +350,22 @@ jobs:
           name: desktop-windows-setup
           path: dist/release
 
-      - name: Add the dmg and the setup.exe to SHA256SUMS
+      # built, tested and checked by the Plugin Verifier in the verify (ci.yml) run above
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: xscript-pycharm-plugin
+          path: dist/release
+
+      - name: Add the dmg, the setup.exe and the PyCharm plugin to SHA256SUMS
         working-directory: dist/release
         run: |
           DMG="xscript-desktop-${TAG}-macos-arm64.dmg"
           EXE="xscript-desktop-${TAG}-windows-x64-setup.exe"
+          PYC="xscript-pycharm-${TAG#v}.zip"
           [ -f "$DMG" ] || { echo "::error::missing $DMG"; exit 1; }
           [ -f "$EXE" ] || { echo "::error::missing $EXE"; exit 1; }
-          sha256sum "$DMG" "$EXE" >> SHA256SUMS
+          [ -f "$PYC" ] || { echo "::error::missing $PYC (plugin version must equal the tag: scripts/release.sh check)"; exit 1; }
+          sha256sum "$DMG" "$EXE" "$PYC" >> SHA256SUMS
 
       - name: Desktop update feed (only with the update key in Secrets and its public key in the client)
         env:
@@ -398,6 +406,7 @@ jobs:
             "dist/release/xscript-${TAG}-release.apk" \
             "dist/release/xscript-${TAG}-release-arm64-v8a.apk" \
             "dist/release/xscript-vscode-${TAG#v}.vsix" \
+            "dist/release/xscript-pycharm-${TAG#v}.zip" \
             "dist/release/xscript-desktop-${TAG}-macos-arm64.dmg" \
             "dist/release/xscript-desktop-${TAG}-windows-x64-setup.exe" \
             dist/release/SHA256SUMS $FEED

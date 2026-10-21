@@ -12,7 +12,7 @@ It talks to the device HTTP API (`protocol/openapi.yaml`, default port 9860). On
 
 ## Install
 
-The plugin is not on JetBrains Marketplace and is not attached to GitHub Releases yet. Either:
+The plugin is not on JetBrains Marketplace. Its version is the App version, and every Release after v0.4.0 attaches `xscript-pycharm-<version>.zip` (checksum in `SHA256SUMS`). Or:
 
 - download the **xscript-pycharm-plugin** artifact (a zip) from a `ci` run in GitHub Actions, or
 - build it (JDK 17+; Gradle downloads JDK 21 into `~/.gradle`): `cd ide/pycharm-plugin && ./gradlew buildPlugin` → `build/distributions/xscript-pycharm-<version>.zip`.
