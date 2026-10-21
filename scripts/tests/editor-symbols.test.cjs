@@ -224,3 +224,25 @@ test('basic checks: no warnings on the repository\'s own Python sources', () => 
   for (const f of files) for (const w of p.problemsIn(f.path)) found.push(f.path + ':' + w.line + ' ' + w.message);
   assert.deepEqual(found, []);
 });
+
+test('basic checks: unknown attributes of project classes and instances', () => {
+  const lib = [
+    'from elsewhere import Unknown, decorate', 'class Base:', '    LIMIT = 3', '    def ping(self):', '        return self.pong()',            // 5: Base is subclassed: self.pong not reported
+    'class Shape(Base):', '    def __init__(self, side):', '        self.side = side',
+    '    def area(self):', '        return self.side * self.sid',                                  // 10: typo
+    '    @staticmethod', '    def unit(other):', '        return other.whatever',                  // 12: static: not self
+    'class Loose(Unknown):', '    def m(self):', '        return self.anything',                   // 15: unknown base
+    '@decorate', 'class Deco:', '    def m(self):', '        return self.anything',                // 19: decorated
+    ''].join('\n');
+  const main = [
+    'from lib import Shape, Base', 's = Shape(2)', 's.area()', 's.areaa()', 's.LIMIT', 's.ping()',   // 4: areaa
+    'Shape.unit(1)', 'Shape.nope', 's.__class__', 's.extra = 1', 's.extra', 'other = Shape(1)', 'other.extra',  // 8: nope
+    'b = Base()', 'b.pong', ''].join('\n');                                                          // 15: pong
+  const p = EditorSymbols.build([{path: 'lib.py', content: lib}, {path: '__init__.py', content: main}], XSDocs);
+  const msgs = path => p.problemsIn(path).map(w => [w.line, w.col, w.message]);
+  assert.deepEqual(msgs('lib.py'), [[10, 32, 'Shape 没有属性或方法 sid']]);
+  assert.deepEqual(msgs('__init__.py'), [[4, 2, 'Shape 没有属性或方法 areaa'], [8, 6, 'Shape 没有属性或方法 nope'], [15, 2, 'Base 没有属性或方法 pong']]);
+  // setattr / __getattr__ in the file make attributes dynamic: nothing reported
+  const dyn = EditorSymbols.build([{path: 'a.py', content: 'class A:\n    def __getattr__(self, n):\n        return 1\na = A()\na.anything\n'}], XSDocs);
+  assert.deepEqual(dyn.problemsIn('a.py'), []);
+});

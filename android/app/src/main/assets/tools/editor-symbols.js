@@ -100,7 +100,7 @@
           return;
         case "Attribute":
           visit(n.value, scope);
-          occ(n.attr, n.line, n.col, scope, "attr", { base: n.value });
+          occ(n.attr, n.line, n.col, scope, "attr", { base: n.value, store: n.ctx === "store" || n.ctx === "del" });
           if (n.ctx === "store" && n.value.type === "Name" && scope.kind === "function" && scope.parent.kind === "class" && scope.firstParam === n.value.id)
             scope.parent.add(n.attr, { kind: "attribute", line: n.line, col: n.col });
           return;
@@ -453,6 +453,66 @@
       const missing = t.params.filter(a => (a.kind === "arg" || a.kind === "kwonly") && !a.default && !filled.has(a.arg)).map(a => a.arg);
       return missing.length ? t.label + "() 缺少参数 " + missing.join("、") : null;
     }
+    // Attribute names assigned anywhere in the project (`obj.x = ...`): they may exist at run time, so they are never
+    // reported. Files using setattr / __dict__ / __getattr__ / __slots__ are marked dynamic.
+    dynamicAttrs() {
+      if (this._dyn) return this._dyn;
+      const names = new Set();
+      for (const f of this.files.values()) {
+        f.dynamic = /\bsetattr\s*\(|__dict__|__getattr__|__getattribute__|__slots__/.test(f.text);
+        for (const o of f.occ) if (o.kind === "attr" && o.store) names.add(o.name);
+      }
+      return this._dyn = names;
+    }
+    // Class scope of `base` when it is for sure a project class or an instance of one: `self` in a method, a class
+    // name, or a variable bound exactly once to `ClassName(...)`. Null otherwise.
+    knownClass(base, scope) {
+      if (base.type !== "Name") return null;
+      if (scope.kind === "function" && scope.parent && scope.parent.kind === "class" && scope.firstParam === base.id) {
+        // plain methods only (not static/class methods), and not in a class that project classes extend: a base
+        // class often uses attributes its subclasses define
+        const ds = this.defs({ scope, name: base.id });
+        if (ds.length !== 1 || ds[0].kind !== "parameter" || (scope.node.decorators || []).length) return null;
+        return this.subclassed(scope.parent) ? null : scope.parent;
+      }
+      const sym = this.lookup(scope, base.id);
+      if (!sym || sym.module || sym.library) return null;
+      const ds = this.defs(sym); if (ds.length !== 1) return null;
+      const d = ds[0];
+      if (d.kind === "class") return d.inner;
+      if (d.kind === "variable" && d.value && d.value.type === "Call" && !d.annotation) {
+        const v = this.valueOf(d.value.func, d.valueScope || sym.scope);
+        const f = d.value.func.type === "Name" ? this.lookup(d.valueScope || sym.scope, d.value.func.id) : null;
+        return v && v.cls && f && !f.module && !f.library && this.defs(f).length === 1 && this.defs(f)[0].kind === "class" ? v.cls : null;
+      }
+      return null;
+    }
+    subclassed(cls) {
+      if (!this._bases) {
+        this._bases = new Set();
+        for (const f of this.files.values()) for (const sc of f.scopes) if (sc.kind === "class")
+          for (const b of sc.node.bases || []) { const v = this.valueOf(b, sc.parent); if (v && v.cls) this._bases.add(v.cls); }
+      }
+      return this._bases.has(cls);
+    }
+    // Every class in the hierarchy is a plain project class (no decorators, metaclass or unknown bases).
+    closedClass(cls, depth) {
+      if ((depth || 0) > MAX_HOPS || !cls || !cls.node) return false;
+      if ((cls.node.decorators || []).length || (cls.node.keywords || []).length) return false;
+      for (const b of cls.node.bases || []) {
+        if (b.type === "Name" && b.id === "object" && !this.bound(cls.parent, "object")) continue;
+        const v = this.valueOf(b, cls.parent);
+        if (!v || !v.cls || !this.closedClass(v.cls, (depth || 0) + 1)) return false;
+      }
+      return true;
+    }
+    attrProblem(o) {
+      if (o.name.startsWith("__")) return null;
+      const dyn = this.dynamicAttrs(); if (dyn.has(o.name) || o.scope.file.dynamic) return null;
+      const cls = this.knownClass(o.base, o.scope);
+      if (!cls || cls.file.dynamic || !this.closedClass(cls) || this.member({ cls }, o.name)) return null;
+      return cls.name + " 没有属性或方法 " + o.name;
+    }
     /**
      * Basic checks of one file (warnings, not errors): names that are not defined anywhere visible and calls of
      * project functions/classes with the wrong arguments. Conservative: anything it cannot resolve for sure is skipped.
@@ -464,6 +524,10 @@
       for (const o of f.occ) {
         if (o.kind !== "name" || BUILTINS.has(o.name) || this.bound(o.scope, o.name)) continue;
         out.push({ line: o.line, col: o.col, length: o.name.length, message: "未定义的名字 " + o.name, severity: "warning" });
+      }
+      for (const o of f.occ) {
+        const m = o.kind === "attr" && !o.store ? this.attrProblem(o) : null; if (!m) continue;
+        out.push({ line: o.line, col: o.col, length: o.name.length, message: m, severity: "warning" });
       }
       for (const c of f.calls) {
         const m = this.callProblem(c); if (!m) continue;
