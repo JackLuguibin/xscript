@@ -17,7 +17,10 @@ data class SyncPreview(
     val folders: List<String>,
     /** Without it: device-only files an upload leaves alone. */
     val kept: List<String>,
-)
+) {
+    /** Whether "Upload and Run" would send or delete anything (the preview then offers to do it). */
+    val hasWork: Boolean get() = added.isNotEmpty() || changed.isNotEmpty() || deletes.isNotEmpty()
+}
 
 object UploadPlanner {
     fun bytes(f: UploadFile): ByteArray =

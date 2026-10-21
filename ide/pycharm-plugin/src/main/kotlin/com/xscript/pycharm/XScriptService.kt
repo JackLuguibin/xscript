@@ -3,6 +3,7 @@ package com.xscript.pycharm
 import com.intellij.execution.filters.TextConsoleBuilderFactory
 import com.intellij.execution.ui.ConsoleView
 import com.intellij.execution.ui.ConsoleViewContentType
+import com.intellij.notification.NotificationAction
 import com.intellij.notification.NotificationGroupManager
 import com.intellij.notification.NotificationType
 import com.intellij.openapi.Disposable
@@ -109,13 +110,23 @@ class XScriptService(private val project: Project) : Disposable {
                     section("preview.deletes", p.deletes)
                     section("preview.folders", p.folders.map { "$it/" })
                     section("preview.kept", p.kept)
-                    if (p.added.isEmpty() && p.changed.isEmpty() && p.deletes.isEmpty()) out.append('\n').append(XScriptBundle.message("preview.upToDate")).append('\n')
+                    if (!p.hasWork) out.append('\n').append(XScriptBundle.message("preview.upToDate")).append('\n')
                     out.append('\n').append(XScriptBundle.message("preview.footer")).append('\n')
                     print(out.toString(), ConsoleViewContentType.SYSTEM_OUTPUT)
                     showLog()
+                    if (p.hasWork) offerUpload(root, name, p)
                 }
             }
         }.queue()
+    }
+
+    /** After a preview with something to do: a notification whose action runs the same incremental "Upload and Run". */
+    private fun offerUpload(root: Path, name: String, p: SyncPreview) {
+        val text = XScriptBundle.message("preview.offer", name, p.added.size, p.changed.size) +
+            (if (p.deletes.isNotEmpty()) XScriptBundle.message("preview.offerDeletes", p.deletes.size) else "")
+        NotificationGroupManager.getInstance().getNotificationGroup("XScript").createNotification(text, NotificationType.INFORMATION)
+            .addAction(NotificationAction.createSimpleExpiring(XScriptBundle.message("preview.offerAction")) { uploadAndRun(root) })
+            .notify(project)
     }
 
     /**
