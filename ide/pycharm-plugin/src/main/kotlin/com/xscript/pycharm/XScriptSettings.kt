@@ -38,7 +38,7 @@ class XScriptSettings : PersistentStateComponent<XScriptSettings.State> {
 
     fun client(): DeviceClient = target().let { DeviceClient(it, token = pairingCode(it)) }
 
-    private fun attributes(t: DeviceTarget) = CredentialAttributes(generateServiceName("XScript", "device ${t.host}:${t.port}"))
+    private fun attributes(t: DeviceTarget) = CredentialAttributes(generateServiceName("XScript", "device ${t.host}:${t.port}"), "xscript")
 
     companion object {
         fun get(): XScriptSettings = ApplicationManager.getApplication().getService(XScriptSettings::class.java)
