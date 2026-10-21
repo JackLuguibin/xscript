@@ -55,8 +55,30 @@ def _exe() -> str:
     return "adb.exe" if sys.platform == "win32" else "adb"
 
 
-def candidate_adb_paths(env: dict[str, str] | None = None, platform: str | None = None) -> list[Path]:
-    """Places to look for adb, in priority order (explicit config is handled by the caller)."""
+BUNDLED_DIR = "platform-tools"  # packaging/fetch_platform_tools.py: Google's adb inside the PyInstaller payload
+
+
+def bundled_adb_paths(platform: str | None = None, *, frozen: bool | None = None,
+                      bundle_dir: str | Path | None = None) -> list[Path]:
+    """The adb that ships inside the packaged app (issue #213), or [] for a source checkout.
+
+    PyInstaller puts the bundled files under sys._MEIPASS: `XScript.app/Contents/Frameworks` on macOS,
+    `<install dir>\\_internal` for the Windows onedir build. `frozen`/`bundle_dir` are test seams."""
+    if frozen is None:
+        frozen = bool(getattr(sys, "frozen", False))
+    if not frozen:
+        return []
+    if bundle_dir is None:
+        bundle_dir = getattr(sys, "_MEIPASS", None) or Path(sys.executable).resolve().parent
+    exe = "adb.exe" if (platform or sys.platform) == "win32" else "adb"
+    return [Path(bundle_dir) / BUNDLED_DIR / exe]
+
+
+def candidate_adb_paths(env: dict[str, str] | None = None, platform: str | None = None,
+                        bundled: list[Path] | None = None) -> list[Path]:
+    """Places to look for adb, in priority order (explicit config is handled by the caller):
+    XSCRIPT_ADB > the adb bundled with the packaged app > ANDROID_SDK_ROOT/ANDROID_HOME > per-OS SDK dirs.
+    `bundled` defaults to bundled_adb_paths() (empty when running from source)."""
     env = os.environ if env is None else env
     plat = platform or sys.platform
     exe = "adb.exe" if plat == "win32" else "adb"
@@ -64,6 +86,7 @@ def candidate_adb_paths(env: dict[str, str] | None = None, platform: str | None 
     for key in ("XSCRIPT_ADB",):
         if env.get(key):
             out.append(Path(env[key]))
+    out.extend(bundled_adb_paths(plat) if bundled is None else bundled)
     for key in ("ANDROID_SDK_ROOT", "ANDROID_HOME"):
         if env.get(key):
             out.append(Path(env[key]) / "platform-tools" / exe)
@@ -80,12 +103,14 @@ def candidate_adb_paths(env: dict[str, str] | None = None, platform: str | None 
     return out
 
 
-def find_adb(configured: str | None = None, env: dict[str, str] | None = None, platform: str | None = None) -> str | None:
-    """Return a usable adb path or None. Explicit setting > XSCRIPT_ADB/SDK env > PATH > per-OS default dirs."""
+def find_adb(configured: str | None = None, env: dict[str, str] | None = None, platform: str | None = None,
+             bundled: list[Path] | None = None) -> str | None:
+    """Return a usable adb path or None.
+    Explicit setting > XSCRIPT_ADB > bundled adb (packaged app) > SDK env > per-OS default dirs > PATH."""
     if configured:
         p = Path(configured).expanduser()
         return str(p) if p.is_file() else None
-    cands = candidate_adb_paths(env, platform)
+    cands = candidate_adb_paths(env, platform, bundled)
     for p in cands:
         if p.is_file():
             return str(p)

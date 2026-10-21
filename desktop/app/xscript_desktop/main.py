@@ -19,7 +19,7 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     p.add_argument("--selftest", action="store_true",
                    help="start the shell headless (offscreen), load the frontend, round-trip one RPC through QWebChannel, exit 0/1")
     p.add_argument("--dev-url", help="load the Vite dev server (e.g. http://localhost:5173) instead of the built frontend")
-    p.add_argument("--adb", help="path to adb (default: XSCRIPT_ADB, ANDROID_HOME, PATH, platform defaults)")
+    p.add_argument("--adb", help="path to adb (default: XSCRIPT_ADB, the adb bundled with the packaged app, ANDROID_HOME, platform defaults, PATH)")
     p.add_argument("--connect-adb", metavar="SERIAL", help="connect this adb device right after the UI is ready (verification aid)")
     p.add_argument("--screenshot", metavar="PNG", help="save a screenshot of the window once the UI is ready, then quit (verification aid)")
     p.add_argument("--screenshot-delay", type=float, default=2.5, help="seconds to wait after ready before the screenshot")

@@ -200,7 +200,7 @@ cd ../app && python3.10 -m venv .venv && .venv/bin/pip install -e '.[test]'
 
 打包成 macOS 应用：`app/packaging/build_macos_app.sh` → `app/dist/XScript.app`（PyInstaller，自带 `.icns` 图标，Dock/菜单栏显示 XScript；`dist/XScript.app/Contents/MacOS/XScript --selftest` 可无头自检）。脚本最后会重新做 ad-hoc 签名并用 `app/packaging/verify_macos_app.sh` 校验（`codesign --verify --deep --strict`、Info.plist 已绑定、arm64）；签名之后不能再改动 bundle 里的任何文件，否则下载后的应用会被 macOS 报“已损坏”。`app/packaging/build_macos_dmg.sh` 打包成 `app/dist/xscript-desktop-vX.Y.Z-macos-arm64.dmg`，并在 dmg 内再校验一次；发布时由 release 工作流在 macOS 运行器上构建并附到 Release（`app/packaging/release-notes-macos.md` 是首次打开说明）。
 
-`adb` 的查找顺序：`--adb` 参数 → `XSCRIPT_ADB` → `ANDROID_SDK_ROOT`/`ANDROID_HOME` → `PATH` → 各系统默认目录（macOS `~/Library/Android/sdk`；Windows `%LOCALAPPDATA%\XScript\platform-tools`、`%LOCALAPPDATA%\Android\Sdk`，⚠ Windows 未验证）。
+`adb` 的查找顺序：`--adb` 参数 / 设置里的 adb 路径 → `XSCRIPT_ADB` → 安装包内置的 adb（打包版的 `platform-tools/`，源码运行时没有）→ `ANDROID_SDK_ROOT`/`ANDROID_HOME` → 各系统默认目录（macOS `~/Library/Android/sdk`；Windows `%LOCALAPPDATA%\XScript\platform-tools`、`%LOCALAPPDATA%\Android\Sdk`，⚠ Windows 未验证）→ `PATH`。
 
 前端热更新开发：`cd frontend && npm run dev`，再 `python -m xscript_desktop --dev-url http://localhost:5173`（外壳会把 `qwebchannel.js` 注入页面）。
 直接用浏览器打开 `http://localhost:5173` 是「演示模式」（假数据，不连设备）。
