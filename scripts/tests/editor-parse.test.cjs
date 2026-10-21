@@ -61,8 +61,8 @@ test('garbage never throws; deep nesting is reported, not a crash', () => {
 
 test('a 400 KB file parses fast and the parser stays small', () => {
   const unit = fs.readFileSync(path.join(ROOT, 'scripts/mock_device.py'), 'utf8');
-  let big = ''; while (big.length < 400000) big += unit;
-  big = big.slice(0, big.lastIndexOf('\n', 400000) + 1);
+  // whole copies only: cutting at an arbitrary line could end on a `def …:` and make the file invalid Python
+  let big = ''; while (big.length < 400000) big += unit + '\n';
   EditorParse.parse(big);  // warm up the JIT
   const t = process.hrtime.bigint(); const r = EditorParse.parse(big); const ms = Number(process.hrtime.bigint() - t) / 1e6;
   assert.equal(r.error, null);

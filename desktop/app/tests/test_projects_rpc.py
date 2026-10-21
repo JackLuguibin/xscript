@@ -87,7 +87,7 @@ async def test_eval_validation_and_forwarding(ctx_dev):
     ctx, dev = ctx_dev
     r = await rpc(ctx, "device.eval", id=dev, code="_result = 1 + 1", timeoutMs=3000)
     assert r["ok"], r
-    assert r["result"] == {"ok": True, "result": "mock:_result = 1 + 1", "error": ""}
+    assert r["result"] == {"ok": True, "result": "2", "error": ""}
     assert (await rpc(ctx, "device.eval", id=dev, code="_result = 2"))["result"]["ok"] is True  # default timeout
     for bad in ({"code": ""}, {"code": "   "}, {"code": 1}, {"code": "x", "timeoutMs": 199}, {"code": "x", "timeoutMs": 15001},
                 {"code": "x", "timeoutMs": "8000"}, {"code": "x", "timeoutMs": True}):
