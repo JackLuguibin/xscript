@@ -1,0 +1,115 @@
+# Flake rate: runs the suites that have flaked before several times on main and reports per-test failure rates
+# (scripts/flake_rate.py). A report, not a gate: the jobs pass unless the test setup itself breaks. Read the run's
+# summary page, or download the flake-*.json artifacts. Nightly, or by hand with a run count.
+name: flake-rate
+
+on:
+  schedule:
+    - cron: "17 7 * * *"   # 07:17 UTC = 03:17 Toronto (EDT), quiet hours
+  workflow_dispatch:
+    inputs:
+      runs:
+        description: Runs per suite
+        default: "5"
+        required: true
+
+permissions:
+  contents: read
+
+concurrency:
+  group: flake-rate
+  cancel-in-progress: false
+
+env:
+  NO_PROXY: 127.0.0.1,localhost
+  RUNS: ${{ github.event.inputs.runs || '5' }}
+
+jobs:
+  desktop-windows:
+    name: desktop client on Windows (pytest × N)
+    runs-on: windows-latest
+    timeout-minutes: 90
+    defaults:
+      run:
+        shell: bash
+    env:
+      QT_QPA_PLATFORM: offscreen
+      QTWEBENGINE_CHROMIUM_FLAGS: --no-sandbox --disable-gpu
+      PYTHONUTF8: "1"
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: desktop/frontend/package-lock.json
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: "3.10"
+          cache: pip
+          cache-dependency-path: desktop/app/pyproject.toml
+      - name: Build the frontend into the Python package
+        working-directory: desktop/frontend
+        run: |
+          npm ci
+          npm run build
+      - name: Install
+        run: python -m pip install -e "desktop/app[test]"
+      - name: Python tests × RUNS, 4 workers each (same as ci.yml)
+        run: python scripts/flake_rate.py --name "desktop client on Windows" --runs "$RUNS" --cwd desktop/app --out flake-desktop-windows.json -- python -m pytest -q -n 4 -p no:cacheprovider --junitxml={junit}
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        if: always()
+        with:
+          name: flake-desktop-windows
+          path: flake-desktop-windows.json
+          if-no-files-found: ignore
+
+  desktop-frontend:
+    name: desktop frontend (vitest × N)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: desktop/frontend/package-lock.json
+      - name: Install
+        working-directory: desktop/frontend
+        run: npm ci
+      - name: Unit tests × RUNS
+        run: python3 scripts/flake_rate.py --name "desktop frontend" --runs "$RUNS" --cwd desktop/frontend --out flake-desktop-frontend.json -- npx vitest run --reporter=default --reporter=junit --outputFile.junit={junit}
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        if: always()
+        with:
+          name: flake-desktop-frontend
+          path: flake-desktop-frontend.json
+          if-no-files-found: ignore
+
+  web-ide:
+    name: Web IDE (node + headless Chrome × N)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: "22"
+      - name: Node tests × RUNS
+        run: |
+          export CHROME="$(command -v google-chrome || command -v chromium-browser || command -v chromium)"
+          python3 scripts/flake_rate.py --name "Web IDE" --runs "$RUNS" --out flake-web-ide.json -- \
+            bash -c 'node --test --test-reporter=spec --test-reporter-destination=stdout --test-reporter=junit --test-reporter-destination="$0" scripts/tests/*.test.cjs' {junit}
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        if: always()
+        with:
+          name: flake-web-ide
+          path: flake-web-ide.json
+          if-no-files-found: ignore
