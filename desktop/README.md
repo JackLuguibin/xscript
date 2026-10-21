@@ -21,7 +21,7 @@
 
 | 功能 | 说明 | 位置 |
 | --- | --- | --- |
-| **工程页** | 选在线设备 → 工程列表 / 新建 → 文件列表 → 编辑与保存（⌘/Ctrl+S）→ 保存并运行（F6）/ 停止（Shift+F6）→ 按 `seq` 游标跟随 `/logs`（约 1 s 轮询，最多 2000 行）；文件 **新建 / 重命名 / 删除**（入口 `__init__.py` 受保护）；文件夹整体删除（确认框列出其中的文件，`project.deleteFile` 带 `recursive: true`）；返回 / 主页 / 最近任务 按键 | `frontend/src/components/ProjectsPage.tsx` |
+| **工程页** | 选在线设备 → 工程列表 / 新建 → 文件列表 → 编辑与保存（⌘/Ctrl+S）→ 保存并运行（F6）/ 停止（Shift+F6）→ 按 `seq` 游标跟随 `/logs`（约 1 s 轮询，最多 2000 行）；文件 **新建 / 重命名 / 删除**（入口 `__init__.py` 受保护）；文件夹整体删除（确认框列出其中的文件，`project.deleteFile` 带 `recursive: true`）；**在工程中搜索**（⌘⇧F / Ctrl+Shift+F；区分大小写、正则；结果按文件分组，点开选中匹配；RPC `project.search`）；返回 / 主页 / 最近任务 按键 | `frontend/src/components/ProjectsPage.tsx`、`ProjectSearch.tsx`、`app/xscript_desktop/services/project_search.py` |
 | **Monaco 编辑器** | 本地打包（无 CDN，CSP 下可用），只注册 Python；按需加载（约 4 MB 的独立 chunk）；**补全** 来自 `ide/python-stubs`：`import` / `from … import` / 别名 `x.` / 类成员，带签名与文档。数据重新生成：`python3 frontend/scripts/gen_stub_completions.py`（`--check` 由 pytest 守着）。浏览器演示模式与 jsdom 测试里回退为 `<textarea>` | `frontend/src/editor/`、`components/CodeEditor.tsx` |
 | **本地文件夹同步** | 移植 VS Code 插件 `sync.ts`：`.vscode/.syncignore`、跳过点文件 / `__pycache__` / `*.pyc` / 虚拟环境；**增量**＝设备上大小相同 *且* 内容哈希等于上次本机上传的才跳过；分批 `PUT /files`（每批约 2 MB，推送 `sync.progress`）；全量上传；拉取到本地（只写新增/变化，本地多出的不动）。哈希在应用数据库的 `sync_cache` 表（设计 §14.5）；若数据目录里还有旧的 `sync-cache.json`，启动时导入一次。文件夹必须含 `__init__.py` 或 `build.as`，上限 5000 个文件 / 200 MB。原生「选择文件夹」对话框 | `app/xscript_desktop/services/sync.py`、`store.py`、`dialogs.py`、`frontend/src/components/SyncPanel.tsx` |
 | **屏幕（投屏 + 操控）** | 每台设备只开一条 `GET /screen/stream`（MJPEG，默认 fps=12、scale=0.5、quality=60），扇出给订阅者。最新一帧放内存，页面用 `xsapp://app/_frame/<id>?seq=N` 取（事件 `mirror.frame`，加载中到达的帧丢掉）。开流前先看 `/status.capture`，未授权绝不开流。429 时改轮询 `GET /screen`（约 2 fps，max=480）并按 0.5–8 秒退避重试（每次不早于关闭后 1.5 秒），成功后回到流。3 秒无帧则主动断开且不自动重试。最后一个订阅者离开、断开设备或退出时立刻关闭上游。点按/长按/滑动与按键、文字仍走 `device.action`。设备卡片上的单张截图仍走 `/_shot/`，不占观看槽 | `app/xscript_desktop/services/mirror.py`、`frontend/src/components/MirrorPage.tsx` |
@@ -55,11 +55,12 @@
 
 重新生成：`python -m xscript_desktop --screenshot out.png --connect-adb emulator-5554 --click-screenshot --theme dark --size 1180x760`（`--theme` 会真的去按侧栏的主题按钮）。
 
-工程页（文件夹列表、文件列表、编辑器）：
+工程页（文件夹列表、文件列表、编辑器；第二行是在工程中搜索）：
 
 | 浅色 | 深色 |
 | --- | --- |
 | ![工程页浅色](../docs/images/desktop-projects-light.png) | ![工程页深色](../docs/images/desktop-projects-dark.png) |
+| ![工程搜索浅色](../docs/images/desktop-projects-search-light.png) | ![工程搜索深色](../docs/images/desktop-projects-search-dark.png) |
 
 重新生成：设备上放一个带子文件夹的工程「每日签到」，然后 `python -m xscript_desktop --screenshot out.png --connect-adb <serial> --run-js tools/screenshot-projects.js --screenshot-delay 4 --theme light --size 1180x760`（`--run-js` 在设备连上后在页面里执行脚本：打开工程页、选工程、打开 `lib/tasks.py`）。截图规则和其他截图的生成方式见 [docs/截图.md](../docs/截图.md)。
 
