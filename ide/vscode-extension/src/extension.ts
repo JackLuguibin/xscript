@@ -7,7 +7,7 @@ import { collectFiles, findProjectRoot, isProjectDir, isSyncedPath } from "./pro
 import { registerDebugger, startDebugging } from "./debugAdapter";
 import { execFile } from "child_process";
 import { DeviceStore, FoundDevice, SavedDevice, httpProbe, lanCandidates, normalizeAddress, scanAdb, scanLan } from "./devices";
-import { DEFAULT_SYNCIGNORE, IgnoreRules, SYNCIGNORE_PATH, SyncCache, describeDeletes, describePreview, planEmptiedFolders, previewSync, diffAgainstLocal, fetchProject, loadIgnoreRules, planDeletes, planUpload, writePulled } from "./sync";
+import { DEFAULT_SYNCIGNORE, IgnoreRules, SYNCIGNORE_PATH, SyncCache, describeDeletes, describePreview, planEmptiedFolders, previewHasWork, previewSync, diffAgainstLocal, fetchProject, loadIgnoreRules, planDeletes, planUpload, writePulled } from "./sync";
 import { TEMPLATES, createProject, validateProjectName } from "./newProject";
 import { Node, XScriptTree } from "./tree";
 import { newUiForm, registerUiDesigner } from "./uiDesigner";
@@ -571,6 +571,12 @@ const commands: Record<string, (...args: any[]) => unknown> = {
       config().get<boolean>("syncDeletes", false));
     output.appendLine(describePreview(name, p));
     output.show(true);
+    if (!previewHasWork(p)) return;
+    const go = "Upload Changes";
+    const summary = p.added.length + " new, " + p.changed.length + " changed" + (p.deletes.length ? ", " + p.deletes.length + " to delete (asks first)" : "");
+    if ((await vscode.window.showInformationMessage("XScript: preview of " + name + ": " + summary + ".", go)) !== go) return;
+    // the same incremental upload Run does; deletes still go through their own confirmation
+    if (await upload(root, false)) vscode.window.showInformationMessage("XScript: uploaded " + name);
   },
 
   "xscript.upload": async (uri?: vscode.Uri) => {

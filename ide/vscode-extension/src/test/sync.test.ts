@@ -7,7 +7,7 @@ import * as path from "node:path";
 import { DeviceClient } from "../client";
 import { collectFiles, findProjectRoot, isProjectDir, isSyncedPath } from "../project";
 import {
-  DEFAULT_SYNCIGNORE, IgnoreRules, SYNCIGNORE_PATH, describeDeletes, describePreview, diffAgainstLocal, planEmptiedFolders, previewSync, fetchProject, loadIgnoreRules, planDeletes, planUpload, safeRelative, writePulled,
+  DEFAULT_SYNCIGNORE, IgnoreRules, SYNCIGNORE_PATH, describeDeletes, describePreview, diffAgainstLocal, planEmptiedFolders, previewHasWork, previewSync, fetchProject, loadIgnoreRules, planDeletes, planUpload, safeRelative, writePulled,
 } from "../sync";
 
 const REPO = path.resolve(__dirname, "..", "..", "..", "..");
@@ -182,6 +182,11 @@ test("previewSync: new, changed, unchanged, and deletes or kept device-only file
   const onDevice = files.filter((x) => x.path !== "new.py");
   const synced3 = remote.slice(0, 3).map((r) => (r.path === "lib/x.py" ? { ...r, size: 2 } : r));
   assert.match(describePreview("demo", previewSync(onDevice, synced3, cache, synced, false)), /Everything is up to date/);
+  assert.equal(previewHasWork(previewSync(onDevice, synced3, cache, synced, false)), false);
+  assert.equal(previewHasWork(keep), true);
+  // only a delete left (with syncDeletes on) still counts: the upload would ask to delete it
+  assert.equal(previewHasWork(previewSync(onDevice, [...synced3, { path: "old/gone.py", size: 1 }], cache, synced, true)), true);
+  assert.equal(previewHasWork(previewSync(onDevice, [...synced3, { path: "old/gone.py", size: 1 }], cache, synced, false)), false);
 });
 
 test("describeDeletes caps the list", () => {

@@ -198,6 +198,11 @@ export function previewSync(files: UploadFile[], remote: RemoteFile[], cache: Sy
   };
 }
 
+/** Whether uploading would send or delete anything (the preview then offers to upload). */
+export function previewHasWork(p: SyncPreview): boolean {
+  return p.added.length + p.changed.length + p.deletes.length > 0;
+}
+
 /** The preview as text for the output channel. */
 export function describePreview(name: string, p: SyncPreview, max = 30): string {
   const out = ["Preview of \"" + name + "\" (nothing was sent or deleted):"];
@@ -211,7 +216,7 @@ export function describePreview(name: string, p: SyncPreview, max = 30): string 
   section("Would be deleted on the device after you confirm (xscript.syncDeletes)", p.deletes);
   section("Folders those deletes leave empty, removed too", p.folders.map((d) => d + "/"));
   section("Only on the device, kept (turn on xscript.syncDeletes to delete them)", p.kept);
-  if (!p.added.length && !p.changed.length && !p.deletes.length) out.push("", "Everything is up to date.");
+  if (!previewHasWork(p)) out.push("", "Everything is up to date.");
   out.push("", "Run uploads exactly this; Upload Project sends every file again.");
   return out.join("\n");
 }

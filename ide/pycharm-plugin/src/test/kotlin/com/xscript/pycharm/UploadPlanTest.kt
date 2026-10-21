@@ -115,5 +115,9 @@ class UploadPlanTest {
         assertEquals(listOf("old"), del.folders)
         assertEquals(emptyList<String>(), del.kept)
         assertEquals(4, UploadPlanner.preview(files, emptyList(), emptyMap(), synced, false).added.size)
+        assertTrue(keep.hasWork)
+        assertTrue(UploadPlanner.preview(files, emptyList(), emptyMap(), synced, false).hasWork)
+        assertFalse(SyncPreview(emptyList(), emptyList(), 3, emptyList(), emptyList(), listOf("old/gone.py")).hasWork)
+        assertTrue(SyncPreview(emptyList(), emptyList(), 3, listOf("old/gone.py"), emptyList(), emptyList()).hasWork)
     }
 }
