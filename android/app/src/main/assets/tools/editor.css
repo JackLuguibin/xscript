@@ -11,7 +11,7 @@
 .ide-sidebar-foot { display:flex; gap:16px; font-size:12px; }
 .ide-workspace { display:flex; flex-direction:column; min-width:0; min-height:0; }
 .ide-toolbar { display:flex; align-items:center; flex-wrap:wrap; gap:8px; padding:10px 12px; border-bottom:1px solid var(--divider); }
-.ide-toolbar kbd { font-size:10px; opacity:.7; margin-left:5px; }
+.ide-toolbar kbd { font-size:10px; opacity:.85; margin-left:5px; }
 /* mid-width desktops (sidebar shown, ~670–950 px of editor): drop the shortcut hints and tighten spacing so the toolbar stays one row */
 @media(min-width:721px) and (max-width:1180px) { .ide-toolbar kbd { display:none; } }
 @media(min-width:721px) and (max-width:1000px) { .ide-toolbar { gap:6px; } .ide-toolbar button, .ide-toolbar .btn { padding:0 10px; } }
