@@ -6,7 +6,7 @@ import { IconSidebar } from "./icons";
 import { COMPACT_QUERY, focusTargets, inspectorShown, libraryShown, matchesNarrow, NARROW_QUERY, numberIssue, shouldAutoFit, startViewport, overflowEdges, toggleInspector, toggleLibrary, wheelShift, type CanvasFocus, type FieldIssue, type InspectorMode, type LibraryMode } from "../flow/panels";
 import { Background, BaseEdge, Handle, MiniMap, Position, ReactFlow, ReactFlowProvider, useNodesInitialized, useReactFlow, useStore, useUpdateNodeInternals, type ConnectionLineComponentProps, type EdgeProps, type Node, type NodeProps } from "@xyflow/react";
 import { CodeEditor } from "./CodeEditor";
-import { codePins, createDslSync, danglingEdges, deleteNodes, duplicateNodes, foldGraph, mergeFlow, nodeStatement, applyNodeStatement, parse, printFlow, promoteFunction, renameInput, setCodeIo, setNodeInput, snippetFlow, unfoldGraph, type FlowGraph } from "../flow/dsl";
+import { codePins, createDslSync, danglingEdges, deleteNodes, duplicateNodes, foldGraph, mergeFlow, nodeStatement, applyNodeStatement, parse, printFlow, promoteFunction, renameInput, selectionPython, setCodeIo, setNodeInput, snippetFlow, unfoldGraph, type FlowGraph } from "../flow/dsl";
 import { connectPins, connectionHint, diagnose, danglingNodeIds } from "../flow/diagnostics";
 import { emptyUndo, pushUndo, redoEdit, undoEdit, type EditorSnapshot, type UndoStack } from "../flow/history";
 import { addComment, addGroup, clampDock, clipOffscreen, deleteComments, deleteGroups, deleteReroutes, insertReroute, layoutFromGraph, moveItem, moveNode, nudgeSelection, pointOf, rekeyNode, renameComment, renameGroup, renameNodeTitle, retainLayout, segmentMidpoint, shiftGroup, toggleCollapsed, visualEdges, type FlowLayout } from "../flow/layout";
@@ -1849,6 +1849,19 @@ export function FlowPage({ initialLayout }: { initialLayout?: FlowLayout } = {})
   };
   copyRef.current = copySelection;
 
+  const copyPython = () => {
+    let code: string;
+    try {
+      code = selectionPython(graphRef.current, pickedRef.current, specs);
+    } catch {
+      setNote(t.flow.copyPythonRefused);
+      return;
+    }
+    // Not kept in clipText: pasting into the canvas expects flow text, not Python.
+    setNote(t.flow.copiedPython + "\n" + code);
+    void navigator.clipboard?.writeText(code).catch(() => undefined);
+  };
+
   const cutSelection = () => {
     const ids = [...pickedRef.current];
     if (!ids.length) return;
@@ -2177,6 +2190,9 @@ export function FlowPage({ initialLayout }: { initialLayout?: FlowLayout } = {})
           <Button variant="toolbar" type="button" onClick={copySelection} disabled={!picked.some((id) => graph.nodes.some((node) => node.id === id))}>
             {t.flow.copy}
           </Button>
+          <Button variant="toolbar" type="button" onClick={copyPython} disabled={!picked.some((id) => id !== "start" && graph.nodes.some((node) => node.id === id))}>
+            {t.flow.copyPython}
+          </Button>
           <Button variant="toolbar" type="button" onClick={duplicate} disabled={!picked.some((id) => graph.nodes.some((node) => node.id === id))}>
             {t.flow.duplicate}
           </Button>
@@ -2441,7 +2457,7 @@ export function FlowPage({ initialLayout }: { initialLayout?: FlowLayout } = {})
               </section>
             ) : null}
             {stack.noticedDrop ? <p role="status">{t.flow.undoDropped}</p> : null}
-            {note ? <p role="status">{note}</p> : null}
+            {note ? <p role="status" style={{ whiteSpace: "pre-wrap" }}>{note}</p> : null}
           </div>
         ) : null}
         <div className="flow-dock-bar" role="tablist" aria-label={t.flow.dock}>
