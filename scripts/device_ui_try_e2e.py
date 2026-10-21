@@ -34,12 +34,7 @@ SPEC = {"version": 1, "title": "试运行 E2E", "submit": "开始", "cancel": "�
         "fields": [{"kind": "text", "id": "account", "label": "账号", "default": "abc"},
                    {"kind": "checkbox", "id": "notify", "label": "完成后通知", "default": True}]}
 OPENER = urllib.request.build_opener(urllib.request.ProxyHandler({}))
-CODE = re.compile(r"\b[A-Z0-9]{4}-?[A-Z0-9]{4}\b")
-
-
-def mask(text):
-    """Pairing codes (XXXX-XXXX, also unhyphenated) become ****-****; used on everything this script prints."""
-    return CODE.sub("****-****", text)
+mask = devauth.mask  # pairing codes become ****-****; used on everything this script prints
 
 
 def try_main(name):

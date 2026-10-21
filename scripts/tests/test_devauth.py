@@ -26,6 +26,15 @@ def serve(status):
     return srv, "http://127.0.0.1:%d" % srv.server_address[1]
 
 
+class MaskTest(unittest.TestCase):
+    def test_masks_pairing_codes_only(self):
+        self.assertEqual(devauth.mask("配对码 AB2C-9XYZ ok"), "配对码 ****-**** ok")
+        self.assertEqual(devauth.mask("code=AB2C9XYZ"), "code=****-****")
+        self.assertEqual(devauth.mask({"t": "Q7K2-M4PD"}), "{'t': '****-****'}")
+        kept = "127.0.0.1:9860 PASS 在手机上试运行 abcd-efgh"
+        self.assertEqual(devauth.mask(kept), kept)
+
+
 class DevAuthTest(unittest.TestCase):
     def setUp(self):
         devauth._cache.clear()

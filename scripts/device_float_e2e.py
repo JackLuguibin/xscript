@@ -84,7 +84,7 @@ def overlay():
 
 
 def check(ok, name, detail=""):
-    print(("PASS " if ok else "FAIL ") + name + ((" — " + str(detail)) if detail and not ok else ""), flush=True)
+    print(("PASS " if ok else "FAIL ") + name + ((" — " + devauth.mask(detail)) if detail and not ok else ""), flush=True)
     if not ok:
         fails.append(name)
     return ok
@@ -282,7 +282,7 @@ def run_in_background(name):
     r = api("POST", "/projects/%s/run" % name, {})
     ok = wait(lambda: api("GET", "/status")["running"], 15)
     if not ok:
-        print("INFO run did not start:", r, api("GET", "/status").get("running"), flush=True)
+        print("INFO run did not start:", devauth.mask(r), api("GET", "/status").get("running"), flush=True)
     home()
     return ok
 

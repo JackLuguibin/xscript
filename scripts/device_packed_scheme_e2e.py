@@ -9,6 +9,9 @@ xscript://run is NOT answered by the packed app (only by the main app), stop lin
 """
 import html, http.server, os, re, subprocess, sys, threading, time
 
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+from devauth import mask  # noqa: E402  pairing codes in UI dump text become ****-****
+
 SERIAL = sys.argv[1]
 APP = sys.argv[2] if len(sys.argv) > 2 else "com.example.packdemo"
 PROJ = sys.argv[3] if len(sys.argv) > 3 else "demo"
@@ -107,7 +110,7 @@ results = []
 
 def check(ok, name, detail=""):
     results.append(bool(ok))
-    print(("PASS " if ok else "FAIL ") + name + (" (%s)" % detail if detail else ""))
+    print(("PASS " if ok else "FAIL ") + name + (" (%s)" % mask(detail) if detail else ""))
 
 
 def dialog_pkgs():

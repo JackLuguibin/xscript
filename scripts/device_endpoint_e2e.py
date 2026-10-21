@@ -22,6 +22,7 @@ import time
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import device_guide_smoke as api  # noqa: E402  (run() / call() over the HTTP API)
+from devauth import mask  # noqa: E402  pairing codes in UI dump text become ****-****
 
 serial = os.environ.get("ANDROID_SERIAL")
 if not serial or len(sys.argv) < 2:
@@ -61,7 +62,7 @@ def row(timeout=12, want=None):
         if text and (want is None or re.search(want, text)):
             return text, centre
         time.sleep(1)
-    raise AssertionError("开发者地址 shows %r, expected /%s/" % (text, want))
+    raise AssertionError(mask("开发者地址 shows %r, expected /%s/" % (text, want)))
 
 
 def button(label):
@@ -78,7 +79,7 @@ def tap(centre):
 
 def check(name, want, **kw):
     text, centre = row(want=want, **kw)
-    print("ok  %-14s %s" % (name, text))
+    print("ok  %-14s %s" % (name, mask(text)))
     return centre
 
 
@@ -116,7 +117,7 @@ try:
     time.sleep(2)
     launch()
     text, c = row(want=r"^127\.0\.0\.1:986\d（仅 USB）$")
-    print("ok  %-14s %s" % ("USB only", text))
+    print("ok  %-14s %s" % ("USB only", mask(text)))
     port = int(re.search(r":(986\d)", text).group(1))
     tap(c)
     time.sleep(1.5)
@@ -131,7 +132,7 @@ try:
     api.base = "http://127.0.0.1:19869"
     lines = api.run("xs_clip_check", "from xscript.android import system\nprint('clip=' + system.clipboard_get())\n", wait=30)
     adb("forward", "--remove", "tcp:19869")
-    assert ("clip=" + cmd) in lines, "clipboard holds the copied command %r: %r" % (cmd, lines)
+    assert ("clip=" + cmd) in lines, mask("clipboard holds the copied command %r: %r" % (cmd, lines))
     print("ok  copy command   clipboard: %s" % cmd)
 finally:
     sh("pkill -f 'nc -L'; touch /data/local/tmp/xs_net_on")
