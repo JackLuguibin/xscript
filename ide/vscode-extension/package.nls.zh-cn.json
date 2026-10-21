@@ -1,6 +1,7 @@
 {
   "xscript.command.connect": "连接设备",
   "xscript.command.checkConnection": "逐项检查连接",
+  "xscript.command.grantCapture": "在手机上授权截图",
   "xscript.command.selectDevice": "选择运行设备",
   "xscript.command.manageDevices": "管理设备列表",
   "xscript.command.scanDevices": "扫描设备",

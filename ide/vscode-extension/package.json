@@ -44,6 +44,11 @@
         "category": "XScript"
       },
       {
+        "command": "xscript.grantCapture",
+        "title": "%xscript.command.grantCapture%",
+        "category": "XScript"
+      },
+      {
         "command": "xscript.pair",
         "title": "%xscript.command.pair%",
         "category": "XScript"

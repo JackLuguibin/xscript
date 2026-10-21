@@ -10,6 +10,7 @@ import { DeviceStore, FoundDevice, SavedDevice, httpProbe, lanCandidates, normal
 import { DEFAULT_SYNCIGNORE, IgnoreRules, SYNCIGNORE_PATH, SyncCache, describeDeletes, describePreview, planEmptiedFolders, previewHasWork, previewSync, diffAgainstLocal, fetchProject, loadIgnoreRules, planDeletes, planUpload, writePulled } from "./sync";
 import { TEMPLATES, createProject, validateProjectName } from "./newProject";
 import { Node, XScriptTree } from "./tree";
+import { captureBadge, captureProblem, captureText } from "./captureStatus";
 import { TROUBLESHOOTING_URL, canConnect, failureSummary, formatCheck, langOf, runConnectCheck, tcpConnect, type CheckStep } from "./connectCheck";
 import { newUiForm, registerUiDesigner } from "./uiDesigner";
 
@@ -141,8 +142,10 @@ async function refreshStatus(): Promise<void> {
     }
     statusItem.command = "xscript.connect";
     const running = s.running ? " $(play) " + String(s.project ?? "") : "";
-    statusItem.text = "$(device-mobile) " + String(s.model || s.name || "XScript") + running;
-    statusItem.tooltip = "XScript device " + addr + " (click to change)";
+    const capture = captureBadge(captureProblem(s), langOf(vscode.env.language));
+    statusItem.text = "$(device-mobile) " + String(s.model || s.name || "XScript") + running + capture.suffix;
+    statusItem.tooltip = capture.tooltip ? "XScript " + addr + ": " + capture.tooltip : "XScript device " + addr + " (click to change)";
+    if (capture.tooltip) statusItem.command = "xscript.grantCapture";
   } catch {
     isRunning = false;
     void vscode.commands.executeCommand("setContext", "xscript.running", false);
@@ -586,6 +589,21 @@ const commands: Record<string, (...args: any[]) => unknown> = {
     }
     const next = await reportFailedCheck(steps);
     if (next === "retry") await vscode.commands.executeCommand("xscript.connect", address);
+  },
+
+  "xscript.grantCapture": async () => {
+    const t = captureText(langOf(vscode.env.language));
+    const pick = await vscode.window.showWarningMessage(t.ask, t.grant, t.help);
+    if (pick === t.help) {
+      await vscode.env.openExternal(vscode.Uri.parse(TROUBLESHOOTING_URL));
+      return;
+    }
+    if (pick !== t.grant) return;
+    const ok = await guard("grant screen capture", () => client.requestCapture());
+    if (ok === undefined) return;
+    if (ok) vscode.window.showInformationMessage(t.requested);
+    else vscode.window.showWarningMessage(t.old);
+    void refreshStatus();
   },
 
   "xscript.newUiForm": (arg?: { root?: string; name?: string }) => newUiForm(arg),
