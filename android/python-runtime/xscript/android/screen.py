@@ -11,14 +11,37 @@
 import time
 
 from xscript.android import image as _img
-from xscript.android.image import OcrResult, Point  # noqa: F401
+from xscript.android.image import CaptureError, OcrResult, Point  # noqa: F401
 from xscript.runtime.bridge import bridge
 
 
 def capture(path=None):
     """Save a PNG on the device. Returns the file path or None."""
     result = bridge.capture_to_file("" if path is None else str(path))
-    return str(result) if result else None
+    if not result:
+        _img._capture_failed()
+        return None
+    _img._capture_warned["done"] = False
+    return str(result)
+
+
+def strict_capture(enabled=True):
+    """Turn a failed screen capture into an error instead of an empty result.
+
+    By default (and at the start of every run) a failed capture keeps the old behavior: capture() returns None,
+    find_* return None / False / [], and the reason is logged once. After strict_capture(True), capture, capture_cv,
+    capture_pil and every find_* / ocr call that grabs the screen raise screen.CaptureError with the fix, so a long
+    script stops right away instead of looping on a blank screen.
+        screen.strict_capture(True)
+        try:
+            screen.find_image(R.img("ok.png"))
+        except screen.CaptureError as e:
+            ui.toast(str(e))
+    Returns the previous setting.
+    """
+    prev = _img._strict["on"]
+    _img._strict["on"] = bool(enabled)
+    return prev
 
 
 def capture_status():
@@ -47,7 +70,10 @@ def capture_cv(rect=None):
 def capture_bitmap(rect=None):
     """android.graphics.Bitmap of the screen (or region)."""
     r = _img._norm_rect(rect) or (0, 0, 0, 0)
-    return bridge.capture_bitmap(*r)
+    bmp = bridge.capture_bitmap(*r)
+    if bmp is None:
+        _img._capture_failed()
+    return bmp
 
 
 def capture_pil(rect=None):

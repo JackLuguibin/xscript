@@ -111,6 +111,9 @@ def run_project(project_dir, launch_params="{}", debug=False):
         if key == name or key.startswith(name + "."):
             del sys.modules[key]
 
+    image_mod = sys.modules.get("xscript.android.image")
+    if image_mod is not None:  # the interpreter is reused between runs: strict_capture() must not leak into the next one
+        image_mod._reset_run_state()
     print("xscript: starting %s" % name)
     code = 0
     try:
