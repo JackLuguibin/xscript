@@ -465,7 +465,7 @@
       } else if ((d.node.decorators || []).length) return null;
       return { label, params: d.node.args.slice(drop), node: d.node, scope: d.inner || null };
     }
-    // Argument-count / keyword problems of one call, or null.
+    // Argument-count / keyword problems of one call: a message, {message, suggest, at} for a misspelled keyword, or null.
     callProblem(call) {
       const n = call.node;
       if (n.args.some(a => a.type === "Starred") || n.keywords.some(k => k.arg === null)) return null;
@@ -476,7 +476,14 @@
       const filled = new Set(pos.slice(0, n.args.length).map(a => a.arg));
       for (const k of n.keywords) {
         const p = t.params.find(a => a.arg === k.arg && (a.kind === "arg" || a.kind === "kwonly"));
-        if (!p) { if (kwarg) continue; return t.label + "() 没有名为 " + k.arg + " 的参数"; }
+        if (!p) {
+          if (kwarg) continue;
+          // a close parameter name that this call does not fill otherwise (names of 3+ letters): offer it (Ctrl+. renames the keyword)
+          const used = new Set(pos.slice(0, n.args.length).map(a => a.arg).concat(n.keywords.map(x => x.arg)));
+          const suggest = k.arg.length > 2 && closest(k.arg, t.params.filter(a => (a.kind === "arg" || a.kind === "kwonly") && !used.has(a.arg)).map(a => a.arg));
+          const message = t.label + "() 没有名为 " + k.arg + " 的参数";
+          return suggest ? { message: message + "（是不是 " + suggest + "？Ctrl+. 改正）", suggest, at: { line: k.line, col: k.col, length: k.arg.length } } : message;
+        }
         if (filled.has(k.arg)) return t.label + "() 的参数 " + k.arg + " 传了两次";
         filled.add(k.arg);
       }
@@ -745,6 +752,7 @@
       }
       for (const c of f.calls) {
         const m = this.callProblem(c); if (!m) continue;
+        if (typeof m === "object") { out.push(Object.assign({}, m.at, { message: m.message, severity: "warning", suggest: m.suggest })); continue; }
         const e = c.node.func, at = e.type === "Name" ? { line: e.line, col: e.col, length: e.id.length } : { line: e.line, col: e.col, length: e.attr.length };
         const k = at.line + ":" + at.col; if (seen.has(k)) continue; seen.add(k);
         out.push(Object.assign(at, { message: m, severity: "warning" }));
