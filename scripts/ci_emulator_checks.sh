@@ -2,7 +2,7 @@
 # Device checks on a throwaway CI emulator (.github/workflows/emulator-nightly.yml); also usable on a local disposable AVD:
 #   ANDROID_SERIAL=emulator-5556 PKG=com.xscript.app.perf APK=app-debug.apk bash scripts/ci_emulator_checks.sh
 # Installs the APK, grants what the app needs, then runs device_guide_smoke.py, device_endpoint_e2e.py (needs adb root),
-# device_pairing_copy_e2e.py and the orientation section of device_float_e2e.py.
+# device_pairing_copy_e2e.py, the orientation section of device_float_e2e.py and device_ui_try_e2e.py (needs node).
 set -euo pipefail
 : "${ANDROID_SERIAL:?set ANDROID_SERIAL to a disposable emulator}"
 PKG=${PKG:-com.xscript.app}
@@ -32,3 +32,5 @@ wait_api
 python3 scripts/device_pairing_copy_e2e.py "$PKG" http://127.0.0.1:19860
 # the floating window keeps a position per orientation and re-fits after rotating
 XS_PKG="$PKG" XS_ONLY=orientation python3 scripts/device_float_e2e.py "$ANDROID_SERIAL" http://127.0.0.1:19860
+# 桌面端「在手机上试运行」: the generated form opens on the phone, 开始/取消 return the values / null (needs node)
+python3 scripts/device_ui_try_e2e.py "$ANDROID_SERIAL" http://127.0.0.1:19860
