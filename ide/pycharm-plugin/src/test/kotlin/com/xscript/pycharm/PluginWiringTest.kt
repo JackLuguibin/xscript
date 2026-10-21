@@ -29,6 +29,34 @@ class PluginWiringTest : BasePlatformTestCase() {
         }
     }
 
+    fun testEvalTimeoutSettingIsClampedAndEditable() {
+        val s = XScriptSettings.get()
+        val old = s.evalTimeoutMs
+        try {
+            assertEquals(XScriptSettings.DEFAULT_EVAL_TIMEOUT_MS, XScriptSettings.State().evalTimeoutMs)
+            s.evalTimeoutMs = 50
+            assertEquals(200, s.evalTimeoutMs)
+            s.evalTimeoutMs = 60000
+            assertEquals(15000, s.evalTimeoutMs)
+            s.loadState(XScriptSettings.State().apply { device = s.device; evalTimeoutMs = 99999 }) // hand-edited xscript.xml
+            assertEquals(15000, s.evalTimeoutMs)
+
+            s.evalTimeoutMs = 8000
+            val ui = XScriptConfigurable()
+            ui.createComponent()
+            assertFalse(ui.isModified)
+            val spinner = ui.javaClass.getDeclaredField("evalTimeout").apply { isAccessible = true }.get(ui) as com.intellij.ui.JBIntSpinner
+            spinner.number = 3000
+            assertTrue(ui.isModified)
+            ui.apply()
+            assertEquals(3000, s.evalTimeoutMs)
+            assertFalse(ui.isModified)
+            ui.disposeUIResources()
+        } finally {
+            s.evalTimeoutMs = old
+        }
+    }
+
     fun testProjectRootFindsTopmostPackage() {
         val init = myFixture.addFileToProject("demo/lib/__init__.py", "")
         myFixture.addFileToProject("demo/__init__.py", "print('hi')\n")

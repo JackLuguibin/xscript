@@ -16,6 +16,7 @@ import com.intellij.openapi.components.Storage
 class XScriptSettings : PersistentStateComponent<XScriptSettings.State> {
     class State {
         var device: String = "127.0.0.1:$DEFAULT_PORT"
+        var evalTimeoutMs: Int = DEFAULT_EVAL_TIMEOUT_MS
     }
 
     private var state = State()
@@ -25,6 +26,11 @@ class XScriptSettings : PersistentStateComponent<XScriptSettings.State> {
     var device: String
         get() = state.device
         set(v) { state.device = v.trim() }
+
+    /** Run Selection on Device timeout, like VS Code's `xscript.evalTimeoutMs`; kept within what the device accepts. */
+    var evalTimeoutMs: Int
+        get() = clampEvalTimeout(state.evalTimeoutMs)
+        set(v) { state.evalTimeoutMs = clampEvalTimeout(v) }
 
     fun target(): DeviceTarget = DeviceTarget.parse(device)
 
@@ -41,6 +47,10 @@ class XScriptSettings : PersistentStateComponent<XScriptSettings.State> {
     private fun attributes(t: DeviceTarget) = CredentialAttributes(generateServiceName("XScript", "device ${t.host}:${t.port}"), "xscript")
 
     companion object {
+        const val DEFAULT_EVAL_TIMEOUT_MS = 8000
+        const val MIN_EVAL_TIMEOUT_MS = 200
+        const val MAX_EVAL_TIMEOUT_MS = 15000
+        fun clampEvalTimeout(ms: Int) = ms.coerceIn(MIN_EVAL_TIMEOUT_MS, MAX_EVAL_TIMEOUT_MS)
         fun get(): XScriptSettings = ApplicationManager.getApplication().getService(XScriptSettings::class.java)
     }
 }
