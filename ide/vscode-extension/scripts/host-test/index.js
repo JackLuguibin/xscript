@@ -44,6 +44,23 @@ exports.run = async function run() {
         try { py = await vscode.workspace.findFiles("**/__init__.py", null, 1); } catch { await sleep(1000); }
       }
       check(py.length === 1, "workspaceContains:**/__init__.py found the project file");
+      // basic checks: a project file with an undefined name and an unused import shows both in Problems
+      {
+        const root = fs.mkdtempSync(path.join(os.tmpdir(), "xs-host-lint-"));
+        const file = path.join(root, "__init__.py");
+        fs.writeFileSync(file, "import os\ntotal = 1\nprint(totl)\n");
+        try {
+          const uri = vscode.Uri.file(file);
+          await vscode.window.showTextDocument(uri);
+          let diags = [];
+          for (let i = 0; i < 20 && diags.length < 2; i++) { await sleep(300); diags = vscode.languages.getDiagnostics(uri).filter((d) => d.source === "XScript"); }
+          const msgs = diags.map((d) => d.message);
+          check(msgs.includes("未定义的名字 totl（是不是 total？）") && msgs.includes("未使用的 import os"), "Problems show the basic checks (undefined name, unused import)", msgs.join(" | "));
+          await vscode.commands.executeCommand("workbench.action.closeActiveEditor");
+        } finally {
+          fs.rmSync(root, { recursive: true, force: true });
+        }
+      }
       await flows(ext, check, folder);
     }
   } catch (e) {
