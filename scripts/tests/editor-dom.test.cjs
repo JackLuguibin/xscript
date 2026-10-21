@@ -564,6 +564,45 @@ test('Web IDE explorer, editor and create/delete flows in a real browser', {skip
       assert.match((await b.eval(() => window.__confirms))[0], /撤销上一次替换（2 个文件）/);
     });
 
+    await t.test('rename symbol (F2): prompt, confirm, every file written, undo; bad names refused', async () => {
+      await api('PUT', '/projects/dom/files', {files: [
+        {path: 'ren_lib.py', content: 'def helper(x):\n    return x * 2\n'},
+        {path: 'ren_main.py', content: 'from ren_lib import helper\nhelper_count = 0\nprint(helper(2))\n'}]});
+      await b.eval(click, '#refresh'); await b.waitFor(idle);
+      await b.eval(click, row('ren_main.py'));
+      await b.waitFor(() => document.getElementById('editor').value.startsWith('from ren_lib'));
+      const caretAt = needle => b.eval(w => { const e = document.getElementById('editor'); const i = e.value.indexOf(w); e.focus(); e.setSelectionRange(i + 1, i + 1); }, needle);
+      const msg = () => b.eval(() => document.getElementById('message').textContent);
+      // a declined confirm changes nothing
+      await prompts(['assist']); await confirms([false]);
+      await caretAt('helper(2)'); await b.key('F2', 'F2', 113);
+      await b.waitFor(() => window.__confirms && window.__confirms.length === 1);
+      assert.deepEqual(await b.eval(() => window.__prompts.map(p => p.def)), ['helper']);
+      assert.match((await b.eval(() => window.__confirms))[0], /把 2 个文件中的 3 处 helper 重命名为 assist/);
+      assert.equal((await api('GET', '/projects/dom/file?path=ren_lib.py')).content, 'def helper(x):\n    return x * 2\n');
+      // accepted: both files written, helper_count untouched, the editor shows the new text
+      await prompts(['assist']); await confirms([true]);
+      await caretAt('helper(2)'); await b.key('F2', 'F2', 113);
+      await b.waitFor(() => /已把 helper 重命名为 assist：3 处（2 个文件）/.test(document.getElementById('message').textContent));
+      assert.equal((await api('GET', '/projects/dom/file?path=ren_lib.py')).content, 'def assist(x):\n    return x * 2\n');
+      assert.equal((await api('GET', '/projects/dom/file?path=ren_main.py')).content, 'from ren_lib import assist\nhelper_count = 0\nprint(assist(2))\n');
+      assert.equal(await b.eval(() => document.getElementById('editor').value), 'from ren_lib import assist\nhelper_count = 0\nprint(assist(2))\n');
+      // 撤销替换 undoes the rename
+      assert.equal(await b.eval(() => document.getElementById('replace-undo').disabled), false);
+      await confirms([true]); await b.eval(click, '#replace-undo');
+      await b.waitFor(() => /已撤销 2 个文件/.test(document.getElementById('message').textContent));
+      assert.equal((await api('GET', '/projects/dom/file?path=ren_lib.py')).content, 'def helper(x):\n    return x * 2\n');
+      // refused: a keyword, a library symbol
+      await prompts(['class']); await confirms([]);
+      await caretAt('helper(2)'); await b.key('F2', 'F2', 113);
+      await b.waitFor(() => /不是合法的 Python 名字/.test(document.getElementById('message').textContent));
+      await caretAt('print('); await b.key('F2', 'F2', 113);
+      await b.waitFor(() => /找不到 print 的定义/.test(document.getElementById('message').textContent));
+      assert.deepEqual(await b.eval(() => window.__confirms), []);
+      for (const p of ['ren_lib.py', 'ren_main.py']) await fetch(base + '/projects/dom/file?path=' + p, {method: 'DELETE'});
+      await b.eval(click, '#refresh'); await b.waitFor(idle);
+    });
+
     await t.test('ReDoS guard: nested repeats are refused up front; a hidden catastrophic pattern is killed by the worker timeout and the page stays responsive', async () => {
       await api('PUT', '/projects/dom/files', {files: [{path: 'search/redos.txt', content: 'a'.repeat(60) + 'b\n'}]});
       await b.eval(click, '#refresh'); await b.waitFor(idle);

@@ -120,7 +120,7 @@
       const group = state.results.find(g => g.path === row.dataset.path); if (group) ctx.openMatch(group.path, group.matches[Number(row.dataset.i)]);
     });
     function reset() { ++state.token; state.results = []; render(); summary(""); syncUndo(); }
-    return {open, close, run, reset, state};
+    return {open, close, run, reset, state, syncUndo};
   }
 
   // ---- find references (Shift+F12) ----

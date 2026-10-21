@@ -557,6 +557,7 @@
   el("editor").addEventListener("scroll", () => { syncScroll(); assist.onScroll(); });
   el("editor").addEventListener("keydown", e => {
     if (e.key === "F12" && !e.ctrlKey && !e.metaKey && !e.altKey) { e.preventDefault(); (e.shiftKey ? findReferences : goToDefinition)(e.target.selectionStart); return; }
+    if (e.key === "F2" && !e.shiftKey && !e.ctrlKey && !e.metaKey && !e.altKey) { e.preventDefault(); renameSymbol(e.target.selectionStart); return; }
     if (assist.onKey(e)) return;
     if (e.key === "Tab" && !e.shiftKey) {
       e.preventDefault(); const box = e.target;
@@ -620,6 +621,25 @@
     const before = text.slice(0, pos), line = before.split("\n").length, col = pos - before.lastIndexOf("\n") - 1;
     return hoverIndex.index.describeAt(path, line, col);
   };
+  // Rename symbol (F2 in the editor): every occurrence of the same definition across the project, after a confirm.
+  async function renameSymbol(pos) {
+    if (pending) return;
+    const s = await symbolsAt(pos); if (!s) return;
+    const probe = s.index.renameAt(s.path, s.line, s.col);
+    if (probe.error) { message(probe.error, true); return; }
+    const to = prompt("重命名 " + probe.name + "：输入新名字（工程里指向同一定义的地方一起改）", probe.name);
+    if (to === null || to.trim() === probe.name) return;
+    const r = s.index.renameAt(s.path, s.line, s.col, to.trim());
+    if (r.error) { message(r.error, true); return; }
+    const dirty = new Set(r.edits.map(e => e.path).filter(p => { const d = model.documents.get(model.key(p)); return d && model.dirty(d); })).size;
+    if (!confirm("把 " + r.files + " 个文件中的 " + r.edits.length + " 处 " + r.name + " 重命名为 " + r.newName + "？\n" +
+      "没有未保存修改的文件会直接写入设备，可用「撤销替换」恢复" + (dirty ? "；有未保存修改的 " + dirty + " 个文件只改编辑器内容，仍需保存" : "") + "。")) return;
+    await operation(async () => {
+      const done = await model.renameInFiles(r.edits, r.name, r.newName);
+      syncCurrent(); await refreshFiles(); search.syncUndo();
+      message("已把 " + r.name + " 重命名为 " + r.newName + "：" + done.count + " 处（" + done.files + " 个文件）" + (done.unsaved.length ? "；未保存：" + done.unsaved.join("、") : ""));
+    });
+  }
   const refs = EditorPanels.initRefs({open: (path, line, col, length) => revealAt(path, line, col, length)});
   // Search / replace and screenshot panels (editor-panels.js).
   const selectionText = () => { const box = el("editor"), t = box.value.slice(box.selectionStart, box.selectionEnd); return t && !/\n/.test(t) && t.length <= 200 ? t : ""; };
