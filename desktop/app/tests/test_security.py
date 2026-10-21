@@ -105,6 +105,8 @@ def test_built_bundle_contains_no_remote_origins():
         "https://tailwindcss.com",
         # React Flow: the attribution link, the Pro link and the error-doc link in its dev warnings (text, never fetched).
         "https://reactflow.dev", "https://pro.reactflow.dev", "https://reactflow.dev/error#001",
+        # Our "can't connect" checklist, linked from connection error banners (clicked -> system browser, never fetched).
+        "https://github.com/JackLuguibin/xscript/blob/main/docs/TROUBLESHOOTING.md",
     }
     assert [u for u in urls if not u.startswith(allowed) and u not in monaco_text_links and not _never_remote(u)] == [], urls
 
