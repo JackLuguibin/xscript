@@ -1,0 +1,53 @@
+{
+  "_comment": "Steps of the connection check, shared by the desktop app, the PyCharm plugin and the VS Code extension. Edit here, then run python scripts/gen_connect_check.py (CI runs it with --check). `section` is the TROUBLESHOOTING.md heading number the step belongs to; `fixIde` replaces `fix` in PyCharm / VS Code, where the address is typed by hand and there is no device card.",
+  "steps": [
+    {
+      "id": "adb", "clients": ["desktop"], "section": 3,
+      "title": {"zh": "找到 adb", "en": "adb found"},
+      "fix": {"zh": "安装 Android platform-tools，或在设置里指定 adb 路径（环境变量 XSCRIPT_ADB / ANDROID_HOME）。", "en": "Install Android platform-tools, or set the adb path in Settings (XSCRIPT_ADB / ANDROID_HOME)."}
+    },
+    {
+      "id": "device", "clients": ["desktop"], "section": 3,
+      "title": {"zh": "adb 能看到手机", "en": "adb sees the phone"},
+      "fix": {"zh": "检查数据线（换一根能传数据的线），手机打开「开发者选项 → USB 调试」；模拟器先 adb connect。然后点「刷新」。", "en": "Check the cable (it must carry data) and turn on Developer options → USB debugging; for emulators run adb connect first. Then press Refresh."}
+    },
+    {
+      "id": "authorized", "clients": ["desktop"], "section": 3,
+      "title": {"zh": "已允许 USB 调试", "en": "USB debugging allowed"},
+      "fix": {"zh": "在手机上的「允许 USB 调试吗？」弹窗里点允许（可勾选「始终允许」）；没有弹窗就拔插一次数据线。", "en": "Tap Allow in the phone's \"Allow USB debugging?\" prompt (tick Always allow). No prompt? Unplug and plug the cable back in."}
+    },
+    {
+      "id": "forward", "clients": ["desktop"], "section": 3,
+      "title": {"zh": "端口转发", "en": "Port forward"},
+      "fix": {"zh": "adb 转发失败：重启 adb（adb kill-server）后重试，或换个 USB 口。", "en": "adb could not forward the port: restart adb (adb kill-server) and try again, or use another USB port."}
+    },
+    {
+      "id": "address", "clients": ["desktop", "pycharm"], "section": 2,
+      "title": {"zh": "地址格式", "en": "Address format"},
+      "fix": {"zh": "请填写 主机:端口，例如 192.168.1.20:9860（端口为 1–65535，省略时用 9860）。", "en": "Use host:port, e.g. 192.168.1.20:9860 (port 1–65535; 9860 when omitted)."},
+      "fixIde": {"zh": "请填写 主机:端口，例如 192.168.1.20:9860（省略端口时用 9860）；用 USB 时先 adb forward tcp:9860 tcp:9860，再填 127.0.0.1:9860。", "en": "Use host:port, e.g. 192.168.1.20:9860 (9860 when omitted). Over USB run adb forward tcp:9860 tcp:9860 first and use 127.0.0.1:9860."}
+    },
+    {
+      "id": "reach", "clients": ["desktop", "pycharm"], "section": 4,
+      "title": {"zh": "能连到这个地址", "en": "Address reachable"},
+      "fix": {"zh": "电脑和手机要在同一个 Wi-Fi，地址和端口以手机首页「开发者地址」为准；访客网络可能开了设备隔离，VPN / 代理也可能拦住局域网地址。也可以改用 USB。", "en": "Computer and phone must be on the same Wi-Fi; use the address and port shown on the phone's home screen. Guest networks may isolate devices, and a VPN or proxy can block LAN addresses. USB works too."},
+      "fixIde": {"zh": "电脑和手机要在同一个 Wi-Fi，地址和端口以手机首页「开发者地址」为准；访客网络可能开了设备隔离，VPN / 代理也可能拦住局域网地址。用 127.0.0.1 时要先 adb forward tcp:9860 tcp:9860（模拟器或 adb 重启后要重新转发）。", "en": "Computer and phone must be on the same Wi-Fi; use the address and port shown on the phone's home screen. Guest networks may isolate devices, and a VPN or proxy can block LAN addresses. For 127.0.0.1 run adb forward tcp:9860 tcp:9860 first (again after the emulator or adb restarts)."}
+    },
+    {
+      "id": "app", "clients": ["desktop", "pycharm"], "section": 1,
+      "title": {"zh": "XScript App 在响应", "en": "XScript app answers"},
+      "fix": {"zh": "打开手机上的 XScript，首页「开发者地址」应显示地址而不是「服务未启动」；全新安装要先允许通知权限。省电策略可能把它冻结了。端口不是 9860 时以首页显示为准。", "en": "Open XScript on the phone; its home screen should show the developer address, not \"service not started\". A fresh install needs the notification permission first, and battery saving may have frozen it. Use the port shown there if it is not 9860."}
+    },
+    {
+      "id": "xscript", "clients": ["desktop", "pycharm"], "section": 6,
+      "title": {"zh": "对方是 XScript", "en": "It is XScript"},
+      "fix": {"zh": "这个端口上不是 XScript（可能是别的程序占了端口）：核对端口，并把 App 升级到与电脑端匹配的版本。", "en": "Something else answers on this port (another program may use it): check the port, and update the app to match this version."}
+    },
+    {
+      "id": "pairing", "clients": ["desktop", "pycharm"], "section": 5,
+      "title": {"zh": "配对码", "en": "Pairing code"},
+      "fix": {"zh": "连接后在设备卡片上输入手机首页「开发与连接 → 配对码」显示的配对码。", "en": "After connecting, enter the pairing code from the phone's home screen (Developer & connection → Pairing code) on the device card."},
+      "fixIde": {"zh": "手机开了配对：连接时会弹出输入框，输入手机首页「开发与连接 → 配对码」显示的配对码。", "en": "Pairing is on: when connecting you are asked for the code shown on the phone under Developer & connection → Pairing code."}
+    }
+  ]
+}
