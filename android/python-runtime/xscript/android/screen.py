@@ -21,6 +21,24 @@ def capture(path=None):
     return str(result) if result else None
 
 
+def capture_status():
+    """Can the script see the screen? Check before a long run and tell the user what to fix.
+
+    Returns {"ok": bool, "source": "projection" | "accessibility" | "root" | "", "lost": bool, "reason": str}.
+    `source` is the capture method that will be used (系统录屏 / 无障碍截图 / Root 截图); `lost` is True when
+    the system screen-recording grant went away (reboot, revoked); `reason` says what to do when ok is False.
+        st = screen.capture_status()
+        if not st["ok"]:
+            ui.toast(st["reason"])
+    """
+    info = _img._capture_info()
+    if not info:
+        return {"ok": False, "source": "", "lost": False, "reason": "无法读取截图状态：请在手机上的 XScript 里运行。"}
+    ok = bool(info["via"]) if "via" in info else bool(info.get("available"))
+    reason = "" if ok else (_img._capture_problem(info) or _img._CAPTURE_NONE_HINT)
+    return {"ok": ok, "source": str(info.get("via") or ""), "lost": bool(info.get("lost")), "reason": reason}
+
+
 def capture_cv(rect=None):
     """BGR numpy array of the screen (or [l, t, r, b] region)."""
     return _img.capture_bgr(rect)

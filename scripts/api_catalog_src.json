@@ -286,6 +286,11 @@
           "doc": "Is the button/icon on screen and in its normal colours? 'enabled' (found with the template's colours), 'disabled' (same shape but greyed out or recoloured, e.g. a disabled button) or None (not found). Brightness is ignored. Cut the template from the enabled state."
         },
         {
+          "name": "capture_status",
+          "returns": "dict",
+          "doc": "Can the script see the screen? {ok, source ('projection' | 'accessibility' | 'root' | ''), lost, reason}. lost is True after a reboot or when the system took the screen-recording grant back; reason says what to fix when ok is False. Check it before a long run."
+        },
+        {
           "name": "wait_image",
           "returns": "dict | None",
           "doc": "Poll find_image until the template appears or timeout seconds pass."

@@ -112,6 +112,11 @@ hit = screen.wait_enabled("res/img/claim.png", timeout=30)  # 等「领取」按
 if hit:
     action.click(hit["center_x"], hit["center_y"])
 
+st = screen.capture_status()         # {'ok': True, 'source': 'projection', 'lost': False, 'reason': ''}
+if not st["ok"]:                     # 长时间运行前先检查：不能截图时提示用户，而不是一路找不到
+    ui.toast(st["reason"])           # 例如「截图失败：系统录屏授权已失效……请……重新授权」
+    raise SystemExit
+
 with_cache = screen.cache(True)      # 冻结一帧，供多次查找使用
 screen.cache(False)
 
@@ -133,6 +138,8 @@ screen.ocr_click("同意")
 | `"lab"` | ΔE（CIE76，约 2.3 人眼刚能分辨） | 12 | 按人眼色差找，误匹配最少 | 约 9ms |
 
 `find_color_blobs(color, rect=None, sim=0.9, color_space="hsv", tolerance=None, min_area=50, max_num=0)` 用连通域找色块，`color` 可用 `|` 连接多个颜色，`fill` 为面积占外接矩形的比例（1.0 为实心矩形）；全屏约 5ms。`dominant_colors(rect=None, k=3)` 在 Lab 空间用 k-means 取主色（区域抽样到约 2 万像素，随机种子固定，结果稳定）；全屏约 13ms。
+
+截图状态：`capture_status()` 返回 `ok`（现在能否截图）、`source`（将使用的方式：`projection` 系统录屏、`accessibility` 无障碍截图、`root`，不能截图时为空）、`lost`（系统录屏授权在重启或被系统收回后失效）和 `reason`（不能截图时该怎么做）。截图失败时找图找色只会返回空结果，所以长时间运行的脚本最好在开头检查一次。
 
 按钮状态：`image_state(template, rect=None, confidence=0.9, image=None)` 先按灰度形状找图，再比较找到的区域和模板的颜色（同 `rgb=True` 的色度校验）。模板请从按钮可用（彩色）时截取。`wait_enabled` 和 `wait_image` 跟 `ocr_wait` 一样每 `interval` 秒（默认 0.3）看一次，超时时最后再看一次。
 
