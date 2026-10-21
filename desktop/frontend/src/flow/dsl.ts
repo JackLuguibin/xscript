@@ -2454,6 +2454,31 @@ function foldedSource(nodes: FlowNode[], edges: FlowEdge[], entry: string, specs
   return pythonBody(compile(graph, specs).python);
 }
 
+/**
+ * Python for the selected nodes alone (「复制为 Python」): the same body a fold would put in its code node.
+ * Starts with the imports it needs. The selection needs exactly one entry node (one with no exec wire from inside the selection); values wired
+ * in from outside the selection are left as the compiler's defaults.
+ */
+export function selectionPython(g: FlowGraph, ids: string[], specs: Map<string, NodeSpec>): string {
+  const selected = new Set(ids.filter((id) => id !== "start"));
+  const chosen = g.nodes.filter((node) => selected.has(node.id));
+  if (!chosen.length) throw new Error("empty selection");
+  const inside = (ref: string) => selected.has(pinOf(ref).node);
+  const internal = g.edges.filter((edge) => inside(edge.from) && inside(edge.to));
+  const fed = new Set(internal.filter((edge) => pinOf(edge.to).pin === "exec").map((edge) => pinOf(edge.to).node));
+  const execNodes = chosen.filter((node) => (specs.get(node.type)?.exec.in.length ?? 1) > 0);
+  const entries = execNodes.filter((node) => !fed.has(node.id));
+  if (entries.length !== 1) throw new Error("selection needs one entry node");
+  const graph: FlowGraph = {
+    xflow: 1,
+    name: "selection",
+    nodes: [{ id: "start", type: "event.start" }, ...copyOf(chosen)],
+    edges: [{ from: "start.then", to: entries[0].id + ".exec" }, ...copyOf(internal)],
+  };
+  // Keep the imports so the snippet runs on its own; drop the "generated from" banner.
+  return compile(graph, specs).python.split("\n").slice(1).join("\n").replace(/\n+$/, "\n");
+}
+
 /** Fold a straight selection into one code.python node. The original subgraph stays on meta.origin. */
 export function foldGraph(g: FlowGraph, ids: string[], codeId: string, specs: Map<string, NodeSpec>): FlowGraph {
   const selected = new Set(ids);
