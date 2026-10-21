@@ -21,16 +21,17 @@ from xscript.android import screen
 
 GOLDEN = os.path.join(os.path.dirname(os.path.abspath(__file__)), "data", "golden")
 RUNS = 7
-# budget ms; the comment is the median on an M-series Mac with the phone pins (numpy 1.23.3, OpenCV 4.5.4), so each
-# budget is ~6-8x that: room for a CI runner, not for a path that got several times slower
+# budget ms. Comments: median on an M-series Mac / on the GitHub ubuntu runner (CI), with the phone pins (numpy
+# 1.23.3, OpenCV 4.5.4). Each budget is at least 3x the CI median: room for a slower runner, not for a path that got
+# several times slower. SIFT (feature) is ~4x slower on the runner than on the Mac, hence its larger budget.
 BUDGET_MS = {
-    "template: find every template": 150,              # 22
-    "template: find_all coins": 40,                    # 5
-    "template: rgb find_all coins": 50,                # 7
-    "multiscale: find on a 0.8x screen": 150,          # 18
-    "multiscale: find_all coins on a 1.25x screen": 450,  # 63
-    "feature: rotated 10 degrees": 300,                # 45
-    "auto: 90 degree screenshot": 200,                 # 25
+    "template: find every template": 150,              # 22 / 33
+    "template: find_all coins": 40,                    # 5 / 9
+    "template: rgb find_all coins": 50,                # 7 / 13
+    "multiscale: find on a 0.8x screen": 150,          # 18 / 23
+    "multiscale: find_all coins on a 1.25x screen": 450,  # 63 / 84
+    "feature: rotated 10 degrees": 600,                # 45 / 179
+    "auto: 90 degree screenshot": 200,                 # 25 / 48
 }
 
 
