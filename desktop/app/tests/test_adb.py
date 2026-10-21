@@ -4,7 +4,9 @@ from pathlib import Path
 
 import pytest
 
-from xscript_desktop.services.adb import AdbError, AdbService, candidate_adb_paths, find_adb, parse_devices
+from xscript_desktop.services import adb as adb_mod
+from xscript_desktop.services.adb import (AdbError, AdbService, bundled_adb_paths, candidate_adb_paths, find_adb,
+                                          parse_devices)
 
 from .conftest import FakeAdb  # type: ignore[attr-defined]
 
@@ -53,6 +55,83 @@ def test_candidate_paths_windows_shape():
     c = candidate_adb_paths({"LOCALAPPDATA": r"C:\Users\u\AppData\Local", "USERPROFILE": r"C:\Users\u"}, "win32")
     names = [p.name for p in c]
     assert names and all(n == "adb.exe" for n in names)
+
+
+def _bundle(tmp_path: Path, exe: str = "adb") -> Path:
+    """A fake PyInstaller payload dir (sys._MEIPASS) with platform-tools/<exe> in it."""
+    root = tmp_path / "bundle"
+    (root / "platform-tools").mkdir(parents=True)
+    (root / "platform-tools" / exe).write_text("")
+    return root
+
+
+def test_bundled_adb_only_in_a_frozen_build(tmp_path: Path):
+    root = _bundle(tmp_path)
+    assert bundled_adb_paths("darwin", frozen=False, bundle_dir=root) == []
+    assert bundled_adb_paths("darwin", frozen=True, bundle_dir=root) == [root / "platform-tools" / "adb"]
+    assert bundled_adb_paths("win32", frozen=True, bundle_dir=root) == [root / "platform-tools" / "adb.exe"]
+
+
+def test_bundled_adb_defaults_to_meipass_then_the_executable_dir(monkeypatch, tmp_path: Path):
+    assert bundled_adb_paths("linux") == []  # tests run from source: sys.frozen is not set
+    monkeypatch.setattr(adb_mod.sys, "frozen", True, raising=False)
+    monkeypatch.setattr(adb_mod.sys, "_MEIPASS", str(tmp_path / "meipass"), raising=False)
+    assert bundled_adb_paths("linux") == [tmp_path / "meipass" / "platform-tools" / "adb"]
+    monkeypatch.delattr(adb_mod.sys, "_MEIPASS")
+    exe = tmp_path / "dist" / "XScript.exe"
+    monkeypatch.setattr(adb_mod.sys, "executable", str(exe))
+    assert bundled_adb_paths("win32") == [exe.resolve().parent / "platform-tools" / "adb.exe"]
+
+
+def test_bundled_adb_is_preferred_over_sdk_defaults_and_path(tmp_path: Path):
+    root = _bundle(tmp_path)
+    bundled = bundled_adb_paths("linux", frozen=True, bundle_dir=root)
+    sdk = tmp_path / "sdk" / "platform-tools"
+    sdk.mkdir(parents=True)
+    (sdk / "adb").write_text("")
+    on_path = tmp_path / "bin"
+    on_path.mkdir()
+    (on_path / "adb").write_text("")
+    (on_path / "adb").chmod(0o755)
+    home = tmp_path / "home" / "Android" / "Sdk" / "platform-tools"
+    home.mkdir(parents=True)
+    (home / "adb").write_text("")
+    env = {"ANDROID_HOME": str(tmp_path / "sdk"), "HOME": str(tmp_path / "home"), "PATH": str(on_path)}
+    assert find_adb(None, env, "linux", bundled) == str(root / "platform-tools" / "adb")
+    # the explicit setting and XSCRIPT_ADB still win over the bundled one
+    mine = tmp_path / "my-adb"
+    mine.write_text("")
+    assert find_adb(str(mine), env, "linux", bundled) == str(mine)
+    assert find_adb(None, {**env, "XSCRIPT_ADB": str(mine)}, "linux", bundled) == str(mine)
+    # order of the candidates: XSCRIPT_ADB, bundled, SDK env, per-OS default
+    cands = candidate_adb_paths({**env, "XSCRIPT_ADB": str(mine)}, "linux", bundled)
+    assert cands == [mine, root / "platform-tools" / "adb", sdk / "adb", home / "adb"]
+
+
+def test_missing_bundled_adb_falls_back_to_sdk_then_path(tmp_path: Path):
+    gone = [tmp_path / "bundle" / "platform-tools" / "adb"]  # a frozen build whose platform-tools was stripped
+    sdk = tmp_path / "sdk" / "platform-tools"
+    sdk.mkdir(parents=True)
+    (sdk / "adb").write_text("")
+    assert find_adb(None, {"ANDROID_HOME": str(tmp_path / "sdk"), "PATH": ""}, "linux", gone) == str(sdk / "adb")
+    on_path = tmp_path / "bin"
+    on_path.mkdir()
+    (on_path / "adb").write_text("")
+    (on_path / "adb").chmod(0o755)
+    assert find_adb(None, {"HOME": str(tmp_path / "nohome"), "PATH": str(on_path)}, "linux", gone) == str(on_path / "adb")
+
+
+def test_service_uses_the_bundled_adb_of_a_frozen_build(monkeypatch, tmp_path: Path):
+    exe = "adb.exe" if adb_mod.sys.platform == "win32" else "adb"
+    root = _bundle(tmp_path, exe)
+    for k in ("XSCRIPT_ADB", "ANDROID_HOME", "ANDROID_SDK_ROOT"):
+        monkeypatch.delenv(k, raising=False)
+    monkeypatch.setenv("HOME", str(tmp_path / "home"))
+    monkeypatch.setenv("PATH", "")
+    monkeypatch.setattr(adb_mod.sys, "frozen", True, raising=False)
+    monkeypatch.setattr(adb_mod.sys, "_MEIPASS", str(root), raising=False)
+    monkeypatch.setenv("LOCALAPPDATA", str(tmp_path / "local"))
+    assert AdbService().path() == str(root / "platform-tools" / exe)
 
 
 async def test_devices_and_forward_lifecycle():
