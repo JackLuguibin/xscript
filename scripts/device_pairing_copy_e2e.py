@@ -5,7 +5,7 @@
 
 Taps the value next to 配对码, then 复制配对码 in the dialog, reads the clipboard with an on-device script (through the
 HTTP API, its log lines are not echoed) and compares it with the code from the app's USB-only pairing socket
-(scripts/devauth.py), ignoring the display dashes. Prints only whether they match. Refuses to run without ANDROID_SERIAL.
+(scripts/devauth.py, read directly even when this computer is already paired), ignoring the display dashes. Prints only whether they match. Refuses to run without ANDROID_SERIAL.
 """
 import os
 import re
@@ -45,8 +45,13 @@ def norm(code):
     return re.sub(r"[^A-Za-z0-9]", "", code or "").upper()
 
 
-expected = norm(devauth.token(api.base, serial))
-assert expected, "pairing is off or the pairing socket did not answer"
+status = api.call("GET", "/status")
+if not status.get("pairing"):
+    print("SKIP copy pairing code: pairing is switched off on this device")
+    sys.exit(0)
+# straight from the USB-only socket: devauth.token() returns nothing once this computer is already paired
+expected = norm(devauth._from_adb(str(status.get("app_id") or pkg), serial))
+assert expected, "the pairing socket did not answer"
 sh("am start -n %s/com.xscript.app.LauncherActivity" % pkg)
 time.sleep(2)
 x, y = centre("配对码", after=True)
