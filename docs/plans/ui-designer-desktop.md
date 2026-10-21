@@ -19,8 +19,8 @@
 - [x] **D.2 只读预览**：工程页打开 `.ui.json` 时在编辑器旁显示表单预览（用 `renderHtml`，放进 sandbox iframe，不执行脚本）；JSON 有错时显示 `validateSpec` 的问题
 - [x] **D.3 设计器视图**：直接复用共享的 `ui-designer.js`（`src/vendor/ui-designer.js`，与 VS Code / 网页 IDE 同一份，测试防漂移），在「设计 / JSON」两种视图间切换，文本始终是唯一来源
 - [x] **D.4 保存生成文件**：保存 `.ui.json` 时用 `outputs()` 一并写入 HTML 和 Python（有未保存修改时的确认与其他文件一致）；「新建界面」入口
-- [ ] **D.5 真机验证**：在模拟器 XS_Verify_API34 的 perf 应用上运行生成的 `ui_<name>.py`，填表并读回值
-- [ ] **D.6 文档与截图**：使用手册、功能对照、桌面端设计、浅色/深色截图
+- [x] **D.5 真机验证**：在模拟器 XS_Verify_API34 的 perf 应用上运行生成的 `ui_<name>.py`，填表并读回值。2026-10-21 用 `scripts/device_ui_designer_e2e.py emulator-5556 http://127.0.0.1:19861`（perf 应用 0.5.0，需悬浮窗权限）跑通 15 项：8 种控件填写、提交返回值和类型、取消返回 None、`show(values)` 预填。桌面端写出的文件来自 `src/vendor/ui-form.js`，`tests/ui-form.test.ts` 保证它与这里用的生成器逐字节一致
+- [x] **D.6 文档与截图**：使用手册「界面设计器」、功能对照、桌面端设计 1.3、`desktop/README.md` 浅色/深色截图
 
 ## 测试计划
 
