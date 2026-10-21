@@ -673,7 +673,7 @@ pre.logs.debug-console { min-height: 4rem; max-height: 10rem; }
 
 /* UI designer for res/ui/<name>.ui.json: the shared view (vendor/ui-designer.js), same as VS Code and the Web IDE */
 /* The columns follow the editor pane (a container), not the window: next to the file list the pane is far narrower than
-   the viewport, and fixed 49rem of tracks pushed the preview out of the card (#226). Tracks may shrink to 0; the
+   the viewport, and fixed 49rem of tracks pushed the preview out of the card (issue 226). Tracks may shrink to 0; the
    container queries below stack them instead of squeezing. */
 .ui-designer-host { container-type: inline-size; min-width: 0; }
 .ui-designer { min-height: 22rem; display: grid; grid-template-columns: 9rem minmax(0, 1fr) minmax(0, 14rem) minmax(0, 1fr); gap: var(--sp-3); padding: var(--sp-3); border: 1px solid var(--border); border-radius: var(--r-md); background: var(--surface); color: var(--text); }
