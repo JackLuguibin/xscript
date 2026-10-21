@@ -40,6 +40,13 @@ class RunHistoryTest {
     }
 
     @Test
+    fun failedOnlyKeepsErrorsAndOrder() {
+        val list = listOf(rec("p", 5, "1"), rec("p", 4, "0"), rec("p", 3, "stopped", stop = true), rec("p", 2, "died"), rec("p", 1, "0"))
+        assertEquals(listOf(5L, 2L), RunHistory.only(list, true).map { it.start })
+        assertEquals(list, RunHistory.only(list, false))
+    }
+
+    @Test
     fun durationText() {
         assertEquals("0 秒", RunHistory.duration(-5))
         assertEquals("2 秒", RunHistory.duration(1_600))

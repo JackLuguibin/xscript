@@ -648,6 +648,12 @@ paths:
         One entry per finished run: wall-clock start (ms), duration, exit ("0", a code, "stopped" or
         "died"), whether a user stopped it, the run's log range (entries with log_from < seq <= log_to in
         GET /logs), a readable outcome, and the runtime's 运行统计 numbers when the run printed them.
+      parameters:
+        - name: failed
+          in: query
+          required: false
+          description: "1 or true: only runs that ended in an error (not exit 0, not stopped by the user)"
+          schema: { type: string, enum: ["1", "true", "0", "false"] }
       responses:
         "200":
           description: OK
