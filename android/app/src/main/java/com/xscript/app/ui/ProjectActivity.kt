@@ -14,6 +14,11 @@ import android.view.ViewGroup
 import android.widget.EditText
 import android.widget.LinearLayout
 import androidx.appcompat.app.AppCompatActivity
+import androidx.activity.result.contract.ActivityResultContracts
+import com.xscript.app.capture.CaptureEngine
+import com.xscript.app.http.DeviceHttpService
+import com.xscript.app.permission.PermissionStatus
+import com.xscript.app.project.PermissionNeeds
 import com.xscript.app.project.ProjectStore
 import com.xscript.app.runtime.RunState
 import com.xscript.app.runtime.ScriptService
@@ -28,12 +33,25 @@ import java.time.format.DateTimeFormatter
 import java.util.Calendar
 import kotlin.concurrent.thread
 
-/** One project: run / stop, 开机自启 / 停止后重新运行, 定时任务, file list, delete. */
+/** One project: run / stop, 权限检查, 开机自启 / 停止后重新运行, 定时任务, file list, delete. */
 class ProjectActivity : AppCompatActivity() {
     private val ui by lazy { UiKit.palette(this) }
     private lateinit var name: String
     private lateinit var store: ProjectStore
+    private lateinit var perms: LinearLayout
     private lateinit var options: LinearLayout
+
+    /** What this project's code uses (scanned on resume); null until the first scan finished. */
+    @Volatile
+    private var needs: List<PermissionNeeds.Need>? = null
+
+    private val capturePermission = registerForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
+        val data = result.data
+        if (result.resultCode == CaptureEngine.RESULT_OK && data != null) {
+            DeviceHttpService.deliverProjection(this, result.resultCode, data)
+            handler.postDelayed({ renderPermissions() }, 500)
+        }
+    }
     private lateinit var files: LinearLayout
     private lateinit var runBtn: android.widget.TextView
     private val handler = android.os.Handler(android.os.Looper.getMainLooper())
@@ -64,6 +82,8 @@ class ProjectActivity : AppCompatActivity() {
         })
         col.addView(actions)
 
+        perms = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
+        col.addView(perms)
         options = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
         col.addView(options)
         files = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
@@ -73,6 +93,7 @@ class ProjectActivity : AppCompatActivity() {
 
     override fun onResume() {
         super.onResume()
+        scanNeeds()
         renderOptions()
         renderFiles()
         handler.post(tick)
@@ -100,10 +121,77 @@ class ProjectActivity : AppCompatActivity() {
             running == name -> ScriptService.stop(this)
             running != null -> UiKit.toast(this, "$running 正在运行，先停止它")
             else -> {
-                Settings.lastProject = name
-                ScriptService.run(this, name)
-                startActivity(Intent(this, LogActivity::class.java))
+                val missing = missingNeeds()
+                if (missing.isEmpty()) start() else confirmRunWithout(missing)
             }
+        }
+    }
+
+    private fun start() {
+        Settings.lastProject = name
+        ScriptService.run(this, name)
+        startActivity(Intent(this, LogActivity::class.java))
+    }
+
+    // ------------------------------------------------------------------ 权限检查
+
+    private fun missingNeeds(): List<PermissionNeeds.Need> = needs.orEmpty().filter { !PermissionStatus.ok(this, it.kind) }
+
+    private fun confirmRunWithout(missing: List<PermissionNeeds.Need>) {
+        val lines = missing.joinToString("\n") { "· ${it.kind.label}：${it.kind.why}（${it.where}）" }
+        MaterialAlertDialogBuilder(this)
+            .setTitle("还缺 ${missing.size} 项权限")
+            .setMessage("这个小程序用到了：\n$lines\n\n没有这些权限，相关操作会失败。")
+            .setPositiveButton("去开启") { _, _ -> fix(missing.first().kind) }
+            .setNeutralButton("仍然运行") { _, _ -> start() }
+            .setNegativeButton("取消", null)
+            .show()
+    }
+
+    /** Read the project's .py files off the main thread and list what they need. */
+    private fun scanNeeds() {
+        val dir = store.dir(name)
+        thread(name = "xscript-perm-scan") {
+            val sources = LinkedHashMap<String, String>()
+            dir.walkTopDown()
+                .onEnter { it.name != "__pycache__" && !it.name.startsWith(".") }
+                .filter { it.isFile && it.name.endsWith(".py") && it.length() <= 512 * 1024 }
+                .take(300)
+                .forEach { f -> sources[f.relativeTo(dir).path] = runCatching { f.readText() }.getOrDefault("") }
+            needs = PermissionNeeds.scan(sources)
+            runOnUiThread { if (!isFinishing) renderPermissions() }
+        }
+    }
+
+    private fun renderPermissions() {
+        val list = needs ?: return
+        perms.removeAllViews()
+        UiKit.section(perms, "权限检查")
+        val card = UiKit.card(perms, UiKit.Space.S)
+        if (list.isEmpty()) {
+            UiKit.row(card, 0, "不需要额外权限", "", chevron = false)
+            return
+        }
+        for (n in list) {
+            val ok = PermissionStatus.ok(this, n.kind)
+            val row = UiKit.row(card, PermissionStatus.icon(n.kind), n.kind.label, chevron = !ok, onClick = if (ok) null else ({ fix(n.kind) }))
+            row.value(PermissionStatus.label(this, n.kind), if (ok) ui.success else ui.danger)
+        }
+        val missing = list.count { !PermissionStatus.ok(this, it.kind) }
+        UiKit.note(perms, if (missing == 0) "按代码里用到的接口检查（${list.joinToString("、") { it.kind.why }}）。" else "还缺 $missing 项，点红字一行去开启。按代码里用到的接口检查，可能不完全准确。")
+    }
+
+    private fun fix(kind: PermissionNeeds.Kind) {
+        if (kind == PermissionNeeds.Kind.CAPTURE) {
+            val mgr = getSystemService(MEDIA_PROJECTION_SERVICE) as android.media.projection.MediaProjectionManager
+            capturePermission.launch(mgr.createScreenCaptureIntent())
+            return
+        }
+        val intent = PermissionStatus.settingsIntent(this, kind) ?: return
+        try {
+            startActivity(intent)
+        } catch (_: Exception) {
+            UiKit.toast(this, "打不开系统设置，请手动开启「${kind.label}」")
         }
     }
 
