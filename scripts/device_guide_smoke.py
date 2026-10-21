@@ -29,8 +29,16 @@ GUIDE = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "docs", "
 OCR = '''import time
 from xscript.android import screen
 t = time.time()
-items = screen.ocr()
-print("ocr items:", len(items or []), "in %.1fs" % (time.time() - t))
+img = screen.capture()
+cap = time.time() - t
+t = time.time()
+items = screen.ocr(image=img)
+cold = time.time() - t
+t = time.time()
+screen.ocr(image=img)
+warm = time.time() - t
+print("ocr items:", len(items or []), "in %.1fs" % (cap + cold))
+print("ocr timing: capture %.2fs, first ocr %.2fs, second ocr %.2fs" % (cap, cold, warm))
 print("ocr found XScript:", screen.ocr_find("XScript") is not None)
 '''
 
