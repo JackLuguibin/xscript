@@ -185,7 +185,8 @@ def main(argv: list[str] | None = None) -> int:
             win.page.runJavaScript(run_js)
             return
         if args.selftest and not args.connect_adb:
-            report({"selftest": "ok", "version": __version__, "page": "loaded", "bridge": "roundtrip"})
+            # "adb": which adb this build would run (the packaging checks expect the bundled one, issue #213)
+            report({"selftest": "ok", "version": __version__, "page": "loaded", "bridge": "roundtrip", "adb": ctx.adb.path()})
             finish(0)
         elif args.screenshot and args.click_screenshot and not elapsed["clicked"] and ctx.devices.list() and \
                 elapsed["t"] - elapsed["ready_at"] >= 1.0:

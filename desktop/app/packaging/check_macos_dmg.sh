@@ -34,6 +34,11 @@ ok() { grep -q '"selftest": "ok"' "$1" && grep -q "\"version\": \"$want\"" "$1";
 "$app/Contents/MacOS/XScript" --selftest --timeout 90 --data-dir "$root/d1" --report "$root/direct.json" >/dev/null
 ok "$root/direct.json" || { echo "direct selftest failed" >&2; cat "$root/direct.json" >&2; exit 1; }
 echo "direct launch: $(cat "$root/direct.json")"
+# the bundled adb (issue #213) is the one the app picks, and it runs from the copied bundle
+grep -q "\"adb\": \"$app/Contents/Frameworks/platform-tools/adb\"" "$root/direct.json" || {
+  echo "the app does not use the bundled adb" >&2; exit 1; }
+"$app/Contents/Frameworks/platform-tools/adb" version
+[ -f "$app/Contents/Frameworks/platform-tools/NOTICE.txt" ] || { echo "platform-tools NOTICE.txt missing" >&2; exit 1; }
 open -n -W "$app" --args --selftest --timeout 90 --data-dir "$root/d2" --report "$root/open.json"
 ok "$root/open.json" || { echo "LaunchServices selftest failed" >&2; cat "$root/open.json" >&2 2>/dev/null; exit 1; }
 echo "LaunchServices launch: $(cat "$root/open.json")"

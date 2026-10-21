@@ -63,5 +63,13 @@ The desktop client (not part of the APK) depends on these packages; none are ven
   source offer. `qwebchannel.js` (served to the page at runtime) is part of Qt WebChannel. Packaging has not been done yet; see
   `docs/桌面端设计.md` §5.6 / §13-6. This is not legal advice.
 - **httpx** — BSD-3-Clause.
+- **Android SDK Platform-Tools (`adb`)** — bundled in the desktop dmg / setup.exe since #213: `adb` (plus `AdbWinApi.dll` and
+  `AdbWinUsbApi.dll` on Windows), downloaded at build time from Google's official
+  `https://dl.google.com/android/repository/platform-tools_r<version>-<os>.zip` at a pinned version with a pinned sha256
+  (`desktop/app/packaging/fetch_platform_tools.py`); nothing is vendored into the repository. adb is built from the Android Open
+  Source Project (Apache-2.0); the archive's own `NOTICE.txt` (licenses of every component in platform-tools) and
+  `source.properties` (version) ship next to the binary in `platform-tools/`. The prebuilt archive is distributed by Google under
+  the Android Software Development Kit License Agreement (https://developer.android.com/studio/terms); check its
+  redistribution terms for your use before shipping builds. This is not legal advice.
 - **React**, **react-dom** — MIT. **Vite**, **@vitejs/plugin-react**, **Vitest**, **Testing Library**, **TypeScript** (Apache-2.0) — build/test tooling only.
 
