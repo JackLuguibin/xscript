@@ -112,6 +112,12 @@ XScript 将设备端 Python 运行时、自动化 API、浏览器开发工具和
 
 和 AScript 官方扩展的逐项对照、没做的功能见[插件说明](ide/vscode-extension/README.md)。
 
+### PyCharm 插件
+
+习惯 PyCharm 的话，用 `ide/pycharm-plugin`（PyCharm 2024.2+）：Tools → XScript 里上传运行（Ctrl+Alt+Shift+R）、停止，底部 XScript 工具窗口看实时日志；新建工程模板和补全存根与 VS Code 插件相同。还没有断点调试。安装包从 CI 产物下载或自己构建，见[插件说明](ide/pycharm-plugin/README.md)。
+
+![PyCharm 插件：运行后底部 XScript 工具窗口显示日志](docs/images/pycharm-run.png)
+
 更多说明（快捷键、错误提示、图色和标注工具、VS Code 插件、管理后台）见[使用手册](docs/使用手册.md)。
 
 ## 项目结构
