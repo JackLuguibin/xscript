@@ -263,3 +263,53 @@ test('quick fix: import candidates for undefined names and where the import goes
   const only = EditorSymbols.build([{path: 'm.py', content: 'import os'}, {path: 'n.py', content: '"""d"""\nx = 1\n'}, {path: 'e.py', content: ''}], XSDocs);
   assert.equal(only.importLine('m.py'), 2); assert.equal(only.importLine('n.py'), 2); assert.equal(only.importLine('e.py'), 1);
 });
+
+test('unused imports and local variables, and removing an import', () => {
+  const main = [
+    'from __future__ import annotations', 'import os', 'import sys, json', 'from lib import a, b as bb, c',   // 4
+    'import noisy  # noqa: F401', 'from .pkg import again', 'import used_in_fstring',                       // 7
+    'print(sys.argv, a, c, f"{used_in_fstring.x}")',
+    'def f(n):', '    total = n * 2', '    x, y = 1, 2', '    for i in range(3): pass', '    _skip = 1',         // 13
+    '    kept = 1', '    print(kept)', '    import inner', '    return n', ''].join('\n');
+  const p = EditorSymbols.build([{path: 'lib.py', content: 'a = b = c = 1\n'}, {path: 'main.py', content: main}], XSDocs);
+  assert.deepEqual(p.unusedIn('main.py').map(w => [w.line, w.col, w.kind, w.name, w.message, w.names]), [
+    [2, 7, 'import', 'os', '未使用的 import os（Ctrl+. 删除）', 1],
+    [3, 12, 'import', 'json', '未使用的 import json（Ctrl+. 删除）', 2],
+    [4, 24, 'import', 'bb', '未使用的 import bb（Ctrl+. 删除）', 3],
+    [10, 4, 'variable', 'total', '未使用的变量 total', undefined],
+    [16, 11, 'import', 'inner', '未使用的 import inner（Ctrl+. 删除）', 1],
+  ]);
+  // re-exports: package __init__, __all__, a module made only of imports, names other files import from it
+  const re = EditorSymbols.build([
+    {path: 'pkg/__init__.py', content: 'from os import path\n'}, {path: 'facade.py', content: 'from os import sep\n'},
+    {path: 'withall.py', content: 'from os import sep\n__all__ = ["sep"]\n'},
+    {path: 'mod.py', content: 'from os import sep\ndef g():\n    return 1\n'}, {path: 'user.py', content: 'from mod import sep\nprint(sep)\n'},
+    {path: 'dyn.py', content: 'def h():\n    v = 1\n    return locals()\n'}], XSDocs);
+  for (const path of ['pkg/__init__.py', 'facade.py', 'withall.py', 'mod.py', 'dyn.py']) assert.deepEqual(re.unusedIn(path), [], path);
+  const t = 'import os\nfrom a import (x,\n    y, z)  # c\nimport p.q, r as rr\nfrom b import u as uu, v\nprint(1)\n';
+  const apply = (l, n, c) => { const r = EditorSymbols.removeImport(t, l, n, c); return t.slice(0, r.from) + r.text + t.slice(r.to); };
+  assert.equal(apply(1, 'os', 1), t.replace('import os\n', ''));
+  assert.equal(apply(2, 'x', 3), t.replace('(x,\n    y, z)', '(y, z)'));
+  assert.equal(apply(2, 'z', 3), t.replace('y, z)', 'y)'));
+  assert.equal(apply(4, 'p', 2), t.replace('import p.q, r as rr', 'import r as rr'));
+  assert.equal(apply(4, 'rr', 2), t.replace('import p.q, r as rr', 'import p.q'));
+  assert.equal(apply(5, 'uu', 2), t.replace('u as uu, v', 'v'));
+  assert.equal(EditorSymbols.removeImport(t, 6, 'x', 2), null);
+});
+
+test('unused: only pyflakes-confirmed findings on the repository\'s own Python sources', () => {
+  // Every finding here was checked against pyflakes (F401 / F841) when this check was added. Removing one of these
+  // from the code is fine; a new finding must be a real unused import / variable (fix it) or a false positive (fix the check).
+  const KNOWN = new Set([
+    'android/python-runtime/tests/test_gp_compat.py:9 cv2', 'android/python-runtime/tests/test_gp_legacy.py:2 json',
+    'desktop/app/tests/test_errors_matrix.py:31 orig', 'desktop/app/tests/test_windows_sim.py:13 adb_mod',
+    'desktop/app/xscript_desktop/rpc.py:18 Awaitable', 'desktop/app/xscript_desktop/scheme.py:8 urlsplit',
+    'desktop/app/xscript_desktop/services/adb.py:21 field', 'desktop/app/xscript_desktop/services/device_manager.py:15 httpx']);
+  const {execSync} = require('node:child_process'); const fs = require('node:fs'); const path = require('node:path');
+  const root = path.join(__dirname, '..', '..');
+  const files = execSync('git ls-files "*.py"', {cwd: root}).toString().trim().split('\n').filter(Boolean)
+    .map(p => ({path: p, content: fs.readFileSync(path.join(root, p), 'utf8')}));
+  const p = EditorSymbols.build(files, XSDocs), found = [];
+  for (const f of files) for (const w of p.unusedIn(f.path)) { const k = f.path + ':' + w.line + ' ' + w.name; if (!KNOWN.has(k)) found.push(k); }
+  assert.deepEqual(found, []);
+});
