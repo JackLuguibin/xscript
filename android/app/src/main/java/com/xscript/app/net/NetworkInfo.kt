@@ -21,6 +21,15 @@ object NetworkInfo {
 
     val PORT: Int get() = boundPort
 
+    /** What the developer HTTP server is doing, for the home screen's 开发者地址 row. */
+    enum class Server { NOT_STARTED, STARTING, RUNNING, NO_FREE_PORT, DISABLED }
+
+    @Volatile
+    var server: Server = Server.NOT_STARTED
+
+    /** True when [localIp] found no network address (no Wi-Fi / LAN): only USB (adb forward) can reach the server. */
+    fun isLoopback(ip: String) = ip == "127.0.0.1" || ip.isEmpty()
+
     fun localIp(context: Context): String {
         try {
             val wm = context.applicationContext.getSystemService(Context.WIFI_SERVICE) as WifiManager

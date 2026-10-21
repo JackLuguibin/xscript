@@ -109,7 +109,7 @@ class MainActivity : AppCompatActivity() {
 
         UiKit.section(col, "开发与连接")
         val dev = UiKit.card(col, UiKit.Space.S)
-        rowEndpoint = UiKit.row(dev, R.drawable.ic_sym_code, "开发者地址") { copyEndpoint() }
+        rowEndpoint = UiKit.row(dev, R.drawable.ic_sym_code, "开发者地址") { endpointTapped() }
         rowPair = UiKit.row(dev, R.drawable.ic_sym_key, "配对码") { showPairing() }
         rowAi = UiKit.row(dev, R.drawable.ic_sym_smart_toy, "AI 编程连接") { showAiHelp() }
         rowCloud = UiKit.row(dev, R.drawable.ic_sym_cloud, "云端控制") { editCloud() }
@@ -155,8 +155,9 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun refresh() {
-        val ip = NetworkInfo.localIp(this)
-        rowEndpoint.value("http://$ip:${NetworkInfo.PORT}/")
+        val e = HomeModel.endpoint(NetworkInfo.server, NetworkInfo.localIp(this), NetworkInfo.PORT)
+        endpoint = e
+        rowEndpoint.value(e.value, if (e.warn) ui.danger else ui.muted)
         if (Pairing.required) rowPair.value(Pairing.display()) else rowPair.value("已关闭（任何人可连接）", ui.danger)
         val ai = ClientTracker.active()
         if (ai != null) rowAi.value("已连接", ui.success) else rowAi.value("未连接")
@@ -220,6 +221,19 @@ class MainActivity : AppCompatActivity() {
         }
         ScriptService.run(this, last)
         UiKit.toast(this, "启动 $last")
+    }
+
+    private var endpoint: HomeModel.Endpoint? = null
+
+    /** 开发者地址: copy when the server runs; otherwise start it, or retry the ports. */
+    private fun endpointTapped() {
+        val e = endpoint ?: return copyEndpoint()
+        when (e.tap) {
+            HomeModel.Tap.COPY -> { copyEndpoint(); e.hint?.let { UiKit.toast(this, it, long = true) } }
+            HomeModel.Tap.START -> { DeviceHttpService.start(this); UiKit.toast(this, "正在启动服务…") }
+            HomeModel.Tap.RETRY -> { DeviceHttpService.restart(this); UiKit.toast(this, e.hint ?: "正在重试…", long = true) }
+            HomeModel.Tap.NONE -> Unit
+        }
     }
 
     private fun copyEndpoint() {
