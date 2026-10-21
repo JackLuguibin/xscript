@@ -114,11 +114,14 @@ def test_missing_bundled_adb_falls_back_to_sdk_then_path(tmp_path: Path):
     sdk.mkdir(parents=True)
     (sdk / "adb").write_text("")
     assert find_adb(None, {"ANDROID_HOME": str(tmp_path / "sdk"), "PATH": ""}, "linux", gone) == str(sdk / "adb")
+    # PATH lookup goes through shutil.which, which only finds "adb.exe" on a Windows host
+    plat, exe = ("win32", "adb.exe") if adb_mod.sys.platform == "win32" else ("linux", "adb")
     on_path = tmp_path / "bin"
     on_path.mkdir()
-    (on_path / "adb").write_text("")
-    (on_path / "adb").chmod(0o755)
-    assert find_adb(None, {"HOME": str(tmp_path / "nohome"), "PATH": str(on_path)}, "linux", gone) == str(on_path / "adb")
+    (on_path / exe).write_text("")
+    (on_path / exe).chmod(0o755)
+    found = find_adb(None, {"HOME": str(tmp_path / "nohome"), "PATH": str(on_path)}, plat, gone)
+    assert found is not None and Path(found) == on_path / exe
 
 
 def test_service_uses_the_bundled_adb_of_a_frozen_build(monkeypatch, tmp_path: Path):
