@@ -8,7 +8,7 @@ import com.intellij.openapi.options.ShowSettingsUtil
 import com.intellij.openapi.ui.Messages
 
 /** Uploads the XScript project that contains the current file (or the IDE project) and runs it on the device. */
-class UploadAndRunAction : AnAction() {
+open class UploadAndRunAction(private val full: Boolean = false) : AnAction() {
     override fun getActionUpdateThread() = ActionUpdateThread.BGT
     override fun update(e: AnActionEvent) { e.presentation.isEnabled = e.project != null }
 
@@ -20,9 +20,12 @@ class UploadAndRunAction : AnAction() {
             Messages.showWarningDialog(project, XScriptBundle.message("run.noProject"), "XScript")
             return
         }
-        svc.uploadAndRun(root)
+        svc.uploadAndRun(root, full)
     }
 }
+
+/** Sends every file again (after the project was changed on the phone, or to be sure), then runs. */
+class FullUploadAndRunAction : UploadAndRunAction(full = true)
 
 class StopAction : AnAction() {
     override fun getActionUpdateThread() = ActionUpdateThread.BGT

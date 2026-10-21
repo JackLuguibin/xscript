@@ -112,6 +112,21 @@ class DeviceClientTest {
         try { ProjectPull.fetch(open, "no_such_project"); fail("expected missing project") } catch (_: IllegalStateException) {}
     }
 
+    @Test fun incrementalUploadAgainstTheMock() {
+        val files = listOf(UploadFile("__init__.py", "print(1)\n", "utf-8"), UploadFile("lib/a.py", "A = 1\n", "utf-8"))
+        val first = UploadPlanner.plan(files, open.projectFiles("pyc_inc"), emptyMap())
+        assertEquals(2, first.upload.size)
+        open.uploadFiles("pyc_inc", first.upload)
+        val again = UploadPlanner.plan(files, open.projectFiles("pyc_inc"), first.hashes)
+        assertEquals(0, again.upload.size)
+        assertEquals(2, again.skipped)
+        val edited = listOf(files[0], UploadFile("lib/a.py", "A = 22\n", "utf-8"))
+        val third = UploadPlanner.plan(edited, open.projectFiles("pyc_inc"), again.hashes)
+        assertEquals(listOf("lib/a.py"), third.upload.map { it.path })
+        open.uploadFiles("pyc_inc", third.upload)
+        assertEquals(7L, open.projectFiles("pyc_inc")!!.first { it.path == "lib/a.py" }.size)
+    }
+
     @Test fun pullRejectsUnsafePaths() {
         for (bad in listOf("", "/etc/passwd", "../x", "a/../b", "a//b", "./a", "a\\b", "a\u0000b")) assertFalse(bad, ProjectPull.safeRelative(bad))
         for (ok in listOf("a", "lib/x.py", "res/img/a b.png", "数据/表.csv")) assertTrue(ok, ProjectPull.safeRelative(ok))

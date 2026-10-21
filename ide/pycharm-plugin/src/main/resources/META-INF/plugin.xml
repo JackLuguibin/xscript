@@ -30,6 +30,8 @@
                     icon="AllIcons.Actions.Execute">
                 <keyboard-shortcut keymap="$default" first-keystroke="ctrl alt shift R"/>
             </action>
+            <action id="XScript.UploadAndRunFull" class="com.xscript.pycharm.FullUploadAndRunAction"
+                    text="Upload All and Run on Device" description="Send every file of the project again (not only changed ones) and run it"/>
             <action id="XScript.Stop" class="com.xscript.pycharm.StopAction"
                     text="Stop Script on Device" description="Stop the script running on the phone" icon="AllIcons.Actions.Suspend"/>
             <action id="XScript.EvalSelection" class="com.xscript.pycharm.EvalSelectionAction"
