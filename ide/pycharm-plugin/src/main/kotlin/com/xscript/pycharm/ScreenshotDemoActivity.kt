@@ -18,7 +18,8 @@ import java.util.concurrent.TimeUnit
  * Docs screenshots only. With -Dxscript.screenshotDemo=run|settings|eval|pull (set by `./gradlew runIde -PrunIdeScreenshotDemo=…`,
  * never in a normal IDE) it opens the first XScript project's __init__.py and runs Upload and Run (`run`), or opens
  * Settings | Tools | XScript (`settings`), selects the first `_result` line and runs Run Selection on Device (`eval`), or starts
- * Pull Project from Device (`pull`), or runs a device project and opens the Device Projects tab (`projects`), so screenshots need no scripted mouse clicks. Does nothing otherwise.
+ * Pull Project from Device (`pull`), or runs a device project and opens the Device Projects tab (`projects`), or opens Connect to Device and checks
+ * -Dxscript.screenshotConnect (`connect`), so screenshots need no scripted mouse clicks. Does nothing otherwise.
  */
 class ScreenshotDemoActivity : ProjectActivity {
     override suspend fun execute(project: Project) {
@@ -39,6 +40,17 @@ class ScreenshotDemoActivity : ProjectActivity {
             }
             if (mode == "projects") {
                 XScriptService.get(project).runOnDevice("daily_signin")
+                return@invokeLater
+            }
+            if (mode == "connect") {
+                // open the dialog a bit later (after the startup tidy-up) and check the address from -Dxscript.screenshotConnect
+                AppExecutorUtil.getAppScheduledExecutorService().schedule({
+                    app.invokeLater({
+                        val dialog = ConnectDialog(project, System.getProperty("xscript.screenshotConnect") ?: "127.0.0.1:1")
+                        app.invokeLater({ dialog.check(closeIfOk = false) }, com.intellij.openapi.application.ModalityState.any())
+                        dialog.show()
+                    }, project.disposed)
+                }, 14, TimeUnit.SECONDS)
                 return@invokeLater
             }
             ToggleStubsAction.enable(project)
@@ -123,6 +135,6 @@ class ScreenshotDemoActivity : ProjectActivity {
 
     companion object {
         fun mode(): String? = System.getProperty("xscript.screenshotDemo")?.takeIf { it in MODES }
-        private val MODES = setOf("run", "settings", "eval", "pull", "projects")
+        private val MODES = setOf("run", "settings", "eval", "pull", "projects", "connect")
     }
 }

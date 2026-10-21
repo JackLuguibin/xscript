@@ -2,7 +2,7 @@
 
 > **English:** checklist for when PyCharm, VS Code, the desktop app or the web tools cannot reach the phone. In order: is the XScript app open with its service running, is the address/port the one shown on the phone's home screen, for USB/emulators re-run `adb forward`, for Wi‑Fi check same network and no client isolation, and enter the pairing code when asked. Test with `curl http://<address>/status`.
 
-PyCharm 的「连不上设备」通知、状态栏的「XScript：离线」、桌面端的「连不上设备」提示都链接到这一页。按顺序检查，一般前三步就能解决。
+PyCharm 的「连不上设备」通知、状态栏的「XScript：离线」、桌面端的「连不上设备」提示都链接到这一页。按顺序检查，一般前三步就能解决。PyCharm 的「连接设备」对话框和桌面端连接失败后出现的「逐项检查连接」会自动走一遍下面的检查，并指出断在哪一步。
 
 ## 1. 手机上的 XScript 打开了吗？
 
