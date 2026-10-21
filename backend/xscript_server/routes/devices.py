@@ -62,7 +62,7 @@ def _live_view(d: Device, conn: Conn | None) -> dict[str, Any]:
 @router.get("/devices")
 def list_devices(request: Request, p: Principal = Depends(viewer), s: Session = Depends(db_session),
                  q: str = Query("", max_length=200), group: str = "", app: str = "", online: bool | None = None,
-                 page: int = 1, page_size: int = 50):
+                 crashed: bool = False, page: int = 1, page_size: int = 50):
     hub = ctx(request).hub
     live = dict(hub.conns)
     stmt = select(Device)
@@ -76,6 +76,12 @@ def list_devices(request: Request, p: Principal = Depends(viewer), s: Session = 
         stmt = stmt.where(in_values(Device.id, live, s.get_bind().dialect.name))
     elif online is False:
         stmt = stmt.where(~in_values(Device.id, live, s.get_bind().dialect.name))
+    if crashed:
+        # Same rule as the list's 异常退出 tag: the last run crashed and no newer run is in progress.
+        stmt = stmt.where(Device.last_run["crashed"].as_boolean())
+        busy = [k for k, c in live.items() if (c.status or {}).get("running")]
+        if busy:
+            stmt = stmt.where(~in_values(Device.id, busy, s.get_bind().dialect.name))
     if group:
         stmt = stmt.where(or_(Device.group_override == group,
                               (Device.group_override == "") & (Device.reported_group == group)))

@@ -114,7 +114,7 @@ AScript 写法照常可用：`cloud_control.connect_to_ws(url)`、`cloud_control
 
 | 请求 | 说明 |
 | --- | --- |
-| `GET /api/devices?q=&group=&online=&page=` | 设备列表（在线和历史设备，分组、运行状态、脚本数据、最近活动），分页 |
+| `GET /api/devices?q=&group=&online=&crashed=&page=` | 设备列表（在线和历史设备，分组、运行状态、脚本数据、最近活动），分页；`crashed=true` 只列上次运行异常退出、现在没在运行的设备 |
 | `GET /api/groups`、`GET /api/apps` | 分组（含在线数）、应用包名 |
 | `PATCH /api/devices/<id>` `{"group_override","note"}` | 设置分组覆盖（空字符串 = 用设备上报的分组）和备注 |
 | `POST /api/devices/batch-group` `{"ids","group_override"}` | 批量设置分组 |

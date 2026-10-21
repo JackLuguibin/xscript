@@ -28,7 +28,7 @@ export function CloudDevices({ selected, onSelected, reloadKey = 0 }: { selected
   const [query, setQuery] = useState("");
   const [group, setGroup] = useState("");
   const [app, setApp] = useState("");
-  const [state, setState] = useState<"" | "online" | "offline">("");
+  const [state, setState] = useState<"" | "online" | "offline" | "crashed">("");
   const [page, setPage] = useState(1);
   const [data, setData] = useState<CloudDevicePage | null>(null);
   const [meta, setMeta] = useState<{ groups: CloudGroup[]; apps: string[] }>({ groups: [], apps: [] });
@@ -48,7 +48,7 @@ export function CloudDevices({ selected, onSelected, reloadKey = 0 }: { selected
     let live = true;
     setErr("");
     api
-      .cloudDevices({ q: query, group, app, online: state === "" ? undefined : state === "online", page, pageSize: PAGE_SIZE })
+      .cloudDevices({ q: query, group, app, online: state === "" || state === "crashed" ? undefined : state === "online", crashed: state === "crashed" || undefined, page, pageSize: PAGE_SIZE })
       .then(
         (r) => live && setData(r),
         (e) => live && setErr(errorLine(e)),
@@ -100,6 +100,7 @@ export function CloudDevices({ selected, onSelected, reloadKey = 0 }: { selected
           <option value="">{t.cloud.dev.anyState}</option>
           <option value="online">{t.cloud.dev.online}</option>
           <option value="offline">{t.cloud.dev.offline}</option>
+          <option value="crashed">{t.cloud.dev.crashed}</option>
         </Select>
         <span className="grow" />
         {data && <span className="muted">{t.cloud.dev.total(data.total)}</span>}

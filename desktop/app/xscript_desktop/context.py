@@ -1014,7 +1014,8 @@ class AppContext:
                 raise RpcError("rpc.bad_params", "parameter online has the wrong type")
             return await backend_client.list_devices(
                 await self.cloud.client(), q=param(params, "q", str, default=""), group=param(params, "group", str, default=""),
-                app=param(params, "app", str, default=""), online=online, page=param(params, "page", int, default=1),
+                app=param(params, "app", str, default=""), online=online, crashed=param(params, "crashed", bool, default=False),
+                page=param(params, "page", int, default=1),
                 page_size=param(params, "pageSize", int, default=50))
 
         @d.method("cloud.groups")

@@ -854,6 +854,11 @@ class ServerTest(unittest.IsolatedAsyncioTestCase):
         self.assertEqual([c["time"] for c in ov["crashes"]], sorted((c["time"] for c in ov["crashes"]), reverse=True))
         self.assertEqual(groups["ov-grp"], {"name": "ov-grp", "total": 12, "online": 0})
         self.assertEqual(groups["ov-grp2"], {"name": "ov-grp2", "total": 1, "online": 0})
+        crashed = (await self.admin.get("/api/devices", params={"crashed": "true", "group": "ov-grp",
+                                                                 "page_size": 200})).json()
+        self.assertEqual(sorted(d["id"] for d in crashed["items"]),
+                         sorted(k for k, v in rows.items() if v["crashed"]))
+        self.assertEqual(crashed["total"], 11)
         device_selects = [q for q in seen if "FROM devices" in q]
         self.assertTrue(device_selects)
         for q in device_selects:

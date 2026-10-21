@@ -80,7 +80,8 @@ export function cloudDemoHandlers(): Record<string, Handler> {
           (!q || `${d.id} ${d.model} ${d.brand} ${d.note}`.toLowerCase().includes(q)) &&
           (!p.group || d.group === p.group) &&
           (!p.app || d.app === p.app) &&
-          (p.online === undefined || d.online === p.online),
+          (p.online === undefined || d.online === p.online) &&
+          (!p.crashed || Boolean(d.crash)),
       );
       const page = Number(p.page ?? 1);
       const pageSize = Number(p.pageSize ?? 50);

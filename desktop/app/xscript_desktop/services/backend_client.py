@@ -239,10 +239,11 @@ def crash_view(last_run: Any, running: bool) -> dict[str, Any] | None:
 
 
 async def list_devices(c: BackendClient, *, q: str = "", group: str = "", app: str = "", online: bool | None = None,
-                       page: int = 1, page_size: int = 50) -> dict[str, Any]:
+                       crashed: bool = False, page: int = 1, page_size: int = 50) -> dict[str, Any]:
     page_size = page_size if page_size in PAGE_SIZES else 50
     r = await c.get("/devices", q=q.strip()[:200], group=group, app=app,
-                    online=None if online is None else str(online).lower(), page=max(1, page), page_size=page_size)
+                    online=None if online is None else str(online).lower(), crashed="true" if crashed else None,
+                    page=max(1, page), page_size=page_size)
     items = r.get("items") if isinstance(r, dict) else None
     if not isinstance(items, list):
         raise BackendError("backend.bad_response", "后台设备列表格式不对")

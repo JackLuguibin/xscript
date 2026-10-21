@@ -417,7 +417,7 @@ export interface CloudDevice {
   crash?: CloudCrash | null;
 }
 export interface CloudCrash { project: string; exit: string; time: number | null; error: string }
-export interface CloudDeviceFilter { q?: string; group?: string; app?: string; online?: boolean; page?: number; pageSize?: number }
+export interface CloudDeviceFilter { q?: string; group?: string; app?: string; online?: boolean; crashed?: boolean; page?: number; pageSize?: number }
 export interface CloudDevicePage { items: CloudDevice[]; total: number; page: number; pageSize: number }
 export interface CloudGroup { name: string; total: number; online: number }
 export interface CloudBatchRow { id: string; ok: boolean; offline: boolean; msg: string }
