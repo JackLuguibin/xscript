@@ -71,6 +71,12 @@ jobs:
           disable-animations: true
           emulator-options: -no-window -gpu swiftshader_indirect -no-snapshot -noaudio -no-boot-anim
           script: touch .emulator-booted-1 && ANDROID_SERIAL=emulator-5554 bash scripts/ci_emulator_checks.sh
+      - name: Note the emulator-boot retry
+        if: steps.emu.outcome == 'failure' && hashFiles('.emulator-booted-1') == ''
+        run: |
+          echo "::warning title=Emulator boot retried::The emulator did not come up on the first attempt; the checks run once more."
+          echo "### Emulator boot retried" >> "$GITHUB_STEP_SUMMARY"
+          echo "The first attempt failed before the checks started (the runner's emulator never connected); the checks ran on a second attempt." >> "$GITHUB_STEP_SUMMARY"
       - name: Emulator checks (retry after a failed emulator boot)
         if: steps.emu.outcome == 'failure' && hashFiles('.emulator-booted-1') == ''
         uses: reactivecircus/android-emulator-runner@a421e43855164a8197daf9d8d40fe71c6996bb0d # v2.38.0
