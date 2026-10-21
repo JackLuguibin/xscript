@@ -15,6 +15,19 @@
 /* mid-width desktops (sidebar shown, ~670–950 px of editor): drop the shortcut hints and tighten spacing so the toolbar stays one row */
 @media(min-width:721px) and (max-width:1180px) { .ide-toolbar kbd { display:none; } }
 @media(min-width:721px) and (max-width:1000px) { .ide-toolbar { gap:6px; } .ide-toolbar button, .ide-toolbar .btn { padding:0 10px; } }
+/* narrow desktops (721–860 px, ~490–630 px of editor): compact toolbar and debugger buttons, as on phones, so each stays one row */
+@media(min-width:721px) and (max-width:860px) {
+  .ide-toolbar { gap:5px; padding:8px 10px; }
+  .ide-toolbar button, .ide-toolbar .btn, .ide-debug .ide-heading button { height:30px; padding:0 7px; font-size:12px; }
+  .ide-debug .ide-heading { gap:4px; }
+}
+@media(min-width:721px) and (max-width:800px) {
+  .ide:not(.searching) { grid-template-columns:210px minmax(0,1fr); }
+  .ide-sidebar { padding:8px; }
+  .ide-toolbar i[data-i] { display:none; }
+  .ide-toolbar { flex-wrap:nowrap; overflow-x:auto; scrollbar-width:thin; }
+  .ide-toolbar > * { flex-shrink:0; }
+}
 .ide-tabs { display:flex; overflow:auto; flex-shrink:0; min-height:34px; background:var(--bar); }
 .ide-tabs .tab { display:flex; flex-shrink:0; border-right:1px solid var(--divider); }
 .ide-tabs .tab > button { height:34px; border:0; border-radius:0; background:none; }
