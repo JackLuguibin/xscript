@@ -49,6 +49,9 @@ fun validateCode(code: String?): String? =
  * `token` is the pairing code shown on the phone (开发与连接 → 配对码); empty when pairing is off.
  * No IDE classes here, so it is tested against scripts/mock_device.py with plain JUnit.
  */
+/** Methods [DeviceClient] may send twice when the connection drops before an answer. */
+internal val RETRYABLE = setOf("GET", "PUT", "DELETE")
+
 class DeviceClient(val target: DeviceTarget, private val timeoutMs: Long = 15000, var token: String = "") {
     private val http: HttpClient = HttpClient.newBuilder()
         .connectTimeout(Duration.ofMillis(minOf(timeoutMs, 5000)))
@@ -69,7 +72,15 @@ class DeviceClient(val target: DeviceTarget, private val timeoutMs: Long = 15000
             b.header("Content-Type", "application/json")
             HttpRequest.BodyPublishers.ofString(gson.toJson(json), StandardCharsets.UTF_8)
         }
-        val r = http.send(b.method(method, body).build(), HttpResponse.BodyHandlers.ofByteArray())
+        val req = b.method(method, body).build()
+        val r = try {
+            http.send(req, HttpResponse.BodyHandlers.ofByteArray())
+        } catch (e: java.io.IOException) {
+            // A kept-alive connection the device closed just before this request: retry once, but only requests that
+            // are safe to repeat (never POST /run, /stop or /eval). Timeouts are not retried.
+            if (e is java.net.http.HttpTimeoutException || method !in RETRYABLE) throw e
+            http.send(req, HttpResponse.BodyHandlers.ofByteArray())
+        }
         if (r.statusCode() !in 200..299 && r.statusCode() !in pass) {
             throw DeviceHttpException(r.statusCode(), String(r.body(), StandardCharsets.UTF_8))
         }
