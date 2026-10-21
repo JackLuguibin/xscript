@@ -7,7 +7,7 @@ Checks, reading the row's text with uiautomator:
   RUNNING        http://<ip>:<port>/
   NO_FREE_PORT   10 listeners on 9860–9869  -> "端口 9860–9869 都被占用，点此重试"; tap after freeing -> RUNNING
   NOT_STARTED    `am stopservice`           -> "服务未启动，点此启动"; tap -> RUNNING
-  USB only       Wi-Fi off, eth0 address removed -> "127.0.0.1:<port>（仅 USB）"
+  USB only       Wi-Fi off, eth0 address removed -> "127.0.0.1:<port>（仅 USB）"; tap -> dialog with the adb forward command
 (DISABLED only happens in packaged apps; HomeModelTest covers it.)
 
 It force-stops the app, needs `adb root` (google_apis images) and turns networking off for a while, so it refuses to
@@ -103,7 +103,14 @@ try:
        "ip link set eth0 down; ip addr flush dev eth0; sleep 0.5; done' >/dev/null 2>&1 &")
     time.sleep(2)
     launch()
-    check("USB only", r"^127\.0\.0\.1:986\d（仅 USB）$")
+    c = check("USB only", r"^127\.0\.0\.1:986\d（仅 USB）$")
+    tap(c)
+    time.sleep(1.5)
+    sh("uiautomator dump /sdcard/xs_endpoint.xml")
+    dlg = sh("cat /sdcard/xs_endpoint.xml")
+    assert "复制命令" in dlg and "adb forward tcp:986" in dlg, "tapping the USB-only row shows the adb forward dialog"
+    print("ok  USB dialog     adb forward command shown")
+    sh("input keyevent BACK")
 finally:
     sh("pkill -f 'nc -L'; touch /data/local/tmp/xs_net_on")
     time.sleep(1.5)  # let the address-removing loop see the marker and exit

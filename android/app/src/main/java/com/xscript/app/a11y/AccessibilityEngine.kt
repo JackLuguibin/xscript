@@ -62,10 +62,10 @@ object AccessibilityEngine {
             .put("height", 0)
             .put("roots", JSONArray())
             .put("error", "accessibility_off")
-        val metrics = svc.resources.displayMetrics
+        val size = com.xscript.app.util.DisplaySize.real(svc)
         val roots = NodeDumper.collectRoots(svc, mode, svc.packageName)
         return try {
-            NodeDumper.dump(roots, mode, metrics.widthPixels, metrics.heightPixels)
+            NodeDumper.dump(roots, mode, size.x, size.y)
         } finally {
             roots.forEach { it.node.recycleCompat() }
         }

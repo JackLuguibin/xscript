@@ -382,9 +382,9 @@ object CloudClient {
     }
 
     private fun deviceAction(msg: JSONObject): JSONObject {
-        val m = XscriptApp.instance.resources.displayMetrics
-        val w = m.widthPixels
-        val h = m.heightPixels
+        val real = com.xscript.app.util.DisplaySize.real(XscriptApp.instance)
+        val w = real.x
+        val h = real.y
         val action = msg.optString("action")
         val ok = when (action) {
             "click" -> Automation.click(msg.optDouble("x").toInt(), msg.optDouble("y").toInt(), 20)

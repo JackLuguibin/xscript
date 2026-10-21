@@ -59,6 +59,8 @@ class HomeModelTest {
             assertTrue(it.value.contains("仅 USB"))
             assertTrue(it.warn)
             assertTrue(it.hint!!.contains("adb forward tcp:9860 tcp:9860"))
+            assertEquals(HomeModel.Tap.USB_HELP, it.tap)
+            assertEquals("adb forward tcp:9860 tcp:9860", HomeModel.forwardCommand(9860))
         }
         HomeModel.endpoint(Server.NO_FREE_PORT, "192.168.1.5", 9860).let {
             assertTrue(it.value.contains("9860–9869"))
