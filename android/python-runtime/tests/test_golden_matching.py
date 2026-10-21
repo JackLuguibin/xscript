@@ -198,14 +198,29 @@ class GoldenMatchingTest(unittest.TestCase):
             # (x, y) on the portrait scene is at (h - 1 - y, x) after a clockwise quarter turn
             self.assertNear((hit["center_x"], hit["center_y"]), (h - 1 - cy, cx), 3, (name, hit))
 
-    @unittest.expectedFailure
     def test_rgb_tells_a_coloured_icon_from_its_grey_version(self):
-        """Desired, not yet true: with rgb=True a greyed-out copy of a coloured icon should not count as a match.
-        A grey template has no hue/saturation variance, and TM_CCOEFF_NORMED then scores 1.0 on the H+S planes."""
+        """With rgb=True a greyed-out copy of a coloured icon must not count as a match (H+S correlation alone
+        scores a zero-variance grey template 1.0, so hits are also checked by chroma)."""
         grey = cv2.cvtColor(cv2.cvtColor(cv2.imread(self.tpl("btn_shop.png")), cv2.COLOR_BGR2GRAY), cv2.COLOR_GRAY2BGR)
         path = self.variant("btn_shop_grey.png", grey)
         self.assertIsNotNone(self.screen.find_image(path, image=self.scene_path, confidence=0.9))  # grey matching: yes
         self.assertIsNone(self.screen.find_image(path, image=self.scene_path, confidence=0.9, rgb=True))
+
+    def test_rgb_rejects_a_hue_shifted_icon_but_keeps_the_original(self):
+        bgr = cv2.imread(self.tpl("btn_shop.png"))
+        hsv = cv2.cvtColor(bgr, cv2.COLOR_BGR2HSV)
+        hsv[:, :, 0] = (hsv[:, :, 0].astype(int) + 30) % 180  # 60 degrees round the colour wheel
+        path = self.variant("btn_shop_hue.png", cv2.cvtColor(hsv, cv2.COLOR_HSV2BGR))
+        self.assertIsNone(self.screen.find_image(path, image=self.scene_path, confidence=0.9, rgb=True))
+        self.assertIsNotNone(self.screen.find_image(self.tpl("btn_shop.png"), image=self.scene_path,
+                                                    confidence=0.9, rgb=True))
+
+    def test_rgb_keeps_a_dimmed_icon(self):
+        """Brightness is not colour: a darker copy (night mode, dimmed screen) still matches with rgb=True."""
+        dim = (cv2.imread(self.tpl("btn_shop.png")).astype(np.float32) * 0.8).astype(np.uint8)
+        scene = (cv2.imread(self.scene_path).astype(np.float32) * 0.8).astype(np.uint8)
+        hit = self.screen.find_image(self.variant("btn_shop_dim.png", dim), image=scene, confidence=0.8, rgb=True)
+        self.assertIsNotNone(hit)
 
     def test_colour_marker(self):
         mk = self.exp["marker"]
