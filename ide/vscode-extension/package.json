@@ -39,6 +39,11 @@
         "category": "XScript"
       },
       {
+        "command": "xscript.checkConnection",
+        "title": "%xscript.command.checkConnection%",
+        "category": "XScript"
+      },
+      {
         "command": "xscript.pair",
         "title": "%xscript.command.pair%",
         "category": "XScript"

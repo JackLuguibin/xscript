@@ -19,7 +19,9 @@ cd ide/vscode-extension && npm ci && npm run package     # 生成 xscript-vscode
 
 ![一键调试：在断点处停下，左侧是变量、调用栈和断点，底部是调试控制台](../../docs/images/vscode-debug.png)
 
-（真实 VS Code 1.142、隔离配置，连着一台 Android 模拟器的演示工程；`bash scripts/vscode-screenshots.sh` 可重新生成。）
+![逐项检查连接：手机上的 XScript 没打开，停在「XScript app answers」，Output 里列出每一步，通知给出修法和「修改地址 / 仍然保存 / 排查文档」](../../docs/images/vscode-connect.png)
+
+（真实 VS Code（运行、调试两图 1.142，连接检查 1.143）、隔离配置，连着一台 Android 模拟器的演示工程；`bash scripts/vscode-screenshots.sh` 可重新生成，连接检查一图用 `XS_SHOT_NAMES=connect`，先在手机上强制停止 XScript。）
 
 ## 使用
 
@@ -42,7 +44,8 @@ cd ide/vscode-extension && npm ci && npm run package     # 生成 xscript-vscode
 | 调试当前工程 `xscript.debug` | Alt+F6 | 见 `docs/DEBUGGING.md` |
 | 上传工程 / 工程同步 / 从设备拉取工程 | | |
 | 编辑同步忽略规则 | | |
-| 跟踪运行日志、显示设备状态、连接设备（手填地址） | 状态栏 | |
+| 跟踪运行日志、显示设备状态、连接设备（手填地址） | 状态栏 | 连接设备先逐项检查地址（地址格式 → 能连到 → App 在响应 → 是 XScript → 配对码），通过才保存；没通过时说明停在哪一步和修法 |
+| 逐项检查连接 `xscript.checkConnection` | | 只检查当前地址，结果写到 Output → XScript |
 | 在设备上运行选中代码 `xscript.eval` | | 走 `/eval` |
 | 截图、打开开发者工具（图色 / 标注）、投屏 | | 开发者工具和投屏用浏览器打开手机上的页面 |
 | ADB 终端 | | 对当前 USB / 模拟器设备开 `adb shell` |
