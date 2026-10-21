@@ -506,7 +506,14 @@ test('Web IDE explorer, editor and create/delete flows in a real browser', {skip
       await b.waitFor(() => document.querySelectorAll('#diag .sq.warn').length === 1, 5000);
       assert.deepEqual(await b.eval(() => [...document.querySelectorAll('#diag .sq.warn')].map(n => n.textContent)), ['sise']);
       await b.eval(click, '#problems');
-      assert.match(await b.eval(() => document.getElementById('problems').textContent), /第 4 行：Box 没有属性或方法 sise/);
+      assert.match(await b.eval(() => document.getElementById('problems').textContent), /第 4 行：Box 没有属性或方法 sise（是不是 size？Ctrl\+\. 改正）/);
+      // Ctrl+. replaces the typo (undoable), the caret stays inside the name
+      await b.eval(() => document.getElementById('editor').dispatchEvent(new KeyboardEvent('keydown', {key: '.', ctrlKey: true, bubbles: true, cancelable: true})));
+      await b.waitFor(() => document.getElementById('editor').value.includes('b.size()\nb.size()'));
+      await b.eval(() => { document.getElementById('editor').focus(); document.execCommand('undo'); });
+      assert.equal(await b.eval(() => document.getElementById('editor').value.includes('b.sise()')), true, 'undo restores the typo');
+      await b.eval(() => { document.getElementById('editor').focus(); document.execCommand('redo'); });
+      await b.waitFor(() => document.getElementById('problems').dataset.count === '0', 5000);
       await b.eval(click, '#save'); await b.waitFor(idle);
       await b.eval(click, row('at_lib.py'));
       await b.waitFor(() => document.getElementById('editor').value.startsWith('class Box'));

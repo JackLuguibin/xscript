@@ -67,6 +67,34 @@
     "repr reversed round set setattr slice sorted staticmethod str sum super tuple type vars zip " +
     "__name__ __file__ __doc__ __spec__ __loader__ __package__ __path__ __builtins__ __debug__ __import__ __build_class__ __annotations__ __dict__ __class__").split(" "));
 
+  // Edit distance with adjacent transpositions (optimal string alignment), stopping early above `max`.
+  function distance(a, b, max) {
+    if (Math.abs(a.length - b.length) > max) return max + 1;
+    let prev2 = null, prev = Array.from({ length: b.length + 1 }, (_, j) => j);
+    for (let i = 1; i <= a.length; i++) {
+      const cur = [i]; let low = i;
+      for (let j = 1; j <= b.length; j++) {
+        let v = Math.min(prev[j] + 1, cur[j - 1] + 1, prev[j - 1] + (a[i - 1] === b[j - 1] ? 0 : 1));
+        if (prev2 && i > 1 && j > 1 && a[i - 1] === b[j - 2] && a[i - 2] === b[j - 1]) v = Math.min(v, prev2[j - 2] + 1);
+        cur.push(v); low = Math.min(low, v);
+      }
+      if (low > max) return max + 1;
+      prev2 = prev; prev = cur;
+    }
+    return prev[b.length];
+  }
+  // The one closest name to a misspelt `name` (1 edit for short names, 2 for 6+ characters, or a case-only
+  // difference); null when there is none or two candidates tie.
+  function closest(name, names) {
+    const max = name.length >= 6 ? 2 : 1; let best = null, bestD = max + 1, tie = false;
+    for (const n of names) {
+      if (n === name || n.startsWith("__")) continue;
+      const d = n.toLowerCase() === name.toLowerCase() ? 0.5 : distance(name, n, max);
+      if (d < bestD) { best = n; bestD = d; tie = false; } else if (d === bestD) tie = true;
+    }
+    return best && !tie && bestD <= max ? best : null;
+  }
+
   class Scope {
     constructor(kind, name, parent, file, node) {
       this.kind = kind; this.name = name; this.parent = parent; this.file = file; this.node = node;
@@ -536,7 +564,16 @@
       const dyn = this.dynamicAttrs(); if (dyn.has(o.name) || o.scope.file.dynamic) return null;
       const cls = this.knownClass(o.base, o.scope);
       if (!cls || cls.file.dynamic || !this.closedClass(cls) || this.member({ cls }, o.name)) return null;
-      return cls.name + " 没有属性或方法 " + o.name;
+      const suggest = closest(o.name, this.memberNames(cls));
+      return suggest ? { message: cls.name + " 没有属性或方法 " + o.name + "（是不是 " + suggest + "？Ctrl+. 改正）", suggest }
+        : { message: cls.name + " 没有属性或方法 " + o.name };
+    }
+    // Attribute and method names of a class and its project base classes.
+    memberNames(cls, depth, out) {
+      out = out || new Set(); if ((depth || 0) > MAX_HOPS || !cls) return out;
+      for (const k of cls.defs.keys()) out.add(k);
+      for (const b of cls.node.bases || []) { const v = this.valueOf(b, cls.parent); if (v && v.cls) this.memberNames(v.cls, (depth || 0) + 1, out); }
+      return out;
     }
     /**
      * Unused imports (any scope) and unused local variables (function scopes) of one file, for greying out:
@@ -624,7 +661,7 @@
       }
       for (const o of f.occ) {
         const m = o.kind === "attr" && !o.store ? this.attrProblem(o) : null; if (!m) continue;
-        out.push({ line: o.line, col: o.col, length: o.name.length, message: m, severity: "warning" });
+        out.push(Object.assign({ line: o.line, col: o.col, length: o.name.length, message: m.message, severity: "warning" }, m.suggest ? { suggest: m.suggest } : {}));
       }
       for (const c of f.calls) for (const a of this.argTypeProblems(c)) {
         const e = a.node, length = e.type === "Constant" ? String(e.value).split("\n")[0].length : e.type === "JoinedStr" ? 2 : 1;

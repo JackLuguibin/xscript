@@ -240,8 +240,8 @@ test('basic checks: unknown attributes of project classes and instances', () => 
     'b = Base()', 'b.pong', ''].join('\n');                                                          // 15: pong
   const p = EditorSymbols.build([{path: 'lib.py', content: lib}, {path: '__init__.py', content: main}], XSDocs);
   const msgs = path => p.problemsIn(path).map(w => [w.line, w.col, w.message]);
-  assert.deepEqual(msgs('lib.py'), [[10, 32, 'Shape 没有属性或方法 sid']]);
-  assert.deepEqual(msgs('__init__.py'), [[4, 2, 'Shape 没有属性或方法 areaa'], [8, 6, 'Shape 没有属性或方法 nope'], [15, 2, 'Base 没有属性或方法 pong']]);
+  assert.deepEqual(msgs('lib.py'), [[10, 32, 'Shape 没有属性或方法 sid（是不是 side？Ctrl+. 改正）']]);
+  assert.deepEqual(msgs('__init__.py'), [[4, 2, 'Shape 没有属性或方法 areaa（是不是 area？Ctrl+. 改正）'], [8, 6, 'Shape 没有属性或方法 nope'], [15, 2, 'Base 没有属性或方法 pong（是不是 ping？Ctrl+. 改正）']]);
   // setattr / __getattr__ in the file make attributes dynamic: nothing reported
   const dyn = EditorSymbols.build([{path: 'a.py', content: 'class A:\n    def __getattr__(self, n):\n        return 1\na = A()\na.anything\n'}], XSDocs);
   assert.deepEqual(dyn.problemsIn('a.py'), []);
@@ -336,4 +336,18 @@ test('basic checks: literal arguments that do not match a simple annotation', ()
   // a project class named like a builtin shadows it: no judgement
   const shadow = EditorSymbols.build([{path: 'm.py', content: 'class str:\n    pass\ndef h(s: str):\n    pass\nh(1)\n'}], XSDocs);
   assert.deepEqual(shadow.problemsIn('m.py'), []);
+});
+
+test('unknown attributes: "did you mean" suggestion for a close member name', () => {
+  const lib = 'class Base:\n    def area(self):\n        return 1\nclass Shape(Base):\n    def __init__(self):\n        self.side = 1\n        self.color = 2\n        self.colour = 3\n        self.ab = 4\n        self.ac = 5\n';
+  const main = 'from lib import Shape\ns = Shape()\nprint(s.sid, s.aera, s.Side, s.xyz, s.colr, s.ad)\n';
+  const p = EditorSymbols.build([{path: 'lib.py', content: lib}, {path: 'main.py', content: main}], XSDocs);
+  assert.deepEqual(p.problemsIn('main.py').map(w => [w.col, w.message, w.suggest]), [
+    [8, 'Shape 没有属性或方法 sid（是不是 side？Ctrl+. 改正）', 'side'],
+    [15, 'Shape 没有属性或方法 aera（是不是 area？Ctrl+. 改正）', 'area'],     // transposition, inherited
+    [23, 'Shape 没有属性或方法 Side（是不是 side？Ctrl+. 改正）', 'side'],     // case only
+    [31, 'Shape 没有属性或方法 xyz', undefined],                                // nothing close
+    [38, 'Shape 没有属性或方法 colr（是不是 color？Ctrl+. 改正）', 'color'],   // color (1) beats colour (2)
+    [46, 'Shape 没有属性或方法 ad', undefined],                                 // ab / ac tie: no guess
+  ]);
 });

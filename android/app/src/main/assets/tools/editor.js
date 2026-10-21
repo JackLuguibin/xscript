@@ -641,6 +641,8 @@
     const hit = x => x.line === s.line && s.col >= x.col && s.col <= x.col + x.length;
     const unused = s.index.unusedIn(s.path).find(x => x.kind === "import" && (hit(x) || x.stmtLine === s.line && x.names === 1));
     if (unused) { removeUnusedImport(unused); return; }
+    const typo = s.index.problemsIn(s.path).find(x => x.suggest && hit(x));
+    if (typo) { replaceRange(s.line, typo.col, typo.length, typo.suggest); message("已改为 " + typo.suggest); return; }
     const w = s.index.problemsIn(s.path).find(x => x.fix && hit(x));
     if (!w) { message("光标处没有可自动修复的问题", true); return; }
     let mod = w.fix[0];
@@ -665,6 +667,18 @@
     if (!native) box.dispatchEvent(new Event("input"));
     assist.close(); assist.hideSig();
     message("已添加 " + stmt.trim());
+  }
+  // Replace `length` characters at (1-based line, col) through the textarea's undo history; the caret keeps its place.
+  function replaceRange(line, col, length, text) {
+    const box = el("editor"), lines = box.value.split("\n");
+    let from = 0; for (let i = 0; i < line - 1 && i < lines.length; i++) from += lines[i].length + 1;
+    from += col; const to = from + length, caret = box.selectionStart, top = box.scrollTop;
+    box.focus(); box.setSelectionRange(from, to);
+    let native = false; try { native = document.execCommand("insertText", false, text) && box.value.slice(from, from + text.length) === text; } catch (e) { native = false; }
+    if (!native) { box.setRangeText(text, from, to, "end"); box.dispatchEvent(new Event("input")); }
+    const at = caret < from ? caret : caret >= to ? caret + text.length - length : from + text.length;
+    box.setSelectionRange(at, at); box.scrollTop = top;
+    assist.close(); assist.hideSig();
   }
   // Quick fix for an unused import: drop the name (or the whole statement), through the textarea's undo history.
   function removeUnusedImport(u) {
