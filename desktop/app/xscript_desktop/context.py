@@ -1140,6 +1140,11 @@ class AppContext:
             """Only after the user confirmed in the UI: the app quits and restarts as the new version."""
             return await self.install_update()
 
+        @d.method("cloud.overview")
+        @_map_errors
+        async def cloud_overview(params: dict[str, Any]) -> dict[str, Any]:
+            return await backend_client.overview(await self.cloud.client())
+
         @d.method("cloud.console")
         @_map_errors
         async def cloud_console(params: dict[str, Any]) -> dict[str, Any]:

@@ -511,6 +511,37 @@ async def thumb(c: BackendClient, dev_id: str, max_side: int = 480) -> tuple[byt
     return data, mime.split(";")[0]
 
 
+def _num(v: Any) -> int:
+    """A count from the backend; anything that is not a plain non-negative integer reads as 0."""
+    return v if isinstance(v, int) and not isinstance(v, bool) and v >= 0 else 0
+
+
+async def overview(c: BackendClient) -> dict[str, Any]:
+    """GET /api/overview (viewer+), cut down to the numbers the desktop's 概览 shows (#219 M.1). The event feed, crash
+    details and card statistics stay out: they are other sections' business."""
+    r = await c.get("/overview")
+    if not isinstance(r, dict):
+        raise BackendError("backend.bad_response", "后台的 /api/overview 没有返回概览")
+
+    def sect(name: str) -> dict[str, Any]:
+        v = r.get(name)
+        return v if isinstance(v, dict) else {}
+
+    dev, tasks, pack, scripts = sect("devices"), sect("tasks"), sect("pack"), sect("scripts")
+    backup = r.get("last_backup") if isinstance(r.get("last_backup"), dict) else None
+    crashes = r.get("crashes") if isinstance(r.get("crashes"), list) else []
+    return {
+        "devices": {"online": _num(dev.get("online")), "running": _num(dev.get("running")), "total": _num(dev.get("total")),
+                    "active24h": _num(dev.get("active_24h"))},
+        "tasks": {"total": _num(tasks.get("total")), "enabled": _num(tasks.get("enabled"))},
+        "pack": {"queued": _num(pack.get("queued")), "running": _num(pack.get("running"))},
+        "scripts": {"total": _num(scripts.get("total")), "published": _num(scripts.get("published"))},
+        "alerts24h": _num(r.get("alerts_24h")),
+        "crashes24h": len(crashes),
+        "lastBackup": None if backup is None else {"time": _num(backup.get("time")), "ok": bool(backup.get("ok"))},
+    }
+
+
 def console_links(origin: str) -> list[dict[str, str]]:
     """Deep links into the web console. They open in the system browser, which has its own console session: the
     desktop's API token never leaves the keyring and is never put into a URL or a web view."""
