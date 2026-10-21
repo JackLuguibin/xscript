@@ -4,6 +4,8 @@
 # No Screen Recording permission needed: the pictures come from the DevTools protocol (--remote-debugging-port).
 #   adb -s emulator-5554 forward tcp:19860 tcp:9860
 #   XS_SHOT_DEVICE=127.0.0.1:19860 scripts/vscode-screenshots.sh [out-dir]      (needs `npm run package` first)
+# XS_SHOT_NAMES picks the pictures (default "run debug"). "connect" is the step-by-step connection check: force-stop
+# XScript on the device first (adb shell am force-stop <app id>) so the check stops at "XScript app answers".
 set -euo pipefail
 SCRIPTS="$(cd "$(dirname "$0")" && pwd)"
 cd "$SCRIPTS/.."
@@ -43,14 +45,15 @@ json.dump(s, open(p, "w"), indent=2)
 PY
 PORT=$(python3 -c 'import socket; s=socket.socket(); s.bind(("127.0.0.1",0)); print(s.getsockname()[1])')
 mkdir -p "$T/shots"
-XS_SHOT_DIR="$T/shots" XS_SHOT_DEVICE="$XS_SHOT_DEVICE" env "${VSC_ENV[@]}" "$BIN" "${VSC_FLAGS[@]}" --remote-debugging-port="$PORT" \
+NAMES="${XS_SHOT_NAMES:-run debug}"
+XS_SHOT_NAMES="$NAMES" XS_SHOT_DIR="$T/shots" XS_SHOT_DEVICE="$XS_SHOT_DEVICE" env "${VSC_ENV[@]}" "$BIN" "${VSC_FLAGS[@]}" --remote-debugging-port="$PORT" \
   --extensionDevelopmentPath="$T/ext/$(ls "$T/ext" | grep '^xscript\.')" --extensionTestsPath="$SCRIPTS/screenshots/driver.js" "$P" >"$T/host.log" 2>&1 &
 PID=$!
 trap 'kill "$PID" 2>/dev/null || true; pkill -f "$T/ud" 2>/dev/null || true' EXIT
-node "$SCRIPTS/screenshots/capture.js" "$PORT" "$T/shots" run debug
+# shellcheck disable=SC2086
+node "$SCRIPTS/screenshots/capture.js" "$PORT" "$T/shots" $NAMES
 for _ in $(seq 1 60); do [ -s "$T/shots/result" ] && break; sleep 1; done
 cat "$T/shots/result"; echo
 mkdir -p "$OUT"
-for n in run debug; do cp "$T/shots/$n.png" "$OUT/vscode-$n.png"; done
-echo "wrote $OUT/vscode-{run,debug}.png"
+for n in $NAMES; do cp "$T/shots/$n.png" "$OUT/vscode-$n.png"; echo "wrote $OUT/vscode-$n.png"; done
 [ -z "${XS_HOST_TEST_KEEP:-}" ] && { sleep 1; rm -rf "$T"; } || echo "kept $T"
