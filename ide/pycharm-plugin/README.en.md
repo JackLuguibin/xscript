@@ -4,7 +4,7 @@ Upload XScript / AScript-style projects to an Android phone from PyCharm (2024.2
 
 It talks to the device HTTP API (`protocol/openapi.yaml`, default port 9860). Only point it at a phone on a trusted network, or at `127.0.0.1` via `adb forward tcp:9860 tcp:9860`.
 
-![After a run the XScript tool window at the bottom shows the log live](../../docs/images/pycharm-run.png)
+![After a run the XScript tool window at the bottom shows the log live; the status bar shows "XScript: Running daily_signin"](../../docs/images/pycharm-run.png)
 
 ![Settings → Tools → XScript: device address, pairing code and Run Selection timeout](../../docs/images/pycharm-settings.png)
 
@@ -28,6 +28,8 @@ Then in PyCharm: **Settings → Plugins → ⚙ → Install Plugin from Disk…*
 ## Use
 
 **Tools → XScript** and the **XScript** tool window at the bottom:
+
+The **status bar** (bottom right) shows the phone: "XScript: Connected", "Running <project>", "Offline", "Pairing Needed" or "Error". Hover for the address and app version; when offline, unpaired or failing, a click opens Connect to Device, otherwise it opens the XScript tool window. It checks every 5 seconds while the IDE is in front and once a minute in the background, and right after upload, run and stop. Turn it off from the status bar's context menu ("XScript Device Status") if you do not need it.
 
 | Action | Shortcut | What it does |
 | --- | --- | --- |

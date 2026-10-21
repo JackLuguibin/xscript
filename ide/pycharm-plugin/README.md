@@ -6,7 +6,7 @@
 
 通过设备 HTTP API（`protocol/openapi.yaml`，默认端口 9860）通信。只指向可信网络中的手机，或用 `adb forward tcp:9860 tcp:9860` 指向 `127.0.0.1`。
 
-![运行后底部 XScript 工具窗口实时输出日志](../../docs/images/pycharm-run.png)
+![运行后底部 XScript 工具窗口实时输出日志，右下角状态栏显示「XScript: Running daily_signin」](../../docs/images/pycharm-run.png)
 
 ![Settings → Tools → XScript：设备地址、配对码、运行选中代码超时和「上传时同步删除」](../../docs/images/pycharm-settings.png)
 
@@ -35,6 +35,8 @@ cd ide/pycharm-plugin
 ## 使用
 
 菜单 **Tools → XScript**，以及底部的 **XScript** 工具窗口：
+
+**状态栏**右下角显示手机状态：「XScript：已连接」「运行中 工程名」「离线」「需要配对」或「出错」。鼠标悬停显示地址和 App 版本；离线、需要配对或出错时点击打开「连接设备」，否则点击打开 XScript 工具窗口。IDE 在前台时每 5 秒检查一次，在后台时每分钟一次；上传、运行、停止之后立即刷新。不需要时可以在状态栏右键菜单里关掉「XScript 设备状态」。
 
 | 动作 | 快捷键 | 作用 |
 | --- | --- | --- |

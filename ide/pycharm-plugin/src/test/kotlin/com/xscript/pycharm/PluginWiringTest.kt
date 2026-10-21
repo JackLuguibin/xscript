@@ -13,6 +13,35 @@ class PluginWiringTest : BasePlatformTestCase() {
         }
     }
 
+    fun testDeviceStatusWidgetIsRegistered() {
+        val ep = com.intellij.openapi.extensions.ExtensionPointName<com.intellij.openapi.wm.StatusBarWidgetFactory>("com.intellij.statusBarWidgetFactory")
+        val factory = ep.extensionList.firstOrNull { it.id == DEVICE_STATUS_WIDGET_ID }
+        assertNotNull(factory)
+        val w = factory!!.createWidget(project) as DeviceStatusWidget
+        try {
+            assertTrue(w.getText().startsWith("XScript"))
+            assertTrue(w.shouldPoll(active = false, now = 1L))  // first check even when the IDE is in the background
+            w.update(DeviceState.Running("demo", "0.4.0"))
+            assertTrue(w.getText(), w.getText().contains("demo"))
+            val old = XScriptSettings.get().device
+            try {
+                XScriptSettings.get().device = "127.0.0.1:1"  // nothing listens there: offline, without throwing
+                w.refresh()
+                assertTrue(w.state.toString(), w.state is DeviceState.Unreachable)
+            } finally {
+                XScriptSettings.get().device = old
+            }
+            val t = System.currentTimeMillis()
+            assertTrue(w.shouldPoll(active = true, now = t))
+            assertFalse(w.shouldPoll(active = false, now = t))
+            assertTrue(w.shouldPoll(active = false, now = t + DeviceStatusWidget.IDLE_POLL_MS))
+            w.update(DeviceState.Unreachable)
+            assertTrue(w.getTooltipText().contains(XScriptSettings.get().device))
+        } finally {
+            com.intellij.openapi.util.Disposer.dispose(w)
+        }
+    }
+
     fun testSettingsAndPairingCode() {
         val s = XScriptSettings.get()
         val old = s.device
