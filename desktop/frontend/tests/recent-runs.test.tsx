@@ -138,6 +138,6 @@ describe("RecentRuns", () => {
     fireEvent.click(await screen.findByRole("button", { name: "跳到出错行 lib/calc.py:2" }));
     const editor = (await screen.findByRole("textbox", { name: "编辑器" }, { timeout: 3000 })) as HTMLTextAreaElement;
     await waitFor(() => expect(editor.value).toBe("a = 1\nb = a / 0\n"));
-    await waitFor(() => expect(editor.selectionStart).toBe(6));
+    await waitFor(() => expect([editor.selectionStart, editor.selectionEnd]).toEqual([6, 15])); // the whole failing line "b = a / 0"
   });
 });

@@ -26,7 +26,8 @@ interface Props {
   currentLine?: number | null;
   onToggleBreakpoint?: (line: number) => void;
   /** jump here (e.g. a search result); a new object each time, so the same place can be revealed again */
-  reveal?: { line: number; column: number; length: number } | null;
+  /** `wholeLine` selects the entire line and briefly highlights it (a failed run's line) */
+  reveal?: { line: number; column: number; length: number; wholeLine?: boolean } | null;
 }
 
 const NO_LINES: number[] = [];
@@ -95,16 +96,21 @@ export function CodeEditor({ path, value, label, onChange, onKeyDown, breakpoint
 
   useEffect(() => {
     if (!reveal) return;
+    const text = handle.current ? handle.current.getValue() : (area.current?.value ?? "");
+    const lines = text.split("\n");
+    const line = Math.min(Math.max(1, reveal.line), lines.length);
+    const column = reveal.wholeLine ? 1 : reveal.column;
+    const length = reveal.wholeLine ? (lines[line - 1] ?? "").length : reveal.length;
     if (handle.current) {
-      handle.current.reveal(reveal.line, reveal.column, reveal.length);
+      handle.current.reveal(line, column, length);
+      if (reveal.wholeLine) handle.current.flashLine(line);
       return;
     }
     const el = area.current;
     if (!el) return;
-    const lines = el.value.split("\n");
-    const start = lines.slice(0, reveal.line - 1).reduce((n, l) => n + l.length + 1, 0) + reveal.column - 1;
+    const start = lines.slice(0, line - 1).reduce((n, l) => n + l.length + 1, 0) + column - 1;
     el.focus();
-    el.setSelectionRange(start, start + reveal.length);
+    el.setSelectionRange(start, start + length);
   }, [reveal, ready]);
 
   return (
