@@ -67,6 +67,9 @@ class RunnerTest(unittest.TestCase):
         self.assertIn("dir ok\n", text)
         self.assertIn("xscript: finished rp_ok\n", text)
         self.assertEqual(os.path.realpath(os.getcwd()), os.path.realpath(d))
+        summary = [line for line in text.splitlines() if line.startswith("xscript: 运行统计 ")]
+        self.assertEqual(len(summary), 1, text)
+        self.assertGreater(text.index(summary[0]), text.index("xscript: finished"))
 
     def test_exit_codes_follow_cpython(self):
         cases = [("raise SystemExit(3)", 3), ("raise SystemExit(0)", 0), ("raise SystemExit()", 0),

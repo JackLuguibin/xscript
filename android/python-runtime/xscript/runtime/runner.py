@@ -5,6 +5,7 @@ import sys
 import threading
 import traceback
 
+from xscript.runtime import runstats
 from xscript.runtime.bridge import bridge
 
 
@@ -135,6 +136,7 @@ def run_project(project_dir, launch_params="{}", debug=False):
     if image_mod is not None:  # the interpreter is reused between runs: strict_capture() must not leak into the next one
         image_mod._reset_run_state()
     print("xscript: starting %s" % name)
+    runstats.reset()
     _apply_run_options(name)
     code = 0
     try:
@@ -166,6 +168,10 @@ def run_project(project_dir, launch_params="{}", debug=False):
     finally:
         from xscript.runtime.resources import cleanup
         cleanup()
+        try:
+            print(runstats.summary())
+        except Exception:
+            pass
         try:
             sys.stdout.flush()
             sys.stderr.flush()

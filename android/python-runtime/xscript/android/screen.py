@@ -12,12 +12,15 @@ import time
 
 from xscript.android import image as _img
 from xscript.android.image import CaptureError, OcrResult, Point  # noqa: F401
+from xscript.runtime import runstats
 from xscript.runtime.bridge import bridge
 
 
 def capture(path=None):
     """Save a PNG on the device. Returns the file path or None."""
+    began = time.monotonic()
     result = bridge.capture_to_file("" if path is None else str(path))
+    runstats.record_capture(time.monotonic() - began)
     if not result:
         _img._capture_failed()
         return None
