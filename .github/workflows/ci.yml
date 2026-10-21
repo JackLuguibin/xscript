@@ -198,6 +198,7 @@ jobs:
           npm ci
           npm run compile
           npm test
+          node scripts/export-templates.js --check  # the PyCharm plugin's templates.json matches src/newProject.ts
       - name: Package the vsix
         working-directory: ide/vscode-extension
         run: |

@@ -33,6 +33,8 @@
                     text="Stop Script on Device" description="Stop the script running on the phone" icon="AllIcons.Actions.Suspend"/>
             <action id="XScript.Connect" class="com.xscript.pycharm.ConnectAction"
                     text="Connect to Device…" description="Set the phone address and test the connection" icon="AllIcons.General.Web"/>
+            <action id="XScript.NewProject" class="com.xscript.pycharm.NewProjectAction"
+                    text="New XScript Project…" description="Create a project folder from a template (same templates as the VS Code extension)"/>
             <action id="XScript.ToggleStubs" class="com.xscript.pycharm.ToggleStubsAction"
                     text="Enable XScript Completion" description="Add or remove the bundled xscript / ascript stubs as a module library"/>
             <action id="XScript.Settings" class="com.xscript.pycharm.OpenSettingsAction"
