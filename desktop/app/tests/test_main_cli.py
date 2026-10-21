@@ -225,6 +225,8 @@ def test_update_now_with_a_local_feed_of_the_same_version_says_none(tmp_path):
     assert base64.b64decode(pub)  # the throwaway key never left the temp folder
 
 
+@needs_build
+@posix
 def test_screenshot_runs_the_run_js_script_once_the_device_is_connected(fake_adb, tmp_path):
     """--run-js: the script runs in the page before the screenshot (here it paints a red overlay)."""
     from PySide6.QtGui import QColor, QImage
