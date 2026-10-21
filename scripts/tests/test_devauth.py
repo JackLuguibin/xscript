@@ -26,6 +26,22 @@ def serve(status):
     return srv, "http://127.0.0.1:%d" % srv.server_address[1]
 
 
+class WaitIdleTest(unittest.TestCase):
+    def test_waits_until_not_running_then_times_out_when_stuck(self):
+        status = {"running": True}
+        srv, base = serve(status)
+        try:
+            devauth._cache.pop(base, None)
+            threading.Timer(0.3, lambda: status.update(running=False)).start()
+            devauth.wait_idle(base, timeout=5, poll=0.05)
+            self.assertFalse(status["running"])
+            status["running"] = True
+            with self.assertRaises(AssertionError):
+                devauth.wait_idle(base, timeout=0.2, poll=0.05)
+        finally:
+            srv.shutdown()
+
+
 class MaskTest(unittest.TestCase):
     def test_masks_pairing_codes_only(self):
         self.assertEqual(devauth.mask("配对码 AB2C-9XYZ ok"), "配对码 ****-**** ok")

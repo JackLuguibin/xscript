@@ -279,6 +279,7 @@ def run_in_background(name):
     open_app()
     wait(lambda: overlay()["app_foreground"], 10)
     script_gone()
+    devauth.wait_idle(BASE)
     r = api("POST", "/projects/%s/run" % name, {})
     ok = wait(lambda: api("GET", "/status")["running"], 15)
     if not ok:
@@ -303,6 +304,7 @@ def flow():
     # 1 foreground: nothing shown, even with a running script
     open_app()
     check(wait(lambda: overlay()["app_foreground"], 10), "app is in the foreground")
+    devauth.wait_idle(BASE)
     api("POST", "/projects/%s/run" % PROJECT, {})
     check(wait(lambda: api("GET", "/status")["running"], 15), "script is running")
     time.sleep(1.5)
@@ -459,6 +461,7 @@ def flow():
     check(wait(lambda: not overlay()["visible"], 8), "turning 后台一直显示 off hides the idle window", overlay())
 
     # 10 closed mode / revoked grant: nothing, and no crash
+    devauth.wait_idle(BASE)
     api("POST", "/projects/%s/run" % PROJECT, {})
     check(wait(lambda: api("GET", "/status")["running"], 15), "script running again")
     check(wait(lambda: overlay()["visible"], 10), "window back with the run")
@@ -749,6 +752,7 @@ def scripted_api():
         api("PUT", "/settings", {"float_on_run": False})   # setting off: only the script's own call may show it
         open_app()
         wait(lambda: overlay()["app_foreground"], 10)
+        devauth.wait_idle(BASE)
         api("POST", "/projects/%s/run" % name, {})
         check(wait(lambda: api("GET", "/status")["running"], 15), "script (FloatWindow API) running")
         check(not overlay()["visible"], "setting off: hidden until the script asks", overlay())
