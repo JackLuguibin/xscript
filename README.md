@@ -114,7 +114,7 @@ XScript 将设备端 Python 运行时、自动化 API、浏览器开发工具和
 
 ### PyCharm 插件
 
-习惯 PyCharm 的话，用 `ide/pycharm-plugin`（PyCharm 2024.2+）：Tools → XScript 里上传运行（Ctrl+Alt+Shift+R）、停止，底部 XScript 工具窗口看实时日志；新建工程模板和补全存根与 VS Code 插件相同。还没有断点调试。安装包从 CI 产物下载或自己构建，见[插件说明](ide/pycharm-plugin/README.md)。
+习惯 PyCharm 的话，用 `ide/pycharm-plugin`（PyCharm 2024.2+）：Tools → XScript 里上传运行（Ctrl+Alt+Shift+R）、停止、在设备上运行选中代码（Ctrl+Alt+Shift+E）、从设备拉取工程，底部 XScript 工具窗口看实时日志；新建工程模板和补全存根与 VS Code 插件相同。还没有断点调试。安装包从 CI 产物下载或自己构建，见[插件说明](ide/pycharm-plugin/README.md)。
 
 ![PyCharm 插件：运行后底部 XScript 工具窗口显示日志](docs/images/pycharm-run.png)
 

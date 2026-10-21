@@ -4,7 +4,7 @@
 
 ## 未发布
 
-- **PyCharm 插件**：新增 `ide/pycharm-plugin`（PyCharm 2024.2 及以上）。Tools → XScript 里上传并运行当前工程（先停掉正在运行的脚本，Ctrl+Alt+Shift+R）、停止、连接设备，底部 XScript 工具窗口实时显示日志；配对码保存在 IDE 密码库；新建工程的 7 个模板与 VS Code 扩展同一套；可一键把内置存根加为模块库获得 `xscript.*` / `ascript.*` 补全（不复制到工程里）。暂不支持断点调试，也不上架 Marketplace；安装包从 CI 产物 `xscript-pycharm-plugin` 下载或自己 `./gradlew buildPlugin`。见 [ide/pycharm-plugin/README.md](ide/pycharm-plugin/README.md)。
+- **PyCharm 插件**：新增 `ide/pycharm-plugin`（PyCharm 2024.2 及以上）。Tools → XScript 里上传并运行当前工程（先停掉正在运行的脚本，Ctrl+Alt+Shift+R）、停止、连接设备，底部 XScript 工具窗口实时显示日志；配对码保存在 IDE 密码库；新建工程的 7 个模板与 VS Code 扩展同一套；可一键把内置存根加为模块库获得 `xscript.*` / `ascript.*` 补全（不复制到工程里）。还可以把选中的代码（或光标所在行）发到手机执行并看结果（Ctrl+Alt+Shift+E，与 VS Code 扩展相同），以及从设备拉取工程（只写入新增和不同的文件，覆盖本地修改前先确认）。插件版本号与 App 一致，`scripts/release.sh` 一起检查和修改，安装包 `xscript-pycharm-<版本>.zip` 随 Release 附带。暂不支持断点调试，也不上架 Marketplace；未发布期间安装包从 CI 产物 `xscript-pycharm-plugin` 下载或自己 `./gradlew buildPlugin`。见 [ide/pycharm-plugin/README.md](ide/pycharm-plugin/README.md)。
 - **桌面端安装包与更新**：新增 Windows x64 安装包（Inno Setup，按用户安装，未签名）；macOS dmg 仍为 ad-hoc 签名，发布前会在 Mac 上实际打开验证。侧栏「设置与更新」可以检查、下载并安装新版本（更新清单用 Ed25519 签名，文件核对 sha256，用户确认后才替换并重启），可选启动时每天检查一次；还能导出去掉了令牌和密码的诊断包。正式启用自动更新还需要配置更新签名密钥，之前会提示手动下载。见 [desktop/README.md](desktop/README.md)「P5 安装包与更新」。
 - **桌面端云控**：侧栏新增「云控」，用后台的 API 令牌（存系统凭据库）连接自托管管理后台：设备表（筛选、多选）、批量运行 / 停止、在线设备实时画面、运行日志检索、服务端定时任务、把流程编辑器里的流程作为新版本部署到分组并可回滚、APK 打包任务（看日志、保存 APK）、在浏览器打开后台各页。按后台角色灰显（只读 / 操作员 / 管理员）。端到端脚本 `scripts/desktop_cloud_e2e.py`（本地后台 + 模拟器）。见 [desktop/README.md](desktop/README.md)「P4 云控」。
 - 找图：多尺度找图（`scale_range`）在两个尺度之间的目标（例如 0.8 倍、置信度 0.8）以前可能找不到，现在会在最接近的几个候选附近细化尺度再判断（#109）。
@@ -13,6 +13,7 @@
 - OCR：新增 PP-OCRv6 引擎 `paddle_v6t`（tiny，约 6 MB）和 `paddle_v6s`（small），以及 `engine="auto"`（用 v6 tiny，模型不可用时退回 ML Kit）。模拟器上 v6 tiny 识别整屏约 138 ms，比 PP-OCRv5 快约 2.5 倍、错字约为四分之一；`paddle` 仍是 v5，默认引擎仍是 `mlkit`。`vision_test` 和 MCP 支持同样的引擎名（#112）。
 - 图色调试：手机网页图色工具接口和 MCP `vision_test` 新增 `count_color`、`find_color_blobs`、`dominant_colors` 三个 op；找色 / 比色 / 数色 / 色块支持 `color_space` 和 `tolerance`，找图支持 `method`，结果与脚本 API 一致。`engine="auto"` 的 OCR 首次调用按模型加载给出更长超时。
 - 文档：按 v0.4.0 界面重拍说明文档截图（手机 App、桌面端、网页 IDE、VS Code 插件），新增配对码、新建模板和管理后台（概览趋势、设备、屏幕墙、卡密、代理、AI 写脚本、APK 打包与打包机）截图，均为演示数据。
+- 网页 IDE：桌面宽度下侧栏「文件」标题和按钮保持一行（以前标题会被挤成竖排）；900–1180px 宽的窗口里工具栏不再换行（隐藏快捷键提示，快捷键仍可用）。
 - 修复：手机 `/status` 上报的版本号一直是 0.2.0，现在与 App 版本一致；模拟设备与演示后端从同一处读取，版本不一致时测试会失败。
 - 修复：v0.4.0 桌面端 dmg 在别的 Mac 上下载后提示“XScript 已损坏，无法打开”。原因是打包脚本在签名之后又改了 Info.plist，签名失效。现在改完后重新签名并校验；v0.4.0 Release 里的 dmg 已替换（标签未动），首次打开说明已更新。
 - 发布流程：release 工作流在 macOS 运行器上构建并校验桌面端 dmg，与 APK 一起附到 Release 并写入 `SHA256SUMS`。
