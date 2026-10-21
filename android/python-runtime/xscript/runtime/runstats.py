@@ -33,7 +33,7 @@ def peak_memory_mb():
 
 
 def summary(now=None, peak_mb=None):
-    """'xscript: 运行统计 用时 12.3s · 截图 45 次（平均 38ms）· 峰值内存 210MB'"""
+    """'xscript: 运行统计 用时 12.3s · 截图 45 次（平均 38ms） · 峰值内存 210MB'"""
     took = (time.monotonic() if now is None else now) - _state["start"]
     parts = ["用时 %.1fs" % max(0.0, took)]
     n = _state["captures"]
