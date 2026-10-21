@@ -371,6 +371,25 @@ test('undefined names: "did you mean" a close visible name (locals, enclosing, m
   assert.deepEqual(q.problemsIn('__init__.py').map(w => [w.message, w.suggest, w.fix]), [['未定义的名字 helper（Ctrl+. 从 lib 导入）', undefined, ['lib']]]);
 });
 
+test('argument types: variables bound once to a literal count like the literal', () => {
+  const src = [
+    'def wait(s: float, label: str = ""):', '    pass', 'd = "2"', 'n = 3',
+    'wait(d)', 'wait(n, label=n)',                               // 5, 6
+    'x = y = "a"', 'wait(x)',                                     // chained: skipped
+    'z = "a"', 'z = 1', 'wait(z)',                                // rebound: skipped
+    'def f(p="s"):', '    wait(d)', '    wait(p)',                // 13: module variable; parameter skipped
+    'for i in ["a"]:', '    wait(i)',                            // loop target: skipped
+    'a, b = "1", "2"', 'wait(a)',                                 // unpacking: skipped
+    'def g():', '    global n2', '    n2 = "x"', 'n2 = 1', 'wait(n2)',   // global rebinding: skipped
+    'k: str = "1"', 'wait(k)', ''].join('\n');                  // annotated: skipped
+  const p = EditorSymbols.build([{path: 'm.py', content: src}], XSDocs);
+  assert.deepEqual(p.problemsIn('m.py').map(w => [w.line, w.col, w.length, w.message]), [
+    [5, 5, 1, 'wait() 的参数 s 应为 float，这里传了 str'],
+    [6, 14, 1, 'wait() 的参数 label 应为 str，这里传了 int'],
+    [13, 9, 1, 'wait() 的参数 s 应为 float，这里传了 str'],
+  ]);
+});
+
 test('basic checks: return values that do not match a simple return annotation', () => {
   const src = [
     'def a() -> int:', '    return "x"',                                  // 2

@@ -498,7 +498,7 @@
       const LITERAL = new Set(["Constant", "JoinedStr", "List", "Dict", "Set", "Tuple", "ListComp", "DictComp", "SetComp"]);
       const OK = { float: ["int", "bool"], complex: ["int", "float", "bool"], int: ["bool"] };
       for (const [e, p] of pairs) {
-        if (!e || !p || !p.annotation || p.annotation.type !== "Name" || !LITERAL.has(e.type)) continue;
+        if (!e || !p || !p.annotation || p.annotation.type !== "Name" || !(LITERAL.has(e.type) || this.literalVar(e, call.scope))) continue;
         const want = p.annotation.id;
         if (!/^(int|float|complex|str|bytes|bool|list|dict|set|tuple)$/.test(want) || this.bound(t.scope || call.scope.file.root, want)) continue;
         const got = this.typeOf(e, call.scope); if (!got || got === "ellipsis") continue;
@@ -539,6 +539,18 @@
           out.push({ line: n.nameLine, col: n.nameCol, length: n.name.length, message: label + " 声明返回 " + want + "，但没有 return 返回值" });
       }
       return out;
+    }
+    // A name bound exactly once, by a plain `name = <literal>` (no other assignment, global rebinding, parameter,
+    // loop or unpacking), so its type is certain wherever it is read.
+    literalVar(e, scope) {
+      if (e.type !== "Name") return false;
+      const sym = this.lookup(scope, e.id); if (!sym || sym.module || sym.library) return false;
+      const ds = this.defs(sym); if (ds.length !== 1) return false;
+      const d = ds[0];
+      if (d.kind !== "variable" || !d.value || d.annotation || !/^(Constant|JoinedStr|List|Dict|Set|Tuple|ListComp|DictComp|SetComp)$/.test(d.value.type)) return false;
+      const f = sym.scope.file; f.lines = f.lines || f.text.split("\n");
+      const l = f.lines[d.line - 1] || "";
+      return !l.slice(0, d.col).trim() && new RegExp("^" + e.id.replace(/[$]/g, "\\$&") + "\\s*=(?!=)", "u").test(l.slice(d.col)) && !/=.*=/.test(l.slice(d.col).replace(/==|!=|<=|>=/g, ""));
     }
     // Attribute names assigned anywhere in the project (`obj.x = ...`): they may exist at run time, so they are never
     // reported. Files using setattr / __dict__ / __getattr__ / __slots__ are marked dynamic.
@@ -710,7 +722,7 @@
       }
       for (const sc of f.scopes) for (const p of this.returnProblems(sc)) out.push(Object.assign(p, { severity: "warning" }));
       for (const c of f.calls) for (const a of this.argTypeProblems(c)) {
-        const e = a.node, length = e.type === "Constant" ? String(e.value).split("\n")[0].length : e.type === "JoinedStr" ? 2 : 1;
+        const e = a.node, length = e.type === "Constant" ? String(e.value).split("\n")[0].length : e.type === "Name" ? e.id.length : e.type === "JoinedStr" ? 2 : 1;
         out.push({ line: e.line, col: e.col, length: Math.max(1, length), message: a.message, severity: "warning" });
       }
       for (const c of f.calls) {
