@@ -1,5 +1,5 @@
-# Device checks on a throwaway emulator: the 十分钟上手 sample + OCR smoke and the home screen's developer-address
-# states (scripts/ci_emulator_checks.sh). Nightly, on demand, and on pull requests that change these checks.
+# Device checks on a throwaway emulator: the 十分钟上手 sample + OCR smoke + landscape screen.size(), and the home
+# screen's developer-address states incl. the USB-only dialog's copied command (scripts/ci_emulator_checks.sh). Nightly, on demand, and on pull requests that change these checks.
 name: emulator nightly
 
 on:
