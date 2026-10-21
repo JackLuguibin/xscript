@@ -205,6 +205,8 @@
           return;
         }
         case "Call": file.calls.push({ node: n, scope }); kids(n, scope); return;
+        case "Return": (scope.returns = scope.returns || []).push(n); kids(n, scope); return;
+        case "Yield": case "YieldFrom": scope.yields = true; kids(n, scope); return;
         default: kids(n, scope);
       }
     }
@@ -506,6 +508,38 @@
       }
       return out;
     }
+    /**
+     * Return statements that clearly do not match a simple builtin return annotation (`-> int` returning "x" or
+     * nothing): [{line, col, length, message}]. Only literals are judged (int is fine for float, bool for numbers);
+     * generators, stubs (body of only a docstring / pass / ... / raise) and `-> None` are skipped.
+     */
+    returnProblems(sc) {
+      const n = sc.node, out = [];
+      if (sc.kind !== "function" || !n || n.type !== "FunctionDef" || !n.returns || n.returns.type !== "Name" || sc.yields || n.isAsync) return out;
+      const want = n.returns.id;
+      if (!/^(int|float|complex|str|bytes|bool|list|dict|set|tuple)$/.test(want) || this.bound(sc.parent, want)) return out;
+      const OK = { float: ["int", "bool"], complex: ["int", "float", "bool"], int: ["bool"] };
+      const LITERAL = new Set(["Constant", "JoinedStr", "List", "Dict", "Set", "Tuple", "ListComp", "DictComp", "SetComp"]);
+      const label = (sc.parent.kind === "class" ? sc.parent.name + "." : "") + n.name + "()";
+      const stub = n.body.every((st, i) => st.type === "Pass" || st.type === "Raise" ||
+        (st.type === "Expr" && st.value && st.value.type === "Constant" && (st.value.value === "..." || (i === 0 && st.value.kind === "string"))));
+      if (stub) return out;
+      const rets = sc.returns || [];
+      for (const r of rets) {
+        if (!r.value) { out.push({ line: r.line, col: r.col, length: 6, message: label + " 声明返回 " + want + "，这里的 return 没有返回值" }); continue; }
+        if (!LITERAL.has(r.value.type)) continue;
+        const got = this.typeOf(r.value, sc); if (!got || got === "ellipsis" || got === want || (OK[want] || []).includes(got)) continue;
+        const e = r.value, length = e.type === "Constant" ? String(e.value).split("\n")[0].length : 1;
+        out.push({ line: e.line, col: e.col, length: Math.max(1, length), message: label + " 声明返回 " + want + "，这里返回了 " + got });
+      }
+      // falls off the end without any return value: only when there is no `return <value>` at all
+      if (!rets.some(r => r.value)) {
+        const last = n.body[n.body.length - 1];
+        if (last && !/^(Raise|While|Try|With|Match|If|For)$/.test(last.type))
+          out.push({ line: n.nameLine, col: n.nameCol, length: n.name.length, message: label + " 声明返回 " + want + "，但没有 return 返回值" });
+      }
+      return out;
+    }
     // Attribute names assigned anywhere in the project (`obj.x = ...`): they may exist at run time, so they are never
     // reported. Files using setattr / __dict__ / __getattr__ / __slots__ are marked dynamic.
     dynamicAttrs() {
@@ -663,6 +697,7 @@
         const m = o.kind === "attr" && !o.store ? this.attrProblem(o) : null; if (!m) continue;
         out.push(Object.assign({ line: o.line, col: o.col, length: o.name.length, message: m.message, severity: "warning" }, m.suggest ? { suggest: m.suggest } : {}));
       }
+      for (const sc of f.scopes) for (const p of this.returnProblems(sc)) out.push(Object.assign(p, { severity: "warning" }));
       for (const c of f.calls) for (const a of this.argTypeProblems(c)) {
         const e = a.node, length = e.type === "Constant" ? String(e.value).split("\n")[0].length : e.type === "JoinedStr" ? 2 : 1;
         out.push({ line: e.line, col: e.col, length: Math.max(1, length), message: a.message, severity: "warning" });

@@ -351,3 +351,26 @@ test('unknown attributes: "did you mean" suggestion for a close member name', ()
     [46, 'Shape 没有属性或方法 ad', undefined],                                 // ab / ac tie: no guess
   ]);
 });
+
+test('basic checks: return values that do not match a simple return annotation', () => {
+  const src = [
+    'def a() -> int:', '    return "x"',                                  // 2
+    'def b() -> float:', '    return 1',                                  // int is fine for float
+    'def c() -> int:', '    x = 1',                                       // 5-6: no return value at all
+    'def d() -> int:', '    ...',                                         // stub
+    'def e() -> str:', '    """doc"""', '    raise NotImplementedError',  // stub
+    'def g() -> list:', '    yield 1',                                    // generator
+    'def h(x) -> int:', '    if x:', '        return', '    return 2',     // 16: bare return
+    'class K:', '    def m(self) -> bool:', '        return None',         // 20
+    'def i() -> int:', '    def inner():', '        return "s"', '    return inner()',
+    'def j() -> int:', '    while True:', '        pass',                   // loops may never end: not judged
+    'def k() -> "int":', '    return "s"',                                // string annotation: skipped
+    'def p() -> int:', '    pass', ''].join('\n');
+  const p = EditorSymbols.build([{path: 'm.py', content: src}], XSDocs);
+  assert.deepEqual(p.problemsIn('m.py').map(w => [w.line, w.col, w.length, w.message]), [
+    [2, 11, 3, 'a() 声明返回 int，这里返回了 str'],
+    [5, 4, 1, 'c() 声明返回 int，但没有 return 返回值'],
+    [16, 8, 6, 'h() 声明返回 int，这里的 return 没有返回值'],
+    [20, 15, 4, 'K.m() 声明返回 bool，这里返回了 None'],
+  ]);
+});
