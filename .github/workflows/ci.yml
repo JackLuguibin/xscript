@@ -10,6 +10,8 @@ on:
   pull_request:
     branches: [main]
   workflow_call:
+  # manual run (Actions tab or `gh workflow run ci.yml --ref main`), e.g. when a push event was lost; runs everything
+  workflow_dispatch:
 
 permissions:
   contents: read
