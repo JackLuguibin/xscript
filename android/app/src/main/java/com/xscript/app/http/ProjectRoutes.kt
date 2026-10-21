@@ -34,6 +34,8 @@ class ProjectRoutes(private val store: ProjectStore, private val templates: () -
         }
         method == "PUT" && sub == "/files" -> upload(name, req)
         method == "GET" && sub == "/file" -> readFile(name, req)
+        method == "DELETE" && sub == "/file" && req.query["recursive"] == "1" ->
+            ApiRouter.Reply.json(JSONObject().put("ok", true).put("deleted", store.deleteFolder(name, req.query["path"].orEmpty())))
         method == "DELETE" && sub == "/file" ->
             ApiRouter.Reply.json(JSONObject().put("ok", store.deleteFile(name, req.query["path"].orEmpty())))
         else -> null

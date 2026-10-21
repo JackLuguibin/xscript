@@ -170,12 +170,15 @@ test('Web IDE explorer, editor and create/delete flows in a real browser', {skip
       assert.ok(r.findIndex(x => x.path === 'utils/empty') < r.findIndex(x => x.path === 'utils/a.py'), 'folders sort before files');
     });
 
-    await t.test('deleting folders: non-empty is refused locally, empty one is removed after confirm', async () => {
+    await t.test('deleting folders: non-empty asks with the file list (cancel keeps it), empty one is removed after confirm', async () => {
       await b.eval(click, row('utils')); // collapse + select
-      await confirms([true]);
+      await confirms([false]);
       await b.eval(click, '#delete-file'); await settle();
-      let s = await S(); assert.equal(s.error, true); assert.match(s.message, /非空/);
-      assert.deepEqual(await b.eval(() => window.__confirms), [], 'no confirm for a non-empty folder');
+      const asked = await b.eval(() => window.__confirms);
+      assert.equal(asked.length, 1, 'a non-empty folder asks once');
+      assert.match(asked[0], /删除文件夹 utils\/ 及其中的 \d+ 个文件？此操作不可撤销/);
+      assert.match(asked[0], /utils\/a\.py/, 'the confirm lists the files');
+      assert.ok((await api('GET', '/projects/dom/files')).files.some(f => f.path.startsWith('utils/')), 'cancel keeps a non-empty folder');
       await b.eval(click, row('utils')); // expand again
       await b.eval(click, row('utils/empty'));
       await confirms([false]);

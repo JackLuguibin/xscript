@@ -500,15 +500,27 @@ paths:
         "404":
           description: Missing file
     delete:
-      summary: Delete one file, or an empty folder
-      description: The entry point (__init__.py / __init__.pyc) cannot be deleted.
+      summary: Delete one file, or an empty folder (recursive=1 deletes a folder with everything in it)
+      description: >-
+        The entry point (__init__.py / __init__.pyc) cannot be deleted. Without recursive a non-empty
+        folder is refused (409). With recursive=1 the folder and its contents are deleted and "deleted"
+        is the number of files removed; symlinks inside are unlinked, never followed.
+      parameters:
+        - name: recursive
+          in: query
+          schema:
+            type: string
+            enum: ["1"]
       responses:
         "200":
           description: Deleted
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/Ok"
+                type: object
+                properties:
+                  ok: { type: boolean }
+                  deleted: { type: integer, description: Files removed (recursive=1 only) }
         "400":
           description: Entry point or invalid path
           content:

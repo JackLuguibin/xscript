@@ -158,6 +158,25 @@ class ProjectStore(val root: File) {
     }
 
     /**
+     * Delete a folder with everything in it (DELETE /file?recursive=1); a file is deleted like [deleteFile].
+     * Returns how many files were removed. Symlinks inside are unlinked, never followed. The entry point is
+     * only ever at the project root, so no folder contains it; the root itself cannot be named (invalid path).
+     */
+    fun deleteFolder(name: String, relativePath: String): Int {
+        val rel = normalizeRel(relativePath)
+        require(!isEntry(rel)) { "不能删除工程入口 $rel" }
+        val target = resolve(name, rel)
+        if (!target.exists() && !isLink(target)) throw NoSuchElementException("文件不存在: $rel")
+        if (isLink(target) || !target.isDirectory) {
+            check(target.delete()) { "删除失败: $rel" }
+            return 1
+        }
+        val n = countFiles(target)
+        check(deleteTree(target)) { "删除失败: $rel" }
+        return n
+    }
+
+    /**
      * Rename / move a file or folder inside the project (Web IDE 重命名 / 移动). 404 when the project or
      * source is missing, 400 for invalid paths, moving the entry point, or a folder into itself, 409 when
      * the destination exists. One rename(2) call (no copy), never replacing; moves are serialized.
@@ -383,6 +402,10 @@ class ProjectStore(val root: File) {
         private val moveLock = Any()
 
         private fun isLink(f: File): Boolean = java.nio.file.Files.isSymbolicLink(f.toPath())
+
+        /** Files (and symlinks) under `dir`, not walking into symlinked folders. */
+        fun countFiles(dir: File): Int =
+            dir.listFiles()?.sumOf { if (!isLink(it) && it.isDirectory) countFiles(it) else 1 } ?: 0
 
         /** Like deleteRecursively, but a symlink (file or folder) is unlinked instead of walked into. */
         fun deleteTree(f: File): Boolean {
