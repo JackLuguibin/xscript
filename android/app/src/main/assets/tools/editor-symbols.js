@@ -52,6 +52,21 @@
   const PY_KEYWORDS = new Set(("False None True and as assert async await break class continue def del elif else except finally for " +
     "from global if import in is lambda nonlocal not or pass raise return try while with yield").split(" "));
 
+  const BUILTINS = new Set(("ArithmeticError AssertionError AttributeError BaseException BaseExceptionGroup BlockingIOError BrokenPipeError " +
+    "BufferError BytesWarning ChildProcessError ConnectionAbortedError ConnectionError ConnectionRefusedError ConnectionResetError " +
+    "DeprecationWarning EOFError Ellipsis EncodingWarning EnvironmentError Exception ExceptionGroup False FileExistsError FileNotFoundError " +
+    "FloatingPointError FutureWarning GeneratorExit IOError ImportError ImportWarning IndentationError IndexError InterruptedError " +
+    "IsADirectoryError KeyError KeyboardInterrupt LookupError MemoryError ModuleNotFoundError NameError None NotADirectoryError " +
+    "NotImplemented NotImplementedError OSError OverflowError PendingDeprecationWarning PermissionError ProcessLookupError " +
+    "PythonFinalizationError RecursionError ReferenceError ResourceWarning RuntimeError RuntimeWarning StopAsyncIteration StopIteration " +
+    "SyntaxError SyntaxWarning SystemError SystemExit TabError TimeoutError True TypeError UnboundLocalError UnicodeDecodeError " +
+    "UnicodeEncodeError UnicodeError UnicodeTranslateError UnicodeWarning UserWarning ValueError Warning ZeroDivisionError " +
+    "abs aiter all anext any ascii bin bool breakpoint bytearray bytes callable chr classmethod compile complex copyright credits " +
+    "delattr dict dir divmod enumerate eval exec exit filter float format frozenset getattr globals hasattr hash help hex id input int " +
+    "isinstance issubclass iter len license list locals map max memoryview min next object oct open ord pow print property quit range " +
+    "repr reversed round set setattr slice sorted staticmethod str sum super tuple type vars zip " +
+    "__name__ __file__ __doc__ __spec__ __loader__ __package__ __path__ __builtins__ __debug__ __import__ __build_class__ __annotations__ __dict__ __class__").split(" "));
+
   class Scope {
     constructor(kind, name, parent, file, node) {
       this.kind = kind; this.name = name; this.parent = parent; this.file = file; this.node = node;
@@ -63,7 +78,7 @@
 
   // ---- indexing one file ----
   function indexFile(path, text) {
-    const file = { path, module: moduleName(path), text, scopes: [], occ: [], lines: null };
+    const file = { path, module: moduleName(path), text, scopes: [], occ: [], calls: [], lines: null };
     const parsed = text.length > MAX_FILE ? { ast: { body: [] } } : P.parse(text);
     const mod = file.root = new Scope("module", file.module, null, file, parsed.ast);
     const isPkg = /(^|\/)__init__\.py$/.test(path);
@@ -161,6 +176,7 @@
           }
           return;
         }
+        case "Call": file.calls.push({ node: n, scope }); kids(n, scope); return;
         default: kids(n, scope);
       }
     }
@@ -381,6 +397,81 @@
       }
       edits.sort((a, b) => a.path < b.path ? -1 : a.path > b.path ? 1 : a.line - b.line || a.col - b.col);
       return { name, newName, edits, files: files.size };
+    }
+    /** Is `name` bound anywhere `scope` can see (any binding counts, imports of unknown modules too; a star import counts as everything)? */
+    bound(scope, name) {
+      if (scope.globals.has(name)) scope = scope.file.root;
+      for (let s = scope, first = true; s; s = s.parent, first = false) {
+        if (s.kind === "class" && !first) continue;
+        if (s.defs.has(name) || s.star) return true;
+      }
+      return false;
+    }
+    // Parameters a call fills for the project function/class it resolves to, or null when it cannot tell for sure.
+    callTarget(call) {
+      const e = call.node.func, scope = call.scope;
+      let sym = e.type === "Name" ? this.lookup(scope, e.id) : e.type === "Attribute" ? this.member(this.valueOf(e.value, scope), e.attr) : null;
+      if (!sym || sym.module || sym.library) return null;
+      let ds = this.defs(sym); if (ds.length !== 1) return null;
+      let d = ds[0], drop = 0, label = sym.name;
+      if (d.kind === "class") {
+        if ((d.node.decorators || []).length) return null;
+        const init = this.member({ cls: d.inner }, "__init__"); if (!init || init.module || init.library) return null;
+        ds = this.defs(init); if (ds.length !== 1 || ds[0].kind !== "function") return null;
+        d = ds[0]; drop = 1;
+      } else if (d.kind !== "function") return null;
+      else if (sym.scope.kind === "class") {
+        if (e.type !== "Attribute") return null;
+        const decos = (d.node.decorators || []).map(x => x.type === "Name" ? x.id : "?");
+        if (decos.length > 1 || (decos.length && decos[0] !== "staticmethod" && decos[0] !== "classmethod")) return null;
+        if (decos[0] !== "staticmethod") {
+          // Through an instance or self the first parameter is bound; through the class itself only for classmethods.
+          const base = e.value.type === "Name" ? this.lookup(scope, e.value.id) : null;
+          const viaClass = base && !base.module && !base.library && this.defs(base).some(x => x.kind === "class");
+          if (viaClass && decos[0] !== "classmethod") return null;
+          drop = 1;
+        }
+        label = sym.scope.name + "." + sym.name;
+      } else if ((d.node.decorators || []).length) return null;
+      return { label, params: d.node.args.slice(drop), node: d.node };
+    }
+    // Argument-count / keyword problems of one call, or null.
+    callProblem(call) {
+      const n = call.node;
+      if (n.args.some(a => a.type === "Starred") || n.keywords.some(k => k.arg === null)) return null;
+      const t = this.callTarget(call); if (!t) return null;
+      if (t.node.args.length && t.node.args.slice(0, t.node.args.length - t.params.length).some(a => a.kind !== "arg")) return null;
+      const pos = t.params.filter(a => a.kind === "arg"), vararg = t.params.some(a => a.kind === "vararg"), kwarg = t.params.some(a => a.kind === "kwarg");
+      if (n.args.length > pos.length && !vararg) return t.label + "() 最多接受 " + pos.length + " 个位置参数，这里传了 " + n.args.length + " 个";
+      const filled = new Set(pos.slice(0, n.args.length).map(a => a.arg));
+      for (const k of n.keywords) {
+        const p = t.params.find(a => a.arg === k.arg && (a.kind === "arg" || a.kind === "kwonly"));
+        if (!p) { if (kwarg) continue; return t.label + "() 没有名为 " + k.arg + " 的参数"; }
+        if (filled.has(k.arg)) return t.label + "() 的参数 " + k.arg + " 传了两次";
+        filled.add(k.arg);
+      }
+      const missing = t.params.filter(a => (a.kind === "arg" || a.kind === "kwonly") && !a.default && !filled.has(a.arg)).map(a => a.arg);
+      return missing.length ? t.label + "() 缺少参数 " + missing.join("、") : null;
+    }
+    /**
+     * Basic checks of one file (warnings, not errors): names that are not defined anywhere visible and calls of
+     * project functions/classes with the wrong arguments. Conservative: anything it cannot resolve for sure is skipped.
+     * @returns {Array<{line,col,length,message,severity:"warning"}>}
+     */
+    problemsIn(path) {
+      const f = this.files.get(path); if (!f) return [];
+      const out = [], seen = new Set();
+      for (const o of f.occ) {
+        if (o.kind !== "name" || BUILTINS.has(o.name) || this.bound(o.scope, o.name)) continue;
+        out.push({ line: o.line, col: o.col, length: o.name.length, message: "未定义的名字 " + o.name, severity: "warning" });
+      }
+      for (const c of f.calls) {
+        const m = this.callProblem(c); if (!m) continue;
+        const e = c.node.func, at = e.type === "Name" ? { line: e.line, col: e.col, length: e.id.length } : { line: e.line, col: e.col, length: e.attr.length };
+        const k = at.line + ":" + at.col; if (seen.has(k)) continue; seen.add(k);
+        out.push(Object.assign(at, { message: m, severity: "warning" }));
+      }
+      return out.sort((a, b) => a.line - b.line || a.col - b.col);
     }
   }
 

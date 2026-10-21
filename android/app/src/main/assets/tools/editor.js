@@ -3,6 +3,7 @@
   const el = id => document.getElementById(id);
   const model = new EditorModel((...args) => XS.api(...args));
   let current = null, files = [], dirs = [], selected = null, pending = false, generation = 0, logCursor = 0, polling = false, closed = false;
+  let hoverFiles = null, hoverIndex = null;   // cached project sources + symbol index (hover, basic checks)
   // Expanded folders per project survive refreshes, create/delete and project switches.
   const expandedByProject = new Map();
   const expanded = () => { if (!expandedByProject.has(model.project)) expandedByProject.set(model.project, new Set()); return expandedByProject.get(model.project); };
@@ -294,7 +295,7 @@
     el("line-numbers").replaceChildren();
     for (let line = 1; line <= value.split("\n").length; line++) {
       const number = document.createElement("span"); number.textContent = (breaks.has(line) ? "● " : "") + line + "\n";
-      number.className = (breaks.has(line) ? "breakpoint-line " : "") + (marks.has(line) ? "diag-line" : "");
+      number.className = (breaks.has(line) ? "breakpoint-line " : "") + (marks.has(line) ? (assist.warnOnly(line) ? "diag-line warn" : "diag-line") : "");
       if (marks.has(line)) number.title = marks.get(line);
       el("line-numbers").append(number);
     }
@@ -334,13 +335,14 @@
   }
   async function load(path) {
     const version = ++generation, project = model.project;
+    hoverFiles = null;   // other files may have been saved since: re-read them for hover and checks
     try {
       const doc = await model.open(path, project);
       if (generation === version && project === model.project) show(doc);
     } catch (e) { if (generation === version) message(e.message, true); }
   }
   async function refreshFiles() {
-    const project = model.project;
+    const project = model.project; hoverFiles = null;
     const tree = project ? await model.listTree(project) : {files: [], dirs: []};
     if (model.project === project) {
       files = tree.files; dirs = tree.dirs;
@@ -606,10 +608,9 @@
   }
   // Hover on a project name: signature / inferred type from the symbol table. Other files are re-read at most every
   // 10 s; the open file's own text is always current.
-  let hoverFiles = null, hoverIndex = null;
-  assist.describe = async pos => {
-    if (!current || current.binary || !/\.py$/.test(current.path) || !model.project) return null;
-    const path = current.path, text = el("editor").value, project = model.project;
+  // The same cached index feeds the basic checks (undefined names, wrong call arguments) after each syntax check.
+  async function projectIndex(path, text) {
+    const project = model.project;
     if (!hoverFiles || hoverFiles.project !== project || Date.now() - hoverFiles.at > 10000) {
       hoverFiles = {project, at: Date.now(), files: await model.pythonSources(project)}; hoverIndex = null;
     }
@@ -618,8 +619,19 @@
       const files = hoverFiles.files.filter(f => f.path !== path).concat([{path, content: text}]);
       hoverIndex = {path, text, files: hoverFiles, index: EditorSymbols.build(files, window.XSDocs || null)};
     }
+    return hoverIndex.index;
+  }
+  assist.describe = async pos => {
+    if (!current || current.binary || !/\.py$/.test(current.path) || !model.project) return null;
+    const path = current.path, text = el("editor").value;
+    const index = await projectIndex(path, text); if (!index) return null;
     const before = text.slice(0, pos), line = before.split("\n").length, col = pos - before.lastIndexOf("\n") - 1;
-    return hoverIndex.index.describeAt(path, line, col);
+    return index.describeAt(path, line, col);
+  };
+  assist.lint = async (path, text) => {
+    if (!current || current.binary || current.path !== path || !/\.py$/.test(path) || !model.project) return null;
+    const index = await projectIndex(path, text);
+    return index ? index.problemsIn(path) : null;
   };
   // Rename symbol (F2 in the editor): every occurrence of the same definition across the project, after a confirm.
   async function renameSymbol(pos) {
