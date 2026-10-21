@@ -11,6 +11,7 @@
   "xscript.command.newProject": "新建 XScript 工程",
   "xscript.command.syncManage": "工程同步（推送 / 拉取）",
   "xscript.command.upload": "上传工程",
+  "xscript.command.previewUpload": "预览上传（不实际上传）",
   "xscript.command.pullProject": "从设备拉取工程",
   "xscript.command.editSyncIgnore": "编辑同步忽略规则 (.syncignore)",
   "xscript.command.run": "运行",

@@ -7,7 +7,7 @@ import * as path from "node:path";
 import { DeviceClient } from "../client";
 import { collectFiles, findProjectRoot, isProjectDir, isSyncedPath } from "../project";
 import {
-  DEFAULT_SYNCIGNORE, IgnoreRules, SYNCIGNORE_PATH, describeDeletes, diffAgainstLocal, planEmptiedFolders, fetchProject, loadIgnoreRules, planDeletes, planUpload, safeRelative, writePulled,
+  DEFAULT_SYNCIGNORE, IgnoreRules, SYNCIGNORE_PATH, describeDeletes, describePreview, diffAgainstLocal, planEmptiedFolders, previewSync, fetchProject, loadIgnoreRules, planDeletes, planUpload, safeRelative, writePulled,
 } from "../sync";
 
 const REPO = path.resolve(__dirname, "..", "..", "..", "..");
@@ -154,6 +154,34 @@ test("isSyncedPath follows collectFiles rules", () => {
   }
   for (const f of collectFiles(root, ignore)) assert.equal(isSyncedPath(f.path, ignore), true, f.path);
   assert.deepEqual(collectFiles(root, ignore).map((f) => f.path), ["__init__.py", "keep.log", "lib/a.py"]);
+});
+
+test("previewSync: new, changed, unchanged, and deletes or kept device-only files", () => {
+  const f = (p: string, c: string) => ({ path: p, content: c, encoding: "utf-8" as const });
+  const files = [f("__init__.py", "a"), f("lib/x.py", "bb"), f("new.py", "c"), f("same.py", "dd")];
+  const cache = planUpload(files, undefined, {}).hashes;
+  const remote = [
+    { path: "__init__.py", size: 1 }, { path: "lib/x.py", size: 5 }, { path: "same.py", size: 2 },
+    { path: "old/gone.py", size: 1 }, { path: "skip.log", size: 1 },
+  ];
+  const synced = (r: string) => !r.endsWith(".log");
+  const keep = previewSync(files, remote, cache, synced, false);
+  assert.deepEqual(keep.added, ["new.py"]);
+  assert.deepEqual(keep.changed, ["lib/x.py"]); // the device copy has another size
+  assert.equal(keep.unchanged, 2);
+  assert.deepEqual([keep.deletes, keep.folders, keep.kept], [[], [], ["old/gone.py"]]);
+  const del = previewSync(files, remote, cache, synced, true);
+  assert.deepEqual([del.deletes, del.folders, del.kept], [["old/gone.py"], ["old"], []]);
+  const text = describePreview("demo", del);
+  assert.match(text, /nothing was sent or deleted/);
+  assert.match(text, /New on the device \(1\):\n {2}new\.py/);
+  assert.match(text, /Folders those deletes leave empty, removed too \(1\):\n {2}old\//);
+  assert.doesNotMatch(text, /up to date/);
+  const fresh = previewSync(files, [], {}, synced, false);
+  assert.equal(fresh.added.length, 4);
+  const onDevice = files.filter((x) => x.path !== "new.py");
+  const synced3 = remote.slice(0, 3).map((r) => (r.path === "lib/x.py" ? { ...r, size: 2 } : r));
+  assert.match(describePreview("demo", previewSync(onDevice, synced3, cache, synced, false)), /Everything is up to date/);
 });
 
 test("describeDeletes caps the list", () => {

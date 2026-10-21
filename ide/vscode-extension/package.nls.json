@@ -11,6 +11,7 @@
   "xscript.command.newProject": "New Project",
   "xscript.command.syncManage": "Sync Project (Push / Pull)",
   "xscript.command.upload": "Upload Project",
+  "xscript.command.previewUpload": "Preview Upload (dry run)",
   "xscript.command.pullProject": "Pull Project from Device",
   "xscript.command.editSyncIgnore": "Edit Sync Ignore Rules (.syncignore)",
   "xscript.command.run": "Upload and Run Project",

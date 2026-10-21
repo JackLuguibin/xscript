@@ -7,7 +7,7 @@ import { collectFiles, findProjectRoot, isProjectDir, isSyncedPath } from "./pro
 import { registerDebugger, startDebugging } from "./debugAdapter";
 import { execFile } from "child_process";
 import { DeviceStore, FoundDevice, SavedDevice, httpProbe, lanCandidates, normalizeAddress, scanAdb, scanLan } from "./devices";
-import { DEFAULT_SYNCIGNORE, IgnoreRules, SYNCIGNORE_PATH, SyncCache, describeDeletes, planEmptiedFolders, diffAgainstLocal, fetchProject, loadIgnoreRules, planDeletes, planUpload, writePulled } from "./sync";
+import { DEFAULT_SYNCIGNORE, IgnoreRules, SYNCIGNORE_PATH, SyncCache, describeDeletes, describePreview, planEmptiedFolders, previewSync, diffAgainstLocal, fetchProject, loadIgnoreRules, planDeletes, planUpload, writePulled } from "./sync";
 import { TEMPLATES, createProject, validateProjectName } from "./newProject";
 import { Node, XScriptTree } from "./tree";
 import { newUiForm, registerUiDesigner } from "./uiDesigner";
@@ -554,6 +554,22 @@ const commands: Record<string, (...args: any[]) => unknown> = {
     const s = await guard("status", () => client.status());
     if (!s) return;
     output.appendLine(JSON.stringify(s, null, 2));
+    output.show(true);
+  },
+
+  "xscript.previewUpload": async (uri?: vscode.Uri) => {
+    const root = await resolveProject(uri);
+    if (!root) return;
+    const name = path.basename(root);
+    const ignore = loadIgnoreRules(root);
+    const files = collectFiles(root, ignore);
+    const key = "sync:" + client.target.host + ":" + client.target.port + ":" + name;
+    // a project the device does not have yet: every file is new
+    const got = await guard("preview", async () => ({ files: await client.projectFiles(name) }));
+    if (!got) return;
+    const p = previewSync(files, got.files ?? [], extCtx.workspaceState.get<SyncCache>(key, {}), (rel) => isSyncedPath(rel, ignore),
+      config().get<boolean>("syncDeletes", false));
+    output.appendLine(describePreview(name, p));
     output.show(true);
   },
 
