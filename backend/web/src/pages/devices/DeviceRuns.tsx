@@ -4,6 +4,7 @@ import dayjs from "dayjs";
 import { Alert, Empty, Select, Space, Switch, Table, Tooltip, Typography } from "antd";
 import { ApiError, request } from "../../api";
 import { Pill } from "../../components";
+import { failedLine } from "./runTrace";
 
 /** One entry of the phone's GET /projects/{name}/runs (XScript App v0.5.0+). */
 export interface RunRecord {
@@ -34,14 +35,33 @@ function RunLog({ id, run }: { id: string; run: RunRecord }) {
   if (q.error) return <Alert type="error" showIcon message={(q.error as Error).message} />;
   const lines = (q.data?.entries ?? []).filter((e) => e.seq > run.log_from && e.seq <= run.log_to);
   if (!lines.length) return <Typography.Text type="secondary">这段日志已不在手机的日志缓冲区里（被新日志挤掉或已清空）</Typography.Text>;
+  const at = run.failed ? failedLine(lines.map((l) => l.line.replace(/\n$/, "")).join("\n"), run.project) : null;
   return (
-    <pre className="mono code-block" aria-label="这次运行的日志" style={{ maxHeight: 260, overflow: "auto", margin: 0 }}>
+    <Space orientation="vertical" size="small" style={{ width: "100%" }}>
+      {at && (
+        <Alert
+          type="error"
+          showIcon
+          aria-label="出错位置"
+          message={
+            <span>
+              出错位置：
+              <Typography.Text code copyable={{ text: `${at.path}:${at.line}`, tooltips: ["复制位置", "已复制"] }}>
+                {at.path}:{at.line}
+              </Typography.Text>
+            </span>
+          }
+          description={at.message || undefined}
+        />
+      )}
+      <pre className="mono code-block" aria-label="这次运行的日志" style={{ maxHeight: 260, overflow: "auto", margin: 0 }}>
       {lines.map((l) => (
         <div key={l.seq} style={l.stream === "stderr" ? { color: "var(--ant-color-error, #d4380d)" } : undefined}>
           {l.line.replace(/\n$/, "")}
         </div>
       ))}
-    </pre>
+      </pre>
+    </Space>
   );
 }
 
