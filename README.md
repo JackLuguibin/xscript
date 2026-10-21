@@ -294,6 +294,7 @@ python3 scripts/device_screen_smoke.py http://127.0.0.1:19860
 
 ## 文档
 
+- [十分钟写出第一个脚本](docs/十分钟上手.md)：从连接手机到新建、运行、同步一个工程的最短路径。
 - [使用手册](docs/使用手册.md)：各组件的使用入口。
 - [入门指南](docs/GETTING_STARTED.md)：构建、连接设备和常见问题。
 - [脚本 API](docs/API.md)：设备端接口。

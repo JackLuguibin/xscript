@@ -310,6 +310,7 @@ The exact scope is in the [feature comparison](docs/功能对照.md) (Chinese).
 Most detailed docs are currently in Chinese.
 
 - [User manual](docs/使用手册.md): entry points for each component.
+- [Your first script in ten minutes](docs/十分钟上手.md) (Chinese): connect a phone, create, run and sync a project.
 - [Getting started](docs/GETTING_STARTED.md): building, connecting a device and common problems.
 - [Script API](docs/API.md): device-side interfaces.
 - [Breakpoint debugging](docs/DEBUGGING.md): web debugging and the DAP API.
