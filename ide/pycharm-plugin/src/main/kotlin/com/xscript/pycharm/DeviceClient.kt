@@ -17,6 +17,8 @@ data class UploadFile(val path: String, val content: String, val encoding: Strin
 data class LogEntry(val seq: Long, val ts: Double, val stream: String, val line: String)
 data class Logs(val entries: List<LogEntry>, val next: Long)
 data class RemoteFile(val path: String, val size: Long)
+/** POST /eval reply; `error` is "timeout" when the device answered 408. */
+data class EvalResult(val ok: Boolean, val result: String, val error: String)
 
 /** Non-2xx reply. `detail` is the device's own `error` text when the body is JSON, else the start of the body. */
 class DeviceHttpException(val status: Int, val body: String) :
@@ -98,6 +100,17 @@ class DeviceClient(val target: DeviceTarget, private val timeoutMs: Long = 15000
         return Logs(entries, o.get("next")?.asLong ?: since)
     }
 
+    /** Short snippet in the device's `:eval` process (assign the answer to `_result`). 408 comes back as error "timeout". */
+    fun eval(code: String, timeoutMs: Long = 8000): EvalResult {
+        val ms = timeoutMs.coerceIn(200, 15000)
+        val r = send("POST", "/eval", json = mapOf("code" to code, "timeout_ms" to ms),
+            timeout = maxOf(timeoutMs, ms + 2000), pass = setOf(408))
+        if (r.statusCode() == 408) return EvalResult(false, "", "timeout")
+        val o = JsonParser.parseString(String(r.body(), StandardCharsets.UTF_8)).asJsonObject
+        fun str(k: String) = o.get(k)?.takeIf { !it.isJsonNull }?.asString ?: ""
+        return EvalResult(o.get("ok")?.asBoolean == true, str("result"), str("error"))
+    }
+
     /** Files of a project on the device; null when it does not exist (404). */
     fun projectFiles(project: String): List<RemoteFile>? {
         val r = send("GET", "/projects/${p(project)}/files", pass = setOf(404))
@@ -148,3 +161,11 @@ fun followTick(client: DeviceClient, state: FollowState, write: (String) -> Unit
     }
     return true
 }
+
+/** Code to evaluate: the selection, else the caret line; null when blank. */
+fun evalCode(selection: String?, caretLine: String): String? =
+    (if (selection.isNullOrEmpty()) caretLine else selection).takeIf { it.isNotBlank() }
+
+/** Console text for one eval, same shape as the VS Code extension: ">>> code" (continuation "... "), then result or "error: …". */
+fun formatEval(code: String, r: EvalResult): String =
+    ">>> " + code.trimEnd('\n').replace("\n", "\n... ") + "\n" + (if (r.ok) r.result else "error: " + r.error) + "\n"

@@ -54,3 +54,21 @@ class OpenSettingsAction : AnAction() {
         ShowSettingsUtil.getInstance().showSettingsDialog(e.project, XScriptConfigurable::class.java)
     }
 }
+
+/** Evaluates the editor selection (or the caret line) on the device, like the VS Code "Run Selection on Device". */
+class EvalSelectionAction : AnAction() {
+    override fun getActionUpdateThread() = ActionUpdateThread.BGT
+    override fun update(e: AnActionEvent) {
+        e.presentation.isEnabled = e.project != null && e.getData(CommonDataKeys.EDITOR) != null
+    }
+
+    override fun actionPerformed(e: AnActionEvent) {
+        val project = e.project ?: return
+        val editor = e.getData(CommonDataKeys.EDITOR) ?: return
+        val doc = editor.document
+        val line = doc.getLineNumber(editor.caretModel.offset)
+        val lineText = doc.getText(com.intellij.openapi.util.TextRange(doc.getLineStartOffset(line), doc.getLineEndOffset(line)))
+        val code = evalCode(editor.selectionModel.selectedText, lineText) ?: return
+        XScriptService.get(project).eval(code)
+    }
+}

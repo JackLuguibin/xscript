@@ -7,7 +7,8 @@ import com.intellij.testFramework.fixtures.BasePlatformTestCase
 class PluginWiringTest : BasePlatformTestCase() {
     fun testActionsAreRegistered() {
         val am = ActionManager.getInstance()
-        for (id in listOf("XScript.UploadAndRun", "XScript.Stop", "XScript.Connect", "XScript.Settings", "XScript.UploadAndRun.Popup")) {
+        for (id in listOf("XScript.UploadAndRun", "XScript.Stop", "XScript.Connect", "XScript.Settings", "XScript.UploadAndRun.Popup",
+            "XScript.EvalSelection", "XScript.EvalSelection.Popup")) {
             assertNotNull(id, am.getAction(id))
         }
     }

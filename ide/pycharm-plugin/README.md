@@ -34,6 +34,7 @@ cd ide/pycharm-plugin
 | --- | --- | --- |
 | Upload and Run on Device | Ctrl+Alt+Shift+R；编辑器、项目视图右键 | 先停止手机上正在运行的脚本，再上传当前文件所在的工程并运行，日志实时显示在 XScript 工具窗口 |
 | Stop Script on Device | | 停止手机上正在运行的脚本 |
+| Run Selection on Device | Ctrl+Alt+Shift+E；编辑器右键 | 把选中的代码（没选中时为光标所在行）发到手机的 eval 进程执行，结果打印在 XScript 工具窗口；要看某个值就赋给 `_result`，超时 8 秒 |
 | Connect to Device… | | 填写手机地址（`IP[:端口]`），并测试连接 |
 | New XScript Project… | | 选模板（与 VS Code 扩展、网页 IDE、手机 App 同一套 7 个模板），生成 `__init__.py`、`build.as`、`res/` |
 | Enable / Disable XScript Completion | | 把插件自带的存根作为模块库 “XScript stubs” 加入或移除 |

@@ -68,6 +68,18 @@ class DeviceClientTest {
         assertTrue(polls < 10)
     }
 
+    @Test fun evalSelection() {
+        val r = open.eval("_result = 1 + 1")
+        assertTrue(r.ok)
+        assertEquals("mock:_result = 1 + 1", r.result)
+        assertEquals(">>> a = 1\n... _result = a\nmock:a = 1\n_result = a\n",
+            formatEval("a = 1\n_result = a\n", EvalResult(true, "mock:a = 1\n_result = a", "")))
+        assertEquals(">>> x\nerror: timeout\n", formatEval("x", EvalResult(false, "", "timeout")))
+        assertEquals("print(1)", evalCode("", "print(1)"))
+        assertEquals("a\nb", evalCode("a\nb", "ignored"))
+        assertNull(evalCode(null, "   "))
+    }
+
     @Test fun stopIfRunningRestartsCleanly() {
         open.uploadFiles("pyc_again", listOf(UploadFile("__init__.py", "", "utf-8")))
         assertTrue(open.run("pyc_again").get("running").asBoolean)
