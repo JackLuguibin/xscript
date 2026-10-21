@@ -26,6 +26,9 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     p.add_argument("--click-screenshot", action="store_true", help="with --screenshot: press the page's screenshot button first (verification aid)")
     p.add_argument("--size", metavar="WxH", help="initial window size, e.g. 1180x760 (verification aid; documentation screenshots)")
     p.add_argument("--theme", choices=["system", "light", "dark"], help="with --screenshot: press the sidebar theme button until this theme is active (verification aid)")
+    p.add_argument("--run-js", metavar="FILE",
+                   help="with --screenshot: run this script in the page once a device is connected, before the screenshot "
+                        "delay (verification aid: open a page, pick a project; documentation screenshots)")
     p.add_argument("--timeout", type=float, default=30.0, help="selftest/screenshot timeout in seconds")
     p.add_argument("--report", metavar="JSON",
                    help="with --selftest: also write the result to this file (a windowed build has no stdout, e.g. XScript.exe)")
@@ -129,7 +132,8 @@ def main(argv: list[str] | None = None) -> int:
     result = {"code": 1}
     poll = QTimer()
     poll.setInterval(100)
-    elapsed = {"t": 0.0, "ready_at": None, "clicked": False, "theme_ok": False}
+    elapsed = {"t": 0.0, "ready_at": None, "clicked": False, "theme_ok": False, "js_done": False}
+    run_js = Path(args.run_js).read_text(encoding="utf-8") if args.run_js else None
 
     def report(payload: dict) -> None:
         print(json.dumps(payload, ensure_ascii=False))
@@ -172,6 +176,13 @@ def main(argv: list[str] | None = None) -> int:
             # click per tick so React re-renders in between. Counting clicks blindly lost one whenever the button was
             # not rendered yet (the ?.click() did nothing) and the screenshot came out in the wrong theme.
             win.page.runJavaScript(THEME_STEP_JS % json.dumps(args.theme), theme_step_done)
+            return
+        if run_js is not None and not elapsed["js_done"]:
+            if args.connect_adb and not ctx.devices.list():
+                return  # the script usually needs the device; the timeout still applies
+            elapsed["js_done"] = True
+            elapsed["ready_at"] = elapsed["t"]  # --screenshot-delay counts from the script, so it can click through pages
+            win.page.runJavaScript(run_js)
             return
         if args.selftest and not args.connect_adb:
             report({"selftest": "ok", "version": __version__, "page": "loaded", "bridge": "roundtrip"})

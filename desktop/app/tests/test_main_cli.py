@@ -223,3 +223,21 @@ def test_update_now_with_a_local_feed_of_the_same_version_says_none(tmp_path):
     assert r.returncode == 0, r.stderr
     assert '"state": "none"' in r.stdout and not (tmp_path / "d" / "updates").exists()
     assert base64.b64decode(pub)  # the throwaway key never left the temp folder
+
+
+def test_screenshot_runs_the_run_js_script_once_the_device_is_connected(fake_adb, tmp_path):
+    """--run-js: the script runs in the page before the screenshot (here it paints a red overlay)."""
+    from PySide6.QtGui import QColor, QImage
+
+    exe, log, fd = fake_adb
+    js = tmp_path / "paint.js"
+    js.write_text("const d = document.createElement('div'); d.style.cssText = 'position:fixed;inset:0;background:#f00;z-index:99999';"
+                  "document.body.appendChild(d);", encoding="utf-8")
+    out = tmp_path / "shot.png"
+    r = run_app("--screenshot", str(out), "--screenshot-delay", "1", "--size", "900x600", "--run-js", str(js),
+                "--data-dir", str(tmp_path / "data"), "--adb", str(exe), "--connect-adb", "emulator-5554", "--timeout", "40",
+                env={"FAKE_ADB_LOG": str(log), "FAKE_ADB_PORT": str(fd.port)})
+    assert r.returncode == 0, r.stderr
+    c = QColor(QImage(str(out)).pixel(450, 300))
+    assert (c.red(), c.green(), c.blue()) == (255, 0, 0)
+    assert parse_args(["--run-js", "x.js"]).run_js == "x.js" and parse_args([]).run_js is None

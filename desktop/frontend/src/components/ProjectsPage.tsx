@@ -426,7 +426,7 @@ export function ProjectsPage({ pollMs = LOG_POLL_MS, onDirtyChange }: { pollMs?:
                 <ul className="list" aria-label={t.files.folders}>
                   {folders.map(([d, n]) => (
                     <li key={d} className="file-row">
-                      <span className="list-btn mono">
+                      <span className="ui-btn list-btn mono folder-label">
                         📁 {d}/
                         <span className="muted">{t.files.fileCount(n)}</span>
                       </span>
