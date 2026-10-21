@@ -499,6 +499,17 @@ class AppContext:
                 raise RpcError("rpc.bad_params", "unknown transport: %s" % transport)
             return rec.to_dict()
 
+        @d.method("device.check")
+        @_map_errors
+        async def check(params: dict[str, Any]) -> dict[str, Any]:
+            """Step-by-step connection check for one adb serial or LAN address (does not connect)."""
+            transport = param(params, "transport", str)
+            if transport == "adb":
+                return await self.devices.check("adb", param(params, "serial", str))
+            if transport == "lan":
+                return await self.devices.check("lan", param(params, "address", str))
+            raise RpcError("rpc.bad_params", "unknown transport: %s" % transport)
+
         @d.method("device.list")
         async def list_devices(params: dict[str, Any]) -> dict[str, Any]:
             saved = await self.store.aexec(self.store._list_devices)

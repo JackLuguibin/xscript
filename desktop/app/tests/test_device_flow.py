@@ -229,3 +229,15 @@ async def test_scan_rpc_emits_found_and_progress_and_cancel_stops_it(mock_device
         assert (await rpc(ctx, "device.scan.cancel", scanId="s1"))["result"] == {"cancelled": False}
     finally:
         await ctx.shutdown()
+
+
+async def test_check_rpc(mock_device, tmp_path):
+    ctx = _ctx(FakeAdb([("emulator-5554", "device", mock_device)]), tmp_path)
+    try:
+        res = (await rpc(ctx, "device.check", transport="adb", serial="emulator-5554"))["result"]
+        assert res["ok"] is True and res["transport"] == "adb" and res["target"] == "emulator-5554"
+        res = (await rpc(ctx, "device.check", transport="lan", address="127.0.0.1:1"))["result"]
+        assert res["ok"] is False and res["steps"][1] == {"id": "reach", "ok": False, "detail": "refused"}
+        assert (await rpc(ctx, "device.check", transport="usb"))["error"]["code"] == "rpc.bad_params"
+    finally:
+        await ctx.shutdown()
