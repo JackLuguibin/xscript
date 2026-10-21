@@ -494,6 +494,29 @@ test('Web IDE explorer, editor and create/delete flows in a real browser', {skip
     });
 
 
+    await t.test('basic checks: unknown attributes of project classes and instances', async () => {
+      await api('PUT', '/projects/dom/files', {files: [
+        {path: 'at_lib.py', content: 'class Box:\n    def __init__(self, w):\n        self.w = w\n    def size(self):\n        return self.ww\n'},
+        {path: 'at_main.py', content: 'print("ok")\n'}]});
+      await b.eval(click, '#refresh'); await b.waitFor(idle);
+      await b.eval(click, row('at_main.py'));
+      await b.waitFor(() => document.getElementById('editor').value === 'print("ok")\n' && !document.getElementById('editor').disabled);
+      await b.eval(v => { const e = document.getElementById('editor'); e.focus(); e.value = v; e.dispatchEvent(new Event('input')); },
+        'from at_lib import Box\nb = Box(1)\nb.size()\nb.sise()\nb.w\n');
+      await b.waitFor(() => document.querySelectorAll('#diag .sq.warn').length === 1, 5000);
+      assert.deepEqual(await b.eval(() => [...document.querySelectorAll('#diag .sq.warn')].map(n => n.textContent)), ['sise']);
+      await b.eval(click, '#problems');
+      assert.match(await b.eval(() => document.getElementById('problems').textContent), /第 4 行：Box 没有属性或方法 sise/);
+      await b.eval(click, '#save'); await b.waitFor(idle);
+      await b.eval(click, row('at_lib.py'));
+      await b.waitFor(() => document.getElementById('editor').value.startsWith('class Box'));
+      await b.waitFor(() => document.querySelectorAll('#diag .sq.warn').length === 1, 5000);
+      assert.deepEqual(await b.eval(() => [...document.querySelectorAll('#diag .sq.warn')].map(n => n.textContent)), ['ww']);
+      await b.eval(click, row('__init__.py')); await b.waitFor(() => !document.getElementById('editor').disabled);
+      for (const p of ['at_lib.py', 'at_main.py']) await fetch(base + '/projects/dom/file?path=' + p, {method: 'DELETE'});
+      await b.eval(click, '#refresh'); await b.waitFor(idle);
+    });
+
     await t.test('project search and replace: results, options, jump to match, replace saves clean files and keeps unsaved ones dirty', async () => {
       await api('PUT', '/projects/dom/files', {files: [
         {path: 'search/a.py', content: 'needle = 1\nprint(needle)\n'}, {path: 'search/b.py', content: '# NEEDLE\nx = 2\n'}, {path: 'search/c.txt', content: 'no match here\n'}]});
