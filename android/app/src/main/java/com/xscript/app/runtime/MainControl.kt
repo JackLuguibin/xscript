@@ -168,6 +168,8 @@ object MainControl {
             .put("channel", Automation.channel().name.lowercase())
             .put("capture", CaptureEngine.available())
             .put("capture_source", CaptureEngine.sourceLabel())
+            .put("capture_via", CaptureEngine.currentSource())
+            .put("capture_lost", CaptureEngine.lost)
             .put("notification_listener", EventHub.listenerConnected)
             .put("exact_alarms", Scheduler.canExact(ctx))
             .put("running", running != null)

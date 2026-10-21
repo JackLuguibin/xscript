@@ -445,6 +445,8 @@ class Handler(BaseHTTPRequestHandler):
                 "channel": "accessibility",
                 "capture": True,
                 "capture_source": "mock",
+                "capture_via": "projection",
+                "capture_lost": False,
                 "running": STATE["running"] is not None,
                 "project": STATE["running"],
                 "version": APP_VERSION,
