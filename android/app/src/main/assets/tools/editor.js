@@ -653,10 +653,14 @@
     const stmt = "from " + mod + " import " + w.name + "\n", insert = at > text.length || (at === text.length && text && !text.endsWith("\n")) ? "\n" + stmt : stmt;
     at = Math.min(at, text.length);
     const caret = box.selectionStart, end = box.selectionEnd, top = box.scrollTop;
-    box.focus(); box.setRangeText(insert, at, at, "preserve");
+    // insertText goes through the textarea's own undo history, so Ctrl/Cmd+Z removes the import again
+    box.focus(); box.setSelectionRange(at, at);
+    let native = false; try { native = document.execCommand("insertText", false, insert) && box.value.slice(at, at + insert.length) === insert; } catch (e) { native = false; }
+    if (!native) box.setRangeText(insert, at, at, "preserve");
     const shift = at <= caret ? insert.length : 0;
     box.setSelectionRange(caret + shift, end + shift); box.scrollTop = top + (shift ? 21 : 0);
-    box.dispatchEvent(new Event("input"));
+    if (!native) box.dispatchEvent(new Event("input"));
+    assist.close(); assist.hideSig();
     message("已添加 " + stmt.trim());
   }
   // Rename symbol (F2 in the editor): every occurrence of the same definition across the project, after a confirm.

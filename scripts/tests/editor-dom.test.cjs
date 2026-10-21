@@ -537,6 +537,12 @@ test('Web IDE explorer, editor and create/delete flows in a real browser', {skip
       await b.waitFor(() => document.getElementById('editor').value.includes('from qf_b import LIMIT'));
       assert.equal(await value(), '"""Doc."""\nimport os\n\nfrom qf_b import LIMIT\nprint(LIMIT, os.sep)\nhelper()\n');
       assert.equal(await b.eval(() => document.getElementById('editor').selectionStart), at + 'from qf_b import LIMIT\n'.length);
+      // the insertion is in the textarea's undo history: undo removes it, redo puts it back
+      assert.equal(await b.eval(() => document.querySelector('#complete') ? document.querySelector('#complete').hidden !== false : true), true, 'no completion popup');
+      await b.eval(() => { document.getElementById('editor').focus(); document.execCommand('undo'); });
+      assert.equal((await value()).includes('from qf_b import LIMIT'), false);
+      await b.eval(() => { document.getElementById('editor').focus(); document.execCommand('redo'); });
+      assert.equal(await value(), '"""Doc."""\nimport os\n\nfrom qf_b import LIMIT\nprint(LIMIT, os.sep)\nhelper()\n');
       await b.waitFor(() => document.querySelectorAll('#diag .sq.warn').length === 1, 5000);
       // two candidates: a numbered prompt; cancel changes nothing, 1 picks qf_a
       await prompts([null]); await caret((await value()).indexOf('helper')); await ctrlDot();
