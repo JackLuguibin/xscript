@@ -55,16 +55,6 @@ def call(method, path, data=None, ctype=None):
     return json.loads(body) if body else {}
 
 
-def wait_idle(timeout=30):
-    """Wait until no script is running: the previous run logs "finished" a moment before the device stops reporting
-    it as running, and a run request in that window answers 409."""
-    end = time.time() + timeout
-    while call("GET", "/status").get("running"):
-        if time.time() > end:
-            raise AssertionError("a script is still running after %ds" % timeout)
-        time.sleep(0.5)
-
-
 def run(name, source, wait=60, quiet=False):
     """Upload `source` as project `name`, run it and return its log lines (printed unless `quiet`)."""
     buf = io.BytesIO()
@@ -73,7 +63,7 @@ def run(name, source, wait=60, quiet=False):
     q = urllib.parse.quote(name)
     call("PUT", "/projects/%s/zip" % q, buf.getvalue(), "application/zip")
     call("DELETE", "/logs")
-    wait_idle()
+    devauth.wait_idle(base)  # the previous run may still be winding down (409)
     r = call("POST", "/projects/%s/run" % q)
     assert r.get("running"), r
     lines, since, end = [], 0, time.time() + wait
