@@ -461,7 +461,7 @@
         }
         label = sym.scope.name + "." + sym.name;
       } else if ((d.node.decorators || []).length) return null;
-      return { label, params: d.node.args.slice(drop), node: d.node };
+      return { label, params: d.node.args.slice(drop), node: d.node, scope: d.inner || null };
     }
     // Argument-count / keyword problems of one call, or null.
     callProblem(call) {
@@ -480,6 +480,31 @@
       }
       const missing = t.params.filter(a => (a.kind === "arg" || a.kind === "kwonly") && !a.default && !filled.has(a.arg)).map(a => a.arg);
       return missing.length ? t.label + "() 缺少参数 " + missing.join("、") : null;
+    }
+    /**
+     * Literal arguments that clearly do not match a simple builtin annotation of the parameter they fill
+     * (`def f(n: int)` called as `f("3")`): [{node, message}]. Only literals are judged; int is accepted for
+     * float/complex and bool for int/float/complex; None is accepted when the parameter's default is None.
+     */
+    argTypeProblems(call) {
+      const n = call.node, out = [];
+      if (n.args.some(a => a.type === "Starred") || n.keywords.some(k => k.arg === null)) return out;
+      const t = this.callTarget(call); if (!t) return out;
+      if (t.node.args.length && t.node.args.slice(0, t.node.args.length - t.params.length).some(a => a.kind !== "arg")) return out;
+      const pos = t.params.filter(a => a.kind === "arg");
+      const pairs = n.args.map((e, i) => [e, pos[i]]).concat(n.keywords.map(k => [k.value, t.params.find(a => a.arg === k.arg && (a.kind === "arg" || a.kind === "kwonly"))]));
+      const LITERAL = new Set(["Constant", "JoinedStr", "List", "Dict", "Set", "Tuple", "ListComp", "DictComp", "SetComp"]);
+      const OK = { float: ["int", "bool"], complex: ["int", "float", "bool"], int: ["bool"] };
+      for (const [e, p] of pairs) {
+        if (!e || !p || !p.annotation || p.annotation.type !== "Name" || !LITERAL.has(e.type)) continue;
+        const want = p.annotation.id;
+        if (!/^(int|float|complex|str|bytes|bool|list|dict|set|tuple)$/.test(want) || this.bound(t.scope || call.scope.file.root, want)) continue;
+        const got = this.typeOf(e, call.scope); if (!got || got === "ellipsis") continue;
+        if (got === want || (OK[want] || []).includes(got)) continue;
+        if (got === "None" && p.default && p.default.type === "Constant" && p.default.value === "None") continue;
+        out.push({ node: e, message: t.label + "() 的参数 " + p.arg + " 应为 " + want + "，这里传了 " + got });
+      }
+      return out;
     }
     // Attribute names assigned anywhere in the project (`obj.x = ...`): they may exist at run time, so they are never
     // reported. Files using setattr / __dict__ / __getattr__ / __slots__ are marked dynamic.
@@ -637,6 +662,10 @@
       for (const o of f.occ) {
         const m = o.kind === "attr" && !o.store ? this.attrProblem(o) : null; if (!m) continue;
         out.push(Object.assign({ line: o.line, col: o.col, length: o.name.length, message: m.message, severity: "warning" }, m.suggest ? { suggest: m.suggest } : {}));
+      }
+      for (const c of f.calls) for (const a of this.argTypeProblems(c)) {
+        const e = a.node, length = e.type === "Constant" ? String(e.value).split("\n")[0].length : e.type === "JoinedStr" ? 2 : 1;
+        out.push({ line: e.line, col: e.col, length: Math.max(1, length), message: a.message, severity: "warning" });
       }
       for (const c of f.calls) {
         const m = this.callProblem(c); if (!m) continue;

@@ -599,6 +599,26 @@ test('Web IDE explorer, editor and create/delete flows in a real browser', {skip
       await b.eval(click, '#refresh'); await b.waitFor(idle);
     });
 
+    await t.test('basic checks: a literal argument of the wrong type is underlined at the argument', async () => {
+      await api('PUT', '/projects/dom/files', {files: [
+        {path: 'ty_lib.py', content: 'def wait(seconds: float, label: str = ""):\n    return seconds\n'}, {path: 'ty_main.py', content: 'print("ok")\n'}]});
+      await b.eval(click, '#refresh'); await b.waitFor(idle);
+      await b.eval(click, row('ty_main.py'));
+      await b.waitFor(() => document.getElementById('editor').value === 'print("ok")\n' && !document.getElementById('editor').disabled);
+      await b.eval(v => { const e = document.getElementById('editor'); e.focus(); e.value = v; e.dispatchEvent(new Event('input')); },
+        'from ty_lib import wait\nwait(1)\nwait("2")\nwait(0.5, label=3)\n');
+      await b.waitFor(() => document.querySelectorAll('#diag .sq.warn').length === 2, 5000);
+      assert.deepEqual(await b.eval(() => [...document.querySelectorAll('#diag .sq.warn')].map(n => n.textContent)), ['"2"', '3']);
+      await b.eval(click, '#problems');
+      assert.match(await b.eval(() => document.getElementById('problems').textContent), /第 3 行：wait\(\) 的参数 seconds 应为 float，这里传了 str/);
+      await b.eval(click, '#problems');
+      assert.match(await b.eval(() => document.getElementById('problems').textContent), /第 4 行：wait\(\) 的参数 label 应为 str，这里传了 int/);
+      await b.eval(click, '#save'); await b.waitFor(idle);
+      await b.eval(click, row('__init__.py')); await b.waitFor(() => !document.getElementById('editor').disabled);
+      for (const p of ['ty_lib.py', 'ty_main.py']) await fetch(base + '/projects/dom/file?path=' + p, {method: 'DELETE'});
+      await b.eval(click, '#refresh'); await b.waitFor(idle);
+    });
+
     await t.test('project search and replace: results, options, jump to match, replace saves clean files and keeps unsaved ones dirty', async () => {
       await api('PUT', '/projects/dom/files', {files: [
         {path: 'search/a.py', content: 'needle = 1\nprint(needle)\n'}, {path: 'search/b.py', content: '# NEEDLE\nx = 2\n'}, {path: 'search/c.txt', content: 'no match here\n'}]});
