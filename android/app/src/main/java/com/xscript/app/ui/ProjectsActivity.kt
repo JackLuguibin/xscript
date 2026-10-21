@@ -11,6 +11,7 @@ import android.text.Spanned
 import android.text.style.AbsoluteSizeSpan
 import android.text.style.ForegroundColorSpan
 import android.view.View
+import android.view.WindowManager
 import android.widget.EditText
 import android.widget.RadioGroup
 import android.widget.ScrollView
@@ -114,7 +115,7 @@ class ProjectsActivity : AppCompatActivity() {
         val box = UiKit.dialogField(this, rule, input, caption, group)
         rule.minHeight = 0
         val scroll = ScrollView(this).apply { addView(box) }
-        MaterialAlertDialogBuilder(this)
+        val dialog = MaterialAlertDialogBuilder(this)
             .setTitle("新建小程序")
             .setView(scroll)
             .setPositiveButton("创建") { _, _ ->
@@ -130,7 +131,10 @@ class ProjectsActivity : AppCompatActivity() {
                 }
             }
             .setNegativeButton("取消", null)
-            .show()
+            .create()
+        // Resize, not pan: with the keyboard up the list scrolls and 取消 / 创建 stay above the keyboard.
+        dialog.window?.setSoftInputMode(WindowManager.LayoutParams.SOFT_INPUT_ADJUST_RESIZE)
+        dialog.show()
     }
 
     override fun onResume() {

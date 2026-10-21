@@ -44,6 +44,9 @@ class ScreensTest {
         assertTrue(create.contains("UiKit.dialogField(this, rule, input, caption, group)"))
         assertTrue(create.contains(".setPositiveButton(\"创建\")"))
         assertTrue(create.contains(".setNegativeButton(\"取消\", null)"))
+        // With the keyboard up the dialog resizes instead of panning, so the buttons stay above the keyboard.
+        assertTrue(create.contains("dialog.window?.setSoftInputMode(WindowManager.LayoutParams.SOFT_INPUT_ADJUST_RESIZE)"))
+        assertTrue(create.indexOf("setSoftInputMode") < create.indexOf("dialog.show()"))
     }
 
     @Test
