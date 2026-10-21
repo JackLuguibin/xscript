@@ -351,3 +351,22 @@ test('unknown attributes: "did you mean" suggestion for a close member name', ()
     [46, 'Shape 没有属性或方法 ad', undefined],                                 // ab / ac tie: no guess
   ]);
 });
+
+test('undefined names: "did you mean" a close visible name (locals, enclosing, module, builtins)', () => {
+  const main = [
+    'total = 1', 'class K:', '    hidden = 1', '    def m(self):', '        return hiddn',   // 5: class body not visible
+    'def f(count):', '    return cuont + totl + lenn([]) + prnt + Total + qq', 'print(f(1))', ''].join('\n');
+  const p = EditorSymbols.build([{path: '__init__.py', content: main}, {path: 'lib.py', content: 'def helper():\n    pass\n'}], XSDocs);
+  assert.deepEqual(p.problemsIn('__init__.py').map(w => [w.line, w.col, w.message, w.suggest]), [
+    [5, 15, '未定义的名字 hiddn', undefined],
+    [7, 11, '未定义的名字 cuont（是不是 count？Ctrl+. 改正）', 'count'],
+    [7, 19, '未定义的名字 totl（是不是 total？Ctrl+. 改正）', 'total'],
+    [7, 26, '未定义的名字 lenn（是不是 len？Ctrl+. 改正）', 'len'],
+    [7, 37, '未定义的名字 prnt（是不是 print？Ctrl+. 改正）', 'print'],
+    [7, 44, '未定义的名字 Total（是不是 total？Ctrl+. 改正）', 'total'],
+    [7, 52, '未定义的名字 qq', undefined],
+  ]);
+  // an import fix wins over a guess
+  const q = EditorSymbols.build([{path: '__init__.py', content: 'helpr = 1\nhelper()\n'}, {path: 'lib.py', content: 'def helper():\n    pass\n'}], XSDocs);
+  assert.deepEqual(q.problemsIn('__init__.py').map(w => [w.message, w.suggest, w.fix]), [['未定义的名字 helper（Ctrl+. 从 lib 导入）', undefined, ['lib']]]);
+});
