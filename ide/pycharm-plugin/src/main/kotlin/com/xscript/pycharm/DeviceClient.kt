@@ -53,10 +53,11 @@ fun validateCode(code: String?): String? =
 internal val RETRYABLE = setOf("GET", "PUT", "DELETE")
 
 class DeviceClient(val target: DeviceTarget, private val timeoutMs: Long = 15000, var token: String = "") {
-    private val http: HttpClient = HttpClient.newBuilder()
+    private fun newHttp(): HttpClient = HttpClient.newBuilder()
         .connectTimeout(Duration.ofMillis(minOf(timeoutMs, 5000)))
         .proxy(HttpClient.Builder.NO_PROXY) // the phone is on the LAN / adb forward: never via a system proxy
         .build()
+    private val http: HttpClient = newHttp()
     private val gson = Gson()
 
     private fun send(method: String, route: String, query: Map<String, Any> = emptyMap(), json: Any? = null,
@@ -73,12 +74,16 @@ class DeviceClient(val target: DeviceTarget, private val timeoutMs: Long = 15000
             HttpRequest.BodyPublishers.ofString(gson.toJson(json), StandardCharsets.UTF_8)
         }
         val req = b.method(method, body).build()
-        val r = try {
+        val r = if (method !in RETRYABLE) {
+            // Not safe to send twice (POST /run, /stop, /eval): use a connection of its own instead of a pooled one the
+            // device may have closed while idle, so it never meets "header parser received no bytes" in the first place.
+            newHttp().use { it.send(req, HttpResponse.BodyHandlers.ofByteArray()) }
+        } else try {
             http.send(req, HttpResponse.BodyHandlers.ofByteArray())
         } catch (e: java.io.IOException) {
-            // A kept-alive connection the device closed just before this request: retry once, but only requests that
-            // are safe to repeat (never POST /run, /stop or /eval). Timeouts are not retried.
-            if (e is java.net.http.HttpTimeoutException || method !in RETRYABLE) throw e
+            // A kept-alive connection the device closed just before this request: retry once (only methods safe to
+            // repeat get here). Timeouts are not retried.
+            if (e is java.net.http.HttpTimeoutException) throw e
             http.send(req, HttpResponse.BodyHandlers.ofByteArray())
         }
         if (r.statusCode() !in 200..299 && r.statusCode() !in pass) {
