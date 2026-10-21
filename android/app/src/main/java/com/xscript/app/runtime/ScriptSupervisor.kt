@@ -27,7 +27,7 @@ object ScriptSupervisor {
     private const val STARTING_GRACE_MS = 15_000L
     private const val BOOT_WAIT_MS = 60_000L
 
-    private class Run(val project: String, val sink: IEventSink, val started: Long) {
+    private class Run(val project: String, val sink: IEventSink, val started: Long, val wallStart: Long, val logFrom: Long) {
         @Volatile var exit: String? = null
         @Volatile var userStop = false
         @Volatile var rerunDelayMs = -1L
@@ -39,6 +39,7 @@ object ScriptSupervisor {
     @Volatile private var run: Run? = null
     private var starting: String? = null
     private var startingSince = 0L
+    private var startSeq = 0L
     private var queued: String? = null
     private var fastExits = 0
     private var pendingRerun: Runnable? = null
@@ -47,7 +48,9 @@ object ScriptSupervisor {
 
     /** Called over binder by the :script process once it is ready to run [project]. */
     fun attach(project: String, sink: IEventSink) {
-        val r = Run(project, sink, SystemClock.elapsedRealtime())
+        val from = synchronized(this) { startSeq.takeIf { starting == project } }
+            ?: (LogBuffer.lastSeq(ctx) - 2).coerceAtLeast(0L) // "script process start" and "starting" come first
+        val r = Run(project, sink, SystemClock.elapsedRealtime(), System.currentTimeMillis(), from)
         val death = IBinder.DeathRecipient { main.post { onDeath(r) } }
         try {
             sink.asBinder().linkToDeath(death, 0)
@@ -79,6 +82,7 @@ object ScriptSupervisor {
         if (!auto) fastExits = 0
         starting = project
         startingSince = SystemClock.elapsedRealtime()
+        startSeq = LogBuffer.lastSeq(ctx)
     }
 
     /** A user (UI, HTTP, float button) stopped the script: never rerun this run. */
@@ -139,6 +143,12 @@ object ScriptSupervisor {
             LogBuffer.append(ctx, "stderr", "xscript: script process for ${r.project} died unexpectedly\n")
         }
         com.xscript.app.cloud.CloudClient.reportRunEnd(r.project, r.exit ?: "died", r.userStop)
+        try {
+            RunHistory.record(ctx, RunHistory.Record(r.project, r.wallStart, SystemClock.elapsedRealtime() - r.started,
+                r.exit ?: "died", r.userStop, r.logFrom, LogBuffer.lastSeq(ctx)))
+        } catch (_: Exception) {
+            // history is best effort; never break the rerun / queue logic below
+        }
         if (queued != null) {
             // Let the dead process leave the process list so startService creates a fresh one.
             main.postDelayed({ drainQueue(ctx, force = true) }, 500)

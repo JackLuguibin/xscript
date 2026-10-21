@@ -167,6 +167,12 @@ object LogBuffer {
         return JSONObject().put("entries", arr).put("next", next)
     }
 
+    /** The seq of the newest entry written so far (0 when there is none). */
+    fun lastSeq(context: Context): Long {
+        val f = files(context).seq
+        return synchronized(jvmLock) { if (f.exists()) f.readText().trim().toLongOrNull() ?: 0L else 0L }
+    }
+
     private fun nextSeq(seqFile: File): Long {
         val current = if (seqFile.exists()) seqFile.readText().trim().toLongOrNull() ?: 0L else 0L
         val next = current + 1
