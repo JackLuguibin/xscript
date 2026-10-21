@@ -33,15 +33,19 @@ object HomeModel {
     /** The 开发者地址 row: value text, whether it is a problem (red), and what tapping it does. */
     data class Endpoint(val value: String, val warn: Boolean, val tap: Tap, val hint: String? = null)
 
-    enum class Tap { COPY, START, RETRY, NONE }
+    /** USB_HELP: a dialog with the adb forward command (a toast hid behind Android's clipboard preview). */
+    enum class Tap { COPY, USB_HELP, START, RETRY, NONE }
+
+    fun forwardCommand(port: Int) = "adb forward tcp:$port tcp:$port"
 
     /** [server] is the HTTP server's state, [ip] the phone's address (127.0.0.1 when it has no network), [port] the bound port. */
     fun endpoint(server: Server, ip: String, port: Int): Endpoint {
         return when (server) {
             Server.RUNNING ->
                 if (NetworkInfo.isLoopback(ip)) {
-                    Endpoint("127.0.0.1:$port（仅 USB）", true, Tap.COPY,
-                        "没有连接 Wi-Fi，电脑只能通过 USB 连接：adb forward tcp:$port tcp:$port")
+                    Endpoint("127.0.0.1:$port（仅 USB）", true, Tap.USB_HELP,
+                        "手机没有连接 Wi-Fi，电脑只能通过 USB 连接。在电脑上执行：\n\n${forwardCommand(port)}\n\n" +
+                            "然后用 http://127.0.0.1:$port/ 访问。")
                 } else {
                     Endpoint("http://$ip:$port/", false, Tap.COPY)
                 }

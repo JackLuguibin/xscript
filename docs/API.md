@@ -87,7 +87,7 @@ from xscript.android import screen
 screen.capture()                     # 设备上的 PNG 路径
 img = screen.capture_cv()            # BGR numpy 数组（可传入 rect）
 screen.capture_pil([0, 0, 540, 960])
-w, h = screen.size()
+w, h = screen.size()   # 整个屏幕（含状态栏和导航栏），与截图、点击坐标一致；随横竖屏变化
 
 screen.get_color(100, 200)           # '#rrggbb'
 screen.compare_colors("100,200,#ff0000|120,200,#00ff00-101010", sim=0.9)

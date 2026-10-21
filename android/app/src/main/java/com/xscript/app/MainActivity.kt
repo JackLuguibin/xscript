@@ -230,6 +230,16 @@ class MainActivity : AppCompatActivity() {
         val e = endpoint ?: return copyEndpoint()
         when (e.tap) {
             HomeModel.Tap.COPY -> { copyEndpoint(); e.hint?.let { UiKit.toast(this, it, long = true) } }
+            HomeModel.Tap.USB_HELP -> MaterialAlertDialogBuilder(this)
+                .setTitle("仅 USB 可连接")
+                .setMessage(e.hint)
+                .setPositiveButton("复制命令") { _, _ ->
+                    val cmd = HomeModel.forwardCommand(NetworkInfo.PORT)
+                    (getSystemService(CLIPBOARD_SERVICE) as ClipboardManager).setPrimaryClip(ClipData.newPlainText("adb", cmd))
+                    UiKit.toast(this, "已复制 $cmd")
+                }
+                .setNegativeButton("知道了", null)
+                .show()
             HomeModel.Tap.START -> { DeviceHttpService.start(this); UiKit.toast(this, "正在启动服务…") }
             HomeModel.Tap.RETRY -> { DeviceHttpService.restart(this); UiKit.toast(this, e.hint ?: "正在重试…", long = true) }
             HomeModel.Tap.NONE -> Unit

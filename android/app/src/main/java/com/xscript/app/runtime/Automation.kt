@@ -30,7 +30,7 @@ object Automation {
 
     fun ready(): Boolean = channel() != Channel.NONE
 
-    private fun metrics() = com.xscript.app.XscriptApp.instance.resources.displayMetrics
+    private fun real() = com.xscript.app.util.DisplaySize.real(com.xscript.app.XscriptApp.instance)
 
     /**
      * Node trees come from accessibility whenever the service is on, even in root mode:
@@ -42,11 +42,11 @@ object Automation {
 
     fun dumpTree(mode: Int): JSONObject = when (nodeChannel()) {
         Channel.ACCESSIBILITY -> AccessibilityEngine.dump(mode)
-        Channel.ROOT -> RootEngine.dumpTree(mode, metrics().widthPixels, metrics().heightPixels)
+        Channel.ROOT -> real().let { RootEngine.dumpTree(mode, it.x, it.y) }
         Channel.NONE -> JSONObject()
             .put("mode", mode)
-            .put("width", metrics().widthPixels)
-            .put("height", metrics().heightPixels)
+            .put("width", real().x)
+            .put("height", real().y)
             .put("roots", org.json.JSONArray())
             .put("error", "no_channel")
     }
@@ -108,8 +108,8 @@ object Automation {
     }
 
     private fun rootNodeAction(path: String, action: String, arg: String): Boolean {
-        val m = metrics()
-        val tree = RootEngine.dumpTree(1, m.widthPixels, m.heightPixels)
+        val size = real()
+        val tree = RootEngine.dumpTree(1, size.x, size.y)
         val r = RootEngine.findRect(tree, path) ?: return false
         val cx = (r[0] + r[2]) / 2
         val cy = (r[1] + r[3]) / 2
