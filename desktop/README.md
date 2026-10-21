@@ -55,6 +55,14 @@
 
 重新生成：`python -m xscript_desktop --screenshot out.png --connect-adb emulator-5554 --click-screenshot --theme dark --size 1180x760`（`--theme` 会真的去按侧栏的主题按钮）。
 
+工程页（文件夹列表、文件列表、编辑器）：
+
+| 浅色 | 深色 |
+| --- | --- |
+| ![工程页浅色](../docs/images/desktop-projects-light.png) | ![工程页深色](../docs/images/desktop-projects-dark.png) |
+
+重新生成：设备上放一个带子文件夹的工程「每日签到」，然后 `python -m xscript_desktop --screenshot out.png --connect-adb <serial> --run-js tools/screenshot-projects.js --screenshot-delay 4 --theme light --size 1180x760`（`--run-js` 在设备连上后在页面里执行脚本：打开工程页、选工程、打开 `lib/tasks.py`）。
+
 ## P5 安装包与更新（已实现）
 
 | 内容 | 说明 | 位置 |
