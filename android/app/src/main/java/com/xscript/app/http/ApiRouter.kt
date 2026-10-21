@@ -9,6 +9,7 @@ import com.xscript.app.runtime.Automation
 import com.xscript.app.runtime.EvalRunner
 import com.xscript.app.runtime.LogBuffer
 import com.xscript.app.runtime.MainControl
+import com.xscript.app.runtime.RunHistory
 import com.xscript.app.runtime.RunState
 import com.xscript.app.runtime.ScriptService
 import com.xscript.app.runtime.DapTransport
@@ -179,6 +180,10 @@ class ApiRouter(private val context: Context) {
                 Reply.json(JSONObject().put("ok", store.delete(name)))
             }
             m == "GET" && sub == "/config" -> Reply.json(MainControl.config(name))
+            m == "GET" && sub == "/runs" -> {
+                if (!store.exists(name)) return Reply.json(JSONObject().put("error", "missing project"), 404)
+                Reply.json(RunHistory.api(RunHistory.of(context, name)))
+            }
             m == "PUT" && sub == "/config" -> {
                 if (!store.exists(name)) return Reply.json(JSONObject().put("error", "missing project"), 404)
                 val body = req.json()

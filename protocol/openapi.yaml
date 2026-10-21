@@ -639,6 +639,45 @@ paths:
                 $ref: "#/components/schemas/ProjectConfig"
         "404":
           description: Missing project
+  /projects/{name}/runs:
+    parameters:
+      - $ref: "#/components/parameters/ProjectName"
+    get:
+      summary: 最近运行, newest first (at most 20 per project, kept by the app)
+      description: >-
+        One entry per finished run: wall-clock start (ms), duration, exit ("0", a code, "stopped" or
+        "died"), whether a user stopped it, the run's log range (entries with log_from < seq <= log_to in
+        GET /logs), a readable outcome, and the runtime's 运行统计 numbers when the run printed them.
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  runs:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        project: { type: string }
+                        start: { type: integer }
+                        duration_ms: { type: integer }
+                        exit: { type: string }
+                        user_stop: { type: boolean }
+                        log_from: { type: integer }
+                        log_to: { type: integer }
+                        outcome: { type: string }
+                        failed: { type: boolean }
+                        stats:
+                          type: object
+                          properties:
+                            captures: { type: integer }
+                            capture_avg_ms: { type: integer }
+                            peak_mb: { type: integer }
+        "404":
+          description: Missing project
   /schedules:
     get:
       summary: 定时任务
