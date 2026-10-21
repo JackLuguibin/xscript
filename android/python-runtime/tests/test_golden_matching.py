@@ -172,6 +172,41 @@ class GoldenMatchingTest(unittest.TestCase):
                 want = m @ np.array([*center(self.exp["templates"][name]), 1.0])
                 self.assertNear((hit["center_x"], hit["center_y"]), want, 5, (angle, name))
 
+    def test_grayscale_screenshot_and_templates(self):
+        """A grey screenshot (some devices / an image saved as grey) and grey templates match exactly, in any mix."""
+        gray_scene = self.variant("scene_gray.png", cv2.cvtColor(self.scene, cv2.COLOR_BGR2GRAY))
+        self.assertEqual(cv2.imread(gray_scene, cv2.IMREAD_UNCHANGED).ndim, 2)
+        for name, box in self.exp["templates"].items():
+            gray_tpl = self.variant("gray_" + name, cv2.cvtColor(cv2.imread(self.tpl(name)), cv2.COLOR_BGR2GRAY))
+            for tpl, img in ((gray_tpl, gray_scene), (self.tpl(name), gray_scene), (gray_tpl, self.scene_path)):
+                hit = self.screen.find_image(tpl, image=img, confidence=0.95)
+                self.assertIsNotNone(hit, (name, tpl, img))
+                # the three coins are identical: the best hit may be any of them (the tie breaks differently by platform)
+                wants = self.exp["coin_rects"] if name == "coin.png" else [box]
+                self.assertIn(hit["rect"], wants, (name, tpl, img))
+        coins = self.screen.find_all_images(self.tpl("coin.png"), image=gray_scene, confidence=0.95)
+        self.assertEqual(sorted(c["rect"] for c in coins), sorted(self.exp["coin_rects"]))
+
+    def test_auto_finds_templates_on_a_screenshot_turned_90_degrees(self):
+        """A landscape screenshot of a portrait UI: method="auto" falls back to features and maps the centre exactly."""
+        h, w = self.scene.shape[:2]
+        path = self.variant("scene_r90.png", cv2.rotate(self.scene, cv2.ROTATE_90_CLOCKWISE))
+        for name in ("btn_shop.png", "title.png", "badge.png"):
+            cx, cy = center(self.exp["templates"][name])
+            hit = self.screen.find_image(self.tpl(name), image=path, confidence=0.5, method="auto")
+            self.assertIsNotNone(hit, name)
+            # (x, y) on the portrait scene is at (h - 1 - y, x) after a clockwise quarter turn
+            self.assertNear((hit["center_x"], hit["center_y"]), (h - 1 - cy, cx), 3, (name, hit))
+
+    @unittest.expectedFailure
+    def test_rgb_tells_a_coloured_icon_from_its_grey_version(self):
+        """Desired, not yet true: with rgb=True a greyed-out copy of a coloured icon should not count as a match.
+        A grey template has no hue/saturation variance, and TM_CCOEFF_NORMED then scores 1.0 on the H+S planes."""
+        grey = cv2.cvtColor(cv2.cvtColor(cv2.imread(self.tpl("btn_shop.png")), cv2.COLOR_BGR2GRAY), cv2.COLOR_GRAY2BGR)
+        path = self.variant("btn_shop_grey.png", grey)
+        self.assertIsNotNone(self.screen.find_image(path, image=self.scene_path, confidence=0.9))  # grey matching: yes
+        self.assertIsNone(self.screen.find_image(path, image=self.scene_path, confidence=0.9, rgb=True))
+
     def test_colour_marker(self):
         mk = self.exp["marker"]
         p = self.screen.find_colors(mk["colors"], image=self.scene_path, sim=0.95)
