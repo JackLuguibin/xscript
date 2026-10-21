@@ -63,6 +63,18 @@ describe("screen page capture card", () => {
     expect(chip.getAttribute("title")).toContain("系统录屏授权已失效");
   });
 
+  it("在手机上授权 asks the phone for the grant and says what to do there; an old app says it cannot be asked", async () => {
+    const { transport } = await setup({ captureVia: "", captureLost: true });
+    await screen.findByRole("region", { name: "截图状态" });
+    await act(async () => fireEvent.click(screen.getByRole("button", { name: "在手机上授权" })));
+    await vi.waitFor(() => expect(transport.sent.some((m) => m.method === "device.requestCapture")).toBe(true));
+    const card = screen.getByRole("region", { name: "截图状态" });
+    await vi.waitFor(() => expect(card.textContent).toContain("立即开始」（Android 14"));
+    transport.setHandler("device.requestCapture", () => ({ ok: false, unsupported: true }));
+    await act(async () => fireEvent.click(screen.getByRole("button", { name: "在手机上授权" })));
+    await vi.waitFor(() => expect(card.textContent).toContain("版本较旧"));
+  });
+
   it("nothing can capture: a different title and steps", async () => {
     await setup({ captureVia: "", captureLost: false });
     const card = await screen.findByRole("region", { name: "截图状态" });

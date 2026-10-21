@@ -282,6 +282,14 @@ class DeviceClient:
     async def action(self, payload: dict[str, Any]) -> dict[str, Any]:
         return await self._json("POST", "/action", json=payload)
 
+    async def request_capture(self) -> dict[str, Any]:
+        """Bring up the screen-recording grant dialog on the phone (openapi /capture/request). Older apps answer 404."""
+        r = await self._request("POST", "/capture/request", content=b"", ok_status=(404,))
+        if r.status_code == 404:
+            return {"ok": False, "unsupported": True}
+        data = r.json()
+        return data if isinstance(data, dict) else {"ok": False}
+
     async def ui_tree(self, mode: int = 0) -> dict[str, Any]:
         data = await self._json("GET", "/ui-tree", params={"mode": int(mode)})
         if not isinstance(data, dict):

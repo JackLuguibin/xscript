@@ -142,3 +142,29 @@ async def test_delete_and_move_files(ctx_dev):
     paths = {f["path"] for f in (await rpc(ctx, "project.files", id=dev, project="mv"))["result"]["files"]}
     assert not any(p.startswith("lib/") for p in paths)
     assert (await rpc(ctx, "project.deleteFile", id=dev, project="mv", path="lib", recursive="yes"))["error"]["code"] == "rpc.bad_params"
+
+
+async def test_request_capture_reaches_the_phone(ctx_dev):
+    """截图状态 → 在手机上授权: POST /capture/request on the phone."""
+    ctx, dev = ctx_dev
+    r = await rpc(ctx, "device.requestCapture", id=dev)
+    assert r["ok"] and r["result"]["ok"] and r["result"]["notified"], r
+
+
+async def test_request_capture_on_an_old_app_is_unsupported_not_an_error():
+    import httpx
+
+    from xscript_desktop.services.device_client import DeviceTarget
+
+    seen: list[str] = []
+
+    def handle(req: httpx.Request) -> httpx.Response:
+        seen.append("%s %s" % (req.method, req.url.path))
+        return httpx.Response(404, json={"error": "not found"})
+
+    c = DeviceClient(DeviceTarget("127.0.0.1", 9860), transport=httpx.MockTransport(handle))
+    try:
+        assert await c.request_capture() == {"ok": False, "unsupported": True}
+    finally:
+        await c.aclose()
+    assert seen == ["POST /capture/request"]

@@ -792,6 +792,12 @@ class AppContext:
                     payload[k] = param(params, k, str)
             return await self._client(params).action(payload)
 
+        @d.method("device.requestCapture")
+        @_map_errors
+        async def device_request_capture(params: dict[str, Any]) -> dict[str, Any]:
+            """截图状态 → 在手机上授权: the phone shows the system screen-recording dialog (and a notification)."""
+            return await self._client(params).request_capture()
+
         # ---- local folder sync (port of the VS Code extension's sync.ts) ------------------------------------------------------
 
         @d.method("device.eval")

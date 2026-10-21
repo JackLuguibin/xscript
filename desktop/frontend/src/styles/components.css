@@ -668,3 +668,5 @@ pre.logs.debug-console { min-height: 4rem; max-height: 10rem; }
 .capture-card p { margin: var(--sp-1) 0; }
 .capture-card ol { margin: var(--sp-1) 0 0; padding-left: 1.4em; }
 .capture-card li + li { margin-top: 2px; }
+.capture-card .capture-actions { display: flex; flex-direction: column; gap: var(--sp-1); align-items: stretch; }
+.capture-card .capture-requested { margin-top: var(--sp-2); font-weight: 500; }

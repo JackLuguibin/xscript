@@ -51,6 +51,8 @@ export function MirrorPage() {
   const [reason, setReason] = useState("");
   const [error, setError] = useState<unknown>(null);
   const [rechecking, setRechecking] = useState(false);
+  const [requested, setRequested] = useState<"sent" | "old" | null>(null);
+  useEffect(() => setRequested(null), [devId]);
   const { toast, toasts } = useToast();
   const [text, setText] = useState("");
   const [mode, setMode] = useState<PointerMode>("control");
@@ -361,6 +363,15 @@ export function MirrorPage() {
       <CaptureCard
         state={capture}
         busy={rechecking}
+        requested={requested}
+        onRequest={() => {
+          setRechecking(true);
+          void api
+            .requestCapture(devId)
+            .then((r) => setRequested(r.unsupported ? "old" : "sent"))
+            .catch((e) => setError(e))
+            .finally(() => setRechecking(false));
+        }}
         onRecheck={() => {
           setRechecking(true);
           void api
