@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useServices } from "../app-context";
 import { bpKey, hasBpOptions, wireBreakpoints } from "../api";
-import type { BpOptions, BreakpointOptions, Breakpoints, DebugStep, FileContent, LogEntry, ProjectFiles, ProjectSummary } from "../api";
+import type { BpOptions, BreakpointOptions, Breakpoints, DebugStep, FileContent, LogEntry, ProjectFiles, ProjectSummary, SearchMatch } from "../api";
 import { t } from "../strings";
 import { useBusy } from "../useBusy";
 import { useCurrentDevice } from "../device-context";
@@ -10,6 +10,7 @@ import { CodeEditor } from "./CodeEditor";
 import { useConfirm } from "./ConfirmDialog";
 import { DebugPanel, useDebugSession } from "./DebugPanel";
 import { ErrorBanner } from "./ErrorBanner";
+import { ProjectSearch } from "./ProjectSearch";
 import { SyncPanel } from "./SyncPanel";
 import { EmptyState } from "./EmptyState";
 import { IconAlert, IconFolder, IconMark, IconPhone, IconRefresh, Spinner } from "./icons";
@@ -144,6 +145,7 @@ export function ProjectsPage({ pollMs = LOG_POLL_MS, onDirtyChange }: { pollMs?:
 
   const openFile = async (path: string, ask = true) => {
     if (ask && !(await confirmDiscard())) return;
+    setReveal(null);
     void act("file:" + path, async () => {
       const f = await api.readFile(devId, project, path);
       setFile(f);
@@ -204,6 +206,29 @@ export function ProjectsPage({ pollMs = LOG_POLL_MS, onDirtyChange }: { pollMs?:
       }
     });
   };
+
+  // 在工程中搜索: a result opens its file (asking about unsaved edits) and selects the match
+  const searchInput = useRef<HTMLInputElement>(null);
+  const [reveal, setReveal] = useState<{ path: string; line: number; column: number; length: number } | null>(null);
+  const openMatch = async (m: SearchMatch) => {
+    if (file?.path !== m.path) {
+      if (!(await confirmDiscard())) return;
+      await openFile(m.path, false);
+    }
+    setReveal({ path: m.path, line: m.line, column: m.column, length: m.length });
+  };
+  // Ctrl/Cmd+Shift+F anywhere on the page (the code editor included) focuses the search box
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key.toLowerCase() !== "f" || !(e.ctrlKey || e.metaKey) || !e.shiftKey || e.altKey || !searchInput.current) return;
+      e.preventDefault();
+      e.stopPropagation();
+      searchInput.current.focus();
+      searchInput.current.select();
+    };
+    window.addEventListener("keydown", onKey, true);
+    return () => window.removeEventListener("keydown", onKey, true);
+  }, []);
 
   // Ctrl/Cmd+Z outside text fields and the code editor undoes the latest file operation that still offers 撤销.
   useEffect(() => {
@@ -483,6 +508,7 @@ export function ProjectsPage({ pollMs = LOG_POLL_MS, onDirtyChange }: { pollMs?:
                   {t.files.newFile}
                 </Button>
               </div>
+              <ProjectSearch key={`${devId}/${project}`} devId={devId} project={project} inputRef={searchInput} onOpen={(m) => void openMatch(m)} onError={(e) => setError(e)} />
               {fileForm && (
                 <form
                   className="row"
@@ -610,6 +636,7 @@ export function ProjectsPage({ pollMs = LOG_POLL_MS, onDirtyChange }: { pollMs?:
               breakpointKinds={bpKinds(file.path)}
               currentLine={currentLine}
               onToggleBreakpoint={(ln) => toggleBreakpoint(file.path, ln)}
+              reveal={reveal && reveal.path === file.path ? reveal : null}
               onChange={(v) => {
                 setText(v);
                 setDirty(true);

@@ -9,7 +9,7 @@ afterEach(() => {
 });
 
 function fakeMonaco() {
-  const calls = { created: 0, disposed: 0, theme: [] as boolean[], set: [] as string[], bps: [] as number[][], cur: [] as Array<number | null> };
+  const calls = { created: 0, disposed: 0, theme: [] as boolean[], set: [] as string[], bps: [] as number[][], cur: [] as Array<number | null>, reveal: [] as number[][] };
   let value = "";
   type O = { value: string; onChange: (v: string) => void; onKey: (e: KeyboardEvent) => void; dark: boolean; language: string; breakpoints?: number[]; currentLine?: number | null; onToggleBreakpoint?: (n: number) => void };
   let opts: O | null = null;
@@ -30,6 +30,7 @@ function fakeMonaco() {
         dispose: () => calls.disposed++,
         setBreakpoints: (l: number[]) => calls.bps.push(l),
         setCurrentLine: (n: number | null) => calls.cur.push(n),
+        reveal: (l: number, c: number, n: number) => calls.reveal.push([l, c, n]),
       };
     },
   };
@@ -106,5 +107,22 @@ describe("CodeEditor", () => {
     rerender(<CodeEditor {...props} breakpoints={[2, 4]} currentLine={4} />);
     expect(f.calls.bps.at(-1)).toEqual([2, 4]);
     expect(f.calls.cur.at(-1)).toBe(4);
+  });
+
+  it("reveal selects the match: in Monaco, and in the textarea fallback", async () => {
+    const props = { path: "m.py", value: "a = 1\nprint(tap)\n", label: "ed", onChange: () => undefined, onKeyDown: () => undefined };
+    const { unmount } = render(<CodeEditor {...props} reveal={{ line: 2, column: 7, length: 3 }} />);
+    const ta = screen.getByRole("textbox", { name: "ed" }) as HTMLTextAreaElement;
+    expect(ta.value.slice(ta.selectionStart, ta.selectionEnd)).toBe("tap");
+    expect(document.activeElement).toBe(ta);
+    unmount();
+
+    const f = fakeMonaco();
+    editorLoader.load = () => Promise.resolve(f.mod);
+    const { rerender } = render(<CodeEditor {...props} reveal={{ line: 2, column: 7, length: 3 }} />);
+    await act(async () => undefined);
+    expect(f.calls.reveal).toEqual([[2, 7, 3]]);
+    rerender(<CodeEditor {...props} reveal={{ line: 1, column: 1, length: 1 }} />);
+    expect(f.calls.reveal.at(-1)).toEqual([1, 1, 1]);
   });
 });

@@ -632,3 +632,14 @@ pre.logs.debug-console { min-height: 4rem; max-height: 10rem; }
 .update-progress { display: flex; align-items: center; gap: var(--sp-2); width: 100%; }
 .update-progress progress { flex: 1; }
 .nav-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--primary); margin-left: auto; flex: none; }
+
+/* 在工程中搜索 (ProjectSearch) */
+.project-search { margin-bottom: var(--sp-2); }
+.project-search .row { gap: var(--sp-1); }
+.project-search .search-results { margin-top: var(--sp-2); }
+.search-list { max-height: 18rem; overflow-y: auto; }
+.search-file { display: flex; gap: var(--sp-1); padding: var(--sp-1) var(--sp-2) 0; font-size: 0.8rem; font-weight: 600; min-width: 0; }
+.search-hit { justify-content: flex-start; gap: var(--sp-2); font-size: 0.8rem; min-width: 0; }
+.search-line { flex: none; min-width: 2.5ch; text-align: right; }
+.search-hit mark { background: var(--warning-bg); color: inherit; border-radius: 2px; padding: 0 1px; }
+.project-search [aria-pressed="true"] { background: var(--primary-soft); color: var(--primary); }

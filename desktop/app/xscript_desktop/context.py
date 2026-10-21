@@ -676,6 +676,44 @@ class AppContext:
         async def project_read(params: dict[str, Any]) -> dict[str, Any]:
             return await self._client(params).read_file(param(params, "project", str), _rel_path(params))
 
+        @d.method("project.search")
+        @_map_errors
+        async def project_search(params: dict[str, Any]) -> dict[str, Any]:
+            from .services import project_search as ps
+
+            try:
+                pattern = ps.compile_query(param(params, "query", str), param(params, "regex", bool, default=False),
+                                           param(params, "caseSensitive", bool, default=False))
+            except ValueError as e:
+                raise RpcError("rpc.bad_params", str(e)) from None
+            project = param(params, "project", str)
+            client = self._client(params)
+            listing = await client.files(project)
+            files = [f for f in listing["files"] if isinstance(f, dict) and isinstance(f.get("path"), str)]
+            wanted = [f["path"] for f in files if ps.is_searchable(f["path"], f.get("size") or 0)]
+            gate = asyncio.Semaphore(6)
+
+            async def read(path: str) -> dict[str, Any] | None:
+                async with gate:
+                    try:
+                        return await client.read_file(project, path)
+                    except Exception:  # noqa: BLE001 - a file that cannot be read is skipped, not fatal
+                        return None
+
+            contents = await asyncio.gather(*(read(p) for p in wanted))
+            matches: list[dict[str, Any]] = []
+            searched = 0
+            for path, got in zip(wanted, contents):
+                if not got or got.get("encoding", "utf-8") != "utf-8" or not isinstance(got.get("content"), str):
+                    continue
+                searched += 1
+                matches.extend(ps.search_text(path, got["content"], pattern, ps.MAX_MATCHES + 1 - len(matches)))
+                if len(matches) > ps.MAX_MATCHES:
+                    break
+            truncated = len(matches) > ps.MAX_MATCHES
+            return {"matches": matches[:ps.MAX_MATCHES], "filesSearched": searched,
+                    "filesSkipped": len(files) - searched, "truncated": truncated}
+
         @d.method("project.write")
         @_map_errors
         async def project_write(params: dict[str, Any]) -> dict[str, Any]:

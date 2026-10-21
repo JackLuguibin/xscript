@@ -157,6 +157,27 @@ export function createDemoTransport(): MemoryTransport {
         if (c === undefined) throw { code: "device.http", message: "missing file" };
         return { path: p.path, encoding: "utf-8", content: c };
       },
+      "project.search": (p) => {
+        const q = String(p.query ?? "");
+        if (!q.trim()) throw { code: "rpc.bad_params", message: "empty query" };
+        let re: RegExp;
+        try {
+          re = new RegExp(p.regex ? q : q.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"), p.caseSensitive ? "g" : "gi");
+        } catch {
+          throw { code: "rpc.bad_params", message: "invalid regular expression" };
+        }
+        const matches: Array<Record<string, unknown>> = [];
+        const m = proj(p);
+        for (const [path, content] of [...m.entries()].sort()) {
+          content.split("\n").forEach((line, i) => {
+            for (const hit of line.matchAll(re)) {
+              if (!hit[0]) continue;
+              matches.push({ path, line: i + 1, column: (hit.index ?? 0) + 1, length: hit[0].length, text: line, offset: hit.index ?? 0 });
+            }
+          });
+        }
+        return { matches: matches.slice(0, 500), filesSearched: m.size, filesSkipped: 0, truncated: matches.length > 500 };
+      },
       "project.write": (p) => {
         proj(p).set(String(p.path), String(p.content));
         return { ok: true };

@@ -25,6 +25,8 @@ interface Props {
   breakpointKinds?: Record<number, BpKind>;
   currentLine?: number | null;
   onToggleBreakpoint?: (line: number) => void;
+  /** jump here (e.g. a search result); a new object each time, so the same place can be revealed again */
+  reveal?: { line: number; column: number; length: number } | null;
 }
 
 const NO_LINES: number[] = [];
@@ -36,7 +38,8 @@ export function caretLine(el: HTMLTextAreaElement): number {
 }
 
 /** Monaco with Python completion from ide/python-stubs; a plain textarea until (or unless) Monaco has loaded. Remount per file (key=path). */
-export function CodeEditor({ path, value, label, onChange, onKeyDown, breakpoints = NO_LINES, breakpointKinds = NO_KINDS, currentLine = null, onToggleBreakpoint }: Props) {
+export function CodeEditor({ path, value, label, onChange, onKeyDown, breakpoints = NO_LINES, breakpointKinds = NO_KINDS, currentLine = null, onToggleBreakpoint, reveal = null }: Props) {
+  const area = useRef<HTMLTextAreaElement>(null);
   const host = useRef<HTMLDivElement>(null);
   const handle = useRef<EditorHandle | null>(null);
   const cb = useRef({ onChange, onKeyDown, onToggleBreakpoint });
@@ -90,11 +93,26 @@ export function CodeEditor({ path, value, label, onChange, onKeyDown, breakpoint
     handle.current?.setCurrentLine(currentLine);
   }, [currentLine, ready]);
 
+  useEffect(() => {
+    if (!reveal) return;
+    if (handle.current) {
+      handle.current.reveal(reveal.line, reveal.column, reveal.length);
+      return;
+    }
+    const el = area.current;
+    if (!el) return;
+    const lines = el.value.split("\n");
+    const start = lines.slice(0, reveal.line - 1).reduce((n, l) => n + l.length + 1, 0) + reveal.column - 1;
+    el.focus();
+    el.setSelectionRange(start, start + reveal.length);
+  }, [reveal, ready]);
+
   return (
     <>
       <div ref={host} className="monaco-host" data-ready={ready ? "true" : "false"} hidden={!ready} />
       {!ready && (
         <textarea
+          ref={area}
           aria-label={label}
           className="code"
           spellCheck={false}
