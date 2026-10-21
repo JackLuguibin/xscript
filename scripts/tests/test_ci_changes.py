@@ -36,6 +36,10 @@ class Decide(unittest.TestCase):
     def test_android_only_skips_desktop(self):
         self.assertEqual(heavy(["android/app/build.gradle.kts", "android/app/src/main/java/A.kt"]), {"android": True, "desktop": False})
 
+    def test_pycharm_plugin_only_skips_heavy_jobs(self):
+        d = ci.decide(["ide/pycharm-plugin/build.gradle.kts", "ide/pycharm-plugin/src/main/kotlin/A.kt"])
+        self.assertEqual(d, {"android": False, "desktop": False, "postgres": False, "runtime": False, "python": False})
+
     def test_python_runtime_runs_desktop_too(self):
         self.assertEqual(heavy(["android/python-runtime/xscript/android/action.py"]), {"android": True, "desktop": True})
 

@@ -114,6 +114,12 @@ If you prefer not to use the web IDE, you can write scripts in VS Code (or Curso
 
 For an item-by-item comparison with the official AScript extension and the features not implemented, see the [extension README](ide/vscode-extension/README.md) (Chinese).
 
+### PyCharm plugin
+
+If you prefer PyCharm, use `ide/pycharm-plugin` (PyCharm 2024.2+): Tools → XScript uploads and runs the project (Ctrl+Alt+Shift+R) and stops it, and the XScript tool window shows the log live. New-project templates and completion stubs are the same as in the VS Code extension; there is no breakpoint debugging yet. Get the zip from the CI artifact or build it yourself; see the [plugin README](ide/pycharm-plugin/README.en.md).
+
+![PyCharm plugin: after a run the XScript tool window shows the log](docs/images/pycharm-run.png)
+
 More (shortcuts, error messages, color and annotation tools, the VS Code extension, the admin backend) is in the [user manual](docs/使用手册.md) (Chinese).
 
 ## Project layout
