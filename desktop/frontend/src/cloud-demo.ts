@@ -170,6 +170,19 @@ export function cloudDemoHandlers(): Record<string, Handler> {
       const v = [...scripts.values()].flatMap((s) => s.versions).find((x) => x.id === p.versionId) ?? fail("backend.not_found", "版本不存在");
       return { ...installOn(String(p.group), p.run !== false), scriptId: Number(p.scriptId), versionId: v.id, version: v.version };
     },
+    "cloud.overview": () => {
+      needConn();
+      const online = devices.filter((d) => d.online);
+      return {
+        devices: { online: online.length, running: online.filter((d) => d.running).length, total: devices.length, active24h: 11 },
+        tasks: { total: tasks.length, enabled: tasks.filter((x) => x.enabled).length },
+        pack: { queued: pack.filter((j) => j.status === "queued").length, running: pack.filter((j) => j.status === "running").length },
+        scripts: { total: 4, published: 3 },
+        alerts24h: 2,
+        crashes24h: devices.filter((d) => d.crash).length,
+        lastBackup: { time: 1_791_990_000, ok: true },
+      };
+    },
     "cloud.console": () => {
       needConn();
       return { links: ["devices", "wall", "tasks", "scripts", "pack", "audit"].map((page) => ({ page, url: `${origin}/${page}` })) };
