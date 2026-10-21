@@ -1,0 +1,21 @@
+(async () => {
+  const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+  const btn = (pred) => [...document.querySelectorAll("button")].find(pred);
+  const waitBtn = async (pred) => { for (let i = 0; i < 60 && !btn(pred); i++) await sleep(150); return btn(pred); };
+  const findInp = () => [...document.querySelectorAll("input")].find((i) => (i.placeholder || "").includes("192.168"));
+  for (let i = 0; i < 80 && !findInp(); i++) await sleep(150);
+  const inp = [...document.querySelectorAll("input")].find((i) => (i.placeholder || "").includes("192.168"));
+  if (inp) {
+    Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value").set.call(inp, "127.0.0.1:9871");
+    inp.dispatchEvent(new Event("input", { bubbles: true }));
+    await sleep(200);
+    const f = inp.closest("form");
+    if (f) f.requestSubmit(); else inp.dispatchEvent(new KeyboardEvent("keydown", { key: "Enter", bubbles: true }));
+  }
+  await sleep(4000);
+  (await waitBtn((b) => b.querySelector(".label") && /工程|Projects/.test(b.querySelector(".label").textContent)))?.click();
+  (await waitBtn((b) => b.textContent.trim().startsWith("每日签到")))?.click();
+  (await waitBtn((b) => b.textContent.trim().startsWith("res/ui/settings.ui.json")))?.click();
+  await sleep(300);
+  await sleep(1500); document.querySelector(".ui-preview")?.scrollIntoView({ block: "start" });
+})();

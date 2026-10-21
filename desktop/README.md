@@ -70,6 +70,12 @@
 | --- | --- |
 | ![最近运行浅色](../docs/images/desktop-recent-runs-light.png) | ![最近运行深色](../docs/images/desktop-recent-runs-dark.png) |
 
+工程页打开 `.ui.json` 时的界面预览（UI 设计器第一步；重新生成：模拟设备上放 `res/ui/settings.ui.json`，`--run-js tools/screenshot-ui-preview.js`）：
+
+| 浅色 | 深色 |
+| --- | --- |
+| ![界面预览浅色](../docs/images/desktop-ui-preview-light.png) | ![界面预览深色](../docs/images/desktop-ui-preview-dark.png) |
+
 连不上设备时的提示（带「连不上怎么办」链接，打开 [docs/TROUBLESHOOTING.md](../docs/TROUBLESHOOTING.md)）：
 
 | 浅色 | 深色 |

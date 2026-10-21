@@ -12,6 +12,7 @@ import { DebugPanel, useDebugSession } from "./DebugPanel";
 import { ErrorBanner } from "./ErrorBanner";
 import { ProjectSearch } from "./ProjectSearch";
 import { RecentRuns } from "./RecentRuns";
+import { UiPreview } from "./UiPreview";
 import { SyncPanel } from "./SyncPanel";
 import { EmptyState } from "./EmptyState";
 import { IconAlert, IconFolder, IconMark, IconPhone, IconRefresh, Spinner } from "./icons";
@@ -658,6 +659,7 @@ export function ProjectsPage({ pollMs = LOG_POLL_MS, onDirtyChange }: { pollMs?:
               }}
             />
           )}
+          {file && file.encoding === "utf-8" && file.path.endsWith(".ui.json") && <UiPreview text={text} />}
           {project && (
             <DebugPanel
               devId={devId}
