@@ -13,6 +13,7 @@ import sys
 import threading
 import time
 
+from xscript.runtime import runstats
 from xscript.runtime.bridge import bridge
 
 try:
@@ -124,13 +125,16 @@ def capture_rgba(rect=None, use_cache=True):
             return full[t:b, l:r]
         return full
     last = None
+    began = time.monotonic()
     for _ in range(3):
         raw = bridge.capture_raw(*(rect or (0, 0, 0, 0)))
         last = raw_to_rgba(raw) if raw else None
         if last is not None:
             _capture_warned["done"] = False
+            runstats.record_capture(time.monotonic() - began)
             return last
         time.sleep(0.1)
+    runstats.record_capture(time.monotonic() - began)
     _capture_failed()
     return last
 
