@@ -2,7 +2,7 @@ import { execFileSync } from "node:child_process";
 import { readdirSync, readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 import { diagnose } from "../src/flow/diagnostics";
-import { compile, createDslSync, danglingEdges, fillStmt, foldGraph, mergeFlow, parse, printFlow, promoteFunction, pyIdent, pyRepr, semanticKey, snippetFlow, unfoldGraph, type FlowGraph, type NodeSpec } from "../src/flow/dsl";
+import { compile, createDslSync, danglingEdges, fillStmt, foldGraph, mergeFlow, parse, printFlow, promoteFunction, pyIdent, selectionPython, pyRepr, semanticKey, snippetFlow, unfoldGraph, type FlowGraph, type NodeSpec } from "../src/flow/dsl";
 import { insertGet, runPayload, variableRows } from "../src/flow/variables";
 
 function loadSpecs(): Map<string, NodeSpec> {
@@ -318,6 +318,25 @@ describe("control flow added from the design", () => {
     expect(py).toContain("print('a')");
     expect(py).toContain("print('done')");
     compileAll([py]);
+  });
+
+  it("copies the selected nodes as Python without changing the graph", () => {
+    const text = ["flow f  # xflow 1", "on start:", '  a: log(message="a")', '  b: log(message="b")', '  done: log(message="done")', ""].join("\n");
+    const graph = parse(text);
+    const before = semanticKey(graph);
+    const imports = "from xscript.android import action, node, system\n\n";
+    expect(selectionPython(graph, ["b", "a"], specs)).toBe(imports + "print('a')\nprint('b')\n");
+    expect(selectionPython(graph, ["done"], specs)).toBe(imports + "print('done')\n");
+    expect(selectionPython(graph, ["start", "a"], specs)).toBe(imports + "print('a')\n");
+    expect(semanticKey(graph)).toBe(before);
+    compileAll([selectionPython(graph, ["a", "b", "done"], specs)]);
+  });
+
+  it("refuses to copy an empty or disjoint selection as Python", () => {
+    const text = ["flow f  # xflow 1", "on start:", '  a: log(message="a")', '  b: log(message="b")', '  done: log(message="done")', ""].join("\n");
+    const graph = parse(text);
+    expect(() => selectionPython(graph, [], specs)).toThrow("empty selection");
+    expect(() => selectionPython(graph, ["a", "done"], specs)).toThrow("one entry");
   });
 
   it("inlines a nested add and hoists a let", () => {

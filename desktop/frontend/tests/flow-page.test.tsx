@@ -98,6 +98,22 @@ describe("flow page", () => {
     expect(screen.queryByRole("checkbox", { name: "box" })).toBeNull();
   });
 
+  it("copies the selected nodes as Python and leaves the flow unchanged", () => {
+    const writes: string[] = [];
+    Object.defineProperty(navigator, "clipboard", { configurable: true, value: { writeText: (v: string) => { writes.push(v); return Promise.resolve(); } } });
+    render(<FlowPage />);
+    const before = (screen.getByRole("textbox", { name: "流程文本" }) as HTMLTextAreaElement).value;
+    expect((screen.getByRole("button", { name: "复制为 Python" }) as HTMLButtonElement).disabled).toBe(true);
+    fireEvent.click(screen.getByRole("checkbox", { name: "open" }));
+    fireEvent.click(screen.getByRole("checkbox", { name: "warm" }));
+    fireEvent.click(screen.getByRole("button", { name: "复制为 Python" }));
+    expect(screen.getByRole("status").textContent).toContain("已复制选中节点的 Python 代码");
+    expect(writes).toHaveLength(1);
+    expect(writes[0]).toContain("from xscript.android import");
+    expect(writes[0]).toContain("system.open(");
+    expect((screen.getByRole("textbox", { name: "流程文本" }) as HTMLTextAreaElement).value).toBe(before);
+  });
+
   it("filters the node menu and wires a dropped exec pin", () => {
     const specs = builtinSpecs();
     const entries = menuSpecs();
