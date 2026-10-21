@@ -51,3 +51,21 @@ class MockEvalTest(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+class MockConnectionTest(unittest.TestCase):
+
+    def test_every_reply_says_connection_close(self):
+        # The mock is HTTP/1.0 and closes after each reply; without the header the JDK HttpClient (PyCharm plugin
+        # tests) sometimes reused the socket and a POST failed with "header parser received no bytes".
+        srv = mock_device.serve("127.0.0.1", 0)
+        try:
+            opener = urllib.request.build_opener(urllib.request.ProxyHandler({}))
+            base = "http://127.0.0.1:%d" % srv.server_address[1]
+            with opener.open(base + "/status", timeout=10) as r:
+                assert r.headers.get("Connection") == "close"
+            req = urllib.request.Request(base + "/capture/request", data=b"", method="POST")
+            with opener.open(req, timeout=10) as r:
+                assert r.headers.get("Connection") == "close"
+        finally:
+            srv.shutdown()
+            srv.server_close()

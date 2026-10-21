@@ -262,6 +262,13 @@ class Handler(BaseHTTPRequestHandler):
     def log_message(self, fmt, *args):
         return
 
+    def end_headers(self):
+        # This is an HTTP/1.0 server: it closes the socket after every reply. Say so, or an HTTP/1.1 client (the JDK
+        # HttpClient in the PyCharm plugin) may put the socket back in its pool and send the next request into a
+        # connection that is already closing ("header parser received no bytes"), which only GETs survive by retrying.
+        self.send_header("Connection", "close")
+        super().end_headers()
+
     def _dispatch(self, handler):
         try:
             handler()
