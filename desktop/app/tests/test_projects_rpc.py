@@ -132,3 +132,13 @@ async def test_delete_and_move_files(ctx_dev):
     # the device refuses deleting the entry point: surfaced as an HTTP error with its message
     e = await rpc(ctx, "project.deleteFile", id=dev, project="mv", path="__init__.py")
     assert not e["ok"] and e["error"]["code"] == "device.http"
+    # recursive: a folder with everything in it, the reply counts the files
+    for p in ("lib/a.py", "lib/sub/b.py"):
+        await rpc(ctx, "project.write", id=dev, project="mv", path=p, content="x\n")
+    d = await rpc(ctx, "project.deleteFile", id=dev, project="mv", path="lib")
+    assert not d["ok"], "a non-empty folder needs recursive"
+    d = await rpc(ctx, "project.deleteFile", id=dev, project="mv", path="lib", recursive=True)
+    assert d["ok"] and d["result"]["deleted"] == 2, d
+    paths = {f["path"] for f in (await rpc(ctx, "project.files", id=dev, project="mv"))["result"]["files"]}
+    assert not any(p.startswith("lib/") for p in paths)
+    assert (await rpc(ctx, "project.deleteFile", id=dev, project="mv", path="lib", recursive="yes"))["error"]["code"] == "rpc.bad_params"

@@ -163,6 +163,13 @@ export function createDemoTransport(): MemoryTransport {
       },
       "project.deleteFile": (p) => {
         if (p.path === "__init__.py") throw { code: "device.http", message: "entry point cannot be deleted" };
+        if (p.recursive) {
+          const m = proj(p);
+          const inside = [...m.keys()].filter((k) => k.startsWith(String(p.path) + "/"));
+          if (!inside.length && !m.delete(String(p.path))) throw { code: "device.http", message: "missing file" };
+          inside.forEach((k) => m.delete(k));
+          return { ok: true, deleted: inside.length || 1 };
+        }
         if (!proj(p).delete(String(p.path))) throw { code: "device.http", message: "missing file" };
         return { ok: true };
       },

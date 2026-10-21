@@ -60,7 +60,7 @@ export function useConfirm(): { confirm: (opts: ConfirmOptions) => Promise<boole
       onClose={() => answer(false)}
       restoreFocus={restoreFocus}
     >
-      <p id="confirm-dialog-message">{o.message}</p>
+      <p id="confirm-dialog-message" className="whitespace-pre-line">{o.message}</p>
       <div className="row dialog-actions">
         <Button data-confirm-cancel onClick={() => answer(false)}>
           {o.cancelLabel ?? t.confirm.cancel}

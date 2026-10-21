@@ -218,8 +218,10 @@ class DeviceClient:
         data = r.json()
         return data.get("files") or [] if isinstance(data, dict) else []
 
-    async def delete_file(self, project: str, path: str) -> dict[str, Any]:
-        return await self._json("DELETE", "/projects/%s/file" % self._p(project), params={"path": path})
+    async def delete_file(self, project: str, path: str, recursive: bool = False) -> dict[str, Any]:
+        """DELETE /projects/{name}/file; `recursive` removes a folder with everything in it (reply carries `deleted`)."""
+        params = {"path": path, "recursive": "1"} if recursive else {"path": path}
+        return await self._json("DELETE", "/projects/%s/file" % self._p(project), params=params)
 
     async def move(self, project: str, src: str, dst: str) -> dict[str, Any]:
         return await self._json("POST", "/projects/%s/move" % self._p(project), json={"from": src, "to": dst})

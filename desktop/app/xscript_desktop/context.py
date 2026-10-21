@@ -691,7 +691,8 @@ class AppContext:
         @d.method("project.deleteFile")
         @_map_errors
         async def project_delete_file(params: dict[str, Any]) -> dict[str, Any]:
-            return await self._client(params).delete_file(param(params, "project", str), _rel_path(params))
+            return await self._client(params).delete_file(param(params, "project", str), _rel_path(params),
+                                                          param(params, "recursive", bool, default=False))
 
         @d.method("project.move")
         @_map_errors
