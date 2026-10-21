@@ -9,7 +9,7 @@ import { DevicePage } from "../src/components/DevicePage";
 import { ErrorBanner } from "../src/components/ErrorBanner";
 import { MirrorPage } from "../src/components/MirrorPage";
 import { ProjectsPage } from "../src/components/ProjectsPage";
-import { TOAST_MS, useToast } from "../src/components/Toast";
+import { ACTION_TOAST_MS, TOAST_MS, useToast } from "../src/components/Toast";
 import { createDemoTransport } from "../src/demo";
 import { describeCode, describeError, errorLine } from "../src/errors";
 import { setLanguage, t } from "../src/strings";
@@ -100,11 +100,12 @@ describe("ErrorBanner", () => {
   });
 });
 
-function ToastProbe() {
+function ToastProbe({ onUndo = () => {} }: { onUndo?: () => void } = {}) {
   const { toast, toasts } = useToast();
   return (
     <>
       <button onClick={() => toast("已发送")}>go</button>
+      <button onClick={() => toast("已删除 a.py", { label: "撤销", run: onUndo })}>del</button>
       {toasts}
     </>
   );
@@ -122,6 +123,23 @@ describe("toasts", () => {
     expect(screen.getByRole("status").textContent).toBe("");
     fireEvent.click(screen.getByRole("button", { name: "go" }));
     fireEvent.click(within(screen.getByRole("status")).getByRole("button", { name: "关闭提示" }));
+    expect(screen.getByRole("status").textContent).toBe("");
+  });
+});
+
+describe("action toasts", () => {
+  it("show the action, run it once and close; stay up for ACTION_TOAST_MS", () => {
+    vi.useFakeTimers();
+    const onUndo = vi.fn();
+    render(<ToastProbe onUndo={onUndo} />);
+    fireEvent.click(screen.getByRole("button", { name: "del" }));
+    act(() => vi.advanceTimersByTime(TOAST_MS + 10));
+    expect(screen.getByRole("status").textContent).toContain("已删除 a.py");
+    fireEvent.click(within(screen.getByRole("status")).getByRole("button", { name: "撤销" }));
+    expect(onUndo).toHaveBeenCalledTimes(1);
+    expect(screen.getByRole("status").textContent).toBe("");
+    fireEvent.click(screen.getByRole("button", { name: "del" }));
+    act(() => vi.advanceTimersByTime(ACTION_TOAST_MS + 10));
     expect(screen.getByRole("status").textContent).toBe("");
   });
 });

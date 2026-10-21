@@ -236,8 +236,8 @@ export function createApi(rpc: RpcClient) {
     createProject: (id: string, project: string) => rpc.call<{ ok: boolean }>("project.create", { id, project }),
     files: (id: string, project: string) => rpc.call<ProjectFiles>("project.files", { id, project }),
     readFile: (id: string, project: string, path: string) => rpc.call<FileContent>("project.read", { id, project, path }),
-    writeFile: (id: string, project: string, path: string, content: string, create = false) =>
-      rpc.call<{ ok: boolean }>("project.write", { id, project, path, content, create }, { timeoutMs: 60_000 }),
+    writeFile: (id: string, project: string, path: string, content: string, create = false, encoding: "utf-8" | "base64" = "utf-8") =>
+      rpc.call<{ ok: boolean }>("project.write", { id, project, path, content, create, ...(encoding === "base64" ? { encoding } : {}) }, { timeoutMs: 60_000 }),
     deleteFile: (id: string, project: string, path: string) => rpc.call<{ ok: boolean }>("project.deleteFile", { id, project, path }),
     /** A folder and everything in it (DELETE ?recursive=1); `deleted` is the number of files removed. */
     deleteFolder: (id: string, project: string, path: string) =>

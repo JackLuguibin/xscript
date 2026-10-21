@@ -5,15 +5,23 @@ import { Button } from "./ui/button";
 
 /** How long a toast stays up. Exported for tests. */
 export const TOAST_MS = 4000;
+/** Toasts with an action (such as 撤销) stay up longer. */
+export const ACTION_TOAST_MS = 10000;
 const MAX_TOASTS = 3;
+
+export interface ToastAction {
+  label: string;
+  run: () => void;
+}
 
 interface Item {
   id: number;
   text: string;
+  action?: ToastAction;
 }
 
 /** Page-local success toasts that dismiss themselves (an error stays a banner the user dismisses). */
-export function useToast(): { toast: (text: string) => void; toasts: ReactNode } {
+export function useToast(): { toast: (text: string, action?: ToastAction) => void; toasts: ReactNode } {
   const [items, setItems] = useState<Item[]>([]);
   const seq = useRef(0);
   const timers = useRef(new Map<number, ReturnType<typeof setTimeout>>());
@@ -25,10 +33,10 @@ export function useToast(): { toast: (text: string) => void; toasts: ReactNode }
     setItems((cur) => cur.filter((x) => x.id !== id));
   }, []);
 
-  const toast = useCallback((text: string) => {
+  const toast = useCallback((text: string, action?: ToastAction) => {
     const id = ++seq.current;
-    setItems((cur) => [...cur, { id, text }].slice(-MAX_TOASTS));
-    timers.current.set(id, setTimeout(() => close(id), TOAST_MS));
+    setItems((cur) => [...cur, { id, text, action }].slice(-MAX_TOASTS));
+    timers.current.set(id, setTimeout(() => close(id), action ? ACTION_TOAST_MS : TOAST_MS));
   }, [close]);
 
   useEffect(() => {
@@ -44,6 +52,11 @@ export function useToast(): { toast: (text: string) => void; toasts: ReactNode }
       {items.map((x) => (
         <div key={x.id} className="toast">
           <span className="grow">{x.text}</span>
+          {x.action && (
+            <Button variant="ghost" size="sm" onClick={() => { close(x.id); x.action!.run(); }}>
+              {x.action.label}
+            </Button>
+          )}
           <Button variant="ghost" size="sm" className="icon-btn" aria-label={t.errors.dismiss} onClick={() => close(x.id)}>
             <IconMark size={12} />
           </Button>
