@@ -672,8 +672,12 @@ pre.logs.debug-console { min-height: 4rem; max-height: 10rem; }
 .capture-card .capture-requested { margin-top: var(--sp-2); font-weight: 500; }
 
 /* UI designer for res/ui/<name>.ui.json: the shared view (vendor/ui-designer.js), same as VS Code and the Web IDE */
-.ui-designer { min-height: 22rem; display: grid; grid-template-columns: 9rem minmax(12rem, 1fr) 14rem minmax(14rem, 1fr); gap: var(--sp-3); padding: var(--sp-3); border: 1px solid var(--border); border-radius: var(--r-md); background: var(--surface); color: var(--text); }
-.ui-designer .col { overflow: auto; min-height: 0; }
+/* The columns follow the editor pane (a container), not the window: next to the file list the pane is far narrower than
+   the viewport, and fixed 49rem of tracks pushed the preview out of the card (#226). Tracks may shrink to 0; the
+   container queries below stack them instead of squeezing. */
+.ui-designer-host { container-type: inline-size; min-width: 0; }
+.ui-designer { min-height: 22rem; display: grid; grid-template-columns: 9rem minmax(0, 1fr) minmax(0, 14rem) minmax(0, 1fr); gap: var(--sp-3); padding: var(--sp-3); border: 1px solid var(--border); border-radius: var(--r-md); background: var(--surface); color: var(--text); }
+.ui-designer .col { overflow: auto; min-height: 0; min-width: 0; overflow-wrap: anywhere; }
 .ui-designer h4 { margin: 0 0 var(--sp-2); font-weight: 600; }
 .ui-designer .pal button { display: block; width: 100%; margin: 0 0 6px; text-align: left; cursor: grab; }
 .ui-designer .list { min-height: 8rem; border: 1px dashed var(--border-strong); border-radius: var(--r-md); padding: 6px; }
@@ -690,8 +694,9 @@ pre.logs.debug-console { min-height: 4rem; max-height: 10rem; }
 .ui-designer .props input[type=checkbox] { width: auto; }
 .ui-designer .errors { color: var(--danger-fg); margin: 6px 0; white-space: pre-wrap; }
 .ui-designer .hint { color: var(--text-muted); margin: var(--sp-2) 0; font-size: 90%; }
-.ui-designer iframe { width: 100%; height: 22rem; border: 1px solid var(--border); background: var(--surface); border-radius: var(--r-md); }
-@media (max-width: 1100px) { .ui-designer { grid-template-columns: 1fr 1fr; } }
+.ui-designer iframe { display: block; width: 100%; height: 22rem; border: 1px solid var(--border); background: var(--surface); border-radius: var(--r-md); }
+@container (max-width: 56rem) { .ui-designer { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+@container (max-width: 30rem) { .ui-designer { grid-template-columns: minmax(0, 1fr); } }
 
 /* 最近运行 → 跳到出错行 (the class itself is a Monaco decoration in overrides.css) */
 @keyframes err-flash { from { background: var(--danger-bg); } to { background: transparent; } }

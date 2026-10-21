@@ -1,3 +1,4 @@
+import { readFileSync } from "node:fs";
 import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
 import { ServicesContext } from "../src/app-context";
@@ -55,6 +56,23 @@ describe("desktop UI designer (D.3 / D.4)", () => {
     await expect(api.readFile(id, "demo", "ui_main.py")).rejects.toBeTruthy();
     fireEvent.click(screen.getByRole("button", { name: "设计" }));
     await waitFor(() => expect(screen.getByLabelText("界面设计器")).toBeTruthy());
+  });
+
+  it("the columns fit the editor pane: the host is a size container and no track has a fixed minimum (#226)", async () => {
+    await setup(uiForm.serializeSpec(uiForm.newSpec("挂机设置")));
+    const designer = await screen.findByLabelText("界面设计器", undefined, { timeout: 3000 });
+    expect(designer.parentElement?.classList.contains("ui-designer-host")).toBe(true);
+    const css = readFileSync("src/styles/components.css", "utf8").replace(/\/\*[\s\S]*?\*\//g, "");
+    expect(css).toMatch(/\.ui-designer-host\s*\{[^}]*container-type:\s*inline-size/);
+    const rule = (sel: string) => css.match(new RegExp("(^|\\n)" + sel.replace(/[.]/g, "\\.") + "\\s*\\{([^}]*)\\}"))?.[2] ?? "";
+    const columns = rule(".ui-designer").match(/grid-template-columns:\s*([^;]+);/)?.[1] ?? "";
+    // Only the 9rem palette is fixed; every other track can shrink, so the preview never leaves the card.
+    expect(columns).toBe("9rem minmax(0, 1fr) minmax(0, 14rem) minmax(0, 1fr)");
+    expect(rule(".ui-designer .col")).toMatch(/min-width:\s*0/);
+    // Narrow panes stack the columns (container queries, not the window width).
+    expect(css).toMatch(/@container \(max-width: 56rem\) \{ \.ui-designer \{ grid-template-columns: repeat\(2, minmax\(0, 1fr\)\); \} \}/);
+    expect(css).toMatch(/@container \(max-width: 30rem\) \{ \.ui-designer \{ grid-template-columns: minmax\(0, 1fr\); \} \}/);
+    expect(css).not.toMatch(/@media[^{]*\{\s*\.ui-designer\s*\{/);
   });
 
   it("a new file named *.ui.json starts as an empty form spec", async () => {
