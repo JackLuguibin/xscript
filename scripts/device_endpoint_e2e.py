@@ -7,7 +7,8 @@ Checks, reading the row's text with uiautomator:
   RUNNING        http://<ip>:<port>/
   NO_FREE_PORT   10 listeners on 9860–9869  -> "端口 9860–9869 都被占用，点此重试"; tap after freeing -> RUNNING
   NOT_STARTED    `am stopservice`           -> "服务未启动，点此启动"; tap -> RUNNING
-  USB only       Wi-Fi off, eth0 address removed -> "127.0.0.1:<port>（仅 USB）"; tap -> dialog with the adb forward command
+  USB only       Wi-Fi off, eth0 address removed -> "127.0.0.1:<port>（仅 USB）"; tap -> dialog with the adb forward command;
+                 复制命令 -> an on-device script (over that forward) reads the same command back from the clipboard
 (DISABLED only happens in packaged apps; HomeModelTest covers it.)
 
 It force-stops the app, needs `adb root` (google_apis images) and turns networking off for a while, so it refuses to
@@ -18,6 +19,9 @@ import re
 import subprocess
 import sys
 import time
+
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+import device_guide_smoke as api  # noqa: E402  (run() / call() over the HTTP API)
 
 serial = os.environ.get("ANDROID_SERIAL")
 if not serial or len(sys.argv) < 2:
@@ -58,6 +62,14 @@ def row(timeout=12, want=None):
             return text, centre
         time.sleep(1)
     raise AssertionError("开发者地址 shows %r, expected /%s/" % (text, want))
+
+
+def button(label):
+    sh("uiautomator dump /sdcard/xs_endpoint.xml")
+    m = re.search(r'text="%s"[^>]*bounds="\[(\d+),(\d+)\]\[(\d+),(\d+)\]"' % label, sh("cat /sdcard/xs_endpoint.xml"))
+    assert m, "no %s button" % label
+    x1, y1, x2, y2 = map(int, m.groups())
+    return (x1 + x2) // 2, (y1 + y2) // 2
 
 
 def tap(centre):
@@ -103,14 +115,24 @@ try:
        "ip link set eth0 down; ip addr flush dev eth0; sleep 0.5; done' >/dev/null 2>&1 &")
     time.sleep(2)
     launch()
-    c = check("USB only", r"^127\.0\.0\.1:986\d（仅 USB）$")
+    text, c = row(want=r"^127\.0\.0\.1:986\d（仅 USB）$")
+    print("ok  %-14s %s" % ("USB only", text))
+    port = int(re.search(r":(986\d)", text).group(1))
     tap(c)
     time.sleep(1.5)
     sh("uiautomator dump /sdcard/xs_endpoint.xml")
     dlg = sh("cat /sdcard/xs_endpoint.xml")
     assert "复制命令" in dlg and "adb forward tcp:986" in dlg, "tapping the USB-only row shows the adb forward dialog"
     print("ok  USB dialog     adb forward command shown")
-    sh("input keyevent BACK")
+    cmd = re.search(r"adb forward tcp:\d+ tcp:\d+", dlg).group(0)
+    tap(button("复制命令"))
+    time.sleep(1)
+    adb("forward", "tcp:19869", "tcp:%d" % port)
+    api.base = "http://127.0.0.1:19869"
+    lines = api.run("xs_clip_check", "from xscript.android import system\nprint('clip=' + system.clipboard_get())\n", wait=30)
+    adb("forward", "--remove", "tcp:19869")
+    assert ("clip=" + cmd) in lines, "clipboard holds the copied command %r: %r" % (cmd, lines)
+    print("ok  copy command   clipboard: %s" % cmd)
 finally:
     sh("pkill -f 'nc -L'; touch /data/local/tmp/xs_net_on")
     time.sleep(1.5)  # let the address-removing loop see the marker and exit

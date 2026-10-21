@@ -5,12 +5,15 @@
     python3 scripts/device_guide_smoke.py http://127.0.0.1:19860
 
 The sample is read from the guide itself (its first ```python block), so the doc and this check cannot drift.
-Projects are uploaded as `xs_guide_smoke` / `xs_ocr_smoke` and deleted afterwards. Exits non-zero on a failure.
+Projects are uploaded as `xs_guide_smoke` / `xs_ocr_smoke` / `xs_size_smoke` and deleted afterwards. Exits non-zero on a failure.
+With ANDROID_SERIAL set it also rotates the screen to landscape (via adb) and checks that screen.size() follows, then
+restores the rotation settings.
 """
 import io
 import json
 import os
 import re
+import subprocess
 import sys
 import time
 import urllib.parse
@@ -29,6 +32,10 @@ t = time.time()
 items = screen.ocr()
 print("ocr items:", len(items or []), "in %.1fs" % (time.time() - t))
 print("ocr found XScript:", screen.ocr_find("XScript") is not None)
+'''
+
+SIZE = '''from xscript.android import screen
+print("size %d %d" % screen.size())
 '''
 
 
@@ -81,6 +88,45 @@ def main():
     assert n and int(n.split()[2]) > 0, "OCR read nothing: " + n
     assert any("finished xs_ocr_smoke" in s for s in lines), "the OCR smoke did not finish"
     print("ok  ocr smoke")
+
+    if os.environ.get("ANDROID_SERIAL"):
+        check_landscape()
+
+
+def adb_shell(cmd):
+    return subprocess.run(["adb", "-s", os.environ["ANDROID_SERIAL"], "shell", cmd], capture_output=True, text=True, timeout=60).stdout.strip()
+
+
+def script_size():
+    lines = run("xs_size_smoke", SIZE, wait=30)
+    got = next((s for s in lines if s.startswith("size ")), None)
+    assert got, "screen.size() printed nothing"
+    return tuple(int(x) for x in got.split()[1:3])
+
+
+def check_landscape():
+    """screen.size() and /status report the rotated size once the display turns to landscape."""
+    auto = adb_shell("settings get system accelerometer_rotation")
+    rot = adb_shell("settings get system user_rotation")
+    try:
+        adb_shell("am start -a android.settings.SETTINGS")  # the launcher stays portrait; Settings rotates
+        adb_shell("settings put system accelerometer_rotation 0; settings put system user_rotation 0")
+        time.sleep(2)
+        pw, ph = script_size()
+        assert pw < ph, ("portrait", pw, ph)
+        adb_shell("settings put system user_rotation 1")
+        for _ in range(10):
+            time.sleep(1)
+            st = call("GET", "/status")
+            if st["width"] > st["height"]:
+                break
+        lw, lh = script_size()
+        assert (lw, lh) == (ph, pw) == (st["width"], st["height"]), ("landscape", (lw, lh), (pw, ph), st)
+        print("ok  landscape     %dx%d -> %dx%d" % (pw, ph, lw, lh))
+    finally:
+        adb_shell("settings put system user_rotation %s" % (rot if rot.isdigit() else 0))
+        adb_shell("settings put system accelerometer_rotation %s" % (auto if auto.isdigit() else 1))
+        adb_shell("input keyevent HOME")
 
 
 if __name__ == "__main__":
