@@ -138,4 +138,33 @@ describe("desktop UI designer (D.3 / D.4)", () => {
     fireEvent.click(screen.getByRole("button", { name: "JSON" }));
     await waitFor(() => expect(uiForm.parseSpec((screen.getByRole("textbox", { name: "编辑器" }) as HTMLTextAreaElement).value).title).toBe("login"), { timeout: 3000 });
   });
+
+  it("在手机上试运行 saves, writes the generated files and a tiny entry into _ui_try and runs that project", async () => {
+    const spec = uiForm.newSpec("挂机设置");
+    spec.fields.push({ kind: "text", id: "account", label: "账号" } as never);
+    const { api, id } = await setup(uiForm.serializeSpec(spec));
+    const designer = await screen.findByLabelText("界面设计器", undefined, { timeout: 3000 });
+    fireEvent.click(within(designer).getByRole("button", { name: /复选框/ }));
+    fireEvent.click(screen.getByRole("button", { name: "在手机上试运行" }));
+    expect(await screen.findByText(/已在手机上打开界面 main/, undefined, { timeout: 3000 })).toBeTruthy();
+    // saved first (the user's project got the edit and the generated files) ...
+    const saved = uiForm.parseSpec((await api.readFile(id, "demo", "res/ui/main.ui.json")).content);
+    expect(saved.fields.map((f) => f.kind)).toEqual(["text", "checkbox"]);
+    // ... the scratch project has the same outputs and an entry that prints the result; the user's entry is untouched
+    const want = uiForm.outputs(saved, "main");
+    expect((await api.readFile(id, "_ui_try", "ui_main.py")).content).toBe(want["ui_main.py"]);
+    expect((await api.readFile(id, "_ui_try", "res/ui/main.html")).content).toBe(want["res/ui/main.html"]);
+    expect((await api.readFile(id, "_ui_try", "__init__.py")).content).toContain("from ui_main import show");
+    expect((await api.readFile(id, "demo", "__init__.py")).content).toBe("print('hello from demo')\n");
+    // a second try reuses the scratch project (create fails as it exists) and still runs
+    fireEvent.click(screen.getByRole("button", { name: "在手机上试运行" }));
+    await waitFor(() => expect(screen.getAllByText(/已在手机上打开界面 main/).length).toBeGreaterThan(0));
+  });
+
+  it("在手机上试运行 refuses a broken form", async () => {
+    await setup(JSON.stringify({ version: 1, title: "x", submit: "ok", width: "85vw", height: "60vh", fields: [{ kind: "select", id: "m", label: "m" }] }));
+    await screen.findByLabelText("界面设计器", undefined, { timeout: 3000 });
+    fireEvent.click(screen.getByRole("button", { name: "在手机上试运行" }));
+    expect(await screen.findByText("界面文件有问题，修正后再试运行")).toBeTruthy();
+  });
 });
