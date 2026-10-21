@@ -29,6 +29,8 @@ Then in PyCharm: **Settings → Plugins → ⚙ → Install Plugin from Disk…*
 
 **Tools → XScript** and the **XScript** tool window at the bottom:
 
+**Connect to Device** (Tools → XScript, or a click on the status bar when offline): press Check and Connect and the plugin checks, in order, address format → address reachable (refused vs. timeout) → XScript app responds → it is XScript → pairing code. It stops at the first failure and shows the fix plus a Troubleshooting link. The address is saved and connected only when the checks pass (or only the pairing code is missing, which is asked for next); after a failed check the button becomes Save Anyway. Check alone never saves.
+
 The **status bar** (bottom right) shows the phone: "XScript: Connected", "Running <project>", "Offline", "Pairing Needed" or "Error". Hover for the address and app version; when offline, unpaired or failing, a click opens Connect to Device, otherwise it opens the XScript tool window. It checks every 5 seconds while the IDE is in front and once a minute in the background, and right after upload, run and stop. Turn it off from the status bar's context menu ("XScript Device Status") if you do not need it.
 
 | Action | Shortcut | What it does |
@@ -39,7 +41,7 @@ The **status bar** (bottom right) shows the phone: "XScript: Connected", "Runnin
 | XScript tool window → "Device Projects" | | Lists the phone's projects and marks the running one; for the selected one: **Run on Device** (no upload, runs the phone's copy), **Stop**, **Pull into This Project**. Loaded when the tab is first opened, then with Refresh |
 | Pull Project from Device… | | Pick one of the device's projects and download it: into the IDE project (or its sub-folder) when it has the same name, else into a new folder of that name under a folder you choose. Only new and different files are written; overwriting local edits asks first, listing them; local files the device does not have are kept |
 | Run Selection on Device | Ctrl+Alt+Shift+E; editor context menu | Evaluates the selected code (or the current line) in the phone's eval process and prints the result in the XScript tool window; assign `_result` to see a value; times out after 8 s by default, adjustable in Settings (200–15000 ms) |
-| Connect to Device… | | Sets the phone address (`IP[:port]`) and tests the connection |
+| Connect to Device… | | Sets the phone address (`IP[:port]`), checks it step by step, then saves and connects (see below) |
 | New XScript Project… | | Picks one of the 7 templates shared with the VS Code extension, web IDE and phone app; writes `__init__.py`, `build.as`, `res/` |
 | Enable / Disable XScript Completion | | Adds or removes the bundled stubs as the module library "XScript stubs" |
 | XScript Settings… | | Opens **Settings → Tools → XScript** |

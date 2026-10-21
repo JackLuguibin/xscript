@@ -14,9 +14,11 @@
 
 ![「设备工程」标签页：手机上的工程列表，正在运行的 daily_signin 有标记，左侧是刷新 / 运行 / 停止 / 拉取 / 打开本地副本 / 运行选中代码](../../docs/images/pycharm-projects.png)
 
+![Connect to Device：逐项检查 127.0.0.1:9860，前四步通过，停在「配对码」并给出修法](../../docs/images/pycharm-connect-check.png)
+
 ![Pull Project from Device：选择设备上的工程、确认覆盖后，拉取的文件出现在编辑器和工程树里，日志列出新增 / 更新数量](../../docs/images/pycharm-pull.png)
 
-（沙盒 PyCharm 2024.2.6，连接本机模拟设备 `scripts/mock_device.py`，结果是模拟数据。）
+（沙盒 PyCharm 2024.2.6，连接本机模拟设备 `scripts/mock_device.py`，结果是模拟数据；连接检查一图连的是模拟器上的 XScript。）
 
 ## 安装
 
@@ -36,6 +38,8 @@ cd ide/pycharm-plugin
 
 菜单 **Tools → XScript**，以及底部的 **XScript** 工具窗口：
 
+**连接设备**（Tools → XScript → Connect to Device…，状态栏离线时点一下也会打开）：填好地址后点「检查并连接」，插件按顺序检查 地址格式 → 能连到这个地址（区分「拒绝」和「超时」）→ XScript App 在响应 → 对方是 XScript → 配对码，停在第一个失败的步骤并给出修法和「排查文档」链接。通过（或只差配对码）才保存地址并连接，只差配对码时接着弹出输入框；检查没通过时按钮变成「仍然保存」，再按一次就不检查直接保存。「检查」按钮只检查，不保存。
+
 **状态栏**右下角显示手机状态：「XScript：已连接」「运行中 工程名」「离线」「需要配对」或「出错」。鼠标悬停显示地址和 App 版本；离线、需要配对或出错时点击打开「连接设备」，否则点击打开 XScript 工具窗口。IDE 在前台时每 5 秒检查一次，在后台时每分钟一次；上传、运行、停止之后立即刷新。不需要时可以在状态栏右键菜单里关掉「XScript 设备状态」。
 
 | 动作 | 快捷键 | 作用 |
@@ -46,7 +50,7 @@ cd ide/pycharm-plugin
 | XScript 工具窗口 →「设备工程」 | | 列出手机上的工程，正在运行的那个有标记；选中后可 **在设备上运行**（不上传，直接运行手机上的版本）、**停止**、**拉取到本工程**、**打开本地副本**（双击或回车也可以：打开本工程里已拉取的副本的 `__init__.py` 并在工程视图中定位；还没有副本时询问是否现在拉取）；工具栏和右键菜单里还有 **在设备上运行选中代码**（作用于当前编辑器，不用切回编辑器）和 **复制名称**；第一次打开这个标签页时加载，之后点「刷新」 |
 | Pull Project from Device… | | 从设备列出的工程中选一个下载：IDE 工程（或其下的子文件夹）与设备工程同名时直接拉到那里，否则选一个文件夹，在其下新建同名子文件夹。只写入新增和不同的文件；会覆盖本地修改时先列出文件请你确认；设备上没有的本地文件保留不动 |
 | Run Selection on Device | Ctrl+Alt+Shift+E；编辑器右键 | 把选中的代码（没选中时为光标所在行）发到手机的 eval 进程执行，结果打印在 XScript 工具窗口；要看某个值就赋给 `_result`；超时默认 8 秒，可在设置里改（200–15000 毫秒） |
-| Connect to Device… | | 填写手机地址（`IP[:端口]`），并测试连接 |
+| Connect to Device… | | 填写手机地址（`IP[:端口]`），先逐项检查再保存并连接（见下） |
 | New XScript Project… | | 选模板（与 VS Code 扩展、网页 IDE、手机 App 同一套 7 个模板），生成 `__init__.py`、`build.as`、`res/` |
 | Enable / Disable XScript Completion | | 把插件自带的存根作为模块库 “XScript stubs” 加入或移除 |
 | XScript Settings… | | 打开 **Settings → Tools → XScript** |
@@ -66,5 +70,5 @@ cd ide/pycharm-plugin
 ```
 
 - 新建工程模板 `src/main/resources/templates.json` 是生成的：改 `ide/vscode-extension/src/newProject.ts` 后，在 `ide/vscode-extension` 里 `npm run compile && node scripts/export-templates.js`。CI 用 `--check` 检查。
-- 截图：先在 `.intellijPlatform/sandbox/xscript-pycharm/PC-2024.2.6/config_runIde/options/xscript.xml` 里把设备地址设为本机 mock 设备，再 `./gradlew runIde -PrunIdeProject=<演示工程> -PrunIdeHeadlessConsent -PrunIdeScreenshotDemo=run -PrunIdeScreenshotOut=<目录>`（模式还有 `settings`、`eval`、`pull`、`projects`）。这些开关只用于这个一次性的沙盒：跳过用户协议，打开演示工程，执行对应功能（`pull` 会自动按下选择和覆盖对话框的默认按钮；演示工程里要有与设备工程同名的文件夹），约 25 秒后把 IDE 窗口（有对话框时截对话框）存成 `<目录>/<模式>.png`，不需要系统录屏权限。
+- 截图：先在 `.intellijPlatform/sandbox/xscript-pycharm/PC-2024.2.6/config_runIde/options/xscript.xml` 里把设备地址设为本机 mock 设备，再 `./gradlew runIde -PrunIdeProject=<演示工程> -PrunIdeHeadlessConsent -PrunIdeScreenshotDemo=run -PrunIdeScreenshotOut=<目录>`（模式还有 `settings`、`eval`、`pull`、`projects`、`connect`；`connect` 用 `-PrunIdeScreenshotConnect=<地址>` 指定要检查的地址）。这些开关只用于这个一次性的沙盒：跳过用户协议，打开演示工程，执行对应功能（`pull` 会自动按下选择和覆盖对话框的默认按钮；演示工程里要有与设备工程同名的文件夹），约 25 秒后把 IDE 窗口（有对话框时截对话框）存成 `<目录>/<模式>.png`，不需要系统录屏权限。
 - 本机没有系统 JDK 时可以用 Android Studio 自带的：`JAVA_HOME="/Applications/Android Studio.app/Contents/jbr/Contents/Home"`。

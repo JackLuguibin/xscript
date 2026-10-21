@@ -50,7 +50,7 @@ class StopAction : AnAction() {
     override fun actionPerformed(e: AnActionEvent) { e.project?.let { XScriptService.get(it).stop() } }
 }
 
-/** Asks for the device address, saves it and checks the connection (asking for the pairing code if the phone wants one). */
+/** Asks for the device address, checks it step by step, saves it and connects (asking for the pairing code if the phone wants one). */
 class ConnectAction : AnAction() {
     override fun getActionUpdateThread() = ActionUpdateThread.BGT
     override fun update(e: AnActionEvent) { e.presentation.isEnabled = e.project != null }
@@ -58,11 +58,9 @@ class ConnectAction : AnAction() {
     override fun actionPerformed(e: AnActionEvent) {
         val project = e.project ?: return
         val s = XScriptSettings.get()
-        val value = Messages.showInputDialog(project, XScriptBundle.message("connect.prompt"), "XScript", null, s.device,
-            object : com.intellij.openapi.ui.InputValidator {
-                override fun checkInput(v: String?) = try { DeviceTarget.parse(v); true } catch (_: IllegalArgumentException) { false }
-                override fun canClose(v: String?) = checkInput(v)
-            }) ?: return
+        val dialog = ConnectDialog(project, s.device)
+        if (!dialog.showAndGet()) return
+        val value = dialog.field.text.trim()
         s.device = value
         XScriptService.get(project).testConnection()
     }
