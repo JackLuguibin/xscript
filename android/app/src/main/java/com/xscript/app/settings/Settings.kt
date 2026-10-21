@@ -104,6 +104,11 @@ object Settings {
         get() = prefs().getStringSet("rerun_projects", emptySet())?.toSet() ?: emptySet()
         set(value) = prefs().edit().putStringSet("rerun_projects", value.toSet()).apply()
 
+    /** Projects whose capture calls raise instead of returning empty (运行选项「截图失败时停止脚本」 = screen.strict_capture). */
+    var strictCaptureProjects: Set<String>
+        get() = prefs().getStringSet("strict_capture_projects", emptySet())?.toSet() ?: emptySet()
+        set(value) = prefs().edit().putStringSet("strict_capture_projects", value.toSet()).apply()
+
     fun runModeLabel(mode: String = runMode): String = when (mode) {
         MODE_ACCESSIBILITY -> "仅无障碍"
         MODE_ROOT -> "仅Root"

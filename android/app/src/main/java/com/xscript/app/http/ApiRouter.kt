@@ -180,7 +180,7 @@ class ApiRouter(private val context: Context) {
                 if (!store.exists(name)) return Reply.json(JSONObject().put("error", "missing project"), 404)
                 val body = req.json()
                 val patch = JSONObject().put("project", name)
-                for (k in listOf("auto_run", "stop_re_run")) if (body.has(k)) patch.put(k, body.getBoolean(k))
+                for (k in listOf("auto_run", "stop_re_run", "strict_capture")) if (body.has(k)) patch.put(k, body.getBoolean(k))
                 Reply.json(JSONObject(MainControl.handle("config_set", patch.toString())))
             }
             m == "PUT" && sub == "/zip" -> {
