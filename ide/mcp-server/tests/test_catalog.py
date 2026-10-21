@@ -78,6 +78,19 @@ class CatalogTest(unittest.TestCase):
                     self.assertIn(name, names, "%s.%s" % (mod["name"], name))
 
 
+class AgentRulesCopyTest(unittest.TestCase):
+    def test_packaged_rules_in_sync(self):
+        # get_coding_rules serves a copy inside the package so non-editable installs have it.
+        packaged = CATALOG.with_name("agent_rules.md")
+        docs = CATALOG.parents[3] / "docs" / "AGENT_RULES.md"
+        self.assertEqual(packaged.read_bytes(), docs.read_bytes(),
+                         "cp docs/AGENT_RULES.md ide/mcp-server/xscript_mcp/agent_rules.md")
+
+    def test_packaged_as_package_data(self):
+        pyproject = (CATALOG.parents[1] / "pyproject.toml").read_text(encoding="utf-8")
+        self.assertRegex(pyproject, r'xscript_mcp = \[[^\]]*"agent_rules.md"')
+
+
 class ServerCatalogToolsTest(unittest.TestCase):
     def setUp(self):
         try:
@@ -93,6 +106,22 @@ class ServerCatalogToolsTest(unittest.TestCase):
     def test_search_api_finds_ocr(self):
         out = json.loads(self.server.search_api("ocr_click"))
         self.assertIn("xscript.android.screen", [m["name"] for m in out["modules"]])
+
+    def test_get_coding_rules_returns_agent_rules(self):
+        out = self.server.get_coding_rules()
+        self.assertTrue(out.startswith("# XScript 智能体规则"))
+        for anchor in ("dump_ui_tree", "xscript.android.*", "__init__.py", "while True"):
+            self.assertIn(anchor, out)
+
+    def test_rules_registered_as_tool_and_resource(self):
+        import asyncio
+
+        tools = {t.name for t in asyncio.run(self.server.mcp.list_tools())}
+        self.assertIn("get_coding_rules", tools)
+        resources = {str(r.uri) for r in asyncio.run(self.server.mcp.list_resources())}
+        self.assertIn("xscript://rules", resources)
+        contents = list(asyncio.run(self.server.mcp.read_resource("xscript://rules")))
+        self.assertEqual(contents[0].content, self.server.get_coding_rules())
 
 
 if __name__ == "__main__":

@@ -4,9 +4,9 @@
 
 | 路径 | 作用 |
 | --- | --- |
-| `vscode-extension/` | VS Code / Cursor 扩展：活动栏设备 / 工程视图、设备扫描、新建工程、增量同步与拉取、运行 / 停止 / 一键断点调试、日志、在设备上运行选中代码、截图、内置存根（对照 AScript 官方扩展，见其 README） |
+| `vscode-extension/` | VS Code / Cursor / Trae 扩展：活动栏设备 / 工程视图、设备扫描、新建工程、增量同步与拉取、运行 / 停止 / 一键断点调试、日志、在设备上运行选中代码、截图、内置存根（对照 AScript 官方扩展，见其 README） |
 | `pycharm-plugin/` | PyCharm 插件（2024.2+）：上传运行 / 停止、在设备上运行选中代码、从设备拉取工程、XScript 日志工具窗口、配对码（存 IDE 密码库）、新建工程（与 VS Code 扩展同一套模板）、内置存根补全。见 [pycharm-plugin/README.md](pycharm-plugin/README.md) |
-| `mcp-server/` | Cursor MCP（`xscript-mcp`），让 AI 能看到屏幕，编写、上传和运行脚本。见 [mcp-server/README.md](mcp-server/README.md) |
+| `mcp-server/` | MCP 服务（`xscript-mcp`，Cursor、Trae 等通用），让 AI 能看到屏幕，按 XScript 编码规则和 API 目录编写、上传和运行脚本。见 [mcp-server/README.md](mcp-server/README.md) |
 | `python-stubs/` | 生成的 `.pyi` 存根，用于 `xscript.*` / `ascript.*` 自动补全（`scripts/gen_stubs.py`） |
 
 ## VS Code / Cursor 扩展
@@ -36,6 +36,14 @@ code --install-extension xscript-vscode-<版本>.vsix   # 或：cursor --install
 | XScript: 启用 API 自动补全 | | 把内置存根加入 `python.analysis.extraPaths` |
 
 活动栏的 **XScript** 视图：设备（在线状态、行内运行 / 停止）、手机上的工程（行内运行 / 拉取）、工具。与 AScript 官方扩展的逐项对照（哪些做了、哪些因为是 AScript 自家服务或格式而不做）见 [vscode-extension/README.md](vscode-extension/README.md)。
+
+## Trae
+
+Trae 基于 VS Code，可以直接装同一个 vsix，不需要单独的插件：
+
+1. 从 GitHub Release 下载 `xscript-vscode-<版本>.vsix`（或按上面 `npm run package` 自己打包）。
+2. 在 Trae 左侧点「扩展」，扩展面板右上角「··· → 从 VSIX 安装」，选择该文件（也可以把文件拖进扩展面板），见 [Trae 官方文档：扩展市场](https://docs.trae.cn/ide_manage-extensions)。扩展要求 VS Code 1.90+ 兼容的宿主，安装时若提示版本不兼容，请先升级 Trae。
+3. 让 Trae 的 AI 使用 XScript：按 [mcp-server/README.md](mcp-server/README.md) 安装 `xscript-mcp`，在 Trae「设置 → MCP」里手动添加，JSON 与 Cursor 相同。AI 可以用 `get_coding_rules` 读取编码规则，用 `get_module_apis` / `search_api` 查 API 签名，生成和检查符合 XScript 规则的代码。
 
 项目根目录是当前文件之上、含有 `__init__.py` 的最顶层文件夹；该文件夹名就是设备上的项目名。
 
