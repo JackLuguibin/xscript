@@ -161,6 +161,16 @@ export function createDemoTransport(): MemoryTransport {
         const m = proj(p);
         return { project: p.project, files: [...m.entries()].sort().map(([path, c]) => ({ path, size: c.length })), dirs: [] };
       },
+      "project.runs": (p) => {
+        proj(p);
+        const now = Date.now();
+        return {
+          runs: [
+            { project: p.project, start: now - 120_000, duration_ms: 4_200, exit: "1", user_stop: false, log_from: 0, log_to: 2, outcome: "出错退出（退出码 1）", failed: true, stats: { captures: 12, capture_avg_ms: 41, peak_mb: 180 } },
+            { project: p.project, start: now - 600_000, duration_ms: 61_000, exit: "0", user_stop: false, log_from: 0, log_to: 1, outcome: "正常结束", failed: false, stats: null },
+          ],
+        };
+      },
       "project.read": (p) => {
         const c = proj(p).get(String(p.path));
         if (c === undefined) throw { code: "device.http", message: "missing file" };

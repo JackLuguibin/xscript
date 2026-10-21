@@ -64,6 +64,12 @@
 
 重新生成：设备上放一个带子文件夹的工程「每日签到」，然后 `python -m xscript_desktop --screenshot out.png --connect-adb <serial> --run-js tools/screenshot-projects.js --screenshot-delay 4 --theme light --size 1180x760`（`--run-js` 在设备连上后在页面里执行脚本：打开工程页、选工程、打开 `lib/tasks.py`）。截图规则和其他截图的生成方式见 [docs/截图.md](../docs/截图.md)。
 
+工程页的「最近运行」（重新生成：`python scripts/mock_device.py` 换个端口起一个模拟设备并放一个工程「每日签到」，再用 `--run-js tools/screenshot-recent-runs.js`，脚本里的地址改成模拟设备的地址）：
+
+| 浅色 | 深色 |
+| --- | --- |
+| ![最近运行浅色](../docs/images/desktop-recent-runs-light.png) | ![最近运行深色](../docs/images/desktop-recent-runs-dark.png) |
+
 连不上设备时的提示（带「连不上怎么办」链接，打开 [docs/TROUBLESHOOTING.md](../docs/TROUBLESHOOTING.md)）：
 
 | 浅色 | 深色 |
