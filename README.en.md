@@ -79,7 +79,7 @@ If you would rather not build it yourself, use the published packages. All you n
 
 | Home | Mini-program list | Mini-program details |
 | :---: | :---: | :---: |
-| <img src="docs/images/phone-home.png" width="220" alt="Home: current mini-program, developer address, pairing code, AI coding and cloud connection status, permissions"> | <img src="docs/images/phone-projects.png" width="220" alt="Mini-program list: create, import"> | <img src="docs/images/phone-project.png" width="220" alt="Mini-program details: run, log, run on boot, scheduled tasks, files"> |
+| <img src="docs/images/phone-home.png" width="220" alt="Home: current mini-program, developer address, pairing code, AI coding and cloud connection status, permissions"> | <img src="docs/images/phone-projects.png" width="220" alt="Mini-program list: create, import"> | <img src="docs/images/phone-project.png" width="220" alt="Mini-program details: run, log, permission check, run on boot, scheduled tasks, files"> |
 | Developer address, pairing code, permission status, one-tap run of the last mini-program | **New** / **Import**, tap one to open it | **Run** / **Log**, run on boot, re-run after stop, scheduled tasks |
 | **View code** | **Run log** | **Scheduled tasks** |
 | <img src="docs/images/phone-editor.png" width="220" alt="Viewing and editing __init__.py on the phone"> | <img src="docs/images/phone-run-log.png" width="220" alt="Run log: print output shown live, can be stopped and cleared"> | <img src="docs/images/phone-schedule.png" width="220" alt="Adding a scheduled task: daily at a time, every N minutes, run once"> |

@@ -77,7 +77,7 @@ XScript 将设备端 Python 运行时、自动化 API、浏览器开发工具和
 
 | 首页 | 小程序列表 | 小程序详情 |
 | :---: | :---: | :---: |
-| <img src="docs/images/phone-home.png" width="220" alt="首页：当前小程序、开发者地址、配对码、AI 编程和云控连接状态、各项权限"> | <img src="docs/images/phone-projects.png" width="220" alt="小程序列表：四个示例小程序，右上角新建、导入"> | <img src="docs/images/phone-project.png" width="220" alt="小程序详情：运行、日志、开机自启、定时任务、文件"> |
+| <img src="docs/images/phone-home.png" width="220" alt="首页：当前小程序、开发者地址、配对码、AI 编程和云控连接状态、各项权限"> | <img src="docs/images/phone-projects.png" width="220" alt="小程序列表：四个示例小程序，右上角新建、导入"> | <img src="docs/images/phone-project.png" width="220" alt="小程序详情：运行、日志、权限检查、开机自启、定时任务、文件"> |
 | 开发者地址、配对码、权限状态，一键运行上次的小程序 | **新建** / **导入**，点进某个小程序 | **运行** / **日志**、开机自启、停止后重新运行、定时任务 |
 | **查看代码** | **运行日志** | **定时任务** |
 | <img src="docs/images/phone-editor.png" width="220" alt="手机上查看和修改 __init__.py"> | <img src="docs/images/phone-run-log.png" width="220" alt="运行日志：print 输出实时显示，可停止、清空"> | <img src="docs/images/phone-schedule.png" width="220" alt="添加定时任务：每天定时、每隔 N 分钟、只运行一次"> |
