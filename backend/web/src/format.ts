@@ -74,3 +74,16 @@ export function copy(text: string): Promise<void> {
   ta.remove();
   return Promise.resolve();
 }
+
+type LastRun = { project: string; exit: string; crashed: boolean; time: number; tail?: { stream: string; line: string }[] };
+
+/** The device list flags a crash only while no newer run is in progress (a running device has moved on). */
+export function crashedRun(d: { running: boolean; last_run?: LastRun | null }): boolean {
+  return Boolean(d.last_run?.crashed) && !d.running;
+}
+
+/** "签到 · 退出码 1 · 3 分钟前" plus the last stderr line (cut to 200 characters). */
+export function crashSummary(r: LastRun): { head: string; error: string } {
+  const error = [...(r.tail ?? [])].reverse().find((t) => t.stream === "stderr")?.line.trim() ?? "";
+  return { head: `${r.project} · 退出码 ${r.exit} · ${fmtAgo(r.time)}`, error: error.slice(0, 200) };
+}

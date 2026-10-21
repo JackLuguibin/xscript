@@ -35,7 +35,7 @@ import {
 import { api, type CommandReply, type CommandResult, type Device, type Group, type Page } from "../api";
 import { useAuth } from "../auth";
 import { PageHeader, Pill, SearchInput, TargetSelect } from "../components";
-import { COMMAND_LABELS, describeTarget, fmtAgo } from "../format";
+import { COMMAND_LABELS, crashSummary, crashedRun, describeTarget, fmtAgo } from "../format";
 import { DeviceDrawer } from "./devices/DeviceDrawer";
 
 interface Filters {
@@ -159,16 +159,26 @@ export default function DevicesPage() {
       title: "状态",
       key: "state",
       width: 180,
-      render: (_, d) =>
-        !d.online ? (
-          <Pill>离线 · {fmtAgo(d.last_seen)}</Pill>
-        ) : d.running ? (
-          <Pill tone="green" pulse>
-            运行 {d.project}
-          </Pill>
-        ) : (
-          <Pill tone="blue">在线 · 空闲</Pill>
-        ),
+      render: (_, d) => (
+        <>
+          {!d.online ? (
+            <Pill>离线 · {fmtAgo(d.last_seen)}</Pill>
+          ) : d.running ? (
+            <Pill tone="green" pulse>
+              运行 {d.project}
+            </Pill>
+          ) : (
+            <Pill tone="blue">在线 · 空闲</Pill>
+          )}
+          {crashedRun(d) ? (
+            <Tooltip title={<CrashTip run={d.last_run!} />}>
+              <span style={{ marginLeft: 4 }}>
+                <Pill tone="red">异常退出</Pill>
+              </span>
+            </Tooltip>
+          ) : null}
+        </>
+      ),
     },
     {
       title: "脚本数据",
@@ -533,6 +543,17 @@ function BatchGroupModal({ open, ids, onClose }: { open: boolean; ids: string[];
     >
       <Input value={group} onChange={(e) => setGroup(e.target.value)} placeholder="留空表示恢复为设备上报的分组" maxLength={64} />
     </Modal>
+  );
+}
+
+function CrashTip({ run }: { run: NonNullable<Device["last_run"]> }) {
+  const { head, error } = crashSummary(run);
+  return (
+    <div>
+      <div>{head}</div>
+      {error ? <div className="mono">{error}</div> : null}
+      <div>详见设备详情 → 运行日志</div>
+    </div>
   );
 }
 
