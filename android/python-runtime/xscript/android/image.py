@@ -131,7 +131,7 @@ def capture_rgba(rect=None, use_cache=True):
             _capture_warned["done"] = False
             return last
         time.sleep(0.1)
-    _warn_no_capture()
+    _capture_failed()
     return last
 
 
@@ -143,7 +143,29 @@ _CAPTURE_NONE_HINT = (
     "截图失败：没有可用的截图方式。请在 XScript 主页授予「图色权限」，"
     "或开启无障碍（Android 11+）/ Root。"
 )
+_CAPTURE_UNKNOWN_HINT = (
+    "截图失败：这次没有拿到屏幕画面（可能是锁屏、安全页面禁止截图或系统繁忙）。"
+    "可以用 screen.capture_status() 查看截图方式是否可用。"
+)
 _capture_warned = {"done": False}
+_strict = {"on": False}
+
+
+class CaptureError(RuntimeError):
+    """Raised by capture and find calls after screen.strict_capture(True) when the screen cannot be captured."""
+
+
+def _capture_failed():
+    """A capture came back empty: log why (once per outage) and, in strict mode, raise CaptureError."""
+    _warn_no_capture()
+    if _strict["on"]:
+        raise CaptureError(_capture_problem() or _CAPTURE_UNKNOWN_HINT)
+
+
+def _reset_run_state():
+    """Each script run starts in the default (non-strict) mode with the warning re-armed."""
+    _strict["on"] = False
+    _capture_warned["done"] = False
 
 
 def _capture_info():
@@ -171,9 +193,7 @@ def _warn_no_capture():
     if _capture_warned["done"]:
         return
     _capture_warned["done"] = True
-    msg = _capture_problem()
-    if msg:
-        print("[xscript] " + msg, file=sys.stderr)
+    print("[xscript] " + (_capture_problem() or _CAPTURE_UNKNOWN_HINT), file=sys.stderr)
 
 
 def capture_bgr(rect=None):
@@ -1468,6 +1488,8 @@ def ocr(rect=None, image=None, level="line"):
     ox, oy = (rect[0], rect[1]) if rect else (0, 0)
     if image is None:
         bmp = bridge.capture_bitmap(*(rect or (0, 0, 0, 0)))
+        if bmp is None:
+            _capture_failed()
     elif hasattr(image, "getPixel"):
         bmp = image
         if rect:

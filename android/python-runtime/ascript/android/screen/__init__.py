@@ -91,6 +91,7 @@ def capture(x=None, y=None, x1=None, y1=None, pixel_format=FORMAT_BITMAP):
             if bmp is not None:
                 return bmp
             time.sleep(0.1)
+        _img._capture_failed()
         return None
 
 

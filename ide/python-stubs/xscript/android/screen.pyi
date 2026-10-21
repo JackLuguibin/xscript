@@ -10,10 +10,26 @@
 """
 import time
 from xscript.android import image as _img
-from xscript.android.image import OcrResult, Point
+from xscript.android.image import CaptureError, OcrResult, Point
 
 def capture(path=None):
     """Save a PNG on the device. Returns the file path or None."""
+    ...
+
+def strict_capture(enabled=True):
+    """Turn a failed screen capture into an error instead of an empty result.
+
+    By default (and at the start of every run) a failed capture keeps the old behavior: capture() returns None,
+    find_* return None / False / [], and the reason is logged once. After strict_capture(True), capture, capture_cv,
+    capture_pil and every find_* / ocr call that grabs the screen raise screen.CaptureError with the fix, so a long
+    script stops right away instead of looping on a blank screen.
+        screen.strict_capture(True)
+        try:
+            screen.find_image(R.img("ok.png"))
+        except screen.CaptureError as e:
+            ui.toast(str(e))
+    Returns the previous setting.
+    """
     ...
 
 def capture_status():
