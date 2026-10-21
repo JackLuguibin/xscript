@@ -40,7 +40,7 @@ jobs:
           persist-credentials: false
           fetch-depth: 2  # a pull_request checkout is the test merge commit: parent 1 is the base branch
       - name: Self-test of the rules, the device scripts' pairing helper and the phone pins
-        run: python3 -m unittest scripts/tests/test_ci_changes.py scripts/tests/test_devauth.py scripts/tests/test_phone_pins.py scripts/tests/test_device_scripts.py scripts/tests/test_versions.py scripts/tests/test_gen_api_catalog.py scripts/tests/test_python_syntax.py scripts/tests/test_mock_eval.py scripts/tests/test_flake_rate.py scripts/tests/test_check_docs.py scripts/tests/test_check_repo_files.py
+        run: python3 -m unittest scripts/tests/test_ci_changes.py scripts/tests/test_devauth.py scripts/tests/test_phone_pins.py scripts/tests/test_device_scripts.py scripts/tests/test_versions.py scripts/tests/test_gen_api_catalog.py scripts/tests/test_python_syntax.py scripts/tests/test_mock_eval.py scripts/tests/test_flake_rate.py scripts/tests/test_check_docs.py scripts/tests/test_check_repo_files.py scripts/tests/test_docs_link_issue.py
       - name: No symlinks, dependency or build output, big files in the repo
         run: python3 scripts/check_repo_files.py
       - name: Docs links, anchors and screenshots

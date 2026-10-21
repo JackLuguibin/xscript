@@ -61,7 +61,7 @@
 | --- | --- |
 | ![工程页浅色](../docs/images/desktop-projects-light.png) | ![工程页深色](../docs/images/desktop-projects-dark.png) |
 
-重新生成：设备上放一个带子文件夹的工程「每日签到」，然后 `python -m xscript_desktop --screenshot out.png --connect-adb <serial> --run-js tools/screenshot-projects.js --screenshot-delay 4 --theme light --size 1180x760`（`--run-js` 在设备连上后在页面里执行脚本：打开工程页、选工程、打开 `lib/tasks.py`）。
+重新生成：设备上放一个带子文件夹的工程「每日签到」，然后 `python -m xscript_desktop --screenshot out.png --connect-adb <serial> --run-js tools/screenshot-projects.js --screenshot-delay 4 --theme light --size 1180x760`（`--run-js` 在设备连上后在页面里执行脚本：打开工程页、选工程、打开 `lib/tasks.py`）。截图规则和其他截图的生成方式见 [docs/截图.md](../docs/截图.md)。
 
 ## P5 安装包与更新（已实现）
 

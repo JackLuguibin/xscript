@@ -1,6 +1,7 @@
 # Weekly docs check (scripts/check_docs.py): relative links, #anchors and unused screenshots fail the job (the same
-# check runs on every PR in ci.yml); unreachable external URLs are only reported. Also on demand and on PRs that
-# change the check.
+# check runs on every PR in ci.yml); unreachable external URLs do not fail it: on the weekly / manual run they are
+# kept in one issue (scripts/docs_link_issue.py opens it, comments while links stay broken, closes it once they work).
+# Also on PRs that change the check (those never touch issues).
 name: docs weekly
 
 on:
@@ -11,6 +12,7 @@ on:
     paths:
       - .github/workflows/docs-weekly.yml
       - scripts/check_docs.py
+      - scripts/docs_link_issue.py
 
 permissions:
   contents: read
@@ -24,12 +26,22 @@ jobs:
     name: docs links and screenshots
     runs-on: ubuntu-24.04
     timeout-minutes: 10
+    permissions:
+      contents: read
+      issues: write
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
       - name: Links, anchors, screenshots (+ external URLs, report only)
-        run: python3 scripts/check_docs.py --external | tee docs-check.txt
+        run: python3 scripts/check_docs.py --external --external-report broken-links.md | tee docs-check.txt
+      - name: Open, update or close the broken-links issue
+        if: github.event_name != 'pull_request'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: python3 scripts/docs_link_issue.py broken-links.md
       - name: Summary
         if: always()
         run: |

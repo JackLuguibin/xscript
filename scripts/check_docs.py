@@ -3,6 +3,7 @@
 
     python3 scripts/check_docs.py              # repo-local checks; exits 1 on a problem
     python3 scripts/check_docs.py --external   # also HEAD/GET every http(s) link (report only, never fails)
+    python3 scripts/check_docs.py --external --external-report broken.md   # + the unreachable ones as a Markdown list
 
 Checked: every tracked *.md file (git ls-files). A relative link or image must point at a file or folder in the repo;
 `#anchor` / `file.md#anchor` must match a heading there (GitHub's slug rules) or an explicit <a id/name>. Every file in
@@ -154,6 +155,25 @@ def probe(url: str) -> str | None:
     return None
 
 
+def arg_value(flag: str) -> str | None:
+    """`--flag VALUE` or `--flag=VALUE` from the command line."""
+    for i, a in enumerate(sys.argv):
+        if a == flag and i + 1 < len(sys.argv):
+            return sys.argv[i + 1]
+        if a.startswith(flag + "="):
+            return a.split("=", 1)[1]
+    return None
+
+
+def external_report(external: list[tuple[str, int, str]], bad: dict[str, str]) -> str:
+    """Markdown list of the unreachable URLs with where they are linked from ("" when none)."""
+    where: dict[str, list[str]] = {}
+    for rel, line, u in external:
+        if u in bad:
+            where.setdefault(u, []).append("`%s:%d`" % (rel, line))
+    return "".join("- %s — %s（%s）\n" % (u, bad[u], "、".join(where[u])) for u in sorted(where))
+
+
 def main() -> int:
     md = tracked("*.md")
     problems, external = check_local(md)
@@ -170,6 +190,10 @@ def main() -> int:
             if u in bad:
                 print("external %s:%d: %s %s" % (rel, line, bad[u], u))
         print("%d external URL(s), %d unreachable (report only)" % (len(urls), len(bad)))
+        report = arg_value("--external-report")
+        if report:
+            with open(report, "w", encoding="utf-8") as f:
+                f.write(external_report(external, bad))
     return 1 if problems else 0
 
 
