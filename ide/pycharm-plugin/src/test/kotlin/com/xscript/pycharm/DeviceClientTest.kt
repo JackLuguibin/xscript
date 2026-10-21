@@ -41,6 +41,26 @@ class DeviceClientTest {
         @AfterClass @JvmStatic fun stopAll() = procs.forEach { it.destroy() }
     }
 
+    @Test fun requestCaptureAndOldApps() {
+        assertTrue(open.requestCapture())
+        // an app from before /capture/request answers 404: reported as "too old", not as an error
+        val old = com.sun.net.httpserver.HttpServer.create(java.net.InetSocketAddress("127.0.0.1", 0), 0)
+        val seen = mutableListOf<String>()
+        old.createContext("/") { ex ->
+            seen += ex.requestMethod + " " + ex.requestURI.path
+            val body = "{\"error\":\"not found\"}".toByteArray()
+            ex.sendResponseHeaders(404, body.size.toLong())
+            ex.responseBody.use { it.write(body) }
+        }
+        old.start()
+        try {
+            assertFalse(DeviceClient(DeviceTarget("127.0.0.1", old.address.port)).requestCapture())
+        } finally {
+            old.stop(0)
+        }
+        assertEquals(listOf("POST /capture/request"), seen)
+    }
+
     @Test fun uploadRunLogsStop() {
         assertFalse(open.status().get("running").asBoolean)
         val up = open.uploadFiles("pyc_demo", listOf(

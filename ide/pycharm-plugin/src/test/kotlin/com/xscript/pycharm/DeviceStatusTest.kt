@@ -28,6 +28,28 @@ class DeviceStatusTest {
     }
 
     @Test
+    fun `capture problems show in the label and tooltip, and a click asks the phone`() {
+        val lost = probe { json("""{"running": false, "version": "0.4.1", "capture": false, "capture_via": "", "capture_lost": true}""") }
+        assertEquals(CaptureProblem.LOST, lost.capture())
+        assertEquals("status.idlestatus.capture.lost", statusLabel(lost, msg))
+        assertEquals("status.tip.captureLost[127.0.0.1:9860]", statusTooltip(lost, "127.0.0.1:9860", msg))
+        assertTrue(clickGrantsCapture(lost))
+        assertFalse(clickOpensConnect(lost))
+
+        val running = probe { json("""{"running": true, "project": "demo", "capture_via": "", "capture_lost": false}""") }
+        assertEquals("status.runningProject[demo]status.capture.none", statusLabel(running, msg))
+
+        // capture works (another method after a lost grant counts as working), or an older app that does not say
+        for (ok in listOf("""{"capture_via": "accessibility", "capture_lost": true}""", """{"capture": true}""", "{}")) {
+            val s = probe { json(ok) }
+            assertEquals(ok, null, s.capture())
+            assertFalse(clickGrantsCapture(s))
+        }
+        assertEquals(CaptureProblem.NONE, captureProblem(json("""{"capture": false}""")))
+        assertEquals(null, DeviceState.Unreachable.capture())
+    }
+
+    @Test
     fun `missing fields do not throw`() {
         val s = probe { json("{}") }
         assertTrue(s is DeviceState.Idle)

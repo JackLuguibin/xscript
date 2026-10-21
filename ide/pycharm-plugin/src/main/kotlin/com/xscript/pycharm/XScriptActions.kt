@@ -66,6 +66,15 @@ class ConnectAction : AnAction() {
     }
 }
 
+/** 在手机上授权截图: the phone shows the system screen-recording dialog. */
+class GrantCaptureAction : AnAction() {
+    override fun getActionUpdateThread() = ActionUpdateThread.BGT
+    override fun update(e: AnActionEvent) { e.presentation.isEnabled = e.project != null }
+    override fun actionPerformed(e: AnActionEvent) {
+        XScriptService.get(e.project ?: return).requestCapture()
+    }
+}
+
 class OpenSettingsAction : AnAction() {
     override fun getActionUpdateThread() = ActionUpdateThread.BGT
     override fun actionPerformed(e: AnActionEvent) {

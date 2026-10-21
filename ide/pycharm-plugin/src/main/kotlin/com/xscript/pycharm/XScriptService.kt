@@ -337,6 +337,22 @@ class XScriptService(private val project: Project) : Disposable {
         }.queue()
     }
 
+    /** Status bar / Tools menu: ask the phone to show the screen-recording grant dialog. */
+    fun requestCapture() {
+        object : Task.Backgroundable(project, XScriptBundle.message("task.requestCapture"), true) {
+            override fun run(indicator: ProgressIndicator) {
+                withPairing { client ->
+                    if (client.requestCapture()) {
+                        notify(XScriptBundle.message("notify.captureRequested"), NotificationType.INFORMATION)
+                    } else {
+                        notify(XScriptBundle.message("notify.captureOldApp"), NotificationType.WARNING)
+                    }
+                }
+                refreshStatus()
+            }
+        }.queue()
+    }
+
     /** Re-checks the status bar's device state now (after a run, stop or connect) instead of at the next poll. */
     fun refreshStatus() {
         ApplicationManager.getApplication().invokeLater({
