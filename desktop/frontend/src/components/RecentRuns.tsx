@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import type { LogEntry, RunRecord } from "../api";
 import { useServices } from "../app-context";
+import { failedLine } from "../run-trace";
 import { t } from "../strings";
 import { Badge } from "./Badge";
 import { Button } from "./ui/button";
@@ -12,13 +13,27 @@ function when(ms: number): string {
 }
 
 /** The phone's run history for one project (GET /projects/{name}/runs); each run can show its own slice of the log. */
-export function RecentRuns({ devId, project, refresh, onError }: { devId: string; project: string; refresh: unknown; onError: (e: unknown) => void }) {
+export function RecentRuns({
+  devId,
+  project,
+  refresh,
+  onError,
+  onOpenLine,
+}: {
+  devId: string;
+  project: string;
+  refresh: unknown;
+  onError: (e: unknown) => void;
+  /** Open a project file at a line (a failed run's 「跳到出错行」). */
+  onOpenLine?: (path: string, line: number) => void;
+}) {
   const { api } = useServices();
   const [runs, setRuns] = useState<RunRecord[] | null>(null);
   const [unsupported, setUnsupported] = useState(false);
   const [open, setOpen] = useState<number | null>(null);
   const [slice, setSlice] = useState<LogEntry[] | null>(null);
   const [failedOnly, setFailedOnly] = useState(false);
+  const [copied, setCopied] = useState(false);
 
   useEffect(() => {
     let live = true;
@@ -41,12 +56,21 @@ export function RecentRuns({ devId, project, refresh, onError }: { devId: string
     if (open === r.start) return setOpen(null);
     setOpen(r.start);
     setSlice(null);
+    setCopied(false);
     try {
       const got = await api.logs(devId, r.log_from);
       setSlice(got.entries.filter((e) => e.seq > r.log_from && e.seq <= r.log_to));
     } catch (e) {
       onError(e);
     }
+  };
+
+  const sliceText = (slice ?? []).map((l) => (l.line.endsWith("\n") ? l.line : l.line + "\n")).join("");
+  const copy = () => {
+    void api.copyText(sliceText).then(
+      () => setCopied(true),
+      (e) => onError(e),
+    );
   };
 
   if (runs === null) return null;
@@ -82,9 +106,28 @@ export function RecentRuns({ devId, project, refresh, onError }: { devId: string
                 {r.stats && <span className="muted">{t.projects.runStats(r.stats.captures, r.stats.capture_avg_ms, r.stats.peak_mb)}</span>}
               </div>
               {open === r.start && slice && (
-                <pre className="logs" style={{ maxHeight: 200, minHeight: 0 }}>
-                  {slice.length === 0 ? <span className="muted">{t.projects.runLogGone}</span> : slice.map((l) => <span key={l.seq} className={l.stream === "stderr" ? "err" : ""}>{l.line.endsWith("\n") ? l.line : l.line + "\n"}</span>)}
-                </pre>
+                <>
+                  <pre className="logs" style={{ maxHeight: 200, minHeight: 0 }}>
+                    {slice.length === 0 ? <span className="muted">{t.projects.runLogGone}</span> : slice.map((l) => <span key={l.seq} className={l.stream === "stderr" ? "err" : ""}>{l.line.endsWith("\n") ? l.line : l.line + "\n"}</span>)}
+                  </pre>
+                  {slice.length > 0 && (
+                    <div style={{ display: "flex", gap: "var(--sp-2)", alignItems: "center", flexWrap: "wrap" }}>
+                      <Button size="sm" onClick={copy}>
+                        {copied ? t.projects.runLogCopied : t.projects.runLogCopy}
+                      </Button>
+                      {(() => {
+                        const at = r.failed && onOpenLine ? failedLine(sliceText, project) : null;
+                        return (
+                          at && (
+                            <Button size="sm" title={at.message} onClick={() => onOpenLine?.(at.path, at.line)}>
+                              {t.projects.runGoToError(at.path, at.line)}
+                            </Button>
+                          )
+                        );
+                      })()}
+                    </div>
+                  )}
+                </>
               )}
             </li>
           ))}

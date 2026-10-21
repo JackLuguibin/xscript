@@ -223,6 +223,14 @@ export function ProjectsPage({ pollMs = LOG_POLL_MS, onDirtyChange }: { pollMs?:
     }
     setReveal({ path: m.path, line: m.line, column: m.column, length: m.length });
   };
+  // 最近运行 → 跳到出错行: open the file (asking about unsaved edits) and select that line
+  const openLine = async (path: string, line: number) => {
+    if (file?.path !== path) {
+      if (!(await confirmDiscard())) return;
+      await openFile(path, false);
+    }
+    setReveal({ path, line, column: 1, length: 0 });
+  };
   // Ctrl/Cmd+Shift+F anywhere on the page (the code editor included) focuses the search box
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -623,7 +631,7 @@ export function ProjectsPage({ pollMs = LOG_POLL_MS, onDirtyChange }: { pollMs?:
                 onError={(e) => setError(e)}
                 onSynced={() => void api.files(devId, project).then(setFiles).catch(() => undefined)}
               />
-              <RecentRuns devId={devId} project={project} refresh={running} onError={(e) => setError(e)} />
+              <RecentRuns devId={devId} project={project} refresh={running} onError={(e) => setError(e)} onOpenLine={(p, ln) => void openLine(p, ln)} />
             </>
           )}
         </section>
