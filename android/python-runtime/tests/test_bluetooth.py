@@ -52,6 +52,11 @@ class FakeBridge:
 
 
 class BluetoothTest(unittest.TestCase):
+    def last(self, op):
+        """Arguments of the latest `op` call. Once notify() starts its pump thread, ble_poll calls interleave, so
+        calls[-1] is not necessarily the call the test just made."""
+        return next(arg for o, arg in reversed(self.fake.calls) if o == op)
+
     def setUp(self):
         self.fake = FakeBridge()
         self.ensure = patch.object(bluetooth.permission, "ensure", return_value=True)
@@ -99,6 +104,7 @@ class BluetoothTest(unittest.TestCase):
 
     def test_ble_read_write_notify(self):
         g = bluetooth.ble_connect("AA:BB:CC:DD:EE:FF", timeout=5)
+        self.addCleanup(g.close)  # runs before the bridge patch is undone: the pump stops against the fake
         self.assertEqual(self.fake.calls[-1][1]["timeout_ms"], 5000)
         self.assertEqual(g.services[0]["uuid"][4:8], "180d")
         self.assertEqual(g.read("180d", "2a38"), b"\x01\x02")
@@ -112,7 +118,7 @@ class BluetoothTest(unittest.TestCase):
         self.assertTrue(done.wait(2))
         self.assertEqual(got, [b"\x48"])
         g.notify("180d", "2a37", None)
-        self.assertFalse(self.fake.calls[-1][1]["enable"])
+        self.assertFalse(self.last("ble_notify")["enable"])
         g.close()
         self.assertIn(("bt_close", {"id": "b2"}), self.fake.calls)
 
