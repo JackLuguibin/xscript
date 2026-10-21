@@ -70,6 +70,8 @@ class ProjectActivity : AppCompatActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        // killed while the user was in system settings during 一键开启全部: carry on where it was
+        guide = PermissionGuide.restore(savedInstanceState?.getString(STATE_GUIDE))
         name = intent.getStringExtra(EXTRA_NAME) ?: return finish()
         store = ProjectStore(this)
         val col = UiKit.screen(this, name, "小程序")
@@ -110,6 +112,11 @@ class ProjectActivity : AppCompatActivity() {
     override fun onPause() {
         handler.removeCallbacks(tick)
         super.onPause()
+    }
+
+    override fun onSaveInstanceState(outState: Bundle) {
+        super.onSaveInstanceState(outState)
+        guide?.let { outState.putString(STATE_GUIDE, it.save()) }
     }
 
     override fun onDestroy() {
@@ -475,6 +482,7 @@ class ProjectActivity : AppCompatActivity() {
 
     companion object {
         const val EXTRA_NAME = "name"
+        private const val STATE_GUIDE = "permission_guide"
         val EDITABLE = setOf("py", "txt", "md", "json", "yaml", "yml", "html", "js", "css", "as", "ini", "cfg", "toml", "csv")
         private val NEXT_FORMAT = DateTimeFormatter.ofPattern("MM-dd HH:mm")
     }
