@@ -246,3 +246,20 @@ test('basic checks: unknown attributes of project classes and instances', () => 
   const dyn = EditorSymbols.build([{path: 'a.py', content: 'class A:\n    def __getattr__(self, n):\n        return 1\na = A()\na.anything\n'}], XSDocs);
   assert.deepEqual(dyn.problemsIn('a.py'), []);
 });
+
+test('quick fix: import candidates for undefined names and where the import goes', () => {
+  const main = '"""Doc."""\nimport os\nfrom x import (y,\n    z)\n\nhelper()\nprint(TOP, _hidden, nothing)\n';
+  const p = EditorSymbols.build([
+    {path: 'a.py', content: 'def helper():\n    pass\nTOP = 1\n_hidden = 2\n'},
+    {path: 'pkg/b.py', content: 'class helper:\n    pass\nfrom a import TOP\n'},
+    {path: '__init__.py', content: main}], XSDocs);
+  assert.deepEqual(p.problemsIn('__init__.py').map(w => [w.line, w.message, w.fix]), [
+    [6, '未定义的名字 helper（Ctrl+. 选择要导入的模块）', ['a', 'pkg.b']],
+    [7, '未定义的名字 TOP（Ctrl+. 从 a 导入）', ['a']],          // pkg.b only re-imports it
+    [7, '未定义的名字 _hidden', undefined],
+    [7, '未定义的名字 nothing', undefined],
+  ]);
+  assert.equal(p.importLine('__init__.py'), 6);
+  const only = EditorSymbols.build([{path: 'm.py', content: 'import os'}, {path: 'n.py', content: '"""d"""\nx = 1\n'}, {path: 'e.py', content: ''}], XSDocs);
+  assert.equal(only.importLine('m.py'), 2); assert.equal(only.importLine('n.py'), 2); assert.equal(only.importLine('e.py'), 1);
+});

@@ -517,6 +517,44 @@ test('Web IDE explorer, editor and create/delete flows in a real browser', {skip
       await b.eval(click, '#refresh'); await b.waitFor(idle);
     });
 
+    await t.test('quick fix (Ctrl+.): import an undefined name from the project module that defines it', async () => {
+      await api('PUT', '/projects/dom/files', {files: [
+        {path: 'qf_a.py', content: 'def helper():\n    return 1\n'}, {path: 'qf_b.py', content: 'class helper:\n    pass\nLIMIT = 3\n'},
+        {path: 'qf_main.py', content: 'print("ok")\n'}]});
+      await b.eval(click, '#refresh'); await b.waitFor(idle);
+      await b.eval(click, row('qf_main.py'));
+      await b.waitFor(() => document.getElementById('editor').value === 'print("ok")\n' && !document.getElementById('editor').disabled);
+      const setText = v => b.eval(v => { const e = document.getElementById('editor'); e.focus(); e.value = v; e.dispatchEvent(new Event('input')); }, v);
+      const caret = at => b.eval(at => { const e = document.getElementById('editor'); e.focus(); e.setSelectionRange(at, at); }, at);
+      const ctrlDot = () => b.eval(() => document.getElementById('editor').dispatchEvent(new KeyboardEvent('keydown', {key: '.', ctrlKey: true, bubbles: true, cancelable: true})));
+      const value = () => b.eval(() => document.getElementById('editor').value);
+      await setText('"""Doc."""\nimport os\n\nprint(LIMIT, os.sep)\nhelper()\n');
+      await b.waitFor(() => document.querySelectorAll('#diag .sq.warn').length === 2, 5000);
+      await b.eval(click, '#problems');
+      assert.match(await b.eval(() => document.getElementById('problems').textContent), /未定义的名字 LIMIT（Ctrl\+\. 从 qf_b 导入）/);
+      // one candidate: inserted after the docstring and imports, caret stays on the same name
+      const at = (await value()).indexOf('LIMIT') + 2; await caret(at); await ctrlDot();
+      await b.waitFor(() => document.getElementById('editor').value.includes('from qf_b import LIMIT'));
+      assert.equal(await value(), '"""Doc."""\nimport os\n\nfrom qf_b import LIMIT\nprint(LIMIT, os.sep)\nhelper()\n');
+      assert.equal(await b.eval(() => document.getElementById('editor').selectionStart), at + 'from qf_b import LIMIT\n'.length);
+      await b.waitFor(() => document.querySelectorAll('#diag .sq.warn').length === 1, 5000);
+      // two candidates: a numbered prompt; cancel changes nothing, 1 picks qf_a
+      await prompts([null]); await caret((await value()).indexOf('helper')); await ctrlDot();
+      await b.waitFor(() => window.__prompts.length === 1);
+      assert.match(await b.eval(() => window.__prompts[0].msg), /1\. qf_a\n2\. qf_b/);
+      assert.equal((await value()).includes('import helper'), false);
+      await prompts(['1']); await ctrlDot();
+      await b.waitFor(() => document.getElementById('editor').value.includes('from qf_a import helper'));
+      await b.waitFor(() => document.getElementById('problems').dataset.count === '0', 5000);
+      // nothing to fix under the caret
+      await caret(0); await ctrlDot();
+      await b.waitFor(() => /没有可自动修复/.test(document.body.textContent));
+      await b.eval(click, '#save'); await b.waitFor(idle);
+      await b.eval(click, row('__init__.py')); await b.waitFor(() => !document.getElementById('editor').disabled);
+      for (const p of ['qf_a.py', 'qf_b.py', 'qf_main.py']) await fetch(base + '/projects/dom/file?path=' + p, {method: 'DELETE'});
+      await b.eval(click, '#refresh'); await b.waitFor(idle);
+    });
+
     await t.test('project search and replace: results, options, jump to match, replace saves clean files and keeps unsaved ones dirty', async () => {
       await api('PUT', '/projects/dom/files', {files: [
         {path: 'search/a.py', content: 'needle = 1\nprint(needle)\n'}, {path: 'search/b.py', content: '# NEEDLE\nx = 2\n'}, {path: 'search/c.txt', content: 'no match here\n'}]});
