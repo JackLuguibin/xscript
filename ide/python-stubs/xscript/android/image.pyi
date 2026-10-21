@@ -59,6 +59,9 @@ def capture_rgba(rect=None, use_cache=True):
     """Screen (or rect of it) as RGBA ndarray. None when capture is unavailable."""
     ...
 
+class CaptureError(RuntimeError):
+    """Raised by capture and find calls after screen.strict_capture(True) when the screen cannot be captured."""
+
 def capture_bgr(rect=None):
     ...
 

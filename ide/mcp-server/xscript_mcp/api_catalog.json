@@ -282,6 +282,11 @@
           "doc": "Can the script see the screen? {ok, source ('projection' | 'accessibility' | 'root' | ''), lost, reason}. lost is True after a reboot or when the system took the screen-recording grant back; reason says what to fix when ok is False. Check it before a long run."
         },
         {
+          "name": "strict_capture",
+          "signature": "strict_capture(enabled=True) -> bool",
+          "doc": "Opt-in: after strict_capture(True) a failed screen capture raises screen.CaptureError (a RuntimeError, message says what to fix) from capture / capture_cv / capture_bitmap / find_* / ocr instead of returning None / False / []. Off by default and reset at the start of every run; the reason is logged once either way. Returns the previous setting."
+        },
+        {
           "name": "wait_image",
           "signature": "wait_image(template, timeout=10, rect=None, confidence=0.9, rgb=False, interval=0.3, method=None) -> dict | None",
           "doc": "Poll find_image until the template appears or timeout seconds pass."

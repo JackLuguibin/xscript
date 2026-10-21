@@ -1,0 +1,19 @@
+{
+  "type": "screen.strict_capture",
+  "title": {
+    "zh": "截图失败时报错",
+    "en": "Strict capture"
+  },
+  "doc": {
+    "zh": "打开后截图失败会直接报错（screen.CaptureError，说明怎么修），而不是让找图找色一直返回空结果。默认关闭，每次运行重新开始。",
+    "en": "When on, a failed screen capture raises screen.CaptureError with the fix instead of empty find results. Off by default; reset every run."
+  },
+  "icon": "image",
+  "inputs": [
+    {
+      "name": "enabled",
+      "type": "bool",
+      "ui": "bool"
+    }
+  ]
+}

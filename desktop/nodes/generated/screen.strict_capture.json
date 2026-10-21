@@ -1,0 +1,45 @@
+{
+  "type": "screen.strict_capture",
+  "category": "screen",
+  "title": {
+    "zh": "screen.strict_capture",
+    "en": "screen.strict_capture"
+  },
+  "doc": {
+    "zh": "Turn a failed screen capture into an error instead of an empty result.",
+    "en": "Turn a failed screen capture into an error instead of an empty result."
+  },
+  "exec": {
+    "in": [
+      "exec"
+    ],
+    "out": [
+      "then"
+    ]
+  },
+  "inputs": [
+    {
+      "name": "enabled",
+      "type": "any",
+      "default": true
+    }
+  ],
+  "outputs": [
+    {
+      "name": "result",
+      "type": "any"
+    }
+  ],
+  "py": {
+    "imports": [
+      "from xscript.android import screen"
+    ],
+    "stmt": "{id} = screen.strict_capture({enabled})"
+  },
+  "dsl": {
+    "alias": "screen.strict_capture"
+  },
+  "since": "0.2.6",
+  "origin": "xscript.android.screen.strict_capture",
+  "availability": "ok"
+}

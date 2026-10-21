@@ -117,6 +117,12 @@ if not st["ok"]:                     # 长时间运行前先检查：不能截�
     ui.toast(st["reason"])           # 例如「截图失败：系统录屏授权已失效……请……重新授权」
     raise SystemExit
 
+screen.strict_capture(True)          # 可选：截图失败时直接报错，而不是让找图一直返回空
+try:
+    screen.find_image("res/img/ok.png")
+except screen.CaptureError as e:     # RuntimeError 的子类，消息里写着怎么修
+    ui.toast(str(e))
+
 with_cache = screen.cache(True)      # 冻结一帧，供多次查找使用
 screen.cache(False)
 
@@ -140,6 +146,8 @@ screen.ocr_click("同意")
 `find_color_blobs(color, rect=None, sim=0.9, color_space="hsv", tolerance=None, min_area=50, max_num=0)` 用连通域找色块，`color` 可用 `|` 连接多个颜色，`fill` 为面积占外接矩形的比例（1.0 为实心矩形）；全屏约 5ms。`dominant_colors(rect=None, k=3)` 在 Lab 空间用 k-means 取主色（区域抽样到约 2 万像素，随机种子固定，结果稳定）；全屏约 13ms。
 
 截图状态：`capture_status()` 返回 `ok`（现在能否截图）、`source`（将使用的方式：`projection` 系统录屏、`accessibility` 无障碍截图、`root`，不能截图时为空）、`lost`（系统录屏授权在重启或被系统收回后失效）和 `reason`（不能截图时该怎么做）。截图失败时找图找色只会返回空结果，所以长时间运行的脚本最好在开头检查一次。
+
+截图失败时的行为：默认和以前一样，`capture()` / `capture_cv()` / `capture_bitmap()` 返回 `None`，`find_*` / `ocr*` 返回 `None` / `False` / `[]`，脚本不会因此中断；同时在日志里写一次原因和修法（每次截图恢复后重新计数）。**变化**：以前只有截图权限失效或没有可用方式时才写这条日志，现在原因不明（例如锁屏、安全页面禁止截图）时也会写一条，`screen.capture()` 和 OCR 截屏失败也会写。想让脚本在截图失败时立刻停下，调用 `screen.strict_capture(True)`：之后上面这些调用在截不到屏幕时抛出 `screen.CaptureError`（`RuntimeError` 的子类，消息就是修法）；传入图片的调用（`find_image(..., image=img)` 等）不受影响。这个开关默认关闭，每次运行开始时都会恢复为关闭，返回值是之前的设置。
 
 按钮状态：`image_state(template, rect=None, confidence=0.9, image=None)` 先按灰度形状找图，再比较找到的区域和模板的颜色（同 `rgb=True` 的色度校验）。模板请从按钮可用（彩色）时截取。`wait_enabled` 和 `wait_image` 跟 `ocr_wait` 一样每 `interval` 秒（默认 0.3）看一次，超时时最后再看一次。
 
