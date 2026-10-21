@@ -32,6 +32,11 @@
             </action>
             <action id="XScript.Stop" class="com.xscript.pycharm.StopAction"
                     text="Stop Script on Device" description="Stop the script running on the phone" icon="AllIcons.Actions.Suspend"/>
+            <action id="XScript.EvalSelection" class="com.xscript.pycharm.EvalSelectionAction"
+                    text="Run Selection on Device" description="Evaluate the selected code (or the current line) on the phone; assign _result to see a value"
+                    icon="AllIcons.Actions.RunToCursor">
+                <keyboard-shortcut keymap="$default" first-keystroke="ctrl alt shift E"/>
+            </action>
             <action id="XScript.Connect" class="com.xscript.pycharm.ConnectAction"
                     text="Connect to Device…" description="Set the phone address and test the connection" icon="AllIcons.General.Web"/>
             <action id="XScript.NewProject" class="com.xscript.pycharm.NewProjectAction"
@@ -44,6 +49,10 @@
         <action id="XScript.UploadAndRun.Popup" class="com.xscript.pycharm.UploadAndRunAction"
                 text="XScript: Upload and Run on Device" icon="AllIcons.Actions.Execute">
             <add-to-group group-id="ProjectViewPopupMenu" anchor="last"/>
+            <add-to-group group-id="EditorPopupMenu" anchor="last"/>
+        </action>
+        <action id="XScript.EvalSelection.Popup" class="com.xscript.pycharm.EvalSelectionAction"
+                text="XScript: Run Selection on Device" icon="AllIcons.Actions.RunToCursor">
             <add-to-group group-id="EditorPopupMenu" anchor="last"/>
         </action>
     </actions>

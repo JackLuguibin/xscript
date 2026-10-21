@@ -90,6 +90,19 @@ class XScriptService(private val project: Project) : Disposable {
         }.queue()
     }
 
+    /** Runs a snippet in the device's eval process and prints it with its result in the XScript console. */
+    fun eval(code: String) {
+        object : Task.Backgroundable(project, XScriptBundle.message("task.eval"), true) {
+            override fun run(indicator: ProgressIndicator) {
+                withPairing { client ->
+                    val r = client.eval(code)
+                    showLog()
+                    print(formatEval(code, r), if (r.ok) ConsoleViewContentType.NORMAL_OUTPUT else ConsoleViewContentType.ERROR_OUTPUT)
+                }
+            }
+        }.queue()
+    }
+
     fun testConnection() {
         object : Task.Backgroundable(project, XScriptBundle.message("task.connect"), true) {
             override fun run(indicator: ProgressIndicator) {

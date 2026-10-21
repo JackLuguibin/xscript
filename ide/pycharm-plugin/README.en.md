@@ -27,6 +27,7 @@ Then in PyCharm: **Settings → Plugins → ⚙ → Install Plugin from Disk…*
 | --- | --- | --- |
 | Upload and Run on Device | Ctrl+Alt+Shift+R; editor and Project view context menus | Stops the script running on the phone, uploads the project of the current file and runs it; the log streams into the XScript tool window |
 | Stop Script on Device | | Stops the running script |
+| Run Selection on Device | Ctrl+Alt+Shift+E; editor context menu | Evaluates the selected code (or the current line) in the phone's eval process and prints the result in the XScript tool window; assign `_result` to see a value; 8 s timeout |
 | Connect to Device… | | Sets the phone address (`IP[:port]`) and tests the connection |
 | New XScript Project… | | Picks one of the 7 templates shared with the VS Code extension, web IDE and phone app; writes `__init__.py`, `build.as`, `res/` |
 | Enable / Disable XScript Completion | | Adds or removes the bundled stubs as the module library "XScript stubs" |
