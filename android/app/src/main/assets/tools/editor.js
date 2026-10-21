@@ -603,6 +603,23 @@
     refs.show(r.name, r.refs);
     message(r.name + " · " + r.refs.length + " 处引用");
   }
+  // Hover on a project name: signature / inferred type from the symbol table. Other files are re-read at most every
+  // 10 s; the open file's own text is always current.
+  let hoverFiles = null, hoverIndex = null;
+  assist.describe = async pos => {
+    if (!current || current.binary || !/\.py$/.test(current.path) || !model.project) return null;
+    const path = current.path, text = el("editor").value, project = model.project;
+    if (!hoverFiles || hoverFiles.project !== project || Date.now() - hoverFiles.at > 10000) {
+      hoverFiles = {project, at: Date.now(), files: await model.pythonSources(project)}; hoverIndex = null;
+    }
+    if (!current || current.path !== path || el("editor").value !== text) return null;
+    if (!hoverIndex || hoverIndex.path !== path || hoverIndex.text !== text || hoverIndex.files !== hoverFiles) {
+      const files = hoverFiles.files.filter(f => f.path !== path).concat([{path, content: text}]);
+      hoverIndex = {path, text, files: hoverFiles, index: EditorSymbols.build(files, window.XSDocs || null)};
+    }
+    const before = text.slice(0, pos), line = before.split("\n").length, col = pos - before.lastIndexOf("\n") - 1;
+    return hoverIndex.index.describeAt(path, line, col);
+  };
   const refs = EditorPanels.initRefs({open: (path, line, col, length) => revealAt(path, line, col, length)});
   // Search / replace and screenshot panels (editor-panels.js).
   const selectionText = () => { const box = el("editor"), t = box.value.slice(box.selectionStart, box.selectionEnd); return t && !/\n/.test(t) && t.length <= 200 ? t : ""; };

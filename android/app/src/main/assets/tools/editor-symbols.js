@@ -17,6 +17,39 @@
     return parts.join(".");
   }
 
+  const BUILTIN_TYPES = { int: "int", float: "float", str: "str", bytes: "bytes", bool: "bool", list: "list", dict: "dict", set: "set",
+    tuple: "tuple", frozenset: "frozenset", len: "int", range: "range", sorted: "list", repr: "str", round: "int", abs: null,
+    input: "str", open: "file", enumerate: "enumerate", zip: "zip", chr: "str", ord: "int", hex: "str", bin: "str", format: "str" };
+  // Short source-like text of an expression for signatures (defaults, annotations, bases).
+  function show(e, depth) {
+    depth = (depth || 0) + 1; if (!e) return ""; if (depth > 6) return "…";
+    const list = (xs, o, c) => { const s = (xs || []).map(x => show(x, depth)); const t = s.join(", "); return o + (t.length > 24 ? s[0] + ", …" : t) + c; };
+    switch (e.type) {
+      case "Name": return e.id;
+      case "Attribute": return show(e.value, depth) + "." + e.attr;
+      case "Constant": return String(e.value).length > 24 ? String(e.value).slice(0, 20) + "…" + String(e.value).slice(-1) : String(e.value);
+      case "JoinedStr": return e.value.length > 24 ? e.value.slice(0, 20) + "…" + e.value.slice(-1) : e.value;
+      case "Subscript": return show(e.value, depth) + "[" + (Array.isArray(e.slice) ? e.slice.map(x => show(x, depth)).join(", ") : show(e.slice, depth)) + "]";
+      case "List": return list(e.elts, "[", "]");
+      case "Tuple": return list(e.elts, "(", (e.elts || []).length === 1 ? ",)" : ")");
+      case "Set": return list(e.elts, "{", "}");
+      case "Dict": return (e.keys || []).length ? "{…}" : "{}";
+      case "UnaryOp": return (e.op === "not" ? "not " : e.op) + show(e.operand, depth);
+      case "Call": return show(e.func, depth) + "(…)";
+      case "BinOp": return show(e.left, depth) + " " + e.op + " " + show(e.right, depth);
+      default: return "…";
+    }
+  }
+  // The docstring of a module, class or function node (first statement a string), shortened for a tooltip.
+  function docstring(n) {
+    const first = n && Array.isArray(n.body) ? n.body[0] : null;
+    if (!first || first.type !== "Expr" || !first.value || first.value.type !== "Constant" || first.value.kind !== "string") return "";
+    const raw = first.value.value.replace(/^[a-zA-Z]*("""|'''|"|')/, "").replace(/("""|'''|"|')$/, "");
+    const lines = raw.split("\n"), ind = Math.min(...lines.slice(1).filter(l => l.trim()).map(l => l.match(/^ */)[0].length), 99);
+    const text = [lines[0].trim(), ...lines.slice(1).map(l => l.slice(Math.min(ind, 99)))].join("\n").trim();
+    return text.length > 400 ? text.slice(0, 399) + "…" : text;
+  }
+
   class Scope {
     constructor(kind, name, parent, file, node) {
       this.kind = kind; this.name = name; this.parent = parent; this.file = file; this.node = node;
@@ -91,8 +124,20 @@
           return;
         case "Assign":
           visit(n.value, scope); visit(n.targets, scope);
-          for (const t of n.targets) if (t.type === "Name") { const ds = bindScope(scope, t.id).defs.get(t.id); if (ds) ds[ds.length - 1].value = n.value; }
+          for (const t of n.targets) {
+            if (t.type === "Name") { const ds = bindScope(scope, t.id).defs.get(t.id); if (ds) Object.assign(ds[ds.length - 1], { value: n.value, valueScope: scope }); }
+            else if (t.type === "Attribute" && t.value.type === "Name" && scope.kind === "function" && scope.parent.kind === "class" && scope.firstParam === t.value.id) {
+              const ds = scope.parent.defs.get(t.attr); if (ds) Object.assign(ds[ds.length - 1], { value: n.value, valueScope: scope });
+            }
+          }
           return;
+        case "AnnAssign": {
+          visit(n.annotation, scope); visit(n.value, scope); visit(n.target, scope);
+          const t = n.target, ds = t.type === "Name" ? bindScope(scope, t.id).defs.get(t.id)
+            : t.type === "Attribute" && t.value.type === "Name" && scope.kind === "function" && scope.parent.kind === "class" && scope.firstParam === t.value.id ? scope.parent.defs.get(t.attr) : null;
+          if (ds) Object.assign(ds[ds.length - 1], { annotation: n.annotation, value: n.value || undefined, valueScope: scope });
+          return;
+        }
         case "Import":
           for (const a of n.names) {
             const local = a.asname || a.name.split(".")[0];
@@ -169,7 +214,7 @@
       if (!sym || sym.module || sym.library) return sym;
       const ds = this.defs(sym);
       const c = ds.find(d => d.kind === "class"); if (c) return { cls: c.inner };
-      const v = ds.find(d => d.value); if (v) return this.valueOf(v.value, sym.scope, hops);
+      const v = ds.find(d => d.value); if (v) return this.valueOf(v.value, v.valueScope || sym.scope, hops);
       return null;
     }
     member(v, attr, hops) {
@@ -207,6 +252,92 @@
     definitionAt(path, line, col) {
       const o = this.occurrenceAt(path, line, col); if (!o) return null;
       const sym = this.resolveOcc(o); return sym ? this.location(sym) : null;
+    }
+    /**
+     * Hover text for a project symbol at (path, line, col): {name, head, where, doc} or null (library symbols and
+     * unknown names are left to the library hover). `head` is a signature or "name: type" with an inferred type.
+     */
+    describeAt(path, line, col) {
+      const o = this.occurrenceAt(path, line, col); if (!o) return null;
+      const sym = this.resolveOcc(o);
+      if (!sym || sym.library) return null;
+      if (sym.module) return { name: sym.module.module, head: "module " + sym.module.module, where: sym.module.path, doc: docstring(sym.module.root.node) };
+      const all = this.defs(sym), ds = all.filter(d => d.kind !== "import"), d = ds[0] || all[0]; if (!d) return null;
+      const scope = sym.scope, owner = scope.kind === "class" ? scope.name + "." : "", where = scope.file.path + ":" + d.line;
+      if (d.kind === "function") {
+        const n = d.node, params = n.args.map(a => (a.kind === "vararg" ? "*" : a.kind === "kwarg" ? "**" : "") + a.arg +
+          (a.annotation ? ": " + show(a.annotation) : "") + (a.default ? (a.annotation ? " = " : "=") + show(a.default) : ""));
+        return { name: sym.name, head: (n.isAsync ? "async def " : "def ") + owner + sym.name + "(" + params.join(", ") + ")" + (n.returns ? " -> " + show(n.returns) : ""), where, doc: docstring(n) };
+      }
+      if (d.kind === "class") {
+        const n = d.node, bases = (n.bases || []).map(show);
+        return { name: sym.name, head: "class " + sym.name + (bases.length ? "(" + bases.join(", ") + ")" : ""), where, doc: docstring(n) };
+      }
+      if (d.kind === "parameter") {
+        const a = this.param(sym), t = this.paramType(sym);
+        return { name: sym.name, head: "(参数) " + (a && a.kind === "vararg" ? "*" : a && a.kind === "kwarg" ? "**" : "") + sym.name + (t ? ": " + t : "") + (a && a.default ? " = " + show(a.default) : ""), where, doc: "" };
+      }
+      const label = d.kind === "attribute" ? "(属性) " + owner : "(变量) ";
+      const typed = ds.find(x => x.annotation), valued = ds.find(x => x.value);
+      const t = typed ? show(typed.annotation) : valued ? this.typeOf(valued.value, valued.valueScope || scope) : null;
+      return { name: sym.name, head: label + sym.name + (t ? ": " + t : ""), where, doc: "" };
+    }
+    param(sym) { return sym.scope.node && (sym.scope.node.args || []).find(x => x.arg === sym.name) || null; }
+    paramType(sym) {
+      const a = this.param(sym); if (!a) return null;
+      if (a.annotation) return show(a.annotation);
+      if (a.kind === "vararg") return "tuple"; if (a.kind === "kwarg") return "dict";
+      const t = a.default ? this.typeOf(a.default, sym.scope.parent) : null;
+      return t === "None" ? null : t;
+    }
+    /** A short inferred type for expression `e` evaluated in `scope`: "int", "list", a project class name, a library key, or null. */
+    typeOf(e, scope, depth) {
+      depth = (depth || 0) + 1; if (!e || depth > MAX_HOPS) return null;
+      switch (e.type) {
+        case "Constant":
+          if (e.kind === "number") return /j$/i.test(e.value) ? "complex" : /^0[xob]/i.test(e.value) ? "int" : /[.eE]/.test(e.value) ? "float" : "int";
+          if (e.kind === "string") return /^[a-zA-Z]*[bB]/.test(e.value) ? "bytes" : "str";
+          return e.value === "None" ? "None" : e.value === "True" || e.value === "False" ? "bool" : e.value === "..." ? "ellipsis" : null;
+        case "JoinedStr": return "str";
+        case "List": case "ListComp": return "list";
+        case "Dict": case "DictComp": return "dict";
+        case "Set": case "SetComp": return "set";
+        case "Tuple": return "tuple";
+        case "GeneratorExp": return "generator";
+        case "Lambda": return "function";
+        case "Compare": return "bool";
+        case "BoolOp": { const a = this.typeOf(e.values && e.values[0], scope, depth); return a && (e.values || []).every(v => this.typeOf(v, scope, depth) === a) ? a : null; }
+        case "UnaryOp": return e.op === "not" ? "bool" : this.typeOf(e.operand, scope, depth);
+        case "BinOp": {
+          const l = this.typeOf(e.left, scope, depth), r = this.typeOf(e.right, scope, depth);
+          if (e.op === "/" && /^(int|float)$/.test(l) && /^(int|float)$/.test(r)) return "float";
+          if (/^(int|float)$/.test(l) && /^(int|float)$/.test(r)) return l === "float" || r === "float" ? "float" : "int";
+          if (e.op === "%" && (l === "str" || l === "bytes")) return l;
+          return l && l === r && /^[-+*|&^]$|^\/\/$/.test(e.op) ? l : null;
+        }
+        case "Call": {
+          if (e.func.type === "Name" && BUILTIN_TYPES[e.func.id] && !this.lookup(scope, e.func.id)) return BUILTIN_TYPES[e.func.id];
+          const v = this.valueOf(e.func, scope);
+          if (v && v.cls) return v.cls.name;
+          if (v && v.library) return v.library;
+          const f = e.func.type === "Name" ? this.lookup(scope, e.func.id) : e.func.type === "Attribute" ? this.member(this.valueOf(e.func.value, scope), e.func.attr) : null;
+          const fd = f && !f.module && !f.library ? this.defs(f).find(x => x.kind === "function") : null;
+          return fd && fd.node.returns ? show(fd.node.returns) : null;
+        }
+        case "Name": case "Attribute": {
+          const v = this.valueOf(e, scope);
+          if (v && v.module) return "module " + v.module.module;
+          if (v && v.cls) return v.cls.name;
+          if (e.type === "Name") {
+            const sym = this.lookup(scope, e.id); if (!sym || sym.module || sym.library) return null;
+            if (this.defs(sym).some(x => x.kind === "parameter")) return this.paramType(sym);
+            const d = this.defs(sym).find(x => x.annotation || x.value);
+            return d ? (d.annotation ? show(d.annotation) : this.typeOf(d.value, d.valueScope || sym.scope, depth)) : null;
+          }
+          return null;
+        }
+        default: return null;
+      }
     }
     /** Every occurrence in the project that resolves to the same symbol: {name, refs:[{path,line,col,length,text,def}]}. */
     referencesAt(path, line, col) {
