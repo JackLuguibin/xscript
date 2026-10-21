@@ -65,6 +65,18 @@ intellijPlatform {
     // Not published to JetBrains Marketplace (needs the user's approval and account).
 }
 
+// The .pyi stubs that scripts/gen_stubs.py generates (ide/python-stubs) ship inside the plugin as <plugin>/stubs, the
+// same files the VS Code extension bundles; the plugin points PyCharm at them instead of copying them into projects.
+val stubsDir = rootDir.resolve("../python-stubs")
+tasks.withType<org.jetbrains.intellij.platform.gradle.tasks.PrepareSandboxTask>().configureEach {
+    val plugin = pluginName
+    from(stubsDir) {
+        include("xscript/**", "ascript/**")
+        exclude("**/__pycache__/**")
+        into(plugin.map { "$it/stubs" })
+    }
+}
+
 tasks.test {
     // scripts/mock_device.py lives at the repo root; the client tests start it when python3 is available.
     systemProperty("xscript.repo", rootDir.resolve("../..").canonicalPath)
