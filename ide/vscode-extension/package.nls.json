@@ -33,7 +33,7 @@
   "xscript.config.title": "XScript",
   "xscript.config.device": "Device address shown in the app (开发者地址). Use 127.0.0.1:<port> with `adb forward tcp:9860 tcp:9860`. Saved per workspace when one is open.",
   "xscript.config.logPollMs": "How often run logs are polled while following.",
-  "xscript.config.syncDeletes": "Upload also deletes device files that were removed locally. Off by default; the files are listed and deleted only after you confirm. Files matched by .vscode/.syncignore, dot files and __pycache__ are never deleted.",
+  "xscript.config.syncDeletes": "Upload also deletes device files that were removed locally. Off by default; the files are listed and deleted only after you confirm. Files matched by .vscode/.syncignore, dot files and __pycache__ are never deleted. Device folders the deletes leave empty are removed too (listed in the same confirmation).",
   "xscript.config.evalTimeoutMs": "Timeout for Run Selection on Device.",
   "xscript.config.adbPath": "Path to adb for device scanning and the ADB terminal. Empty: use ANDROID_HOME / the usual SDK folders, then PATH.",
   "xscript.config.scanLan": "Also scan the local network (private /24 ranges) for devices, not only ADB.",

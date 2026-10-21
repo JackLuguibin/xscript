@@ -50,7 +50,7 @@ class UploadPlanTest {
     @Test fun deletesOnlyManagedDeviceFilesMissingLocally() {
         val ignore = IgnoreRules("*.log\ndata/\n")
         val remote = listOf("__init__.py", "old.py", "lib/gone.py", "lib/keep.py", "run.log", "data/cache.json",
-            ".hidden", "__pycache__/x.pyc", "lib/__pycache__/y.pyc", "stale.pyc", "zz.txt").map { RemoteFile(it, 1) }
+            ".hidden", "__pycache__/x.pyc", "lib/__pycache__/y.pyc", "stale.pyc", "zz.txt").map { RemoteFile(it, 1L) }
         val local = listOf("lib/keep.py", "build.as")
         val gone = UploadPlanner.planDeletes(local, remote) { LocalProject.isSyncedPath(it, ignore) }
         // __init__.py is protected; .syncignore'd, dot, __pycache__ and .pyc paths are never managed by uploads
@@ -81,5 +81,18 @@ class UploadPlanTest {
         assertEquals("  f1.py", text.lines().first())
         assertEquals("  +3", text.lines().last())
         assertEquals("  a.py\n  b.py", UploadPlanner.describeDeletes(listOf("a.py", "b.py")))
+    }
+
+    @Test
+    fun emptiedFoldersAreTheTopmostOnesTheDeletesLeaveWithoutFiles() {
+        val remote = listOf("__init__.py", "lib/a.py", "lib/sub/b.py", "lib/__pycache__/a.pyc", "pkg/x.py", "pkg/data.json",
+            "tools/t.py", "fresh/old.py", "assets/hidden/.keep", "assets/hidden/i.py").map { RemoteFile(it, 1L) }
+        val gone = listOf("lib/a.py", "lib/sub/b.py", "pkg/x.py", "tools/t.py", "fresh/old.py", "assets/hidden/i.py")
+        val local = listOf("__init__.py", "fresh/new.py")
+        // lib: only __pycache__ is left (removed once, not lib/sub too); pkg keeps data.json; fresh has a file
+        // just uploaded; assets/hidden keeps a dot file.
+        assertEquals(listOf("lib", "tools"), UploadPlanner.planEmptiedFolders(local, remote, gone))
+        assertEquals(emptyList<String>(), UploadPlanner.planEmptiedFolders(local, remote, emptyList()))
+        assertEquals(emptyList<String>(), UploadPlanner.planEmptiedFolders(local, null, gone))
     }
 }

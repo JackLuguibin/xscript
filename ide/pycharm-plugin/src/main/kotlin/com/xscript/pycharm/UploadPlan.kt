@@ -44,6 +44,27 @@ object UploadPlanner {
         return remote.map { it.path }.filter { it !in have && it !in PROTECTED && synced(it) }.distinct().sorted()
     }
 
+    /**
+     * Device folders that `gone` leaves without files: every device file under them is being deleted and no local
+     * file lives under them (a file uploaded a moment ago is not in the pre-upload `remote` list). __pycache__ and .pyc
+     * leftovers do not count as content. Only the topmost such folders, sorted; they are removed with
+     * DELETE ?recursive=1, which takes those leftovers too.
+     */
+    fun planEmptiedFolders(local: Collection<String>, remote: List<RemoteFile>?, gone: List<String>): List<String> {
+        if (remote == null || gone.isEmpty()) return emptyList()
+        val deleting = gone.toHashSet()
+        fun dirsOf(p: String): List<String> {
+            val parts = p.split('/')
+            return (1 until parts.size).map { parts.subList(0, it).joinToString("/") }
+        }
+        fun generated(p: String) = p.endsWith(".pyc") || "__pycache__" in p.split('/')
+        val keep = HashSet<String>()
+        remote.forEach { f -> if (f.path !in deleting && !generated(f.path)) keep += dirsOf(f.path) }
+        local.forEach { keep += dirsOf(it) }
+        val cands = gone.flatMap(::dirsOf).filter { it !in keep }.toSet()
+        return cands.filter { d -> dirsOf(d).none { it in cands } }.sorted()
+    }
+
     /** The file list for the confirmation: at most `max` lines, then "… and N more". */
     fun describeDeletes(paths: List<String>, max: Int = 30, more: (Int) -> String = { "… and $it more" }): String =
         (paths.take(max).map { "  $it" } + (if (paths.size > max) listOf("  " + more(paths.size - max)) else emptyList())).joinToString("\n")

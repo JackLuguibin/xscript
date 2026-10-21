@@ -126,6 +126,14 @@ class DeviceClient(val target: DeviceTarget, private val timeoutMs: Long = 15000
         return o.get("ok")?.asBoolean == true || o.has("error")
     }
 
+    /** DELETE /projects/{name}/file?recursive=1: a folder and everything in it. Returns the files removed; 0 when already gone. */
+    fun deleteFolder(project: String, path: String): Int {
+        val o = obj("DELETE", "/projects/${p(project)}/file", query = mapOf("path" to path, "recursive" to "1"), pass = setOf(404))
+        if (o.get("ok")?.asBoolean == true) return o.get("deleted")?.asInt ?: 0
+        if (o.has("error") && o.get("error").asString.startsWith("文件不存在")) return 0
+        throw IllegalStateException(o.get("error")?.asString ?: "could not delete folder $path")
+    }
+
     fun readFileRaw(project: String, path: String): ByteArray =
         send("GET", "/projects/${p(project)}/file", query = mapOf("path" to path, "raw" to "1"), timeout = maxOf(timeoutMs, 60000)).body()
 
