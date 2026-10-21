@@ -53,6 +53,10 @@ class DeviceClientTest {
         val remote = open.projectFiles("pyc_demo")!!.associate { it.path to it.size }
         assertEquals(3L, remote["res/a.bin"])
         assertNull(open.projectFiles("no_such_project"))
+        open.uploadFiles("pyc_demo", listOf(UploadFile("old.py", "x\n", "utf-8")))
+        assertTrue(open.deleteFile("pyc_demo", "old.py"))
+        assertTrue(open.deleteFile("pyc_demo", "old.py"))       // already gone counts as removed
+        assertFalse(open.projectFiles("pyc_demo")!!.any { it.path == "old.py" })
 
         val since = open.currentSeq()
         assertTrue(open.run("pyc_demo").get("running").asBoolean)

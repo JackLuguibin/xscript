@@ -1,6 +1,8 @@
 package com.xscript.pycharm
 
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
+import org.junit.Assert.assertTrue
 import org.junit.Test
 import java.util.Base64
 
@@ -43,5 +45,41 @@ class UploadPlanTest {
 
     @Test fun cacheKeyIsPerDeviceAndProject() {
         assertEquals("xscript.sync:10.0.0.2:9860:demo", UploadPlanner.cacheKey(DeviceTarget("10.0.0.2", 9860), "demo"))
+    }
+
+    @Test fun deletesOnlyManagedDeviceFilesMissingLocally() {
+        val ignore = IgnoreRules("*.log\ndata/\n")
+        val remote = listOf("__init__.py", "old.py", "lib/gone.py", "lib/keep.py", "run.log", "data/cache.json",
+            ".hidden", "__pycache__/x.pyc", "lib/__pycache__/y.pyc", "stale.pyc", "zz.txt").map { RemoteFile(it, 1) }
+        val local = listOf("lib/keep.py", "build.as")
+        val gone = UploadPlanner.planDeletes(local, remote) { LocalProject.isSyncedPath(it, ignore) }
+        // __init__.py is protected; .syncignore'd, dot, __pycache__ and .pyc paths are never managed by uploads
+        assertEquals(listOf("lib/gone.py", "old.py", "zz.txt"), gone)
+        assertEquals(emptyList<String>(), UploadPlanner.planDeletes(local, null) { true })
+        assertEquals(emptyList<String>(), UploadPlanner.planDeletes(remote.map { it.path }, remote) { true })
+    }
+
+    @Test fun syncedPathFollowsCollectFilesRules() {
+        val ignore = IgnoreRules("/build/\n*.log\n!keep.log\n")
+        assertTrue(LocalProject.isSyncedPath("a/b.py", ignore))
+        assertFalse(LocalProject.isSyncedPath("build/out.py", ignore))
+        assertTrue(LocalProject.isSyncedPath("src/build/out.py", ignore))   // anchored rule
+        assertFalse(LocalProject.isSyncedPath("venv/x.py", ignore))
+        assertFalse(LocalProject.isSyncedPath("a/.git/x", ignore))
+        assertFalse(LocalProject.isSyncedPath("x.pyo", ignore))
+        assertFalse(LocalProject.isSyncedPath("a//b.py", ignore))
+        assertFalse(LocalProject.isSyncedPath("x.log", ignore))
+        assertTrue(LocalProject.isSyncedPath("keep.log", ignore))
+    }
+
+    @Test fun syncDeletesIsOffByDefault() = assertFalse(XScriptSettings.State().syncDeletes)
+
+    @Test fun deleteListIsCapped() {
+        val paths = (1..33).map { "f$it.py" }
+        val text = UploadPlanner.describeDeletes(paths, max = 30) { "+$it" }
+        assertEquals(31, text.lines().size)
+        assertEquals("  f1.py", text.lines().first())
+        assertEquals("  +3", text.lines().last())
+        assertEquals("  a.py\n  b.py", UploadPlanner.describeDeletes(listOf("a.py", "b.py")))
     }
 }

@@ -15,6 +15,7 @@ class XScriptConfigurable : Configurable {
     private val code = JBPasswordField()
     private val evalTimeout = com.intellij.ui.JBIntSpinner(XScriptSettings.DEFAULT_EVAL_TIMEOUT_MS,
         XScriptSettings.MIN_EVAL_TIMEOUT_MS, XScriptSettings.MAX_EVAL_TIMEOUT_MS, 500)
+    private val syncDeletes = com.intellij.ui.components.JBCheckBox(XScriptBundle.message("settings.syncDeletes"))
     private var panel: JComponent? = null
     /** Pairing code as last loaded from / saved to the password safe (which must not be touched on the EDT). */
     @Volatile private var savedCode: String = ""
@@ -30,6 +31,8 @@ class XScriptConfigurable : Configurable {
             .addTooltip(XScriptBundle.message("settings.code.hint"))
             .addLabeledComponent(XScriptBundle.message("settings.evalTimeout"), evalTimeout)
             .addTooltip(XScriptBundle.message("settings.evalTimeout.hint"))
+            .addComponent(syncDeletes)
+            .addTooltip(XScriptBundle.message("settings.syncDeletes.hint"))
             .addComponentFillVertically(javax.swing.JPanel(), 0)
             .panel.also { panel = it }
     }
@@ -38,7 +41,7 @@ class XScriptConfigurable : Configurable {
 
     override fun isModified(): Boolean {
         val s = XScriptSettings.get()
-        return device.text.trim() != s.device || evalTimeout.number != s.evalTimeoutMs || normalizeCode(codeText()) != savedCode
+        return device.text.trim() != s.device || evalTimeout.number != s.evalTimeoutMs || syncDeletes.isSelected != s.syncDeletes || normalizeCode(codeText()) != savedCode
     }
 
     private fun safeTarget(): DeviceTarget? = try { DeviceTarget.parse(device.text) } catch (_: IllegalArgumentException) { null }
@@ -50,6 +53,7 @@ class XScriptConfigurable : Configurable {
         val s = XScriptSettings.get()
         s.device = device.text
         s.evalTimeoutMs = evalTimeout.number
+        s.syncDeletes = syncDeletes.isSelected
         savedCode = normalizeCode(c)
         ApplicationManager.getApplication().executeOnPooledThread { s.setPairingCode(c, t) }
     }
@@ -58,6 +62,7 @@ class XScriptConfigurable : Configurable {
         val s = XScriptSettings.get()
         device.text = s.device
         evalTimeout.number = s.evalTimeoutMs
+        syncDeletes.isSelected = s.syncDeletes
         val target = s.target()
         ApplicationManager.getApplication().executeOnPooledThread {
             val loaded = s.pairingCode(target)

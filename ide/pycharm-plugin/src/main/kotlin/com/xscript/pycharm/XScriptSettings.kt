@@ -15,6 +15,8 @@ class XScriptSettings : PersistentStateComponent<XScriptSettings.State> {
     class State {
         var device: String = "127.0.0.1:$DEFAULT_PORT"
         var evalTimeoutMs: Int = DEFAULT_EVAL_TIMEOUT_MS
+        /** Off by default: also delete device files that were removed locally (asks first, listing them). */
+        var syncDeletes: Boolean = false
     }
 
     private var state = State()
@@ -29,6 +31,11 @@ class XScriptSettings : PersistentStateComponent<XScriptSettings.State> {
     var evalTimeoutMs: Int
         get() = clampEvalTimeout(state.evalTimeoutMs)
         set(v) { state.evalTimeoutMs = clampEvalTimeout(v) }
+
+    /** Upload also deletes device files removed locally, after a confirmation listing them; like VS Code's `xscript.syncDeletes`. */
+    var syncDeletes: Boolean
+        get() = state.syncDeletes
+        set(v) { state.syncDeletes = v }
 
     fun target(): DeviceTarget = DeviceTarget.parse(device)
 

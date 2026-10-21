@@ -48,7 +48,7 @@ cd ide/vscode-extension && npm ci && npm run package     # 生成 xscript-vscode
 | ADB 终端 | | 对当前 USB / 模拟器设备开 `adb shell` |
 | 启用 API 自动补全 | | 把自带的 `xscript.*` / `ascript.*` 存根加到 `python.analysis.extraPaths` |
 
-设置：`xscript.device`、`xscript.logPollMs`、`xscript.evalTimeoutMs`、`xscript.adbPath`（空 = 自动找 ANDROID_HOME / 常见 SDK 目录 / PATH）、`xscript.scanLan`（扫描时是否也扫局域网，默认开）。
+设置：`xscript.device`、`xscript.logPollMs`、`xscript.evalTimeoutMs`、`xscript.syncDeletes`（上传时同步删除本地已删除的文件，默认关；开启后先在对话框里列出要删的设备文件，确认后才删，被 `.syncignore` 忽略的文件、点开头的文件和 `__pycache__` 永远不删；工程入口 `__init__.py` 不会删）、`xscript.adbPath`（空 = 自动找 ANDROID_HOME / 常见 SDK 目录 / PATH）、`xscript.scanLan`（扫描时是否也扫局域网，默认开）。
 
 ## UI 设计器
 

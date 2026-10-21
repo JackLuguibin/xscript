@@ -442,6 +442,11 @@
           "minimum": 200,
           "description": "%xscript.config.logPollMs%"
         },
+        "xscript.syncDeletes": {
+          "type": "boolean",
+          "default": false,
+          "description": "%xscript.config.syncDeletes%"
+        },
         "xscript.evalTimeoutMs": {
           "type": "number",
           "default": 8000,

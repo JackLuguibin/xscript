@@ -128,6 +128,28 @@ export function planUpload(files: UploadFile[], remote: RemoteFile[] | undefined
   return { upload, skipped, hashes };
 }
 
+/** The device refuses to delete a project's entry. */
+const PROTECTED = new Set(["__init__.py", "__init__.pyc"]);
+
+/**
+ * Device files an upload with `xscript.syncDeletes` would delete: on the device, not in `local`, and managed by uploads
+ * (`synced`, e.g. not matched by .syncignore). Sorted. No device list (`remote` undefined) deletes nothing.
+ */
+export function planDeletes(local: Iterable<string>, remote: RemoteFile[] | undefined, synced: (rel: string) => boolean): string[] {
+  if (!remote) return [];
+  const have = new Set(local);
+  const out = new Set<string>();
+  for (const f of remote) if (!have.has(f.path) && !PROTECTED.has(f.path) && synced(f.path)) out.add(f.path);
+  return [...out].sort();
+}
+
+/** The file list for the confirmation: at most `max` lines, then "… and N more". */
+export function describeDeletes(paths: string[], max = 30): string {
+  const lines = paths.slice(0, max);
+  if (paths.length > max) lines.push("… and " + (paths.length - max) + " more");
+  return lines.join("\n");
+}
+
 // ---------------------------------------------------------------- pull
 
 export interface PulledFile {

@@ -278,6 +278,13 @@ export class DeviceClient {
     return ((await r.json()) as { files?: RemoteFile[] }).files ?? [];
   }
 
+  /** DELETE /projects/{name}/file; true when the device removed it (a file already gone counts as removed). */
+  async deleteFile(project: string, filePath: string): Promise<boolean> {
+    const r = await this.request("DELETE", "/projects/" + DeviceClient.p(project) + "/file", { query: { path: filePath }, passStatuses: [404] });
+    if (r.status === 404) return true;
+    return ((await r.json()) as { ok?: boolean }).ok === true;
+  }
+
   /** Exact bytes of one project file (GET /projects/{name}/file?raw=1). */
   async readFileRaw(project: string, filePath: string): Promise<Buffer> {
     const r = await this.request("GET", "/projects/" + DeviceClient.p(project) + "/file", { query: { path: filePath, raw: "1" } });

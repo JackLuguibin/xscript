@@ -120,6 +120,12 @@ class DeviceClient(val target: DeviceTarget, private val timeoutMs: Long = 15000
     }
 
     /** Exact bytes of one project file (GET /projects/{name}/file?raw=1). */
+    /** DELETE /projects/{name}/file; true when the device removed it (a file already gone counts as removed). */
+    fun deleteFile(project: String, path: String): Boolean {
+        val o = obj("DELETE", "/projects/${p(project)}/file", query = mapOf("path" to path), pass = setOf(404))
+        return o.get("ok")?.asBoolean == true || o.has("error")
+    }
+
     fun readFileRaw(project: String, path: String): ByteArray =
         send("GET", "/projects/${p(project)}/file", query = mapOf("path" to path, "raw" to "1"), timeout = maxOf(timeoutMs, 60000)).body()
 

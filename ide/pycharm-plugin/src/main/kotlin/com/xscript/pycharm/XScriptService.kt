@@ -60,15 +60,17 @@ class XScriptService(private val project: Project) : Disposable {
                     val files = LocalProject.collectFiles(root)
                     val key = UploadPlanner.cacheKey(client.target, name)
                     val props = com.intellij.ide.util.PropertiesComponent.getInstance(project)
-                    val remote = if (full) null else client.projectFiles(name)
+                    val syncDeletes = XScriptSettings.get().syncDeletes
+                    val remote = if (full && !syncDeletes) null else client.projectFiles(name)
                     val cache: Map<String, String> = if (full) emptyMap() else props.getValue(key)?.let {
                         try { com.google.gson.Gson().fromJson<Map<String, String>>(it, object : com.google.gson.reflect.TypeToken<Map<String, String>>() {}.type) } catch (_: Exception) { null }
                     } ?: emptyMap()
-                    val plan = UploadPlanner.plan(files, remote, cache)
+                    val plan = UploadPlanner.plan(files, if (full) null else remote, cache)
                     print(XScriptBundle.message("log.upload", plan.upload.size, name, client.target.baseUrl) +
                         (if (plan.skipped > 0) XScriptBundle.message("log.upload.skipped", plan.skipped) else "") + "\n", ConsoleViewContentType.SYSTEM_OUTPUT)
                     if (plan.upload.isNotEmpty() || remote == null) client.uploadFiles(name, plan.upload)
                     props.setValue(key, com.google.gson.Gson().toJson(plan.hashes))
+                    if (syncDeletes) deleteRemoved(client, root, name, files, remote)
                     val since = client.currentSeq()
                     val r = client.run(name)
                     r.get("error")?.let { throw IllegalStateException(it.asString) }
@@ -78,6 +80,30 @@ class XScriptService(private val project: Project) : Disposable {
                 }
             }
         }.queue()
+    }
+
+    /**
+     * "Delete files removed locally" (off by default): device files that are not in the local project and that an
+     * upload manages (.syncignore'd and skipped paths are never touched) are listed and deleted only when confirmed.
+     */
+    private fun deleteRemoved(client: DeviceClient, root: Path, name: String, files: List<UploadFile>, remote: List<RemoteFile>?) {
+        val ignore = LocalProject.loadIgnore(root)
+        val gone = UploadPlanner.planDeletes(files.map { it.path }, remote) { LocalProject.isSyncedPath(it, ignore) }
+        if (gone.isEmpty()) return
+        var ok = false
+        ApplicationManager.getApplication().invokeAndWait {
+            val list = UploadPlanner.describeDeletes(gone) { XScriptBundle.message("delete.more", it) }
+            ok = Messages.showOkCancelDialog(project, XScriptBundle.message("delete.confirm", gone.size, name, list), "XScript",
+                XScriptBundle.message("delete.ok", gone.size), XScriptBundle.message("delete.keep"), Messages.getWarningIcon()) == Messages.OK
+        }
+        if (!ok) {
+            print(XScriptBundle.message("log.delete.kept", gone.size) + "\n", ConsoleViewContentType.SYSTEM_OUTPUT)
+            return
+        }
+        val failed = gone.filterNot { p -> try { client.deleteFile(name, p) } catch (_: Exception) { false } }
+        print(XScriptBundle.message("log.deleted", gone.size - failed.size) +
+            (if (failed.isEmpty()) "" else XScriptBundle.message("log.delete.failed", failed.joinToString(", "))) + "\n",
+            ConsoleViewContentType.SYSTEM_OUTPUT)
     }
 
     /** The device's projects for the Device Projects tab; `done` runs on the EDT (not called when the device can't be reached). */
