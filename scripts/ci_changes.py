@@ -20,7 +20,7 @@ ANDROID_UNAFFECTED = ("desktop/", "ide/", "backend/", "docs/", "deploy/")
 
 # The desktop client reads docs/ (test matrix, security scan), ide/python-stubs (editor completion),
 # android/python-runtime (node specs), scripts/ (mock device) and schema/nodes at the top level.
-DESKTOP_UNAFFECTED = ("android/", "backend/", "ide/vscode-extension/", "ide/mcp-server/", "deploy/")
+DESKTOP_UNAFFECTED = ("android/", "backend/", "ide/vscode-extension/", "ide/mcp-server/", "ide/pycharm-plugin/", "deploy/")
 DESKTOP_NEEDED_INSIDE = ("android/python-runtime/",)
 
 # The backend suite on PostgreSQL only needs the server's Python code (the console and docs cannot change SQL).
@@ -34,7 +34,7 @@ RUNTIME_UNAFFECTED = ("desktop/", "ide/", "backend/", "docs/", "deploy/", "andro
 # index in android/app/src/main/assets), desktop/nodes (node specs), scripts/ and protocol/ all matter.
 PYTHON_UNAFFECTED = ("desktop/app/", "desktop/frontend/", "android/app/src/main/java/", "android/app/src/main/res/",
                      "android/app/src/test/", "android/app/src/androidTest/", "android/gradle/", "backend/web/",
-                     "ide/vscode-extension/", "docs/", "deploy/")
+                     "ide/vscode-extension/", "ide/pycharm-plugin/", "docs/", "deploy/")
 
 ALL = ("android", "desktop", "postgres", "runtime", "python")
 

@@ -401,6 +401,34 @@ jobs:
       - name: Shell self-test (loads the built frontend, one QWebChannel round trip)
         run: cd desktop/app && python -m xscript_desktop --selftest
 
+  pycharm-plugin:
+    name: PyCharm plugin (Kotlin tests, buildPlugin, verifyPlugin)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-java@b843ebf9b913146b38da2eaa7aeddf76074ae1ad # v6.1.0
+        with:
+          distribution: temurin
+          java-version: "21"
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: "3.12"
+      - uses: gradle/actions/setup-gradle@3f5f9adaf7d9fecd50b5935e54106014257a94e6 # v6.4.0
+        with:
+          gradle-version: wrapper
+          build-root-directory: ide/pycharm-plugin
+      - name: Tests, plugin zip and Plugin Verifier against PyCharm Community
+        working-directory: ide/pycharm-plugin
+        run: ./gradlew --console=plain test buildPlugin verifyPlugin
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: xscript-pycharm-plugin
+          path: ide/pycharm-plugin/build/distributions/*.zip
+          if-no-files-found: error
+
   release-versions:
     name: release versions agree
     runs-on: ubuntu-24.04
@@ -415,7 +443,7 @@ jobs:
   ci-ok:
     name: ci ok
     if: always()
-    needs: [changes, python, postgres, runtime, web-ide, vscode-extension, console, android, desktop-frontend, desktop-python, desktop-windows, release-versions]
+    needs: [changes, python, postgres, runtime, web-ide, vscode-extension, pycharm-plugin, console, android, desktop-frontend, desktop-python, desktop-windows, release-versions]
     runs-on: ubuntu-24.04
     timeout-minutes: 5
     steps:

@@ -1,0 +1,11 @@
+<idea-plugin>
+    <id>com.xscript.ide</id>
+    <name>XScript</name>
+    <vendor url="https://github.com/JackLuguibin/xscript">XScript</vendor>
+    <description><![CDATA[
+    Develop XScript (AScript-compatible) Android automation scripts in PyCharm: connect to a phone running the
+    XScript app, upload and run the current project, stop it and follow its log.
+    ]]></description>
+    <depends>com.intellij.modules.platform</depends>
+    <depends>com.intellij.modules.python</depends>
+</idea-plugin>
