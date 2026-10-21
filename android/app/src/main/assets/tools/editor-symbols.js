@@ -465,7 +465,7 @@
       } else if ((d.node.decorators || []).length) return null;
       return { label, params: d.node.args.slice(drop), node: d.node, scope: d.inner || null };
     }
-    // Argument-count / keyword problems of one call, or null.
+    // Argument-count / keyword problems of one call: a message, {message, suggest, at} for a misspelled keyword, or null.
     callProblem(call) {
       const n = call.node;
       if (n.args.some(a => a.type === "Starred") || n.keywords.some(k => k.arg === null)) return null;
@@ -476,7 +476,14 @@
       const filled = new Set(pos.slice(0, n.args.length).map(a => a.arg));
       for (const k of n.keywords) {
         const p = t.params.find(a => a.arg === k.arg && (a.kind === "arg" || a.kind === "kwonly"));
-        if (!p) { if (kwarg) continue; return t.label + "() 没有名为 " + k.arg + " 的参数"; }
+        if (!p) {
+          if (kwarg) continue;
+          // a close parameter name that this call does not fill otherwise (names of 3+ letters): offer it (Ctrl+. renames the keyword)
+          const used = new Set(pos.slice(0, n.args.length).map(a => a.arg).concat(n.keywords.map(x => x.arg)));
+          const suggest = k.arg.length > 2 && closest(k.arg, t.params.filter(a => (a.kind === "arg" || a.kind === "kwonly") && !used.has(a.arg)).map(a => a.arg));
+          const message = t.label + "() 没有名为 " + k.arg + " 的参数";
+          return suggest ? { message: message + "（是不是 " + suggest + "？Ctrl+. 改正）", suggest, at: { line: k.line, col: k.col, length: k.arg.length } } : message;
+        }
         if (filled.has(k.arg)) return t.label + "() 的参数 " + k.arg + " 传了两次";
         filled.add(k.arg);
       }
@@ -504,9 +511,27 @@
         const got = this.typeOf(e, call.scope); if (!got || got === "ellipsis") continue;
         if (got === want || (OK[want] || []).includes(got)) continue;
         if (got === "None" && p.default && p.default.type === "Constant" && p.default.value === "None") continue;
-        out.push({ node: e, message: t.label + "() 的参数 " + p.arg + " 应为 " + want + "，这里传了 " + got });
+        const fix = this.argFix(e, want, got, call.scope);
+        out.push(Object.assign({ node: e, message: t.label + "() 的参数 " + p.arg + " 应为 " + want + "，这里传了 " + got + (fix ? "（Ctrl+. 改为 " + fix + "）" : "") }, fix ? { suggest: fix } : {}));
       }
       return out;
+    }
+    // A conversion that is certainly right for a mismatched argument, or null: "2" -> 2 for int/float, 3 -> "3" for str,
+    // and str(n) / int(d) / float(d) for a variable bound once to such a literal.
+    argFix(e, want, got, scope) {
+      const plain = c => c && c.type === "Constant" && c.kind === "string" && /^("|')[^"'\\\n]*\1$/.test(c.value) ? c.value.slice(1, -1) : null;
+      const INT = /^-?[0-9]+$/, FLOAT = /^-?([0-9]+\.?[0-9]*|\.[0-9]+)$/;
+      const numeric = text => text !== null && (want === "int" ? INT.test(text) : (want === "float" || want === "complex") && FLOAT.test(text));
+      if (e.type === "Constant") {
+        if (got === "str" && numeric(plain(e))) return plain(e);
+        if (want === "str" && e.kind === "number" && /^[0-9.]+$/.test(e.value)) return '"' + e.value + '"';
+        return null;
+      }
+      if (e.type !== "Name") return null;
+      const d = this.defs(this.lookup(scope, e.id))[0];
+      if (want === "str" && (got === "int" || got === "float")) return "str(" + e.id + ")";
+      if (got === "str" && (want === "int" || want === "float") && numeric(plain(d && d.value))) return want + "(" + e.id + ")";
+      return null;
     }
     /**
      * Return statements that clearly do not match a simple builtin return annotation (`-> int` returning "x" or
@@ -763,10 +788,11 @@
       for (const sc of f.scopes) for (const p of this.returnProblems(sc)) out.push(Object.assign(p, { severity: "warning" }));
       for (const c of f.calls) for (const a of this.argTypeProblems(c)) {
         const e = a.node, length = e.type === "Constant" ? String(e.value).split("\n")[0].length : e.type === "Name" ? e.id.length : e.type === "JoinedStr" ? 2 : 1;
-        out.push({ line: e.line, col: e.col, length: Math.max(1, length), message: a.message, severity: "warning" });
+        out.push(Object.assign({ line: e.line, col: e.col, length: Math.max(1, length), message: a.message, severity: "warning" }, a.suggest ? { suggest: a.suggest } : {}));
       }
       for (const c of f.calls) {
         const m = this.callProblem(c); if (!m) continue;
+        if (typeof m === "object") { out.push(Object.assign({}, m.at, { message: m.message, severity: "warning", suggest: m.suggest })); continue; }
         const e = c.node.func, at = e.type === "Name" ? { line: e.line, col: e.col, length: e.id.length } : { line: e.line, col: e.col, length: e.attr.length };
         const k = at.line + ":" + at.col; if (seen.has(k)) continue; seen.add(k);
         out.push(Object.assign(at, { message: m, severity: "warning" }));

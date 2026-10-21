@@ -661,6 +661,57 @@ test('Web IDE explorer, editor and create/delete flows in a real browser', {skip
       await b.eval(click, '#refresh'); await b.waitFor(idle);
     });
 
+    await t.test('argument types: Ctrl+. converts a mismatched literal (undoable)', async () => {
+      await api('PUT', '/projects/dom/files', {files: [{path: 'af_main.py', content: 'print("ok")\n'}]});
+      await b.eval(click, '#refresh'); await b.waitFor(idle);
+      await b.eval(click, row('af_main.py'));
+      await b.waitFor(() => document.getElementById('editor').value === 'print("ok")\n' && !document.getElementById('editor').disabled);
+      await b.eval(v => { const e = document.getElementById('editor'); e.focus(); e.value = v; e.dispatchEvent(new Event('input')); },
+        'def wait(s: float, label: str = ""):\n    pass\nwait("2", label=3)\n');
+      await b.waitFor(() => document.querySelectorAll('#diag .sq.warn').length === 2, 5000);
+      await b.eval(click, '#problems');
+      assert.match(await b.eval(() => document.getElementById('problems').textContent), /第 3 行：wait\(\) 的参数 s 应为 float，这里传了 str（Ctrl\+\. 改为 2）/);
+      const ctrlDot = () => b.eval(() => document.getElementById('editor').dispatchEvent(new KeyboardEvent('keydown', {key: '.', ctrlKey: true, bubbles: true, cancelable: true})));
+      await b.eval(() => { const e = document.getElementById('editor'); e.focus(); const at = e.value.indexOf('"2"') + 1; e.setSelectionRange(at, at); });
+      await ctrlDot();
+      await b.waitFor(() => document.getElementById('editor').value.includes('wait(2, label=3)'));
+      await b.eval(() => { const e = document.getElementById('editor'); e.focus(); const at = e.value.indexOf('=3') + 1; e.setSelectionRange(at, at); });
+      await ctrlDot();
+      await b.waitFor(() => document.getElementById('editor').value.includes('wait(2, label="3")'));
+      await b.eval(() => { document.getElementById('editor').focus(); document.execCommand('undo'); });
+      assert.match(await b.eval(() => document.getElementById('editor').value), /wait\(2, label=3\)/);
+      await b.eval(() => { document.getElementById('editor').focus(); document.execCommand('redo'); });
+      await b.waitFor(() => document.getElementById('problems').dataset.count === '0', 5000);
+      await b.eval(click, '#save'); await b.waitFor(idle);
+      await b.eval(click, row('__init__.py')); await b.waitFor(() => !document.getElementById('editor').disabled);
+      await fetch(base + '/projects/dom/file?path=af_main.py', {method: 'DELETE'});
+      await b.eval(click, '#refresh'); await b.waitFor(idle);
+    });
+
+    await t.test('call arguments: "did you mean" a keyword; Ctrl+. renames it (undoable)', async () => {
+      await api('PUT', '/projects/dom/files', {files: [{path: 'kw_main.py', content: 'print("ok")\n'}]});
+      await b.eval(click, '#refresh'); await b.waitFor(idle);
+      await b.eval(click, row('kw_main.py'));
+      await b.waitFor(() => document.getElementById('editor').value === 'print("ok")\n' && !document.getElementById('editor').disabled);
+      await b.eval(v => { const e = document.getElementById('editor'); e.focus(); e.value = v; e.dispatchEvent(new Event('input')); },
+        'def wait(seconds=1):\n    pass\nwait(secnds=2)\n');
+      await b.waitFor(() => document.querySelectorAll('#diag .sq.warn').length === 1, 5000);
+      assert.deepEqual(await b.eval(() => [...document.querySelectorAll('#diag .sq.warn')].map(n => n.textContent)), ['secnds']);
+      await b.eval(click, '#problems');
+      assert.match(await b.eval(() => document.getElementById('problems').textContent), /第 3 行：wait\(\) 没有名为 secnds 的参数（是不是 seconds？Ctrl\+\. 改正）/);
+      await b.eval(() => { const e = document.getElementById('editor'); e.focus(); const at = e.value.indexOf('secnds') + 2; e.setSelectionRange(at, at); });
+      await b.eval(() => document.getElementById('editor').dispatchEvent(new KeyboardEvent('keydown', {key: '.', ctrlKey: true, bubbles: true, cancelable: true})));
+      await b.waitFor(() => document.getElementById('editor').value.endsWith('wait(seconds=2)\n'));
+      await b.eval(() => { document.getElementById('editor').focus(); document.execCommand('undo'); });
+      assert.match(await b.eval(() => document.getElementById('editor').value), /wait\(secnds=2\)/);
+      await b.eval(() => { document.getElementById('editor').focus(); document.execCommand('redo'); });
+      await b.waitFor(() => document.getElementById('problems').dataset.count === '0', 5000);
+      await b.eval(click, '#save'); await b.waitFor(idle);
+      await b.eval(click, row('__init__.py')); await b.waitFor(() => !document.getElementById('editor').disabled);
+      await fetch(base + '/projects/dom/file?path=kw_main.py', {method: 'DELETE'});
+      await b.eval(click, '#refresh'); await b.waitFor(idle);
+    });
+
     await t.test('unreachable code after return is faded and explained on its line', async () => {
       await api('PUT', '/projects/dom/files', {files: [{path: 'ur_main.py', content: 'print("ok")\n'}]});
       await b.eval(click, '#refresh'); await b.waitFor(idle);

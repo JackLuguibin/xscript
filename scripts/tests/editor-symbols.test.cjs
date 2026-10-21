@@ -325,12 +325,12 @@ test('basic checks: literal arguments that do not match a simple annotation', ()
     'f(n=f"x{1}")', 'b = Box("2")', 'b.scale(2)', 'b.scale("x")', 'g("a", "b", 1, 2)', 'f(len("x"))', ''].join('\n');
   const p = EditorSymbols.build([{path: 'lib.py', content: lib}, {path: 'main.py', content: main}], XSDocs);
   assert.deepEqual(p.problemsIn('main.py').map(w => [w.line, w.col, w.length, w.message]), [
-    [2, 2, 3, 'f() 的参数 n 应为 int，这里传了 str'],
-    [4, 10, 1, 'f() 的参数 s 应为 str，这里传了 int'],
+    [2, 2, 3, 'f() 的参数 n 应为 int，这里传了 str（Ctrl+. 改为 3）'],
+    [4, 10, 1, 'f() 的参数 s 应为 str，这里传了 int（Ctrl+. 改为 "5"）'],
     [6, 2, 3, 'f() 的参数 n 应为 int，这里传了 float'],
     [6, 9, 1, 'f() 的参数 l 应为 list，这里传了 dict'],
     [7, 4, 2, 'f() 的参数 n 应为 int，这里传了 str'],
-    [8, 8, 3, 'Box() 的参数 w 应为 int，这里传了 str'],
+    [8, 8, 3, 'Box() 的参数 w 应为 int，这里传了 str（Ctrl+. 改为 2）'],
     [10, 8, 3, 'Box.scale() 的参数 k 应为 float，这里传了 str'],
   ]);
   // a project class named like a builtin shadows it: no judgement
@@ -384,9 +384,9 @@ test('argument types: variables bound once to a literal count like the literal',
     'k: str = "1"', 'wait(k)', ''].join('\n');                  // annotated: skipped
   const p = EditorSymbols.build([{path: 'm.py', content: src}], XSDocs);
   assert.deepEqual(p.problemsIn('m.py').map(w => [w.line, w.col, w.length, w.message]), [
-    [5, 5, 1, 'wait() 的参数 s 应为 float，这里传了 str'],
-    [6, 14, 1, 'wait() 的参数 label 应为 str，这里传了 int'],
-    [13, 9, 1, 'wait() 的参数 s 应为 float，这里传了 str'],
+    [5, 5, 1, 'wait() 的参数 s 应为 float，这里传了 str（Ctrl+. 改为 float(d)）'],
+    [6, 14, 1, 'wait() 的参数 label 应为 str，这里传了 int（Ctrl+. 改为 str(n)）'],
+    [13, 9, 1, 'wait() 的参数 s 应为 float，这里传了 str（Ctrl+. 改为 float(d)）'],
   ]);
 });
 
@@ -410,6 +410,41 @@ test('basic checks: return values that do not match a simple return annotation',
     [5, 4, 1, 'c() 声明返回 int，但没有 return 返回值'],
     [16, 8, 6, 'h() 声明返回 int，这里的 return 没有返回值'],
     [20, 15, 4, 'K.m() 声明返回 bool，这里返回了 None'],
+  ]);
+});
+
+test('argument types: Ctrl+. conversion only when it is certainly right', () => {
+  const src = [
+    'def w(s: float, t: str, i: int):', '    pass',
+    'w("2", 3, "1.5")',                 // 3: "2" -> 2, 3 -> "3", "1.5" is not an int: no fix
+    'w(s="x", t=2.5, i="-7")',          // 4: "x" no fix, 2.5 -> "2.5", "-7" -> -7
+    'd = "4"', 'n = 5', 'w(d, n, d)',   // 7: float(d), str(n), int(d)
+    'w(f"1", 1e3, b"2")', ''].join('\n'); // 8: f-string, exponent, bytes: no fix
+  const p = EditorSymbols.build([{path: 'm.py', content: src}], XSDocs);
+  assert.deepEqual(p.problemsIn('m.py').map(w => [w.line, w.col, w.length, w.suggest]), [
+    [3, 2, 3, '2'], [3, 7, 1, '"3"'], [3, 10, 5, undefined],
+    [4, 4, 3, undefined], [4, 11, 3, '"2.5"'], [4, 18, 4, '-7'],
+    [7, 2, 1, 'float(d)'], [7, 5, 1, 'str(n)'], [7, 8, 1, 'int(d)'],
+    [8, 2, 2, undefined], [8, 8, 3, undefined], [8, 13, 4, undefined],
+  ]);
+  assert.equal(p.problemsIn('m.py')[0].message, 'w() 的参数 s 应为 float，这里传了 str（Ctrl+. 改为 2）');
+});
+
+test('call arguments: "did you mean" for a misspelled keyword, only among parameters not filled otherwise', () => {
+  const src = [
+    'def wait(seconds=1, label="", *, timeout=0):', '    pass',
+    'wait(secnds=2)', 'wait(1, secods=2)', 'wait(Label=1)', 'wait(timout=1)',   // 4: seconds already given positionally
+    'wait(seconds=1, secondz=2)', 'wait(xx=1)',                                   // 7: already given by keyword; 8: nothing close
+    'class A:', '    def m(self, count):', '        pass', 'A().m(cuont=1)', ''].join('\n');
+  const p = EditorSymbols.build([{path: 'm.py', content: src}], XSDocs);
+  assert.deepEqual(p.problemsIn('m.py').map(w => [w.line, w.col, w.length, w.message, w.suggest]), [
+    [3, 5, 6, 'wait() 没有名为 secnds 的参数（是不是 seconds？Ctrl+. 改正）', 'seconds'],
+    [4, 0, 4, 'wait() 没有名为 secods 的参数', undefined],
+    [5, 5, 5, 'wait() 没有名为 Label 的参数（是不是 label？Ctrl+. 改正）', 'label'],
+    [6, 5, 6, 'wait() 没有名为 timout 的参数（是不是 timeout？Ctrl+. 改正）', 'timeout'],
+    [7, 0, 4, 'wait() 没有名为 secondz 的参数', undefined],
+    [8, 0, 4, 'wait() 没有名为 xx 的参数', undefined],
+    [12, 6, 5, 'A.m() 没有名为 cuont 的参数（是不是 count？Ctrl+. 改正）', 'count'],
   ]);
 });
 
