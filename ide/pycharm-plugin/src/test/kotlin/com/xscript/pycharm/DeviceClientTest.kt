@@ -205,6 +205,36 @@ class DeviceClientTest {
         assertNotNull(DeviceClient(paired, token = "test-2345").listProjects())
     }
 
+    @Test fun postsNeverReuseAPooledConnection() {
+        // A keep-alive server (like the phone): GETs may share a pooled connection, but a POST, which is not retried,
+        // must always come in on a connection of its own, so an idle socket the device closed cannot fail it.
+        val srv = com.sun.net.httpserver.HttpServer.create(java.net.InetSocketAddress("127.0.0.1", 0), 0)
+        val seen = java.util.Collections.synchronizedList(mutableListOf<Pair<String, Int>>())
+        srv.createContext("/") { ex ->
+            seen += ex.requestMethod to ex.remoteAddress.port
+            val body = "{\"ok\":true,\"projects\":[]}".toByteArray()
+            ex.sendResponseHeaders(200, body.size.toLong())
+            ex.responseBody.use { it.write(body) }
+        }
+        srv.start()
+        try {
+            val c = DeviceClient(DeviceTarget("127.0.0.1", srv.address.port))
+            repeat(5) {
+                c.listProjects()
+                c.listProjects()
+                assertTrue(c.requestCapture())
+            }
+        } finally {
+            srv.stop(0)
+        }
+        val gets = seen.filter { it.first == "GET" }.map { it.second }
+        val posts = seen.filter { it.first == "POST" }.map { it.second }
+        assertEquals(5, posts.size)
+        assertTrue("GETs share the pooled connection", gets.toSet().size < gets.size)
+        assertEquals("every POST on a fresh connection", 5, posts.toSet().size)
+        assertTrue("no POST on a GET's connection", posts.none { it in gets })
+    }
+
     @Test fun errorDetail() {
         assertEquals("工程已存在: demo", DeviceHttpException.detailOf("{\"error\": \"工程已存在: demo\"}"))
         assertEquals("plain", DeviceHttpException.detailOf("plain"))
