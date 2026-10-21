@@ -101,8 +101,9 @@ class GoldenMatchingTest(unittest.TestCase):
         for s in (0.8, 1.25):
             img = cv2.resize(self.scene, None, fx=s, fy=s, interpolation=cv2.INTER_AREA if s < 1 else cv2.INTER_CUBIC)
             path = self.variant("scene_x%s.png" % s, img)
-            # Measured with the phone's pins: centres land within a pixel or two, the scale estimate is coarse
-            # (0.745 for 0.8, 1.28 for 1.25) and confidence drops to 0.65-0.9. The fine-noise badge is left out on
+            # Measured with the phone's pins: centres land within a pixel or two; after the local scale refinement
+            # the estimate is within 0.01 (0.794-0.797 for 0.8, 1.241-1.248 for 1.25) and confidence is 0.97-0.99
+            # (it was 0.745 / 1.28 and 0.73 / 0.83 with coarse steps only). The fine-noise badge is left out on
             # purpose: resampling destroys its texture, so template matching cannot find it at another size.
             for name in ("btn_shop.png", "title.png"):
                 box = self.exp["templates"][name]
@@ -111,7 +112,8 @@ class GoldenMatchingTest(unittest.TestCase):
                 self.assertIsNotNone(hit, (s, name))
                 cx, cy = center(box)
                 self.assertNear(center(hit["rect"]), (cx * s, cy * s), 4, (s, name, hit["rect"]))
-                self.assertAlmostEqual(hit["scale"], s, delta=0.07)
+                self.assertAlmostEqual(hit["scale"], s, delta=0.02)
+                self.assertGreaterEqual(hit["confidence"], 0.95, (s, name))
             # plain template matching at the original size does not claim a hit on a resized screen
             for name in ("btn_shop.png", "title.png"):
                 self.assertIsNone(self.screen.find_image(self.tpl(name), image=path, confidence=0.8), (s, name))

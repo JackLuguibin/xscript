@@ -754,6 +754,22 @@ def _refine_scale(src, tpl, hit, span=_SCALE_REFINE_SPAN):
         d /= 2.0
 
 
+_POLISH_DONE = 0.995          # a coarse hit scoring this high is already at the right scale
+
+
+def _polish(src, tpl, hit):
+    """Refine the scale of a hit that already passed the threshold.
+
+    Coarse scales are ~12% apart, so a passing hit can still be up to ~6% off in scale (0.745 reported for a
+    0.8 screen). The local search costs a few small window matches; the result is kept only when it scores
+    higher, so it never loses a hit.
+    """
+    if hit[0] >= _POLISH_DONE:
+        return hit
+    fine = _refine_scale(src, tpl, hit)
+    return fine if fine[0] > hit[0] else hit
+
+
 _MIN_CONFIDENCE = 0.01
 
 
@@ -882,7 +898,9 @@ def _multi_cf(src, tpl, threshold, scale_range):
             best = hit
         if best[0] >= max(threshold, 0.98):
             break
-    return [best] if best is not None and best[0] >= threshold else []
+    if best is None or best[0] < threshold:
+        return []
+    return [_polish(src, tpl, best)]
 
 
 _MULTI_REFINE_TOP = 3
@@ -1035,6 +1053,16 @@ def _multi(src, tpl, threshold, maxcnt, scale_range, src_half=None, cf_tried=Fal
             best = (fine[0], _do_match(src, _resize(tpl.img, w, h), mask), w, h)
     if best[0] < threshold:
         return []
+    _, mv, _, ml = cv2.minMaxLoc(best[1])
+    top = (float(mv), ml[0], ml[1], best[2], best[3])
+    fine = _polish(src, tpl, top)
+    if fine is not top:
+        if maxcnt == 1:
+            return [fine]
+        # Every hit is taken at the refined size: one more full-frame match.
+        w, h = fine[3], fine[4]
+        mask = _resize(tpl.mask, w, h) if tpl.mask is not None else None
+        best = (fine[0], _do_match(src, _resize(tpl.img, w, h), mask), w, h)
     return _extract(best[1], best[2], best[3], threshold, maxcnt)
 
 
