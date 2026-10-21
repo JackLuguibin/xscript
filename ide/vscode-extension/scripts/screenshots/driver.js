@@ -1,5 +1,5 @@
 // Runs INSIDE the VS Code extension host (--extensionTestsPath): puts the editor into the states shown in the README
-// screenshots (run + sidebar + log panel, debugger stopped at a breakpoint, the step-by-step connection check; XS_SHOT_NAMES picks which), and for each one writes <XS_SHOT_DIR>/ready-<name> then waits for done-<name> (capture.js takes the
+// screenshots (run + sidebar + log panel, debugger stopped at a breakpoint, the step-by-step connection check, the lost screen capture warning; XS_SHOT_NAMES picks which), and for each one writes <XS_SHOT_DIR>/ready-<name> then waits for done-<name> (capture.js takes the
 // picture through the DevTools protocol in between). Needs a real device: XS_SHOT_DEVICE=127.0.0.1:<forwarded port>.
 const fs = require("fs");
 const path = require("path");
@@ -44,6 +44,27 @@ exports.run = async function run() {
       await cmd("workbench.action.focusActiveEditorGroup");
       await sleep(800);
       await shot("connect");
+      await cmd("notifications.clearAll");
+    }
+
+    if (process.env.XS_SHOT_PAIR === "1") {
+      // the device asks for its pairing code: open the Pair input box, capture.js types the code into it
+      void vscode.commands.executeCommand("xscript.pair");
+      await sleep(1500);
+      await shot("type-pair");
+      await sleep(2500);
+      await cmd("notifications.clearAll");
+    }
+
+    if (names.includes("capture")) {
+      // the device's screen-recording grant is gone (force-stop XScript and reopen it, accessibility off): the status
+      // bar warns, and its command asks whether to show the permission prompt on the phone
+      await ext.exports.refreshStatus();
+      void vscode.commands.executeCommand("xscript.grantCapture");
+      await sleep(1500);
+      await cmd("workbench.action.focusActiveEditorGroup");
+      await sleep(800);
+      await shot("capture");
       await cmd("notifications.clearAll");
     }
 

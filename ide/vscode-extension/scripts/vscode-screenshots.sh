@@ -5,7 +5,10 @@
 #   adb -s emulator-5554 forward tcp:19860 tcp:9860
 #   XS_SHOT_DEVICE=127.0.0.1:19860 scripts/vscode-screenshots.sh [out-dir]      (needs `npm run package` first)
 # XS_SHOT_NAMES picks the pictures (default "run debug"). "connect" is the step-by-step connection check: force-stop
-# XScript on the device first (adb shell am force-stop <app id>) so the check stops at "XScript app answers".
+# XScript on the device first (adb shell am force-stop <app id>) so the check stops at "XScript app answers". "capture" is
+# the status bar warning for a lost screen-recording grant: turn accessibility off, force-stop XScript and open it again.
+# A device that needs its pairing code: set XS_SHOT_CODE (typed into the Pair box through DevTools; the throw-away
+# profile uses a mock keychain, and the code is not passed to VS Code's environment).
 set -euo pipefail
 SCRIPTS="$(cd "$(dirname "$0")" && pwd)"
 cd "$SCRIPTS/.."
@@ -46,12 +49,14 @@ PY
 PORT=$(python3 -c 'import socket; s=socket.socket(); s.bind(("127.0.0.1",0)); print(s.getsockname()[1])')
 mkdir -p "$T/shots"
 NAMES="${XS_SHOT_NAMES:-run debug}"
-XS_SHOT_NAMES="$NAMES" XS_SHOT_DIR="$T/shots" XS_SHOT_DEVICE="$XS_SHOT_DEVICE" env "${VSC_ENV[@]}" "$BIN" "${VSC_FLAGS[@]}" --remote-debugging-port="$PORT" \
+PAIR=0; [ -n "${XS_SHOT_CODE:-}" ] && PAIR=1
+XS_SHOT_PAIR="$PAIR" XS_SHOT_NAMES="$NAMES" XS_SHOT_DIR="$T/shots" XS_SHOT_DEVICE="$XS_SHOT_DEVICE" env -u XS_SHOT_CODE "${VSC_ENV[@]}" "$BIN" "${VSC_FLAGS[@]}" --remote-debugging-port="$PORT" \
   --extensionDevelopmentPath="$T/ext/$(ls "$T/ext" | grep '^xscript\.')" --extensionTestsPath="$SCRIPTS/screenshots/driver.js" "$P" >"$T/host.log" 2>&1 &
 PID=$!
 trap 'kill "$PID" 2>/dev/null || true; pkill -f "$T/ud" 2>/dev/null || true' EXIT
+CAPTURE_NAMES="$NAMES"; [ "$PAIR" = 1 ] && CAPTURE_NAMES="type-pair $NAMES"
 # shellcheck disable=SC2086
-node "$SCRIPTS/screenshots/capture.js" "$PORT" "$T/shots" $NAMES
+node "$SCRIPTS/screenshots/capture.js" "$PORT" "$T/shots" $CAPTURE_NAMES
 for _ in $(seq 1 60); do [ -s "$T/shots/result" ] && break; sleep 1; done
 cat "$T/shots/result"; echo
 mkdir -p "$OUT"

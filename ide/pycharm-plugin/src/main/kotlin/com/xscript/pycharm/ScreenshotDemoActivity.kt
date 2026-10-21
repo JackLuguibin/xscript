@@ -19,7 +19,7 @@ import java.util.concurrent.TimeUnit
  * never in a normal IDE) it opens the first XScript project's __init__.py and runs Upload and Run (`run`), or opens
  * Settings | Tools | XScript (`settings`), selects the first `_result` line and runs Run Selection on Device (`eval`), or starts
  * Pull Project from Device (`pull`), or runs a device project and opens the Device Projects tab (`projects`), or opens Connect to Device and checks
- * -Dxscript.screenshotConnect (`connect`), so screenshots need no scripted mouse clicks. Does nothing otherwise.
+ * -Dxscript.screenshotConnect (`connect`, `capture`), so screenshots need no scripted mouse clicks. Does nothing otherwise.
  */
 class ScreenshotDemoActivity : ProjectActivity {
     override suspend fun execute(project: Project) {
@@ -40,6 +40,19 @@ class ScreenshotDemoActivity : ProjectActivity {
             }
             if (mode == "projects") {
                 XScriptService.get(project).runOnDevice("daily_signin")
+                return@invokeLater
+            }
+            if (mode == "capture") {
+                // status bar on a device whose screen-recording grant is gone (-Dxscript.screenshotConnect=<address>).
+                // A paired device needs its code: XS_SHOT_CODE from the environment, stored only when this sandbox IDE's
+                // password safe is memory-only (runIde sets that up for this mode), so it never reaches the system keychain.
+                AppExecutorUtil.getAppScheduledExecutorService().schedule({
+                    System.getProperty("xscript.screenshotConnect")?.let { XScriptSettings.get().device = it }
+                    System.getenv("XS_SHOT_CODE")?.takeIf { it.isNotBlank() }?.let { code ->
+                        if (com.intellij.ide.passwordSafe.PasswordSafe.instance.isMemoryOnly) XScriptSettings.get().setPairingCode(code)
+                    }
+                    XScriptService.get(project).refreshStatus()
+                }, 10, TimeUnit.SECONDS)
                 return@invokeLater
             }
             if (mode == "connect") {
@@ -135,6 +148,6 @@ class ScreenshotDemoActivity : ProjectActivity {
 
     companion object {
         fun mode(): String? = System.getProperty("xscript.screenshotDemo")?.takeIf { it in MODES }
-        private val MODES = setOf("run", "settings", "eval", "pull", "projects", "connect")
+        private val MODES = setOf("run", "settings", "eval", "pull", "projects", "connect", "capture")
     }
 }

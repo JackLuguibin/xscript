@@ -46,6 +46,7 @@ cd ide/vscode-extension && npm ci && npm run package     # 生成 xscript-vscode
 | 编辑同步忽略规则 | | |
 | 跟踪运行日志、显示设备状态、连接设备（手填地址） | 状态栏 | 连接设备先逐项检查地址（地址格式 → 能连到 → App 在响应 → 是 XScript → 配对码），通过才保存；没通过时说明停在哪一步和修法 |
 | 逐项检查连接 `xscript.checkConnection` | | 只检查当前地址，结果写到 Output → XScript |
+| 在手机上授权截图 `xscript.grantCapture` | | 手机截图权限失效时状态栏显示「⚠ 截图权限已失效」，点击即运行此命令，在手机上弹出录屏授权窗口（需要新版手机 App） |
 | 在设备上运行选中代码 `xscript.eval` | | 走 `/eval` |
 | 截图、打开开发者工具（图色 / 标注）、投屏 | | 开发者工具和投屏用浏览器打开手机上的页面 |
 | ADB 终端 | | 对当前 USB / 模拟器设备开 `adb shell` |

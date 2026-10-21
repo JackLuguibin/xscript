@@ -210,6 +210,12 @@ export class DeviceClient {
     return this.json("GET", "/status", { timeoutMs });
   }
 
+  /** Shows the screen-recording grant dialog on the phone (and a notification). false: the app is too old (404). */
+  async requestCapture(): Promise<boolean> {
+    const r = await this.request("POST", "/capture/request", { passStatuses: [404] });
+    return r.status !== 404;
+  }
+
   async listProjects(): Promise<string[]> {
     const r = await this.json<{ projects?: string[] }>("GET", "/projects");
     return r.projects ?? [];

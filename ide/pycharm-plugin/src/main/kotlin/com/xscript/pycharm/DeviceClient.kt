@@ -93,6 +93,9 @@ class DeviceClient(val target: DeviceTarget, private val timeoutMs: Long = 15000
 
     fun status(timeout: Long = timeoutMs): JsonObject = obj("GET", "/status", timeout = timeout)
 
+    /** Brings up the screen-recording grant dialog on the phone (and a notification). false: the app is too old (404). */
+    fun requestCapture(): Boolean = send("POST", "/capture/request", pass = setOf(404)).statusCode() != 404
+
     fun listProjects(): List<String> =
         obj("GET", "/projects").getAsJsonArray("projects")?.map { it.asString } ?: emptyList()
 

@@ -8,7 +8,7 @@ class PluginWiringTest : BasePlatformTestCase() {
     fun testActionsAreRegistered() {
         val am = ActionManager.getInstance()
         for (id in listOf("XScript.UploadAndRun", "XScript.Stop", "XScript.Connect", "XScript.Settings", "XScript.UploadAndRun.Popup",
-            "XScript.EvalSelection", "XScript.EvalSelection.Popup", "XScript.PullProject", "XScript.UploadAndRunFull")) {
+            "XScript.EvalSelection", "XScript.EvalSelection.Popup", "XScript.PullProject", "XScript.UploadAndRunFull", "XScript.GrantCapture")) {
             assertNotNull(id, am.getAction(id))
         }
     }

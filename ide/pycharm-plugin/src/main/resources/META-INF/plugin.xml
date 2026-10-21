@@ -44,6 +44,8 @@
             </action>
             <action id="XScript.Connect" class="com.xscript.pycharm.ConnectAction"
                     text="Connect to Device…" description="Set the phone address and test the connection" icon="AllIcons.General.Web"/>
+            <action id="XScript.GrantCapture" class="com.xscript.pycharm.GrantCaptureAction"
+                    text="Grant Screen Capture on Phone" description="Show the screen-recording permission prompt on the phone (when its screen capture is lost)"/>
             <action id="XScript.PullProject" class="com.xscript.pycharm.PullProjectAction"
                     text="Pull Project from Device…" description="Download a project from the phone into the IDE project or a folder you choose"
                     icon="AllIcons.Actions.Download"/>

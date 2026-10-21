@@ -68,7 +68,9 @@ class DeviceStatusWidget(private val project: Project) : StatusBarWidget, Status
     override fun getTooltipText() = statusTooltip(state, XScriptSettings.get().device)
 
     override fun getClickConsumer() = Consumer<MouseEvent> { e ->
-        if (clickOpensConnect(state)) {
+        if (clickGrantsCapture(state)) {
+            XScriptService.get(project).requestCapture()
+        } else if (clickOpensConnect(state)) {
             ActionManager.getInstance().getAction("XScript.Connect")?.let {
                 ActionUtil.invokeAction(it, e.component, ActionPlaces.STATUS_BAR_PLACE, e, null)
             }
