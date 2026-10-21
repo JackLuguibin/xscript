@@ -70,7 +70,15 @@
 | --- | --- |
 | ![连不上设备浅色](../docs/images/desktop-connect-error-light.png) | ![连不上设备深色](../docs/images/desktop-connect-error-dark.png) |
 
-重新生成：`python -m xscript_desktop --data-dir <临时目录> --screenshot out.png --run-js tools/screenshot-connect-error.js --screenshot-delay 5 --theme light --size 1180x760`（脚本在设备页连接 `127.0.0.1:1`，不需要设备）。
+重新生成：`python -m xscript_desktop --data-dir <临时目录> --screenshot out.png --run-js tools/screenshot-connect-error.js --screenshot-delay 6 --theme light --size 1180x760`（脚本在设备页连接 `127.0.0.1:1`，不需要设备；下面同时出现「逐项检查连接」，停在「能连到这个地址」）。
+
+连接失败后自动出现的「逐项检查连接」（USB 设备，手机上的 XScript 没打开）：
+
+| 浅色 | 深色 |
+| --- | --- |
+| ![逐项检查浅色](../docs/images/desktop-connect-check-light.png) | ![逐项检查深色](../docs/images/desktop-connect-check-dark.png) |
+
+重新生成：手机上先强制停止 XScript，然后把上面的 `--run-js` 换成 `tools/screenshot-connect-check.js`、`--screenshot-delay 9`。
 
 ## P5 安装包与更新（已实现）
 
