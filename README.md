@@ -198,7 +198,7 @@ curl http://127.0.0.1:19860/status
 - [GP 流水线](examples/gp_pipeline/__init__.py)：本地图像处理任务编排。
 - [自有视觉服务](examples/as_demo/vlm_custom_service.py)：配置 VLM 客户端。
 
-详细连接排查见[入门指南](docs/GETTING_STARTED.md)，断点与调试生命周期见[调试说明](docs/DEBUGGING.md)。
+连不上手机时按[连不上手机怎么办](docs/TROUBLESHOOTING.md)逐项检查，更多连接说明见[入门指南](docs/GETTING_STARTED.md)，断点与调试生命周期见[调试说明](docs/DEBUGGING.md)。
 
 ## 脚本示例
 

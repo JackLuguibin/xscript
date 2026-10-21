@@ -200,7 +200,7 @@ Open `http://127.0.0.1:19860/tools/` in a browser to enter the Script IDE, creat
 - [GP pipeline](examples/gp_pipeline/__init__.py): local image-processing task orchestration.
 - [Your own vision service](examples/as_demo/vlm_custom_service.py): configure a VLM client.
 
-For detailed connection troubleshooting see the [getting started guide](docs/GETTING_STARTED.md) (Chinese); for breakpoints and the debugging lifecycle see the [debugging notes](docs/DEBUGGING.md) (Chinese).
+If the IDE or desktop app cannot reach the phone, work through [Can't connect](docs/TROUBLESHOOTING.md) (Chinese, with an English summary); more connection details are in the [getting started guide](docs/GETTING_STARTED.md) (Chinese); for breakpoints and the debugging lifecycle see the [debugging notes](docs/DEBUGGING.md) (Chinese).
 
 ## Script example
 
