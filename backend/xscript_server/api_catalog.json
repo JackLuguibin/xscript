@@ -272,6 +272,21 @@
           "doc": "All template matches."
         },
         {
+          "name": "image_state",
+          "signature": "image_state(template, rect=None, confidence=0.9, image=None) -> str | None",
+          "doc": "Is the button/icon on screen and in its normal colours? 'enabled' (found with the template's colours), 'disabled' (same shape but greyed out or recoloured, e.g. a disabled button) or None (not found). Brightness is ignored. Cut the template from the enabled state."
+        },
+        {
+          "name": "wait_image",
+          "signature": "wait_image(template, timeout=10, rect=None, confidence=0.9, rgb=False, interval=0.3, method=None) -> dict | None",
+          "doc": "Poll find_image until the template appears or timeout seconds pass."
+        },
+        {
+          "name": "wait_enabled",
+          "signature": "wait_enabled(template, timeout=10, rect=None, confidence=0.9, interval=0.3) -> dict | None",
+          "doc": "Poll until the button/icon is on screen in its normal colours (image_state == 'enabled'), e.g. wait for a greyed-out claim button to light up, then tap hit['center_x'], hit['center_y']."
+        },
+        {
           "name": "count_color",
           "signature": "count_color(color, rect=None, sim=0.9, image=None, color_space='rgb', tolerance=None) -> int",
           "doc": "Pixels in rect matching color ('#rrggbb', several joined by '|'). Same color_space / tolerance as find_colors."

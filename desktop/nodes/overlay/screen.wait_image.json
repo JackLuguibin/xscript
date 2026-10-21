@@ -1,0 +1,36 @@
+{
+  "type": "screen.wait_image",
+  "title": {
+    "zh": "等待图片",
+    "en": "Wait for image"
+  },
+  "doc": {
+    "zh": "等到模板图片出现。",
+    "en": "Wait until the template appears."
+  },
+  "icon": "image",
+  "inputs": [
+    {
+      "name": "template",
+      "type": "string",
+      "ui": "text"
+    },
+    {
+      "name": "timeout",
+      "type": "float",
+      "ui": "number",
+      "min": 0
+    },
+    {
+      "name": "rect",
+      "type": "rect",
+      "ui": "text"
+    },
+    {
+      "name": "confidence",
+      "type": "float",
+      "ui": "number",
+      "min": 0
+    }
+  ]
+}

@@ -1,0 +1,59 @@
+{
+  "type": "screen.image_state",
+  "category": "screen",
+  "title": {
+    "zh": "screen.image_state",
+    "en": "screen.image_state"
+  },
+  "doc": {
+    "zh": "Is the button / icon on screen, and in its normal colours?",
+    "en": "Is the button / icon on screen, and in its normal colours?"
+  },
+  "exec": {
+    "in": [
+      "exec"
+    ],
+    "out": [
+      "then"
+    ]
+  },
+  "inputs": [
+    {
+      "name": "template",
+      "type": "any"
+    },
+    {
+      "name": "rect",
+      "type": "any",
+      "default": null
+    },
+    {
+      "name": "confidence",
+      "type": "any",
+      "default": 0.9
+    },
+    {
+      "name": "image",
+      "type": "any",
+      "default": null
+    }
+  ],
+  "outputs": [
+    {
+      "name": "result",
+      "type": "any"
+    }
+  ],
+  "py": {
+    "imports": [
+      "from xscript.android import screen"
+    ],
+    "stmt": "{id} = screen.image_state({template}, rect={rect}, confidence={confidence}, image={image})"
+  },
+  "dsl": {
+    "alias": "screen.image_state"
+  },
+  "since": "0.2.6",
+  "origin": "xscript.android.screen.image_state",
+  "availability": "ok"
+}

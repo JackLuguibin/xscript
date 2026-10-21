@@ -1,0 +1,75 @@
+{
+  "type": "screen.wait_image",
+  "category": "screen",
+  "title": {
+    "zh": "screen.wait_image",
+    "en": "screen.wait_image"
+  },
+  "doc": {
+    "zh": "find_image every `interval` seconds until the template shows up or `timeout` seconds pass → hit dict or None.",
+    "en": "find_image every `interval` seconds until the template shows up or `timeout` seconds pass → hit dict or None."
+  },
+  "exec": {
+    "in": [
+      "exec"
+    ],
+    "out": [
+      "then"
+    ]
+  },
+  "inputs": [
+    {
+      "name": "template",
+      "type": "any"
+    },
+    {
+      "name": "timeout",
+      "type": "any",
+      "default": 10
+    },
+    {
+      "name": "rect",
+      "type": "any",
+      "default": null
+    },
+    {
+      "name": "confidence",
+      "type": "any",
+      "default": 0.9
+    },
+    {
+      "name": "rgb",
+      "type": "any",
+      "default": false
+    },
+    {
+      "name": "interval",
+      "type": "any",
+      "default": 0.3
+    },
+    {
+      "name": "method",
+      "type": "any",
+      "default": null
+    }
+  ],
+  "outputs": [
+    {
+      "name": "result",
+      "type": "any"
+    }
+  ],
+  "py": {
+    "imports": [
+      "from xscript.android import screen"
+    ],
+    "stmt": "{id} = screen.wait_image({template}, timeout={timeout}, rect={rect}, confidence={confidence}, rgb={rgb}, interval={interval}, method={method})"
+  },
+  "dsl": {
+    "alias": "screen.wait_image"
+  },
+  "since": "0.2.6",
+  "origin": "xscript.android.screen.wait_image",
+  "availability": "ok",
+  "latent": true
+}

@@ -1,0 +1,36 @@
+{
+  "type": "screen.wait_enabled",
+  "title": {
+    "zh": "等待按钮可用",
+    "en": "Wait until enabled"
+  },
+  "doc": {
+    "zh": "等到按钮或图标以正常颜色出现（不再是灰色）。",
+    "en": "Wait until the button or icon shows in its normal colours (no longer greyed out)."
+  },
+  "icon": "image",
+  "inputs": [
+    {
+      "name": "template",
+      "type": "string",
+      "ui": "text"
+    },
+    {
+      "name": "timeout",
+      "type": "float",
+      "ui": "number",
+      "min": 0
+    },
+    {
+      "name": "rect",
+      "type": "rect",
+      "ui": "text"
+    },
+    {
+      "name": "confidence",
+      "type": "float",
+      "ui": "number",
+      "min": 0
+    }
+  ]
+}

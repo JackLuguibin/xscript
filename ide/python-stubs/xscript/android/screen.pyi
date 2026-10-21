@@ -76,6 +76,30 @@ def find_image(template, rect=None, confidence=0.9, rgb=False, scale_range=None,
 
 def find_all_images(template, rect=None, confidence=0.9, rgb=False, maxcnt=0, scale_range=None, image=None, method=None):
     ...
+IMAGE_ENABLED = 'enabled'
+IMAGE_DISABLED = 'disabled'
+
+def image_state(template, rect=None, confidence=0.9, image=None):
+    """Is the button / icon on screen, and in its normal colours?
+
+    Returns "enabled" (found with the template's colours), "disabled" (the same shape is there but greyed out or
+    in other colours: a disabled button, a locked icon) or None (not on screen). Brightness does not count, so a
+    dimmed screen still reads "enabled". Use a template cut from the enabled (coloured) state.
+    """
+    ...
+
+def wait_image(template, timeout=10, rect=None, confidence=0.9, rgb=False, interval=0.3, method=None):
+    """find_image every `interval` seconds until the template shows up or `timeout` seconds pass → hit dict or None."""
+    ...
+
+def wait_enabled(template, timeout=10, rect=None, confidence=0.9, interval=0.3):
+    """Wait until the button / icon is on screen in its normal colours (see image_state) → hit dict or None.
+
+    Typical use: wait for a greyed-out "领取" button to light up, then tap it.
+        hit = screen.wait_enabled(R.img("claim.png"), timeout=30)
+        if hit: action.click(hit["center_x"], hit["center_y"])
+    """
+    ...
 OCR_MLKIT = 'mlkit'
 OCR_AUTO = 'auto'
 OCR_PADDLE = 'paddle'
