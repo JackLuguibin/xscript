@@ -19,6 +19,13 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
   await call("Emulation.setDeviceMetricsOverride", { width: W, height: H, deviceScaleFactor: 1, mobile: false });
   for (const name of names) {
     for (let i = 0; i < 600 && !fs.existsSync(path.join(dir, "ready-" + name)); i++) await sleep(500);
+    if (name === "type-pair") {
+      // not a picture: types the pairing code (XS_SHOT_CODE, never printed) into the focused "Pair" input box, then Enter
+      await call("Input.insertText", { text: process.env.XS_SHOT_CODE || "" });
+      for (const type of ["keyDown", "keyUp"]) await call("Input.dispatchKeyEvent", { type, key: "Enter", code: "Enter", windowsVirtualKeyCode: 13 });
+      fs.writeFileSync(path.join(dir, "done-" + name), "");
+      continue;
+    }
     // the harness label "[Extension Development Host]" is not part of the product: drop it from the title bar text
     await call("Runtime.evaluate", { expression: `document.querySelectorAll('.window-title, .titlebar-center .window-title').forEach(e => { e.textContent = e.textContent.replace('[Extension Development Host] ', ''); })` });
     const r = await call("Page.captureScreenshot", { format: "png", captureBeyondViewport: false });
