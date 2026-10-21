@@ -81,6 +81,25 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/Status"
+  /capture/request:
+    post:
+      summary: Ask for the screen-capture grant on the phone
+      description: |
+        Brings the XScript home screen up with the system screen-recording dialog (the desktop's 截图状态 card).
+        Android may keep a background app from coming to the front, so a notification that opens the same dialog is
+        posted as well. `opened` is false when starting the screen failed outright; true does not guarantee it showed.
+        Nothing is granted until the user accepts the dialog on the phone; read `/status` afterwards.
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  ok: { type: boolean }
+                  opened: { type: boolean }
+                  notified: { type: boolean }
   /debug/status:
     get:
       summary: Current loopback DAP transport status (connected, port, error)

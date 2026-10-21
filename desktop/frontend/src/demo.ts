@@ -108,6 +108,7 @@ export function createDemoTransport(): MemoryTransport {
       },
       "device.list": () => ({ devices: [...devices.values()] }),
       "device.refresh": (p) => devices.get(String(p.id)),
+      "device.requestCapture": () => ({ ok: true, opened: true, notified: true }),
       "device.pair": (p) => {
         const d = devices.get(String(p.id));
         if (!d) throw { code: "device.not_found", message: "no such device" };

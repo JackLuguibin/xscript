@@ -715,6 +715,11 @@ class Handler(BaseHTTPRequestHandler):
         if not self._gate("POST"):
             return
         path = urlparse(self.path).path
+        if path == "/capture/request":
+            # The real app brings up the system screen-recording dialog; here only count the asks.
+            STATE["capture_requests"] = STATE.get("capture_requests", 0) + 1
+            self._json(200, {"ok": True, "opened": True, "notified": True})
+            return
         if path == "/tools/snapshots":
             # Empty body: "capture" the 1x1 screen; a PNG body is an upload.
             raw = self._raw_body()

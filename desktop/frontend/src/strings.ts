@@ -499,6 +499,9 @@ const zh = {
       "或者打开无障碍（Android 11 及以上）；当前运行模式限定了方式时，在设置里改为「自动」。",
     ],
     recheck: "重新检查",
+    request: "在手机上授权",
+    requested: "已在手机上弹出录屏授权窗口，请在手机上选「立即开始」（Android 14 起选「整个屏幕」），然后点「重新检查」。没看到窗口时点手机通知栏里的「电脑端请求开启图色权限」。",
+    requestOld: "手机上的 XScript 版本较旧，不支持从电脑发起授权；请按上面的步骤在手机上操作，或升级手机 App。",
   },
   mirror: {
     subtitle: "实时查看设备屏幕，点击或拖动来操控",
@@ -1316,6 +1319,9 @@ const en: Strings = {
       "Or turn on accessibility (Android 11+); if the run mode limits the method, set it to Auto in Settings.",
     ],
     recheck: "Check again",
+    request: "Grant on phone",
+    requested: "The screen-recording prompt is open on the phone: choose Start now (Entire screen on Android 14+), then click Check again. If it did not appear, tap the notification on the phone.",
+    requestOld: "The XScript app on the phone is too old to be asked from here; follow the steps above on the phone, or update the app.",
   },
   mirror: {
     subtitle: "Watch the device screen live; click or drag to control it",

@@ -1,6 +1,6 @@
 import type { DeviceInfo } from "../api";
 import { t } from "../strings";
-import { IconAlert, IconRefresh } from "./icons";
+import { IconAlert, IconPhone, IconRefresh } from "./icons";
 import { Alert } from "./ui/alert";
 import { Button } from "./ui/button";
 
@@ -34,7 +34,21 @@ export function CaptureChip({ state }: { state: CaptureState }) {
 }
 
 /** The 截图状态 card: shown when the device cannot capture, with what happened and how to restore it. */
-export function CaptureCard({ state, onRecheck, busy }: { state: CaptureState; onRecheck: () => void; busy: boolean }) {
+export function CaptureCard({
+  state,
+  onRecheck,
+  busy,
+  onRequest,
+  requested,
+}: {
+  state: CaptureState;
+  onRecheck: () => void;
+  busy: boolean;
+  /** 在手机上授权: bring up the grant dialog on the phone. */
+  onRequest?: () => void;
+  /** After asking: "sent" (what to do on the phone) or "old" (the app cannot be asked). */
+  requested?: "sent" | "old" | null;
+}) {
   if (!state || state.kind === "ok") return null;
   const lost = state.kind === "lost";
   return (
@@ -48,11 +62,24 @@ export function CaptureCard({ state, onRecheck, busy }: { state: CaptureState; o
             <li key={s}>{s}</li>
           ))}
         </ol>
+        {requested && (
+          <p role="status" className="capture-requested">
+            {requested === "sent" ? t.capture.requested : t.capture.requestOld}
+          </p>
+        )}
       </div>
-      <Button size="sm" onClick={onRecheck} disabled={busy}>
-        <IconRefresh size={14} />
-        {t.capture.recheck}
-      </Button>
+      <div className="capture-actions">
+        {onRequest && (
+          <Button size="sm" variant="primary" onClick={onRequest} disabled={busy}>
+            <IconPhone size={14} />
+            {t.capture.request}
+          </Button>
+        )}
+        <Button size="sm" onClick={onRecheck} disabled={busy}>
+          <IconRefresh size={14} />
+          {t.capture.recheck}
+        </Button>
+      </div>
     </Alert>
   );
 }
