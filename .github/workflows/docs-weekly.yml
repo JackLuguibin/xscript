@@ -1,0 +1,36 @@
+# Weekly docs check (scripts/check_docs.py): relative links, #anchors and unused screenshots fail the job (the same
+# check runs on every PR in ci.yml); unreachable external URLs are only reported. Also on demand and on PRs that
+# change the check.
+name: docs weekly
+
+on:
+  schedule:
+    - cron: "17 9 * * 1"
+  workflow_dispatch:
+  pull_request:
+    paths:
+      - .github/workflows/docs-weekly.yml
+      - scripts/check_docs.py
+
+permissions:
+  contents: read
+
+concurrency:
+  group: docs-weekly-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  docs:
+    name: docs links and screenshots
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Links, anchors, screenshots (+ external URLs, report only)
+        run: python3 scripts/check_docs.py --external | tee docs-check.txt
+      - name: Summary
+        if: always()
+        run: |
+          { echo '```'; cat docs-check.txt 2>/dev/null; echo '```'; } >> "$GITHUB_STEP_SUMMARY"
