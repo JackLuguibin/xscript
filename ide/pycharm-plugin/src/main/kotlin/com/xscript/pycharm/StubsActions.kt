@@ -56,7 +56,7 @@ class ToggleStubsAction : DumbAwareAction() {
  */
 class StubsStartupActivity : ProjectActivity {
     override suspend fun execute(project: Project) {
-        if (ApplicationManager.getApplication().isUnitTestMode) return
+        if (ApplicationManager.getApplication().isUnitTestMode || ScreenshotDemoActivity.mode() != null) return
         val base = project.basePath?.let { Path.of(it) } ?: return
         if (!looksLikeXScript(base) || Stubs.dir() == null || ToggleStubsAction.enabled(project)) return
         NotificationGroupManager.getInstance().getNotificationGroup("XScript")

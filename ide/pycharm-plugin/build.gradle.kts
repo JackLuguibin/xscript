@@ -77,6 +77,19 @@ tasks.withType<org.jetbrains.intellij.platform.gradle.tasks.PrepareSandboxTask>(
     }
 }
 
+// ./gradlew runIde -PrunIdeProject=/path/to/project opens a sandboxed PyCharm (build/idea-sandbox) on that folder.
+tasks.runIde {
+    providers.gradleProperty("runIdeProject").orNull?.let { args(it) }
+    // -PrunIdeHeadlessConsent: skip the user-agreement / data-sharing dialogs in this throwaway sandbox (screenshots)
+    if (providers.gradleProperty("runIdeHeadlessConsent").isPresent) {
+        jvmArgs("-Djb.privacy.policy.text=<!--999.999-->", "-Djb.consents.confirmation.enabled=false", "-Didea.initially.ask.config=never", "-Didea.trust.all.projects=true")
+    }
+    // -PrunIdeScreenshotDemo=run|settings: ScreenshotDemoActivity runs the demo project or opens the settings (docs screenshots)
+    providers.gradleProperty("runIdeScreenshotDemo").orNull?.let {
+        jvmArgs("-Dxscript.screenshotDemo=$it", "-Dide.show.tips.on.startup.default.value=false", "-Didea.fatal.error.notification=disabled")
+    }
+}
+
 tasks.test {
     // scripts/mock_device.py lives at the repo root; the client tests start it when python3 is available.
     systemProperty("xscript.repo", rootDir.resolve("../..").canonicalPath)

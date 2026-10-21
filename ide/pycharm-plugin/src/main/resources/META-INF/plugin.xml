@@ -19,6 +19,7 @@
                     factoryClass="com.xscript.pycharm.XScriptToolWindowFactory"/>
         <notificationGroup id="XScript" displayType="BALLOON"/>
         <postStartupActivity implementation="com.xscript.pycharm.StubsStartupActivity"/>
+        <postStartupActivity implementation="com.xscript.pycharm.ScreenshotDemoActivity"/>
     </extensions>
 
     <actions>

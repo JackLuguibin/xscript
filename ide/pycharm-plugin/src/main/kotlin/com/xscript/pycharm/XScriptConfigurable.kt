@@ -1,5 +1,7 @@
 package com.xscript.pycharm
 
+import com.intellij.openapi.application.ApplicationManager
+import com.intellij.openapi.application.ModalityState
 import com.intellij.openapi.options.Configurable
 import com.intellij.openapi.options.ConfigurationException
 import com.intellij.ui.components.JBPasswordField
@@ -12,6 +14,8 @@ class XScriptConfigurable : Configurable {
     private val device = JBTextField()
     private val code = JBPasswordField()
     private var panel: JComponent? = null
+    /** Pairing code as last loaded from / saved to the password safe (which must not be touched on the EDT). */
+    @Volatile private var savedCode: String = ""
 
     override fun getDisplayName() = "XScript"
 
@@ -30,7 +34,7 @@ class XScriptConfigurable : Configurable {
 
     override fun isModified(): Boolean {
         val s = XScriptSettings.get()
-        return device.text.trim() != s.device || normalizeCode(codeText()) != s.pairingCode(safeTarget() ?: s.target())
+        return device.text.trim() != s.device || normalizeCode(codeText()) != savedCode
     }
 
     private fun safeTarget(): DeviceTarget? = try { DeviceTarget.parse(device.text) } catch (_: IllegalArgumentException) { null }
@@ -41,13 +45,21 @@ class XScriptConfigurable : Configurable {
         if (c.isNotBlank()) validateCode(c)?.let { throw ConfigurationException(it) }
         val s = XScriptSettings.get()
         s.device = device.text
-        s.setPairingCode(c, t)
+        savedCode = normalizeCode(c)
+        ApplicationManager.getApplication().executeOnPooledThread { s.setPairingCode(c, t) }
     }
 
     override fun reset() {
         val s = XScriptSettings.get()
         device.text = s.device
-        code.text = s.pairingCode()
+        val target = s.target()
+        ApplicationManager.getApplication().executeOnPooledThread {
+            val loaded = s.pairingCode(target)
+            ApplicationManager.getApplication().invokeLater({
+                savedCode = loaded
+                code.text = loaded
+            }, ModalityState.any())
+        }
     }
 
     override fun disposeUIResources() { panel = null }
