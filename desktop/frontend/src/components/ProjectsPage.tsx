@@ -665,8 +665,9 @@ export function ProjectsPage({ pollMs = LOG_POLL_MS, onDirtyChange }: { pollMs?:
               </Button>
             </div>
           )}
-          {file && file.encoding === "utf-8" && uiForm.formName(file.path) && !formText && (
+          {file && file.encoding === "utf-8" && uiForm.formName(file.path) && (
             <div
+              hidden={formText}
               onKeyDown={(e) => {
                 if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "s") {
                   e.preventDefault();
