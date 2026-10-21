@@ -235,20 +235,35 @@
       if (!this.active || !this.mouse || this.box.value.length > 400000) return this.hideHover();
       const pos = this.posAt(this.mouse.x, this.mouse.y);
       const sym = pos < 0 ? null : this.complete.symbolAt(this.box.value, pos);
+      if (!sym && pos >= 0 && this.describe && this.path) return this.hoverProject(pos);
       const id = sym ? sym.key + "@" + sym.from : "";
       if (id === this.hoverKey) return;
       this.hideHover(); this.hoverKey = id;
       if (!sym) return;
       this.hoverTimer = setTimeout(() => this.showHover(sym), HOVER_DELAY);
     }
+    // A project name under the mouse: `describe(pos)` (the page's symbol table) answers its signature or inferred type.
+    hoverProject(pos) {
+      const v = this.box.value, word = /[\p{L}\p{N}_]/u;
+      let from = pos; while (from > 0 && word.test(v[from - 1])) from--;
+      if (!word.test(v[pos] || "") || /[0-9]/.test(v[from])) { if (this.hoverKey) this.hideHover(); return; }
+      const id = "p@" + from + ":" + v.length;
+      if (id === this.hoverKey) return;
+      this.hideHover(); this.hoverKey = id;
+      this.hoverTimer = setTimeout(async () => {
+        let info = null;
+        try { info = await this.describe(pos); } catch (e) { info = null; }
+        if (info && this.hoverKey === id && this.mouse) this.showHover({from, head: info.head, where: info.where, doc: info.doc});
+      }, HOVER_DELAY);
+    }
     showHover(sym) {
       const t = this.hoverTip; t.replaceChildren();
       const head = document.createElement("div"); head.className = "tip-sig";
       const kind = /^[A-Z]/.test(sym.label) && sym.sig ? "class " : sym.sig ? "def " : "module ";
-      head.textContent = kind + (sym.sig ? sym.label + sym.sig : sym.key);
-      const where = document.createElement("div"); where.className = "tip-where"; where.textContent = sym.key;
+      head.textContent = sym.head || kind + (sym.sig ? sym.label + sym.sig : sym.key);
+      const where = document.createElement("div"); where.className = "tip-where"; where.textContent = sym.head ? sym.where : sym.key;
       t.append(head);
-      if (sym.sig) t.append(where);
+      if (sym.sig || sym.head && sym.where) t.append(where);
       if (sym.doc) { const d = document.createElement("div"); d.className = "tip-doc"; d.textContent = sym.doc; t.append(d); }
       t.hidden = false;
       const c = this.coords(sym.from), hostBox = this.host.getBoundingClientRect();

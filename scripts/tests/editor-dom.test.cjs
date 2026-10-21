@@ -368,6 +368,40 @@ test('Web IDE explorer, editor and create/delete flows in a real browser', {skip
       assert.equal((await tip('hover-doc')).shown, false, 'mouse leaving hides it');
     });
 
+    await t.test('hover on project names: signatures, docstrings and inferred types', async () => {
+      await api('PUT', '/projects/dom/files', {files: [{path: 'hv_lib.py', content: 'class Square:\n    """A square."""\n    def __init__(self, side: int = 2):\n        self.side = side\n    def area(self, scale=1.5) -> float:\n        """Area times scale."""\n        return self.side * scale\n'}]});
+      await b.eval(click, '#refresh'); await b.waitFor(idle);
+      await b.eval(click, row('__init__.py'));
+      await b.waitFor(() => !document.getElementById('editor').disabled);
+      await b.eval(txt => { const e = document.getElementById('editor'); e.focus(); e.value = txt; e.dispatchEvent(new Event('input')); },
+        'from hv_lib import Square\nsq = Square(3)\ntotal = sq.area() + 1\nnames = [1, 2]\n');
+      const hover = (row, prefix) => b.eval((r, pre) => {
+        const e = document.getElementById('editor'), host = document.querySelector('.ide-code').getBoundingClientRect();
+        const probe = document.createElement('span'), cs = getComputedStyle(e);
+        probe.style.cssText = 'position:absolute;visibility:hidden;white-space:pre'; probe.style.fontFamily = cs.fontFamily; probe.style.fontSize = cs.fontSize; probe.style.fontWeight = cs.fontWeight; probe.textContent = pre;
+        document.body.append(probe); const w = probe.getBoundingClientRect().width; probe.remove();
+        e.dispatchEvent(new MouseEvent('mouseleave'));
+        e.dispatchEvent(new MouseEvent('mousemove', {bubbles: true, clientX: host.left + 12 + w + 2 - e.scrollLeft, clientY: host.top + 16 + r * 21 + 10 - e.scrollTop}));
+      }, row, prefix);
+      const shown = () => b.eval(() => { const t = document.getElementById('hover-doc'); return t.hidden ? null : [t.querySelector('.tip-sig').textContent, (t.querySelector('.tip-where') || {}).textContent || '', (t.querySelector('.tip-doc') || {}).textContent || '']; });
+      const expectHover = async (row, prefix, want) => {
+        await hover(row, prefix);
+        await b.waitFor(() => !document.getElementById('hover-doc').hidden, 3000);
+        assert.deepEqual(await shown(), want);
+      };
+      await expectHover(1, 'sq = Squ', ['class Square', 'hv_lib.py:1', 'A square.']);
+      await expectHover(2, 'total = sq.ar', ['def Square.area(self, scale=1.5) -> float', 'hv_lib.py:5', 'Area times scale.']);
+      await expectHover(1, 's', ['(变量) sq: Square', '__init__.py:2', '']);
+      await expectHover(2, 'tot', ['(变量) total: float', '__init__.py:3', '']);
+      await expectHover(3, 'nam', ['(变量) names: list', '__init__.py:4', '']);
+      // nothing on a number
+      await hover(2, 'total = sq.area() + '); await new Promise(r => setTimeout(r, 700));
+      assert.equal(await shown(), null);
+      await b.eval(() => document.getElementById('editor').dispatchEvent(new MouseEvent('mouseleave')));
+      await fetch(base + '/projects/dom/file?path=hv_lib.py', {method: 'DELETE'});
+      await b.eval(click, '#refresh'); await b.waitFor(idle);
+    });
+
     await t.test('syntax diagnostics: wavy underlines, gutter marks, problems button; cleared while typing; Python files only', async () => {
       await b.eval(click, row('__init__.py'));
       await b.waitFor(() => document.getElementById('editor').value.length > 0 && !document.getElementById('editor').disabled);

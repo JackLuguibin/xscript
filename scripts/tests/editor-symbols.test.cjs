@@ -108,6 +108,37 @@ test('find references across files, grouped on one symbol', () => {
   assert.deepEqual(lib.refs.map(x => `${x.line}:${x.col}`), ['2:35', '2:44', '14:11', '15:4']);
 });
 
+test('hover descriptions: signatures, docstrings and inferred types', () => {
+  const files = [
+    {path: 'lib.py', content: '"""Helpers."""\nclass Square:\n    """A square.\n\n    Sides are equal.\n    """\n    def __init__(self, side: int = 2):\n        self.side = side\n        self.tags = []\n        self.name: str = "sq"\n    def area(self, scale=1.5, *rest, **opts) -> float:\n        return 1.0\n'},
+    {path: 'main.py', content: 'import lib\nfrom lib import Square as Sq\nfrom xscript.android import action\nCOUNT = 0\nratio = 3 / 2\nsq = Sq(4)\ntotal = sq.area() + COUNT\nlabel = f"x{COUNT}"\nn = len([1])\nok = COUNT > 1\nb = b"raw"\ndef run(x, y=None, *a, **k):\n    return x\nr = run(1)\n'}];
+  const p = EditorSymbols.build(files, XSDocs);
+  const h = (path, line, word) => { const l = files.find(f => f.path === path).content.split('\n')[line - 1]; const c = l.indexOf(word); assert.ok(c >= 0, word); const r = p.describeAt(path, line, c + 1); return r && [r.head, r.where, r.doc]; };
+  assert.deepEqual(h('main.py', 1, 'lib'), ['module lib', 'lib.py', 'Helpers.']);
+  assert.deepEqual(h('main.py', 2, 'Sq'), ['class Square', 'lib.py:2', 'A square.\n\nSides are equal.']);
+  assert.deepEqual(h('main.py', 7, 'area'), ['def Square.area(self, scale=1.5, *rest, **opts) -> float', 'lib.py:11', '']);
+  assert.deepEqual(h('main.py', 12, 'run'), ['def run(x, y=None, *a, **k)', 'main.py:12', '']);
+  const head = (path, line, word) => h(path, line, word)[0];
+  assert.equal(head('main.py', 4, 'COUNT'), '(变量) COUNT: int');
+  assert.equal(head('main.py', 5, 'ratio'), '(变量) ratio: float');
+  assert.equal(head('main.py', 6, 'sq'), '(变量) sq: Square');
+  assert.equal(head('main.py', 7, 'total'), '(变量) total: float');                // method return annotation + int
+  assert.equal(head('main.py', 8, 'label'), '(变量) label: str');
+  assert.equal(head('main.py', 9, 'n'), '(变量) n: int');                         // len()
+  assert.equal(head('main.py', 10, 'ok'), '(变量) ok: bool');
+  assert.equal(head('main.py', 11, 'b'), '(变量) b: bytes');
+  assert.equal(head('main.py', 14, 'r'), '(变量) r');                             // unknown: no type
+  assert.equal(head('main.py', 12, 'y'), '(参数) y = None');
+  assert.equal(head('main.py', 12, 'a'), '(参数) *a: tuple');
+  assert.equal(head('lib.py', 11, 'scale'), '(参数) scale: float = 1.5');
+  assert.equal(head('lib.py', 7, 'side'), '(参数) side: int = 2');
+  assert.equal(head('lib.py', 8, 'side'), '(属性) Square.side: int');             // self.side = <int parameter>
+  assert.equal(head('lib.py', 9, 'tags'), '(属性) Square.tags: list');
+  assert.equal(head('lib.py', 10, 'name'), '(属性) Square.name: str');            // annotated
+  assert.equal(h('main.py', 3, 'action'), null, 'library symbols use the library hover');
+  assert.equal(p.describeAt('main.py', 4, 8), null, 'nothing on a number');
+});
+
 test('rename symbol: every occurrence of the same definition, with safety checks', () => {
   const p = project();
   const at = (path, line, word, nth = 0) => { const l = FILES[path].split('\n')[line - 1]; let c = -1; for (let i = 0; i <= nth; i++) c = l.indexOf(word, c + 1); assert.ok(c >= 0); return [path, line, c + 1]; };
