@@ -431,6 +431,11 @@ const zh = {
   files: {
     newFile: "新建文件",
     newFilePrompt: "新文件路径（例如 utils/net.py）",
+    newForm: "新建界面",
+    newFormHint: "用界面设计器做一个表单：res/ui/<名称>.ui.json",
+    newFormPrompt: "界面名称（例如 settings）",
+    formNameInvalid: "界面名称只能用字母、数字和下划线，且不能以数字开头",
+    formExists: (p: string) => `${p} 已存在`,
     rename: "重命名",
     renamePrompt: "新路径",
     del: "删除",
@@ -1280,6 +1285,11 @@ const en: Strings = {
   files: {
     newFile: "New file",
     newFilePrompt: "New file path (e.g. utils/net.py)",
+    newForm: "New form",
+    newFormHint: "Make a form in the designer: res/ui/<name>.ui.json",
+    newFormPrompt: "Form name (e.g. settings)",
+    formNameInvalid: "Use letters, digits and underscores only, not starting with a digit",
+    formExists: (p: string) => `${p} already exists`,
     rename: "Rename",
     renamePrompt: "New path",
     del: "Delete",

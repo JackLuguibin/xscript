@@ -117,4 +117,25 @@ describe("desktop UI designer (D.3 / D.4)", () => {
     fireEvent.click(screen.getByRole("button", { name: "JSON" }));
     expect(((await screen.findByRole("textbox", { name: "编辑器" })) as HTMLTextAreaElement).value).toBe(before);
   });
+
+  it("新建界面 takes a name, creates res/ui/<name>.ui.json and opens it in the designer", async () => {
+    const { api, id } = await setup(uiForm.serializeSpec(uiForm.newSpec()));
+    await screen.findByLabelText("界面设计器", undefined, { timeout: 3000 });
+    const ask = async (name: string) => {
+      fireEvent.click(screen.getByRole("button", { name: "新建界面" }));
+      const input = await screen.findByRole("textbox", { name: "界面名称（例如 settings）" });
+      fireEvent.change(input, { target: { value: name } });
+      fireEvent.click(screen.getByRole("button", { name: "OK" }));
+    };
+    await ask("9bad");
+    expect(await screen.findByText(/界面名称只能用字母/)).toBeTruthy();
+    await ask("main");
+    expect(await screen.findByText("res/ui/main.ui.json 已存在")).toBeTruthy();
+    await ask("login");
+    await waitFor(async () => expect(uiForm.parseSpec((await api.readFile(id, "demo", "res/ui/login.ui.json")).content).title).toBe("login"), { timeout: 3000 });
+    // opened: the designer now edits the new form (its window title field shows the name)
+    await waitFor(() => expect(screen.getByLabelText("界面设计器")).toBeTruthy());
+    fireEvent.click(screen.getByRole("button", { name: "JSON" }));
+    await waitFor(() => expect(uiForm.parseSpec((screen.getByRole("textbox", { name: "编辑器" }) as HTMLTextAreaElement).value).title).toBe("login"), { timeout: 3000 });
+  });
 });
