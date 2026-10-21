@@ -197,8 +197,8 @@ test('Web IDE on phone-sized viewports', {skip: CHROME || REMOTE ? false : 'no l
       assert.equal(new Set(head.tops).size, 1, 'title and buttons share one row: ' + JSON.stringify(head));
       assert.ok(head.right <= head.sideRight, 'buttons stay inside the sidebar: ' + JSON.stringify(head));
     });
-    if (!REMOTE) await step('mid-width desktops (900–1180 px) keep the toolbar and 文件 heading on one row', async () => {
-      for (const w of [900, 1024, 1100, 1180]) {
+    if (!REMOTE) await step('desktop widths 721–1180 px keep the toolbar, 文件 and debugger headings on one row', async () => {
+      for (const w of [721, 760, 800, 860, 900, 1024, 1100, 1180]) {
         await b.cmd('Emulation.setDeviceMetricsOverride', {width: w, height: 720, deviceScaleFactor: 1, mobile: false});
         await go(base + '/tools/ui/editor.html?project=mob');
         await b.waitFor(() => document.getElementById('editor').value.startsWith('from xscript'));
@@ -207,11 +207,15 @@ test('Web IDE on phone-sized viewports', {skip: CHROME || REMOTE ? false : 'no l
           const shown = e => e.offsetParent && getComputedStyle(e).display !== 'none';
           const rows = root => new Set([...root.querySelectorAll('button,a,strong')].filter(shown).map(e => { const r = e.getBoundingClientRect(); return Math.round(r.top + r.height / 2); })).size;
           const tb = document.querySelector('.ide-toolbar').getBoundingClientRect(), last = [...document.querySelectorAll('.ide-toolbar button,.ide-toolbar a')].filter(shown).map(e => e.getBoundingClientRect().right);
-          return {toolbarRows: rows(document.querySelector('.ide-toolbar')), headingRows: rows(document.getElementById('files-heading')), right: Math.max(...last), tbRight: tb.right};
+          const bar = document.querySelector('.ide-toolbar');
+          return {toolbarRows: rows(bar), headingRows: rows(document.getElementById('files-heading')), debugRows: rows(document.querySelector('.ide-debug > .ide-heading')), right: Math.max(...last), tbRight: tb.right, scroll: bar.scrollWidth - bar.clientWidth, scrollable: getComputedStyle(bar).overflowX === 'auto'};
         });
         assert.equal(m.toolbarRows, 1, w + 'px: toolbar buttons share one row (删除文件 used to wrap alone): ' + JSON.stringify(m));
         assert.equal(m.headingRows, 1, w + 'px: 文件 heading is one row: ' + JSON.stringify(m));
-        assert.ok(m.right <= m.tbRight, w + 'px: toolbar buttons stay inside the toolbar: ' + JSON.stringify(m));
+        assert.equal(m.debugRows, 1, w + 'px: debugger heading is one row: ' + JSON.stringify(m));
+        // ≤800 px the toolbar may scroll sideways instead of wrapping; wider than that everything fits
+        if (w > 800) assert.ok(m.right <= m.tbRight && m.scroll <= 0, w + 'px: toolbar buttons fit: ' + JSON.stringify(m));
+        else assert.ok(m.scroll <= 0 || (m.scrollable && m.scroll < 80), w + 'px: toolbar overflow is scrollable and small: ' + JSON.stringify(m));
       }
     });
     assert.deepEqual(b.errors, [], 'no page errors');

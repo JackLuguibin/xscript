@@ -13,7 +13,7 @@
 - OCR：新增 PP-OCRv6 引擎 `paddle_v6t`（tiny，约 6 MB）和 `paddle_v6s`（small），以及 `engine="auto"`（用 v6 tiny，模型不可用时退回 ML Kit）。模拟器上 v6 tiny 识别整屏约 138 ms，比 PP-OCRv5 快约 2.5 倍、错字约为四分之一；`paddle` 仍是 v5，默认引擎仍是 `mlkit`。`vision_test` 和 MCP 支持同样的引擎名（#112）。
 - 图色调试：手机网页图色工具接口和 MCP `vision_test` 新增 `count_color`、`find_color_blobs`、`dominant_colors` 三个 op；找色 / 比色 / 数色 / 色块支持 `color_space` 和 `tolerance`，找图支持 `method`，结果与脚本 API 一致。`engine="auto"` 的 OCR 首次调用按模型加载给出更长超时。
 - 文档：按 v0.4.0 界面重拍说明文档截图（手机 App、桌面端、网页 IDE、VS Code 插件），新增配对码、新建模板和管理后台（概览趋势、设备、屏幕墙、卡密、代理、AI 写脚本、APK 打包与打包机）截图，均为演示数据。
-- 网页 IDE：桌面宽度下侧栏「文件」标题和按钮保持一行（以前标题会被挤成竖排）；900–1180px 宽的窗口里工具栏不再换行（隐藏快捷键提示，快捷键仍可用）。
+- 网页 IDE：桌面宽度下侧栏「文件」标题和按钮保持一行（以前标题会被挤成竖排）；721–1180px 宽的窗口里工具栏和断点调试栏不再换行（隐藏快捷键提示，快捷键仍可用；800px 以下侧栏收窄，工具栏放不下时可左右滑动）。
 - 修复：手机 `/status` 上报的版本号一直是 0.2.0，现在与 App 版本一致；模拟设备与演示后端从同一处读取，版本不一致时测试会失败。
 - 修复：v0.4.0 桌面端 dmg 在别的 Mac 上下载后提示“XScript 已损坏，无法打开”。原因是打包脚本在签名之后又改了 Info.plist，签名失效。现在改完后重新签名并校验；v0.4.0 Release 里的 dmg 已替换（标签未动），首次打开说明已更新。
 - 发布流程：release 工作流在 macOS 运行器上构建并校验桌面端 dmg，与 APK 一起附到 Release 并写入 `SHA256SUMS`。
