@@ -146,12 +146,19 @@ _CAPTURE_NONE_HINT = (
 _capture_warned = {"done": False}
 
 
-def _capture_problem():
-    """Why the last capture came back empty, as a user-facing sentence ("" when capture works)."""
+def _capture_info():
+    """The device's capture state ({granted, lost, available, via}); {} off-device or on older apps."""
     try:
         info = json.loads(bridge.control("capture_status", "") or "{}")
     except Exception:
-        info = {}
+        return {}
+    return info if isinstance(info, dict) else {}
+
+
+def _capture_problem(info=None):
+    """Why the last capture came back empty, as a user-facing sentence ("" when capture works)."""
+    if info is None:
+        info = _capture_info()
     if info.get("lost"):
         return _CAPTURE_LOST_HINT
     if info and not info.get("available", True):

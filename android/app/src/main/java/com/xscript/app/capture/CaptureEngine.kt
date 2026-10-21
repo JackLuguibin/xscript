@@ -338,6 +338,14 @@ object CaptureEngine {
     fun available(): Boolean =
         granted || (AccessibilityEngine.isOn() && android.os.Build.VERSION.SDK_INT >= 30) || RootShell.known() == true
 
+    /** The source the next capture will use (same order as [captureBitmap]); "" when none is available. */
+    fun currentSource(): String = when {
+        granted -> SOURCE_PROJECTION
+        Settings.runMode != Settings.MODE_ROOT && AccessibilityEngine.isOn() && android.os.Build.VERSION.SDK_INT >= 30 -> SOURCE_ACCESSIBILITY
+        Settings.runMode != Settings.MODE_ACCESSIBILITY && RootShell.known() == true -> SOURCE_ROOT
+        else -> ""
+    }
+
     /** Label for the home screen "图色权限" row. */
     fun sourceLabel(): String = when {
         granted -> "系统录屏"
@@ -355,6 +363,7 @@ object CaptureEngine {
         .put("lost", lost)
         .put("available", available())
         .put("source", lastSource)
+        .put("via", currentSource())
 
     const val RESULT_OK = Activity.RESULT_OK
 }
