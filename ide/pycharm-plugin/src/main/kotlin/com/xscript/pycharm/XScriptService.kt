@@ -90,9 +90,14 @@ class XScriptService(private val project: Project) : Disposable {
         val ignore = LocalProject.loadIgnore(root)
         val gone = UploadPlanner.planDeletes(files.map { it.path }, remote) { LocalProject.isSyncedPath(it, ignore) }
         if (gone.isEmpty()) return
+        val folders = UploadPlanner.planEmptiedFolders(files.map { it.path }, remote, gone)
         var ok = false
         ApplicationManager.getApplication().invokeAndWait {
-            val list = UploadPlanner.describeDeletes(gone) { XScriptBundle.message("delete.more", it) }
+            var list = UploadPlanner.describeDeletes(gone) { XScriptBundle.message("delete.more", it) }
+            if (folders.isNotEmpty()) {
+                list += "\n\n" + XScriptBundle.message("delete.folders", folders.size) + "\n" +
+                    UploadPlanner.describeDeletes(folders.map { "$it/" }) { XScriptBundle.message("delete.more", it) }
+            }
             ok = Messages.showOkCancelDialog(project, XScriptBundle.message("delete.confirm", gone.size, name, list), "XScript",
                 XScriptBundle.message("delete.ok", gone.size), XScriptBundle.message("delete.keep"), Messages.getWarningIcon()) == Messages.OK
         }
@@ -101,8 +106,14 @@ class XScriptService(private val project: Project) : Disposable {
             return
         }
         val failed = gone.filterNot { p -> try { client.deleteFile(name, p) } catch (_: Exception) { false } }
+        // A folder still holding a file that could not be deleted is not empty: leave it.
+        val emptied = folders.filter { d -> failed.none { it.startsWith("$d/") } }
+        val folderFailed = emptied.filterNot { d -> try { client.deleteFolder(name, d); true } catch (_: Exception) { false } }
+        val removed = emptied.size - folderFailed.size
+        val allFailed = failed + folderFailed.map { "$it/" }
         print(XScriptBundle.message("log.deleted", gone.size - failed.size) +
-            (if (failed.isEmpty()) "" else XScriptBundle.message("log.delete.failed", failed.joinToString(", "))) + "\n",
+            (if (removed == 0) "" else XScriptBundle.message("log.deleted.folders", removed)) +
+            (if (allFailed.isEmpty()) "" else XScriptBundle.message("log.delete.failed", allFailed.joinToString(", "))) + "\n",
             ConsoleViewContentType.SYSTEM_OUTPUT)
     }
 

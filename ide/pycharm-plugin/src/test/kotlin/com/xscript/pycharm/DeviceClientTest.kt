@@ -57,6 +57,10 @@ class DeviceClientTest {
         assertTrue(open.deleteFile("pyc_demo", "old.py"))
         assertTrue(open.deleteFile("pyc_demo", "old.py"))       // already gone counts as removed
         assertFalse(open.projectFiles("pyc_demo")!!.any { it.path == "old.py" })
+        open.uploadFiles("pyc_demo", listOf(UploadFile("lib/a.py", "x\n", "utf-8"), UploadFile("lib/__pycache__/a.pyc", "c", "utf-8")))
+        assertEquals(2, open.deleteFolder("pyc_demo", "lib"))
+        assertEquals(0, open.deleteFolder("pyc_demo", "lib"))  // already gone
+        assertFalse(open.projectFiles("pyc_demo")!!.any { it.path.startsWith("lib/") })
 
         val since = open.currentSeq()
         assertTrue(open.run("pyc_demo").get("running").asBoolean)
