@@ -149,6 +149,7 @@ class BleConnection(object):
         self.closed = False
         self._callbacks = {}
         self._stop = None
+        self._pump_thread = None
 
     def read(self, service, char):
         return _bytes(_call("ble_read", {"id": self.id, "service": str(service), "char": str(char)})["data"])
@@ -167,7 +168,8 @@ class BleConnection(object):
         self._callbacks[key] = callback
         if self._stop is None:
             self._stop = threading.Event()
-            threading.Thread(target=self._pump, args=(self._stop,), name="ascript-ble", daemon=True).start()
+            self._pump_thread = threading.Thread(target=self._pump, args=(self._stop,), name="ascript-ble", daemon=True)
+            self._pump_thread.start()
 
     def _pump(self, stop):
         while not stop.is_set():
@@ -189,6 +191,9 @@ class BleConnection(object):
         if self._stop is not None:
             self._stop.set()
             self._stop = None
+        pump, self._pump_thread = self._pump_thread, None
+        if pump is not None and pump is not threading.current_thread():
+            pump.join(1.0)  # let an in-flight ble_poll (<=250 ms) finish so no poll outlives close()
         if not self.closed:
             self.closed = True
             _call("bt_close", {"id": self.id})
