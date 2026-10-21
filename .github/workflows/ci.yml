@@ -16,8 +16,11 @@ on:
 permissions:
   contents: read
 
+# A PR's runs share one group, so a new push cancels its superseded run. Every other run (push to main, manual,
+# release) gets a group of its own (the run id), so none is ever cancelled or replaced while queued: in a shared
+# group GitHub keeps only the newest pending run and cancels the older one even without cancel-in-progress.
 concurrency:
-  group: ci-${{ github.workflow }}-${{ github.ref }}
+  group: ci-${{ github.workflow }}-${{ github.event_name == 'pull_request' && github.ref || github.run_id }}
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 env:
