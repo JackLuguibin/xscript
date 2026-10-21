@@ -632,7 +632,9 @@
   assist.lint = async (path, text) => {
     if (!current || current.binary || current.path !== path || !/\.py$/.test(path) || !model.project) return null;
     const index = await projectIndex(path, text);
-    return index ? index.problemsIn(path).concat(index.unusedIn(path)) : null;
+    if (!index) return null;
+    const dead = index.unreachableIn(path), deadLines = new Set(dead.map(d => d.line));   // a dead line is faded whole
+    return index.problemsIn(path).concat(index.unusedIn(path).filter(u => !deadLines.has(u.line)), dead);
   };
   // Quick fix (Ctrl/Cmd+.): an undefined name that a project module defines gets `from module import name`.
   async function quickFix(pos) {

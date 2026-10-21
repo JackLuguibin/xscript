@@ -447,3 +447,29 @@ test('call arguments: "did you mean" for a misspelled keyword, only among parame
     [12, 6, 5, 'A.m() 没有名为 cuont 的参数（是不是 count？Ctrl+. 改正）', 'count'],
   ]);
 });
+
+test('unreachable code after return / raise / continue / break is faded, line by line', () => {
+  const src = [
+    'def f(x):', '    for i in x:', '        if i:', '            continue', '            print(i)',   // 5
+    '', '        else:', '            break', '        y = 1',                                       // 9: both branches end: not judged
+    '    return 2', '    a = (1,', '  2)', '    if a:', '        pass', '',                        // 11-14
+    'print(1)', 'def g():', '    return', '    yield',                                            // empty-generator idiom
+    'def h():', '    raise ValueError', '    x = 1  # noqa', 'def k():', '    return; print(1)', ''].join('\n');
+  const p = EditorSymbols.build([{path: 'm.py', content: src}], XSDocs);
+  assert.deepEqual(p.unreachableIn('m.py').map(w => [w.line, w.col, w.length, w.message, w.severity]), [
+    [5, 12, 8, '执行不到的代码（前面已经 continue）', 'unused'],
+    [11, 4, 7, '执行不到的代码（前面已经 return）', 'unused'],
+    [12, 2, 2, '执行不到的代码（前面已经 return）', 'unused'],
+    [13, 4, 5, '执行不到的代码（前面已经 return）', 'unused'],
+    [14, 8, 4, '执行不到的代码（前面已经 return）', 'unused'],
+  ]);
+});
+
+test('unreachable code: none reported anywhere in this repository', () => {
+  const {execSync} = require('node:child_process'); const fs = require('node:fs'); const path = require('node:path');
+  const root = path.join(__dirname, '..', '..');
+  const files = execSync('git ls-files "*.py"', {cwd: root}).toString().trim().split('\n').filter(Boolean)
+    .map(p => ({path: p, content: fs.readFileSync(path.join(root, p), 'utf8')}));
+  const p = EditorSymbols.build(files, XSDocs);
+  assert.deepEqual(files.flatMap(f => p.unreachableIn(f.path).map(w => f.path + ':' + w.line)), []);
+});

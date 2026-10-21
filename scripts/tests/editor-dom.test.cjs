@@ -712,6 +712,24 @@ test('Web IDE explorer, editor and create/delete flows in a real browser', {skip
       await b.eval(click, '#refresh'); await b.waitFor(idle);
     });
 
+    await t.test('unreachable code after return is faded and explained on its line', async () => {
+      await api('PUT', '/projects/dom/files', {files: [{path: 'ur_main.py', content: 'print("ok")\n'}]});
+      await b.eval(click, '#refresh'); await b.waitFor(idle);
+      await b.eval(click, row('ur_main.py'));
+      await b.waitFor(() => document.getElementById('editor').value === 'print("ok")\n' && !document.getElementById('editor').disabled);
+      await b.eval(v => { const e = document.getElementById('editor'); e.focus(); e.value = v; e.dispatchEvent(new Event('input')); },
+        'def f():\n    return 1\n    print("never")\n    x = 2\n\nprint(f())\n');
+      await b.waitFor(() => document.querySelectorAll('#diag .fade').length === 2, 5000);
+      assert.deepEqual(await b.eval(() => [...document.querySelectorAll('#diag .fade')].map(n => n.textContent)), ['print("never")', 'x = 2']);
+      assert.equal(await b.eval(() => document.getElementById('problems').dataset.count), '0');
+      await b.eval(() => { const e = document.getElementById('editor'); e.focus(); const at = e.value.indexOf('never'); e.setSelectionRange(at, at); e.dispatchEvent(new Event('keyup')); });
+      await b.waitFor(() => document.getElementById('problems').textContent.includes('第 3 行：执行不到的代码（前面已经 return）'), 5000);
+      await b.eval(click, '#save'); await b.waitFor(idle);
+      await b.eval(click, row('__init__.py')); await b.waitFor(() => !document.getElementById('editor').disabled);
+      await fetch(base + '/projects/dom/file?path=ur_main.py', {method: 'DELETE'});
+      await b.eval(click, '#refresh'); await b.waitFor(idle);
+    });
+
     await t.test('project search and replace: results, options, jump to match, replace saves clean files and keeps unsaved ones dirty', async () => {
       await api('PUT', '/projects/dom/files', {files: [
         {path: 'search/a.py', content: 'needle = 1\nprint(needle)\n'}, {path: 'search/b.py', content: '# NEEDLE\nx = 2\n'}, {path: 'search/c.txt', content: 'no match here\n'}]});
