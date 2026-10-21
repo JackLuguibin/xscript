@@ -18,6 +18,7 @@ import androidx.activity.result.contract.ActivityResultContracts
 import com.xscript.app.capture.CaptureEngine
 import com.xscript.app.http.DeviceHttpService
 import com.xscript.app.permission.PermissionStatus
+import com.xscript.app.project.PermissionGuide
 import com.xscript.app.project.PermissionNeeds
 import com.xscript.app.project.ProjectStore
 import com.xscript.app.runtime.RunState
@@ -44,6 +45,11 @@ class ProjectActivity : AppCompatActivity() {
     /** What this project's code uses (scanned on resume); null until the first scan finished. */
     @Volatile
     private var needs: List<PermissionNeeds.Need>? = null
+
+    /** 「一键开启全部」 in progress: the next step is offered when the user comes back from system settings. */
+    private var guide: PermissionGuide? = null
+    private var guideDialog: androidx.appcompat.app.AlertDialog? = null
+    private val isOk = { k: PermissionNeeds.Kind -> PermissionStatus.ok(this, k) }
 
     private val capturePermission = registerForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
         val data = result.data
@@ -93,6 +99,8 @@ class ProjectActivity : AppCompatActivity() {
 
     override fun onResume() {
         super.onResume()
+        // back from a settings screen during the guide: give the service a moment to bind, then offer the next step
+        if (guide != null && guideDialog?.isShowing != true) handler.postDelayed({ continueGuide() }, 600)
         scanNeeds()
         renderOptions()
         renderFiles()
@@ -102,6 +110,11 @@ class ProjectActivity : AppCompatActivity() {
     override fun onPause() {
         handler.removeCallbacks(tick)
         super.onPause()
+    }
+
+    override fun onDestroy() {
+        guideDialog?.dismiss()
+        super.onDestroy()
     }
 
     private fun updateRun() {
@@ -142,7 +155,7 @@ class ProjectActivity : AppCompatActivity() {
         MaterialAlertDialogBuilder(this)
             .setTitle("还缺 ${missing.size} 项权限")
             .setMessage("这个小程序用到了：\n$lines\n\n没有这些权限，相关操作会失败。")
-            .setPositiveButton("去开启") { _, _ -> fix(missing.first().kind) }
+            .setPositiveButton("去开启") { _, _ -> startGuide() }
             .setNeutralButton("仍然运行") { _, _ -> start() }
             .setNegativeButton("取消", null)
             .show()
@@ -178,7 +191,71 @@ class ProjectActivity : AppCompatActivity() {
             row.value(PermissionStatus.label(this, n.kind), if (ok) ui.success else ui.danger)
         }
         val missing = list.count { !PermissionStatus.ok(this, it.kind) }
-        UiKit.note(perms, if (missing == 0) "按代码里用到的接口检查（${list.joinToString("、") { it.kind.why }}）。" else "还缺 $missing 项，点红字一行去开启。按代码里用到的接口检查，可能不完全准确。")
+        if (missing > 0) {
+            val all = UiKit.button(this, if (missing == 1) "去开启" else "一键开启全部（$missing 项）", UiKit.Tone.PRIMARY) { startGuide() }
+            perms.addView(all, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT).apply {
+                topMargin = UiKit.dp(this@ProjectActivity, UiKit.Space.S)
+            })
+        }
+        UiKit.note(perms, if (missing == 0) "按代码里用到的接口检查（${list.joinToString("、") { it.kind.why }}）。" else "还缺 $missing 项：点「一键开启全部」逐项去开启，开好一项返回这里就会接着下一项；也可以点红字一行单独开启。按代码里用到的接口检查，可能不完全准确。")
+    }
+
+    // ------------------------------------------------------------------ 一键开启全部
+
+    private fun startGuide() {
+        val list = needs ?: return
+        guide = PermissionGuide(list.map { it.kind }, isOk)
+        continueGuide()
+    }
+
+    /** Offers the next missing permission, or says how it went. */
+    private fun continueGuide() {
+        val g = guide ?: return
+        if (isFinishing || guideDialog?.isShowing == true) return
+        renderPermissions()
+        val kind = g.next(isOk)
+        if (kind == null) {
+            finishGuide(g)
+            return
+        }
+        val where = needs.orEmpty().firstOrNull { it.kind == kind }?.where.orEmpty()
+        val how = when (kind) {
+            PermissionNeeds.Kind.ACCESSIBILITY -> "在系统的无障碍设置里找到 XScript 并打开，然后按返回键回到这里。"
+            PermissionNeeds.Kind.CAPTURE -> "系统会弹出录屏确认，选「立即开始」（Android 14 起选「整个屏幕」）。"
+            PermissionNeeds.Kind.OVERLAY -> "在列表里找到 XScript，打开「允许显示在其他应用的上层」，然后返回。"
+            PermissionNeeds.Kind.NOTIFICATIONS -> "在通知使用权里打开 XScript，然后返回。"
+            PermissionNeeds.Kind.STORAGE -> "打开「允许访问所有文件」，然后返回。"
+        }
+        guideDialog = MaterialAlertDialogBuilder(this)
+            .setTitle("第 ${g.stepNumber()}/${g.total} 步：${kind.label}")
+            .setMessage("用来${kind.why}" + (if (where.isNotEmpty()) "（$where）" else "") + "。\n\n$how")
+            .setPositiveButton("去开启") { _, _ ->
+                g.opened(kind)
+                fix(kind)
+            }
+            .setNeutralButton("跳过") { _, _ ->
+                g.skip(kind)
+                handler.post { continueGuide() }
+            }
+            .setNegativeButton("结束") { _, _ -> guide = null }
+            .setOnCancelListener { guide = null }
+            .show()
+    }
+
+    private fun finishGuide(g: PermissionGuide) {
+        guide = null
+        renderPermissions()
+        val left = g.remaining(isOk)
+        if (left.isEmpty()) {
+            UiKit.toast(this, "权限都开好了")
+            return
+        }
+        MaterialAlertDialogBuilder(this)
+            .setTitle("还缺 ${left.size} 项权限")
+            .setMessage(left.joinToString("\n") { "· ${it.label}" + (if (it in g.skipped()) "（已跳过）" else "（没有开启）") } +
+                "\n\n可以稍后点「权限检查」里的红字一行单独开启。")
+            .setPositiveButton("知道了", null)
+            .show()
     }
 
     private fun fix(kind: PermissionNeeds.Kind) {
