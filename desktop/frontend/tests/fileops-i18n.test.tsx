@@ -109,6 +109,59 @@ describe("file new / rename / delete", () => {
     expect(screen.getByText("选择一个文件查看或编辑")).toBeTruthy(); // the open file was inside
   });
 
+  it("undo after deleting a file writes the saved copy back", async () => {
+    const { transport, api } = await projects();
+    fireEvent.click(screen.getByRole("button", { name: "新建文件" }));
+    const input = screen.getByRole("textbox", { name: /新文件路径/ });
+    fireEvent.change(input, { target: { value: "keep.py" } });
+    fireEvent.submit(input.closest("form")!);
+    await screen.findByRole("button", { name: /^keep\.py/ });
+    const id = (await api.listDevices()).devices[0].id;
+    await api.writeFile(id, "demo", "keep.py", "print('keep')\n");
+    fireEvent.click(screen.getByRole("button", { name: "删除 keep.py" }));
+    const dlg = await screen.findByRole("alertdialog");
+    expect(dlg.textContent).toContain("撤销");
+    fireEvent.click(within(dlg).getByRole("button", { name: "删除" }));
+    await waitFor(() => expect(screen.queryByRole("button", { name: /^keep\.py/ })).toBeNull());
+    const toasts = screen.getAllByRole("status").find((x) => x.className.includes("toasts"))!;
+    expect(toasts.textContent).toContain("已删除 keep.py");
+    fireEvent.click(within(toasts).getByRole("button", { name: "撤销" }));
+    await screen.findByRole("button", { name: /^keep\.py/ });
+    expect((await api.readFile(id, "demo", "keep.py")).content).toBe("print('keep')\n");
+    expect(transport.sent.filter((m) => m.method === "project.write").pop()?.params).toMatchObject({ path: "keep.py", create: true });
+    await screen.findByText("已恢复");
+  });
+
+  it("undo after deleting a folder restores every file in it, base64 ones as base64", async () => {
+    const { transport, api } = await projects();
+    const id = (await api.listDevices()).devices[0].id;
+    for (const path of ["pkg/a.py", "pkg/sub/b.py"]) {
+      fireEvent.click(screen.getByRole("button", { name: "新建文件" }));
+      const input = screen.getByRole("textbox", { name: /新文件路径/ });
+      fireEvent.change(input, { target: { value: path } });
+      fireEvent.submit(input.closest("form")!);
+      await screen.findByRole("button", { name: new RegExp("^" + path.replace(/[/.]/g, "\\$&")) });
+      await api.writeFile(id, "demo", path, "# " + path + "\n");
+    }
+    const read = api.readFile;
+    api.readFile = async (d, p, f) => (f === "pkg/a.py" ? { path: f, encoding: "base64", content: "AAEC" } : read(d, p, f));
+    fireEvent.click(screen.getByRole("button", { name: "删除文件夹 pkg/" }));
+    fireEvent.click(within(await screen.findByRole("alertdialog")).getByRole("button", { name: "删除" }));
+    await waitFor(() => expect(screen.queryByRole("button", { name: /^pkg\/a\.py/ })).toBeNull());
+    const toasts = screen.getAllByRole("status").find((x) => x.className.includes("toasts"))!;
+    expect(toasts.textContent).toContain("已删除文件夹 pkg/（2 个文件）");
+    fireEvent.click(within(toasts).getByRole("button", { name: "撤销" }));
+    await screen.findByRole("button", { name: /^pkg\/sub\/b\.py/ });
+    await screen.findByRole("button", { name: /^pkg\/a\.py/ });
+    const writes = transport.sent.filter((m) => m.method === "project.write").slice(-2).map((m) => m.params);
+    expect(writes).toEqual([
+      expect.objectContaining({ path: "pkg/a.py", content: "AAEC", encoding: "base64", create: true }),
+      expect.objectContaining({ path: "pkg/sub/b.py", content: "# pkg/sub/b.py\n", create: true }),
+    ]);
+    expect(writes[1]).not.toHaveProperty("encoding");
+    await screen.findByText("已恢复 2 个文件");
+  });
+
   it("escape / ✕ close the form; a device error is shown", async () => {
     const { transport } = await projects();
     fireEvent.click(screen.getByRole("button", { name: "新建文件" }));

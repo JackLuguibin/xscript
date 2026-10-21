@@ -14,6 +14,9 @@ import { SyncPanel } from "./SyncPanel";
 import { EmptyState } from "./EmptyState";
 import { IconAlert, IconFolder, IconMark, IconPhone, IconRefresh, Spinner } from "./icons";
 import { useToast } from "./Toast";
+
+/** Folders with more files than this are deleted without an undo copy. */
+const UNDO_MAX_FILES = 50;
 import { Alert } from "./ui/alert";
 import { Button } from "./ui/button";
 import { Input } from "./ui/input";
@@ -33,6 +36,8 @@ export function ProjectsPage({ pollMs = LOG_POLL_MS, onDirtyChange }: { pollMs?:
   const { devices, devId } = useCurrentDevice();
   const [projects, setProjects] = useState<ProjectSummary[] | null>(null);
   const [project, setProject] = useState("");
+  const projectRef = useRef(project);
+  projectRef.current = project;
   const [files, setFiles] = useState<ProjectFiles | null>(null);
   const [file, setFile] = useState<FileContent | null>(null);
   const [text, setText] = useState("");
@@ -169,12 +174,47 @@ export function ProjectsPage({ pollMs = LOG_POLL_MS, onDirtyChange }: { pollMs?:
   const deleteFile = async (path: string) => {
     if (!(await confirm({ message: t.files.confirmDelete(path), confirmLabel: t.confirm.del, danger: true }))) return;
     void act("del:" + path, async () => {
+      const saved = await snapshot([path]);
       await api.deleteFile(devId, project, path);
       if (file?.path === path) {
         setFile(null);
         setDirty(false);
       }
       await reloadFiles();
+      offerUndo(t.files.deleted(path), saved);
+    });
+  };
+
+  /** Copies of the files about to be deleted, kept in memory for the undo toast; null when there are too many. */
+  const snapshot = async (paths: string[]): Promise<FileContent[] | null> => {
+    if (paths.length > UNDO_MAX_FILES) return null;
+    try {
+      return await Promise.all(paths.map((p) => api.readFile(devId, project, p)));
+    } catch {
+      return null; // a file that cannot be read just means no undo
+    }
+  };
+
+  const offerUndo = (text: string, saved: FileContent[] | null) => {
+    if (!saved) return toast(text);
+    const dev = devId;
+    const proj = project;
+    toast(text, {
+      label: t.files.undo,
+      run: () =>
+        void act("undo", async () => {
+          for (const f of saved) {
+            try {
+              await api.writeFile(dev, proj, f.path, f.content, true, f.encoding);
+            } catch (e) {
+              setError(e);
+              setNotice(t.files.restoreFailed(f.path));
+              return;
+            }
+          }
+          if (proj === projectRef.current) await reloadFiles();
+          toast(t.files.restored(saved.length));
+        }),
     });
   };
 
@@ -196,12 +236,14 @@ export function ProjectsPage({ pollMs = LOG_POLL_MS, onDirtyChange }: { pollMs?:
     const shown = inside.slice(0, 15).join("\n") + (inside.length > 15 ? "\n" + t.files.more(inside.length - 15) : "");
     if (!(await confirm({ message: t.files.confirmDeleteFolder(dir, inside.length, shown), confirmLabel: t.confirm.del, danger: true }))) return;
     void act("deldir:" + dir, async () => {
+      const saved = await snapshot(inside);
       await api.deleteFolder(devId, project, dir);
       if (file && file.path.startsWith(dir + "/")) {
         setFile(null);
         setDirty(false);
       }
       await reloadFiles();
+      offerUndo(t.files.deletedFolder(dir, inside.length), saved);
     });
   };
 
