@@ -1233,9 +1233,11 @@ test('Web IDE explorer, editor and create/delete flows in a real browser', {skip
       await b.eval(() => { window.__firstNumber = document.querySelector('#line-numbers span'); });
       const type = text => b.eval(v => { const e = document.getElementById('editor'); e.focus(); e.setSelectionRange(5, 5); e.setRangeText(v, 5, 5, 'end'); e.dispatchEvent(new InputEvent('input', {inputType: 'insertText', data: v})); }, text);
       await type('0');
+      const frame = () => b.eval(() => new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r))));   // the gutter follows on the next frame while typing
+      await frame();
       assert.equal(await b.eval(() => document.querySelector('#line-numbers span') === window.__firstNumber), true, 'same gutter nodes after typing within a line');
       assert.equal(await b.eval(() => document.querySelectorAll('#line-numbers span').length), 3);
-      await type('\n');
+      await type('\n'); await frame();
       assert.deepEqual(await b.eval(() => [...document.querySelectorAll('#line-numbers span')].map(s => s.textContent.trim())), ['1', '2', '3', '4']);
       assert.equal(await b.eval(() => document.getElementById('cursor').textContent), '行 2，列 1');
     });
