@@ -19,7 +19,8 @@ import java.util.concurrent.TimeUnit
  * never in a normal IDE) it opens the first XScript project's __init__.py and runs Upload and Run (`run`), or opens
  * Settings | Tools | XScript (`settings`), selects the first `_result` line and runs Run Selection on Device (`eval`), or starts
  * Pull Project from Device (`pull`), or runs a device project and opens the Device Projects tab (`projects`), or opens Connect to Device and checks
- * -Dxscript.screenshotConnect (`connect`, `capture`), or just opens __init__.py with the basic checks' warnings (`lint`), so screenshots need no scripted mouse clicks. Does nothing otherwise.
+ * -Dxscript.screenshotConnect (`connect`, `capture`), or just opens __init__.py with the basic checks' warnings (`lint`), or also puts the caret on the first `totl` and opens
+ * Alt+Enter (`lintfix`), so screenshots need no scripted mouse clicks. Does nothing otherwise.
  */
 class ScreenshotDemoActivity : ProjectActivity {
     override suspend fun execute(project: Project) {
@@ -95,10 +96,21 @@ class ScreenshotDemoActivity : ProjectActivity {
                         }, 3, TimeUnit.SECONDS)
                     }
                 }
-                if (mode == "lint") ToolWindowManager.getInstance(project).getToolWindow("Problems View")?.show()
+                if (mode == "lint" || mode == "lintfix") ToolWindowManager.getInstance(project).getToolWindow("Problems View")?.show()
                 if (mode == "run" || mode == "eval") ToolWindowManager.getInstance(project).getToolWindow(XScriptService.TOOL_WINDOW_ID)?.show()
             }, project.disposed)
         }, 12, TimeUnit.SECONDS)
+        // lintfix: the caret on the first misspelled `totl`, then Alt+Enter (the checks have run by now)
+        if (mode == "lintfix") AppExecutorUtil.getAppScheduledExecutorService().schedule({
+            app.invokeLater({
+                val editor = FileEditorManager.getInstance(project).selectedTextEditor ?: return@invokeLater
+                val at = editor.document.text.indexOf("totl")
+                if (at < 0) return@invokeLater
+                editor.caretModel.moveToOffset(at + 1)
+                val psi = com.intellij.psi.PsiDocumentManager.getInstance(project).getPsiFile(editor.document) ?: return@invokeLater
+                com.intellij.codeInsight.intention.impl.ShowIntentionActionsHandler().invoke(project, editor, psi)
+            }, project.disposed)
+        }, 36, TimeUnit.SECONDS)
         // pull: press the project picker's default button so the flow runs to the end (the folder matches the picked name)
         if (mode == "pull") AppExecutorUtil.getAppScheduledExecutorService().schedule({
             app.invokeLater({ shoot(project, "picker"); pressDefaultButton() }, com.intellij.openapi.application.ModalityState.any())
@@ -124,7 +136,7 @@ class ScreenshotDemoActivity : ProjectActivity {
             AppExecutorUtil.getAppScheduledExecutorService().schedule({
                 app.invokeLater({ shoot(project, mode) }, com.intellij.openapi.application.ModalityState.any())
             }, 2, TimeUnit.SECONDS)
-        }, 22, TimeUnit.SECONDS)
+        }, if (mode == "lintfix") 36 else 22, TimeUnit.SECONDS)
     }
 
     /** With -Dxscript.screenshotOut=<dir>: paints the frontmost IDE window (a dialog if one is open) into <dir>/<name>.png. */
@@ -137,6 +149,14 @@ class ScreenshotDemoActivity : ProjectActivity {
         val g = img.createGraphics()
         g.scale(scale, scale)
         window.printAll(g)
+        // popups (the Alt+Enter list) are separate heavyweight windows on top of the frame: paint them in place too
+        for (w in java.awt.Window.getWindows()) {
+            if (w === window || !w.isShowing || w is java.awt.Dialog || w is java.awt.Frame) continue
+            val at = javax.swing.SwingUtilities.convertPoint(w, 0, 0, window)
+            val pg = g.create(at.x, at.y, w.width, w.height)
+            w.printAll(pg)
+            pg.dispose()
+        }
         g.dispose()
         Files.createDirectories(dir)
         javax.imageio.ImageIO.write(img, "png", dir.resolve("$name.png").toFile())
@@ -149,6 +169,6 @@ class ScreenshotDemoActivity : ProjectActivity {
 
     companion object {
         fun mode(): String? = System.getProperty("xscript.screenshotDemo")?.takeIf { it in MODES }
-        private val MODES = setOf("run", "settings", "eval", "pull", "projects", "connect", "capture", "lint")
+        private val MODES = setOf("run", "settings", "eval", "pull", "projects", "connect", "capture", "lint", "lintfix")
     }
 }
