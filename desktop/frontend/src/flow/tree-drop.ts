@@ -1,7 +1,9 @@
 // Turn a control picked on the screen page into "find it, and click it when found" on the canvas.
-// Text → the native node.find node (editable in the inspector). No text → a code node with the full
-// Selector chain (id / desc / class + path), since node.find only searches by text.
+// Text that only this control has on the screen → the native node.find node (editable in the inspector). Otherwise
+// (no text, or a list where several rows share it) → a code node with a Selector chain that finds only this control,
+// since node.find only searches by text and would take the first match.
 import { nodeLabel, selectorChain, type UiNode } from "../ui-tree";
+import type { CanvasPick } from "./inbox";
 import type { FlowGraph, NodeSpec } from "./dsl";
 
 export interface TreeDrop {
@@ -43,7 +45,7 @@ export function chainTail(graph: FlowGraph, specs: Map<string, NodeSpec>): strin
   }
 }
 
-export function dropTreeNode(graph: FlowGraph, pick: UiNode, specs: Map<string, NodeSpec>): TreeDrop {
+export function dropTreeNode(graph: FlowGraph, pick: UiNode & Pick<CanvasPick, "where">, specs: Map<string, NodeSpec>): TreeDrop {
   const taken = new Set<string>();
   const find = freshId(graph, "find", taken);
   const ok = freshId(graph, "found", taken);
@@ -53,12 +55,14 @@ export function dropTreeNode(graph: FlowGraph, pick: UiNode, specs: Map<string, 
   const text = (pick.text ?? "").trim();
   let hit: string;
   let found: string;
-  if (text) {
+  // Picks without `where` (queued without a tree) keep the old rule: any text goes to node.find.
+  const byText = !!text && (pick.where ? pick.where.textUnique : true);
+  if (byText) {
     nodes.push({ id: find, type: "node.find", inputs: { text, timeout: 5 } });
     hit = find + ".node";
     found = find + ".found";
   } else {
-    const source = ["from xscript.android import node as xs_node", "hit = " + selectorChain(pick, "xs_node") + ".find(timeout=5)", "found = hit is not None"].join("\n");
+    const source = ["from xscript.android import node as xs_node", "hit = " + (pick.where ? "xs_node.Selector()" + pick.where.chain : selectorChain(pick, "xs_node")) + ".find(timeout=5)", "found = hit is not None"].join("\n");
     nodes.push({ id: find, type: "code.python", config: { source, outPins: "hit:node?, found:bool" } });
     hit = find + ".hit";
     found = find + ".found";

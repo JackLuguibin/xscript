@@ -76,6 +76,19 @@ describe("dropping a control onto the flow", () => {
     expect(py).toContain("if find[1]:");
     expect(runFlowPython(py, ["com.x:id/ok"])).toEqual(["click com.x:id/ok"]);
     expect(runFlowPython(py)).toEqual([]);
+    // Sent with the screen's tree: text that only this row has stays node.find; a text two rows share (or a resource
+    // id every row shares) gets a code node whose selector finds only the picked row.
+    const row = (path: string, text: string) => ({ path, id: "android:id/title", text, type: "android.widget.TextView" });
+    const roots = [{ path: "0", type: "android.widget.FrameLayout", children: [row("0/0", "Apps"), row("0/1", "Battery"), row("0/2", "Battery")] }];
+    sendToCanvas(row("0/0", "Apps"), roots);
+    sendToCanvas(row("0/2", "Battery"), roots);
+    const [apps, battery] = takeCanvasPicks();
+    expect(apps.where).toEqual({ textUnique: true, chain: ".id('android:id/title').text('Apps')" });
+    expect(battery.where).toEqual({ textUnique: false, chain: ".id('android:id/title').text('Battery').path('0/2')" });
+    expect(printFlow(dropTreeNode(parse("flow e  # xflow 1\non start:\n"), apps, specs).graph)).toContain('find: node.find(text="Apps", timeout=5)');
+    const dup = dropTreeNode(parse("flow e  # xflow 1\non start:\n"), battery, specs).graph.nodes.find((node) => node.id === "find");
+    expect(dup?.type).toBe("code.python");
+    expect(String(dup?.config?.source)).toContain("hit = xs_node.Selector().id('android:id/title').text('Battery').path('0/2').find(timeout=5)");
   });
 
   it("gives a second drop fresh ids and leaves it floating after the branch", () => {
@@ -173,6 +186,7 @@ describe("screen page → flow page", () => {
     fireEvent.click(await screen.findByRole("treeitem", { name: "Search" }));
     fireEvent.click(screen.getByRole("button", { name: "放到流程画布" }));
     await screen.findByText("已放到流程画布");
-    expect(takeCanvasPicks()).toEqual([{ ...SEARCH }]);
+    // the screen page sends the tree too, so the canvas knows how to find exactly this control
+    expect(takeCanvasPicks()).toEqual([{ ...SEARCH, where: { textUnique: true, chain: ".id('com.android.settings:id/search').clickable()" } }]);
   });
 });
