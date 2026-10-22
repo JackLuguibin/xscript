@@ -83,12 +83,13 @@ describe("dropping a control onto the flow", () => {
     sendToCanvas(row("0/0", "Apps"), roots);
     sendToCanvas(row("0/2", "Battery"), roots);
     const [apps, battery] = takeCanvasPicks();
-    expect(apps.where).toEqual({ textUnique: true, chain: ".id('android:id/title').text('Apps')" });
-    expect(battery.where).toEqual({ textUnique: false, chain: ".id('android:id/title').text('Battery').path('0/2')" });
+    expect(apps.where).toEqual({ textUnique: true, chain: ".id('android:id/title').text('Apps')", why: "# id 'android:id/title' 有 3 个控件，加文字 'Apps' 就只剩这一个" });
+    expect(battery.where).toEqual({ textUnique: false, chain: ".id('android:id/title').text('Battery').path('0/2')", why: "# id 'android:id/title' 有 3 个控件，加文字 'Battery' 还有 2 个，再加路径 '0/2' 才是这一个" });
     expect(printFlow(dropTreeNode(parse("flow e  # xflow 1\non start:\n"), apps, specs).graph)).toContain('find: node.find(text="Apps", timeout=5)');
     const dup = dropTreeNode(parse("flow e  # xflow 1\non start:\n"), battery, specs).graph.nodes.find((node) => node.id === "find");
     expect(dup?.type).toBe("code.python");
-    expect(String(dup?.config?.source)).toContain("hit = xs_node.Selector().id('android:id/title').text('Battery').path('0/2').find(timeout=5)");
+    // the code node says why its selector looks like this, right above the call
+    expect(String(dup?.config?.source)).toContain("# id 'android:id/title' 有 3 个控件，加文字 'Battery' 还有 2 个，再加路径 '0/2' 才是这一个\nhit = xs_node.Selector().id('android:id/title').text('Battery').path('0/2').find(timeout=5)");
   });
 
   it("gives a second drop fresh ids and leaves it floating after the branch", () => {
@@ -187,10 +188,10 @@ describe("screen page → flow page", () => {
     fireEvent.click(screen.getByRole("button", { name: "放到流程画布" }));
     await screen.findByText("已放到流程画布");
     // the screen page sends the tree too, so the canvas knows how to find exactly this control
-    expect(takeCanvasPicks()).toEqual([{ ...SEARCH, where: { textUnique: true, chain: ".id('com.android.settings:id/search').clickable()" } }]);
+    expect(takeCanvasPicks()).toEqual([{ ...SEARCH, where: { textUnique: true, chain: ".id('com.android.settings:id/search').clickable()", why: "# id 'com.android.settings:id/search' 在界面上只有这一个可点击的控件" } }]);
     // a clock's text is never "unique": it will have changed by the time the flow runs
     const clock = { path: "0/0", id: "com.android.systemui:id/clock", text: "1:57", type: "android.widget.TextView" };
     sendToCanvas(clock, [clock]);
-    expect(takeCanvasPicks()[0].where).toEqual({ textUnique: false, chain: ".id('com.android.systemui:id/clock')" });
+    expect(takeCanvasPicks()[0].where).toEqual({ textUnique: false, chain: ".id('com.android.systemui:id/clock')", why: "# id 'com.android.systemui:id/clock' 在界面上只有这一个控件" });
   });
 });
