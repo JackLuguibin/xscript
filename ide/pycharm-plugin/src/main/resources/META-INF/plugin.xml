@@ -21,6 +21,7 @@
         <statusBarWidgetFactory id="XScript.DeviceStatus" implementation="com.xscript.pycharm.DeviceStatusWidgetFactory"/>
         <postStartupActivity implementation="com.xscript.pycharm.StubsStartupActivity"/>
         <postStartupActivity implementation="com.xscript.pycharm.ScreenshotDemoActivity"/>
+        <externalAnnotator language="Python" implementationClass="com.xscript.pycharm.XScriptLintAnnotator"/>
     </extensions>
 
     <actions>

@@ -19,7 +19,7 @@ import java.util.concurrent.TimeUnit
  * never in a normal IDE) it opens the first XScript project's __init__.py and runs Upload and Run (`run`), or opens
  * Settings | Tools | XScript (`settings`), selects the first `_result` line and runs Run Selection on Device (`eval`), or starts
  * Pull Project from Device (`pull`), or runs a device project and opens the Device Projects tab (`projects`), or opens Connect to Device and checks
- * -Dxscript.screenshotConnect (`connect`, `capture`), so screenshots need no scripted mouse clicks. Does nothing otherwise.
+ * -Dxscript.screenshotConnect (`connect`, `capture`), or just opens __init__.py with the basic checks' warnings (`lint`), so screenshots need no scripted mouse clicks. Does nothing otherwise.
  */
 class ScreenshotDemoActivity : ProjectActivity {
     override suspend fun execute(project: Project) {
@@ -95,6 +95,7 @@ class ScreenshotDemoActivity : ProjectActivity {
                         }, 3, TimeUnit.SECONDS)
                     }
                 }
+                if (mode == "lint") ToolWindowManager.getInstance(project).getToolWindow("Problems View")?.show()
                 if (mode == "run" || mode == "eval") ToolWindowManager.getInstance(project).getToolWindow(XScriptService.TOOL_WINDOW_ID)?.show()
             }, project.disposed)
         }, 12, TimeUnit.SECONDS)
@@ -148,6 +149,6 @@ class ScreenshotDemoActivity : ProjectActivity {
 
     companion object {
         fun mode(): String? = System.getProperty("xscript.screenshotDemo")?.takeIf { it in MODES }
-        private val MODES = setOf("run", "settings", "eval", "pull", "projects", "connect", "capture")
+        private val MODES = setOf("run", "settings", "eval", "pull", "projects", "connect", "capture", "lint")
     }
 }

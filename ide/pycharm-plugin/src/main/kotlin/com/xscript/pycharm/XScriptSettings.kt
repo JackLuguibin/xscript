@@ -17,6 +17,8 @@ class XScriptSettings : PersistentStateComponent<XScriptSettings.State> {
         var evalTimeoutMs: Int = DEFAULT_EVAL_TIMEOUT_MS
         /** Off by default: also delete device files that were removed locally (asks first, listing them). */
         var syncDeletes: Boolean = false
+        /** On by default: the Web IDE's basic checks as warnings in project .py files. */
+        var lint: Boolean = true
     }
 
     private var state = State()
@@ -36,6 +38,11 @@ class XScriptSettings : PersistentStateComponent<XScriptSettings.State> {
     var syncDeletes: Boolean
         get() = state.syncDeletes
         set(v) { state.syncDeletes = v }
+
+    /** Basic checks in the editor (the Web IDE's rules), like VS Code's `xscript.lint`. */
+    var lint: Boolean
+        get() = state.lint
+        set(v) { state.lint = v }
 
     fun target(): DeviceTarget = DeviceTarget.parse(device)
 

@@ -8,7 +8,9 @@
 
 ![运行后底部 XScript 工具窗口实时输出日志，右下角状态栏显示「XScript: Running daily_signin」](../../docs/images/pycharm-run.png)
 
-![Settings → Tools → XScript：设备地址、配对码、运行选中代码超时和「上传时同步删除」](../../docs/images/pycharm-settings.png)
+![Settings → Tools → XScript：设备地址、配对码、运行选中代码超时、「上传时同步删除」和「编辑器里的基本检查」](../../docs/images/pycharm-settings.png)
+
+![基本检查：问题面板里以 XScript: 开头的警告，在 async 函数里直接调用 async 函数、关键字参数 wiat（是不是 wait？）、拼错的 totl（是不是 total？）](../../docs/images/pycharm-checks.png)
 
 ![选中一行按 Ctrl+Alt+Shift+E：代码和设备返回的结果显示在 XScript 工具窗口](../../docs/images/pycharm-eval.png)
 
@@ -62,6 +64,7 @@ cd ide/pycharm-plugin
 - **预览上传**：Tools → XScript → Preview Upload (Dry Run)，不改动手机，只在 XScript 工具窗口里列出「上传并运行」会新增、重新发送、跳过和删除的文件。有需要上传或删除的内容时，右下角通知里有 **上传并运行** 按钮，直接执行同一次增量上传（删除仍会先弹确认框）。
 - **工程**：当前文件之上、含有 `__init__.py` 或 `build.as` 的最顶层文件夹；文件夹名就是手机上的工程名。上传时跳过隐藏文件、`__pycache__`、`.pyc`、虚拟环境，并遵守 `.vscode/.syncignore`（与 VS Code 扩展同一个文件）。设备上有、本地已删除的文件默认保留；在设置里勾选「上传时同步删除本地已删除的文件」后，每次上传会先列出这些文件，确认后才在设备上删除（被 `.syncignore` 忽略的文件、点开头的文件、`__pycache__` 和工程入口 `__init__.py` 永远不删；删除后变空的文件夹连同其中的 `__pycache__` 一起删除，也在同一个对话框里列出；同 VS Code 的 `xscript.syncDeletes`）。
 - **配对码**：手机默认需要配对码（XScript 首页「开发与连接 → 配对码」）。第一次遇到 401 时插件会弹窗询问，保存在 IDE 的密码库（macOS 钥匙串等），也可以在设置页填写。按设备地址分别保存。
+- **基本检查**：XScript 工程里的 `.py` 文件，用和网页 IDE、VS Code 扩展同一套规则检查（未定义的名字及「是不是 …」、属性不存在、调用参数不对、import 拼错、async / await 用错、重复定义），以 `XScript:` 开头的警告画在编辑器里并列在问题面板。PyCharm 自己已经会把未使用的 import / 变量和执行不到的代码变灰，这几类不重复报；有的问题（例如多余的参数）PyCharm 也会报一条，XScript 的那条多了「是不是 …」提示。规则在 IDE 自带的浏览器（JCEF）里运行，没有 JCEF 时（例如部分远程开发环境）不检查。不想要时在 **Settings → Tools → XScript** 取消「编辑器里的基本检查」。
 - **补全**：打开像 XScript 工程的项目时，插件会提示「启用 XScript 补全」。它只是把插件目录里的 `stubs/`（由 `scripts/gen_stubs.py` 生成，与 VS Code 扩展内置的是同一份）加为模块库，不往工程里复制任何文件；关闭时移除这个库。
 
 ## 开发
@@ -74,5 +77,5 @@ cd ide/pycharm-plugin
 ```
 
 - 新建工程模板 `src/main/resources/templates.json` 是生成的：改 `ide/vscode-extension/src/newProject.ts` 后，在 `ide/vscode-extension` 里 `npm run compile && node scripts/export-templates.js`。CI 用 `--check` 检查。
-- 截图：先在 `.intellijPlatform/sandbox/xscript-pycharm/PC-2024.2.6/config_runIde/options/xscript.xml` 里把设备地址设为本机 mock 设备，再 `./gradlew runIde -PrunIdeProject=<演示工程> -PrunIdeHeadlessConsent -PrunIdeScreenshotDemo=run -PrunIdeScreenshotOut=<目录>`（模式还有 `settings`、`eval`、`pull`、`projects`、`connect`；`connect` 用 `-PrunIdeScreenshotConnect=<地址>` 指定要检查的地址）。这些开关只用于这个一次性的沙盒：跳过用户协议，打开演示工程，执行对应功能（`pull` 会自动按下选择和覆盖对话框的默认按钮；演示工程里要有与设备工程同名的文件夹），约 25 秒后把 IDE 窗口（有对话框时截对话框）存成 `<目录>/<模式>.png`，不需要系统录屏权限。
+- 截图：先在 `.intellijPlatform/sandbox/xscript-pycharm/PC-2024.2.6/config_runIde/options/xscript.xml` 里把设备地址设为本机 mock 设备，再 `./gradlew runIde -PrunIdeProject=<演示工程> -PrunIdeHeadlessConsent -PrunIdeScreenshotDemo=run -PrunIdeScreenshotOut=<目录>`（模式还有 `settings`、`eval`、`pull`、`projects`、`connect`、`lint`（只打开 `__init__.py` 和问题面板，看基本检查；演示工程里要有写错的代码）；`connect` 用 `-PrunIdeScreenshotConnect=<地址>` 指定要检查的地址）。这些开关只用于这个一次性的沙盒：跳过用户协议，打开演示工程，执行对应功能（`pull` 会自动按下选择和覆盖对话框的默认按钮；演示工程里要有与设备工程同名的文件夹），约 25 秒后把 IDE 窗口（有对话框时截对话框）存成 `<目录>/<模式>.png`，不需要系统录屏权限。
 - 本机没有系统 JDK 时可以用 Android Studio 自带的：`JAVA_HOME="/Applications/Android Studio.app/Contents/jbr/Contents/Home"`。
