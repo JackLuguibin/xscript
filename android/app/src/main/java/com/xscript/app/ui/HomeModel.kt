@@ -26,6 +26,17 @@ object HomeModel {
         else -> RunCard("还没有选择小程序", "新建、导入或选择一个小程序后即可运行", "选择", UiKit.Tone.PRIMARY, false)
     }
 
+    /**
+     * The banner under the run card when nothing can drive the screen: accessibility is off and there is no root.
+     * [listed]: the service is switched on in Settings but not connected (common right after a reinstall).
+     * Null hides the banner.
+     */
+    fun a11yBanner(on: Boolean, listed: Boolean, root: Boolean?): String? = when {
+        on || root == true -> null
+        listed -> "无障碍服务已开启但没连上（重装后常见）：点此在设置里关掉再打开"
+        else -> "无障碍服务未开启，找控件、点击等自动化用不了：点此去开启"
+    }
+
     /** Trailing text of the permissions section header. */
     fun permissionSummary(granted: Int, total: Int): String =
         if (granted >= total) "全部已开启" else "已开启 $granted/$total"

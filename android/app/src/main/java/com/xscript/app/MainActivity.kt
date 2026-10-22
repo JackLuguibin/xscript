@@ -102,6 +102,12 @@ class MainActivity : AppCompatActivity() {
 
         run = UiKit.runCard(col) { toggleRun() }
 
+        // Shown only while nothing can drive the screen (reinstalling turns the accessibility service off)
+        a11yCard = UiKit.card(col, UiKit.Space.S)
+        a11yBanner = UiKit.row(a11yCard, R.drawable.ic_sym_accessibility_new, "", "去开启") {
+            startActivity(Intent(AndroidSettings.ACTION_ACCESSIBILITY_SETTINGS))
+        }
+
         // Grouped by what the user does: open a project, connect a computer, choose how scripts run, grant access.
         val apps = UiKit.card(col)
         rowProjects = UiKit.row(apps, R.drawable.ic_sym_apps, "小程序列表") {
@@ -180,6 +186,13 @@ class MainActivity : AppCompatActivity() {
             if (a11y) ui.success else ui.danger,
         )
 
+        val banner = HomeModel.a11yBanner(a11y, listed, RootShell.known())
+        a11yCard.visibility = if (banner == null) android.view.View.GONE else android.view.View.VISIBLE
+        if (banner != null) {
+            UiKit.setText(a11yBanner.title, banner)
+            a11yBanner.value("去开启", ui.danger)
+        }
+
         when (RootShell.known()) {
             true -> rowRoot.value("已获取", ui.success)
             false -> rowRoot.value("未获取")
@@ -226,6 +239,8 @@ class MainActivity : AppCompatActivity() {
     }
 
     private var endpoint: HomeModel.Endpoint? = null
+    private lateinit var a11yCard: android.widget.LinearLayout
+    private lateinit var a11yBanner: UiKit.Row
 
     /** 开发者地址: copy when the server runs; otherwise start it, or retry the ports. */
     private fun endpointTapped() {

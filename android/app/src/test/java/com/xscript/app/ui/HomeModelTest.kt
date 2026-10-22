@@ -10,6 +10,14 @@ import org.junit.Test
 
 class HomeModelTest {
     @Test
+    fun a11yBannerOnlyWhenNothingDrivesTheScreen() {
+        assertEquals(null, HomeModel.a11yBanner(on = true, listed = true, root = null))
+        assertEquals(null, HomeModel.a11yBanner(on = false, listed = false, root = true))
+        assertTrue(HomeModel.a11yBanner(on = false, listed = false, root = null)!!.startsWith("无障碍服务未开启"))
+        assertTrue(HomeModel.a11yBanner(on = false, listed = true, root = false)!!.contains("关掉再打开"))
+    }
+
+    @Test
     fun runningProjectOffersStop() {
         val c = HomeModel.runCard(running = "demo", last = "other")
         assertEquals("demo", c.title)
