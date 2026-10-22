@@ -27,25 +27,45 @@ class MissingPermsTest {
     }
 
     @Test
-    fun `warning names each permission and offers the button only for accessibility`() {
+    fun `warning names each permission and offers the accessibility fix first`() {
         assertNull(missingWarning(emptyList(), fake))
-        val (text, a11y) = missingWarning(listOf(MissingPerm("无障碍", "perm.py:3"), MissingPerm("自定义", "")), fake)!!
-        assertEquals("missing.warn[missing.item[missing.label.a11y,perm.py:3]missing.sep自定义]", text)
-        assertTrue(a11y)
-        assertFalse(missingWarning(listOf(MissingPerm("悬浮窗权限", "")), fake)!!.second)
+        val w = missingWarning(listOf(MissingPerm("悬浮窗权限", ""), MissingPerm("无障碍", "perm.py:3"), MissingPerm("自定义", "")), fake)!!
+        assertEquals("missing.warn[missing.label.overlaymissing.sepmissing.item[missing.label.a11y,perm.py:3]missing.sep自定义]", w.text)
+        assertTrue(w.a11y)
+        assertEquals(PermFix("无障碍", "missing.fix.a11y.button", A11Y_CODE, "missing.fix.a11y.opened", "missing.fix.a11y.on", "missing.fix.a11y.where"), w.fix)
+    }
+
+    @Test
+    fun `per-permission fix - the first one with a fix, same codes as the Web IDE`() {
+        val w = missingWarning(listOf(MissingPerm("自定义", ""), MissingPerm("悬浮窗权限", "a.py:2")), fake)!!
+        assertFalse(w.a11y)
+        assertEquals("from xscript.android import permission\n_result = permission.request(permission.OVERLAY, 1)", w.fix!!.code)
+        assertTrue(permFix("通知使用权", fake)!!.code!!.endsWith("permission.NOTIFICATION_LISTENER, 1)"))
+        assertTrue(permFix("文件访问权限", fake)!!.code!!.endsWith("permission.MANAGE_EXTERNAL_STORAGE, 1)"))
+        val cap = permFix("图色权限（截图）", fake)!!
+        assertTrue(cap.capture)
+        assertNull(cap.code)
+        assertNull(permFix("自定义", fake))
+        assertNull(missingWarning(listOf(MissingPerm("自定义", "")), fake)!!.fix)
     }
 
     @Test
     fun `both bundles read naturally`() {
         val list = listOf(MissingPerm("无障碍", "perm.py:3"), MissingPerm("悬浮窗权限", ""))
         assertEquals("The phone is missing Accessibility (perm.py:3), Overlay; those calls will fail (the script started). Grant it on the project page in the phone app.",
-            missingWarning(list, bundle("XScriptBundle.properties"))!!.first)
+            missingWarning(list, bundle("XScriptBundle.properties"))!!.text)
         assertEquals("手机上还缺 无障碍（perm.py:3）、悬浮窗权限，相关操作会失败（脚本已启动）。请在手机上的小程序详情页开启。",
-            missingWarning(list, bundle("XScriptBundle_zh_CN.properties"))!!.first)
+            missingWarning(list, bundle("XScriptBundle_zh_CN.properties"))!!.text)
+        assertEquals("Open Notification Access on Phone", permFix("通知使用权", bundle("XScriptBundle.properties"))!!.button)
+        assertEquals("打开手机通知使用权设置", permFix("通知使用权", bundle("XScriptBundle_zh_CN.properties"))!!.button)
         for (name in listOf("XScriptBundle.properties", "XScriptBundle_zh_CN.properties")) {
             val m = bundle(name)
-            for (k in listOf("missing.open", "missing.opened", "missing.on")) assertTrue(m(k, emptyArray()).isNotBlank())
-            assertTrue(m("missing.failed", arrayOf("timeout")).contains("timeout"))
+            for (label in listOf("无障碍", "悬浮窗权限", "通知使用权", "文件访问权限", "图色权限（截图）")) {
+                val f = permFix(label, m)!!
+                assertTrue("$name $label", listOf(f.button, f.opened, f.on, f.where).all { it.isNotBlank() })
+            }
+            assertEquals(true, m("missing.failed", arrayOf("timeout", "X")).let { it.contains("timeout") && it.contains("X") })
+            assertTrue(m("missing.oldApp", emptyArray()).isNotBlank())
         }
         assertTrue(A11Y_CODE.contains("permission.ACCESSIBILITY_SERVICE"))
     }

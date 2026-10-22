@@ -10,6 +10,8 @@
 
 ![运行后手机上缺无障碍：日志和通知写明缺什么、在哪一行用到，通知上「打开手机无障碍设置」一键打开手机的无障碍设置](../../docs/images/pycharm-missing.png)
 
+![缺的是其他权限时，按钮换成对应的一键处理：缺通知使用权时是「打开手机通知使用权设置」（截图为英文界面），悬浮窗、文件访问打开对应设置页，截图权限在手机上弹出授权](../../docs/images/pycharm-missing-notif.png)
+
 ![Settings → Tools → XScript：设备地址、配对码、运行选中代码超时、「上传时同步删除」和「编辑器里的基本检查」](../../docs/images/pycharm-settings.png)
 
 ![基本检查：问题面板里以 XScript: 开头的警告，在 async 函数里直接调用 async 函数、关键字参数 wiat（是不是 wait？）、拼错的 totl（是不是 total？Alt+Enter 改正）](../../docs/images/pycharm-checks.png)
