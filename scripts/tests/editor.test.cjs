@@ -61,6 +61,9 @@ test('run saves every dirty file of the selected project before starting', async
   assert.deepEqual(Object.keys(EditorModel.PERM_FIX).sort(),shared.map(e=>e.label).sort());
   for(const e of shared){
     const f=EditorModel.PERM_FIX[e.label];
+    // the warning names the permission with the shared label
+    assert.equal(e.zh.name,e.label);
+    assert.match(EditorModel.runMessage('demo',{missing:[{label:e.label,where:''}]}).text,new RegExp('手机上还缺：'+e.label.replace(/[()（）]/g,'\\$&')+'，'));
     assert.deepEqual([f.button,f.opened,f.on,f.where],[e.zh.button,e.zh.opened,e.zh.on,e.zh.where],e.label);
     if(e.permission) assert.equal(f.code,'from xscript.android import permission\n_result = permission.request(permission.'+e.permission+', 1)');
     else assert.deepEqual([e.captureRequest,f.capture,f.code],[true,true,undefined]);
