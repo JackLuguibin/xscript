@@ -12,6 +12,7 @@
 # "missing" is the warning after a run when the phone lacks a permission the code uses: turn accessibility off first.
 # "missing-notif" is the same for notification access (its button opens that settings page).
 # "missing-next": notification and file access missing; the first fix is pressed, the follow-up offers "Next: …".
+# "missing-again": the same with Next pressed too; the last follow-up offers "Run Again", which is then pressed.
 # A device that needs its pairing code: set XS_SHOT_CODE (typed into the Pair box through DevTools; the throw-away
 # profile uses a mock keychain, and the code is not passed to VS Code's environment).
 set -euo pipefail

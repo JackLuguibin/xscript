@@ -62,8 +62,10 @@ test("per-permission one-tap fix: the first missing permission with a fix, same 
   assert.equal(all?.fix, all?.fixes[0]);
   assert.deepEqual(missingWarning([{ label: "未知", where: "" }], "zh")?.fixes, []);
   const rest = all?.fixes.slice(1) ?? [];
-  assert.deepEqual(fixDone("Opened.", rest, "en"), { text: "Opened. 2 more to go: click Next.", next: "Next: Open Notification Access on Phone" });
-  assert.deepEqual(fixDone("已打开。", missingWarning([{ label: "文件访问权限", where: "" }], "zh")?.fixes ?? [], "zh"), { text: "已打开。 还有 1 项，点「下一项」继续。", next: "下一项：打开手机文件访问设置" });
-  assert.deepEqual(fixDone("Opened.", [], "en"), { text: "Opened.", next: null });
+  assert.deepEqual(fixDone("Opened.", rest, "en"), { text: "Opened. 2 more to go: click Next.", next: "Next: Open Notification Access on Phone", again: false });
+  assert.deepEqual(fixDone("已打开。", missingWarning([{ label: "文件访问权限", where: "" }], "zh")?.fixes ?? [], "zh"), { text: "已打开。 还有 1 项，点「下一项」继续。", next: "下一项：打开手机文件访问设置", again: false });
+  // after the last fix: Run Again
+  assert.deepEqual(fixDone("Opened.", [], "en"), { text: "Opened. Click Run Again when ready.", next: "Run Again", again: true });
+  assert.deepEqual(fixDone("已打开。", [], "zh"), { text: "已打开。 开启后点「再运行一次」。", next: "再运行一次", again: true });
   assert.equal(missingText("zh").failed("timeout", "设置 → 无障碍"), "XScript：打开失败（timeout），请在手机的 设置 → 无障碍 里开启 XScript。");
 });
