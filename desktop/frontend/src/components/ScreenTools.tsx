@@ -98,8 +98,8 @@ export function ScreenTools({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [picked?.n, mode, devId]);
 
-  const code = selected ? selectorCode(selected) : "";
-  const xpath = selected ? nodeXPath(selected) : "";
+  const code = selected ? selectorCode(selected, tree?.roots) : "";
+  const xpath = selected ? nodeXPath(selected, tree?.roots) : "";
   const rows = tree ? flattenTree(tree.roots ?? []) : [];
 
   const copy = async (text: string) => {
@@ -214,7 +214,7 @@ export function ScreenTools({
               <Button size="sm" variant="primary" type="button" onClick={() => { sendToCanvas(selected); toast(t.inspect.sentToCanvas); }}>
                 {t.inspect.toCanvas}
               </Button>
-              <Button size="sm" type="button" onClick={() => void copy(selectorCode(selected))}>
+              <Button size="sm" type="button" onClick={() => void copy(selectorCode(selected, tree?.roots))}>
                 {t.inspect.copySelector}
               </Button>
               <Button size="sm" type="button" onClick={() => void copy(xpath)}>

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { flattenTree, hitTest, nodeXPath, pyStr, rectPercent, selectorCode, xpathStr, type UiNode } from "../src/ui-tree";
+import { flattenTree, hitTest, nodeXPath, pyStr, rectPercent, selectorChain, selectorCode, xpathStr, type UiNode } from "../src/ui-tree";
 
 const child: UiNode = {
   path: "0/0/1",
@@ -17,6 +17,15 @@ const parent: UiNode = {
   children: [child],
 };
 
+// Settings-style list: every title shares android:id/title; two rows even share their text.
+const listRow = (path: string, text: string): UiNode => ({ path, id: "android:id/title", text, type: "android.widget.TextView" });
+const listRoots: UiNode[] = [{ path: "0", type: "android.widget.FrameLayout", children: [
+  listRow("0/0", "Network & internet"), listRow("0/1", "Apps"), listRow("0/2", "Battery"), listRow("0/3", "Battery"),
+  { path: "0/4", id: "android:id/icon", desc: "Wi-Fi" }, { path: "0/5", id: "android:id/icon", desc: "Bluetooth" },
+  { path: "0/6", id: "com.demo:id/ok", text: "OK", clickable: true },
+] }];
+const listAt = (p: string) => listRoots[0].children!.find((n) => n.path === p)!;
+
 describe("ui tree", () => {
   it("picks the deepest node that contains the point", () => {
     expect(hitTest([parent], 120, 210)).toBe(child);
@@ -32,6 +41,15 @@ describe("ui tree", () => {
     expect(nodeXPath({ id: 'a"b\'c', type: "android.widget.View" })).toContain("concat(");
     expect(pyStr("a'b")).toBe("'a\\'b'");
     expect(xpathStr("a'b")).toBe(`"a'b"`);
+    // A shared resource id gets text, desc, then path added until only the picked node matches (selector and XPath).
+    expect(selectorChain(listAt("0/1"), "node", listRoots)).toBe("node.Selector().id('android:id/title').text('Apps')");
+    expect(selectorChain(listAt("0/3"), "node", listRoots)).toBe("node.Selector().id('android:id/title').text('Battery').path('0/3')");
+    expect(selectorChain(listAt("0/5"), "node", listRoots)).toBe("node.Selector().id('android:id/icon').desc('Bluetooth')");
+    expect(selectorChain(listAt("0/6"), "node", listRoots)).toBe("node.Selector().id('com.demo:id/ok').clickable()");
+    expect(selectorCode(listAt("0/1"))).toBe("from xscript.android import node\nnode.Selector().id('android:id/title').find(timeout=5)");
+    expect(nodeXPath(listAt("0/1"), listRoots)).toBe('//*[@resource-id="android:id/title"][@text="Apps"]');
+    expect(nodeXPath(listAt("0/3"), listRoots)).toBe('//*[@resource-id="android:id/title"][@text="Battery"][@path="0/3"]');
+    expect(nodeXPath(listAt("0/6"), listRoots)).toBe('//*[@resource-id="com.demo:id/ok"]');
   });
 
   it("maps a rect onto the frame as percentages and flattens with a cap", () => {
@@ -41,3 +59,4 @@ describe("ui tree", () => {
     expect(flat.some((row) => row.truncated)).toBe(true);
   });
 });
+

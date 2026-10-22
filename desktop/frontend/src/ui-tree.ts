@@ -91,34 +91,50 @@ export function xpathStr(value: string): string {
   return `concat(${parts.join(`, '"', `)})`;
 }
 
-/** A Selector() chain. Resource id, then text, then content-desc, then class + path. */
-export function selectorCode(node: UiNode): string {
-  return `from xscript.android import node\n${selectorChain(node, "node")}.find(timeout=5)`;
+type Field = "id" | "text" | "desc" | "type" | "path";
+
+/** Fields the Selector / XPath filters on, in the order they are tried. A field is added only while the earlier ones
+ *  still match other nodes of `roots` (every row of a settings list shares one resource id, for example), so the code
+ *  finds the picked node rather than the first look-alike. Without `roots` the first field is enough; when none is
+ *  unique the node's path pins it. Same rule as the Web IDE node tool (android/app/src/main/assets/tools/editor-nodes.js). */
+export function selectorFields(node: UiNode, roots?: UiNode[]): Field[] {
+  const all: UiNode[] = [];
+  const walk = (n: UiNode) => { all.push(n); (n.children ?? []).forEach(walk); };
+  (roots ?? []).forEach(walk);
+  const same = (fields: Field[]) =>
+    all.filter((x) => fields.every((f) => (x[f] ?? "") === (node[f] ?? "")) && (!node.clickable || x.clickable)).length;
+  const fields: Field[] = [];
+  for (const f of ["id", "text", "desc"] as const) {
+    if (!node[f]) continue;
+    fields.push(f);
+    if (!roots || same(fields) <= 1) return fields;
+  }
+  if (!fields.length && node.type) fields.push("type");
+  if (node.path) fields.push("path");
+  return fields;
+}
+
+/** A Selector() chain: resource id, text, content-desc as needed to be unique in `roots`, else class + path. */
+export function selectorCode(node: UiNode, roots?: UiNode[]): string {
+  return `from xscript.android import node\n${selectorChain(node, "node", roots)}.find(timeout=5)`;
 }
 
 /** `<module>.Selector()…` without the find, so callers pick the module alias and timeout. */
-export function selectorChain(node: UiNode, module: string): string {
-  const calls: string[] = [];
-  if (node.id) calls.push(`.id(${pyStr(node.id)})`);
-  else if (node.text) calls.push(`.text(${pyStr(node.text)})`);
-  else if (node.desc) calls.push(`.desc(${pyStr(node.desc)})`);
-  else {
-    if (node.type) calls.push(`.type(${pyStr(node.type)})`);
-    if (node.path) calls.push(`.path(${pyStr(node.path)})`);
-  }
+export function selectorChain(node: UiNode, module: string, roots?: UiNode[]): string {
+  const calls = selectorFields(node, roots).map((f) => `.${f}(${pyStr(node[f] ?? "")})`);
   if (node.clickable) calls.push(".clickable()");
   const chain = calls.length ? calls.join("") : `.path(${pyStr(node.path || "0")})`;
   return `${module}.Selector()${chain}`;
 }
 
-/** One XPath that points at this node. Prefer resource-id, then text, then content-desc. */
-export function nodeXPath(node: UiNode): string {
+/** One XPath that points at this node: resource-id, text, content-desc as needed to be unique in `roots`, else path. */
+export function nodeXPath(node: UiNode, roots?: UiNode[]): string {
   const cls = shortType(node.type) || "*";
-  if (node.id) return `//*[@resource-id=${xpathStr(node.id)}]`;
-  if (node.text) return `//${cls}[@text=${xpathStr(node.text)}]`;
-  if (node.desc) return `//${cls}[@content-desc=${xpathStr(node.desc)}]`;
-  if (node.path) return `//*[@path=${xpathStr(node.path)}]`;
-  return `//${cls}`;
+  const fields = selectorFields(node, roots).filter((f) => f !== "type");
+  if (!fields.length) return `//${cls}`;
+  const attr: Record<string, string> = { id: "resource-id", text: "text", desc: "content-desc", path: "path" };
+  const tag = fields[0] === "id" || fields[0] === "path" ? "*" : cls;
+  return `//${tag}` + fields.map((f) => `[@${attr[f]}=${xpathStr(node[f] ?? "")}]`).join("");
 }
 
 /** Percent box over the displayed frame. `screen` is the tree's width/height (device pixels). */
