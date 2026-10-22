@@ -335,6 +335,8 @@
       clearTry();
       const token = st.tryToken, out = $("node-try-result");
       $("node-try").disabled = true; out.textContent = "试一下：在手机上查找…";
+      // a screenshot taken now, so the boxes are drawn over what the phone shows at try time, not when the tree was read
+      const fresh = fetch("/screen?t=" + Date.now(), {cache: "no-store", headers: {"X-XScript-Client": "tools"}}).then(r => r.ok ? r.blob() : null).catch(() => null);
       try {
         const r = await fetch("/eval", {method: "POST", cache: "no-store", headers: {"Content-Type": "application/json", "X-XScript-Client": "tools"}, body: JSON.stringify({code, timeout_ms: 5000})});
         if (r.status === 401) { location.href = "/pair?next=" + encodeURIComponent(location.pathname + location.search); return; }
@@ -342,7 +344,13 @@
         if (token !== st.tryToken) return;
         if (!r.ok || !data || !data.ok) throw new Error("试一下失败：" + ((data && (data.error || "").trim().split("\n").pop()) || "HTTP " + r.status));
         const v = tryVerdict(data.result, n);
-        out.textContent = v.text; out.classList.add(v.ok ? "ok" : "error");
+        const blob = await fresh; if (token !== st.tryToken) return;
+        if (blob) {
+          if (st.shotUrl) URL.revokeObjectURL(st.shotUrl);
+          st.shotUrl = URL.createObjectURL(blob); $("node-shot").src = st.shotUrl; $("node-shot").hidden = false; $("node-shot-note").hidden = true;
+          $("node-box").hidden = true;                   // the tree-time box may be stale; the try's own boxes are current
+        }
+        out.textContent = v.text + (blob ? " · 截图已刷新" : ""); out.classList.add(v.ok ? "ok" : "error");
         if (st.tree && !$("node-shot").hidden) for (const h of v.hits) {
           const css = boxStyle(h.rect, st.tree.width, st.tree.height); if (!css) continue;
           const b = make("div", "node-hit" + (h.path === n.path ? " self" : "")); b.title = h.path; Object.assign(b.style, css); $("node-hits").append(b);

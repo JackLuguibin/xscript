@@ -93,18 +93,22 @@ test('Web IDE 节点 dock reads the UI tree and generates node code', {skip: CHR
         return b.eval(() => ({text: document.getElementById('node-try-result').textContent, cls: document.getElementById('node-try-result').className,
           hits: [...document.querySelectorAll('#node-hits .node-hit')].map(h => h.className + ' ' + h.title), sent: window.__evalSent.slice(-1)[0]}));
       };
+      const shotBefore = await b.eval(() => document.getElementById('node-shot').src);
       let v = await tryNow();
-      assert.equal(v.text, '试一下：找到 1 个，就是选中的节点'); assert.match(v.cls, /\bok\b/);
+      assert.equal(v.text, '试一下：找到 1 个，就是选中的节点 · 截图已刷新');
+      // the screenshot was taken again at try time; the tree-time box gives way to the try's boxes
+      assert.notEqual(await b.eval(() => document.getElementById('node-shot').src), shotBefore);
+      assert.equal(await b.eval(() => document.getElementById('node-box').hidden), true); assert.match(v.cls, /\bok\b/);
       assert.deepEqual(v.hits, ['node-hit self 1/0/3']);
       assert.equal(v.sent.code, "from xscript.android import node\n_hits = node.Selector().text('登录').clickable().find_all(timeout=0, limit=20)\n_result = [[h.path, h.left, h.top, h.right, h.bottom] for h in _hits]");
       assert.equal(v.sent.timeout_ms, 5000);
       await b.eval(() => { window.__evalReply = {ok: true, result: '[["1/0/2", 80, 800, 1000, 900], ["1/0/3", 80, 980, 1000, 1110]]', error: ''}; });
       v = await tryNow();
-      assert.equal(v.text, '试一下：找到 2 个，第一个不是选中的节点（路径 1/0/2）'); assert.match(v.cls, /\berror\b/);
+      assert.equal(v.text, '试一下：找到 2 个，第一个不是选中的节点（路径 1/0/2） · 截图已刷新'); assert.match(v.cls, /\berror\b/);
       assert.deepEqual(v.hits, ['node-hit 1/0/2', 'node-hit self 1/0/3']);
       await b.eval(() => { window.__evalReply = {ok: true, result: '[]', error: ''}; });
       v = await tryNow();
-      assert.equal(v.text, '试一下：没找到。界面可能变了，点「重新获取」再试'); assert.deepEqual(v.hits, []);
+      assert.equal(v.text, '试一下：没找到。界面可能变了，点「重新获取」再试 · 截图已刷新'); assert.deepEqual(v.hits, []);
       await b.eval(() => { window.__evalReply = {ok: false, result: '', error: 'Traceback (most recent call last):\nNameError: boom\n'}; });
       v = await tryNow();
       assert.equal(v.text, '试一下失败：NameError: boom');
@@ -297,6 +301,7 @@ test('Web IDE 节点 dock reads the UI tree and generates node code', {skip: CHR
       // 试一下 on the picked 登录 button (the /eval stub from the 试一下 test answers)
       await b.eval(() => { window.__evalReply = {ok: true, result: '[["1/0/3", 80, 980, 1000, 1110]]', error: ''}; document.getElementById('node-try').click(); });
       await b.waitFor(() => /就是选中的节点/.test(document.getElementById('node-try-result').textContent));
+      await paint();                                   // 试一下 took a fresh (mock gradient) screenshot: paint the login screen again
       await save(process.env.XS_NODES_SHOT);
       // 插入到光标, then 在手机上运行 (stubbed /eval answers like the phone does)
       await b.eval(() => { const e = document.getElementById('editor'), at = e.value.indexOf('    time.sleep'); e.value = e.value.slice(0, at) + '    \n' + e.value.slice(at); e.dispatchEvent(new Event('input')); e.focus(); e.setSelectionRange(at + 4, at + 4); document.getElementById('node-insert').click(); });
