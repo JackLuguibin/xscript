@@ -594,6 +594,15 @@ class ServerTest(unittest.IsolatedAsyncioTestCase):
         self.assertIn("--project-name hot", log)
         self.assertIn("--update-channel %s" % sc["channel"], log)
         self.assertIn("--script-code %d" % v["version_code"], log)
+        # #344: the update manifest names the 小程序's project, so a different 工程名 never updates.
+        r = await self.admin.post("/api/pack/jobs", data={"options": json.dumps(
+            {"app_id": "com.example.hot3", "script_id": sc["id"], "hot_update": True, "project_name": "other"})})
+        self.assertEqual(r.status_code, 400, r.text)
+        self.assertIn("工程名", r.json()["error"])
+        r = await self.admin.post("/api/pack/jobs", data={"options": json.dumps(
+            {"app_id": "com.example.hot3", "script_id": sc["id"], "hot_update": True, "project_name": "hot"})})
+        self.assertEqual(r.status_code, 200, r.text)
+        await self.wait_job(r.json()["id"])
         r = await self.admin.post("/api/pack/jobs", data={"options": json.dumps(
             {"app_id": "com.example.hot2", "hot_update": True})},
             files={"project": ("demo.zip", self.project_zip(), "application/zip")})
