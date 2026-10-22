@@ -52,7 +52,7 @@ fun permFix(label: String, msg: (String, Array<out Any>) -> String): PermFix? {
     return PermFix(label, m("button"), FIX_CODE[id], m("opened"), m("on"), m("where"))
 }
 
-data class MissingWarning(val text: String, val a11y: Boolean, val fix: PermFix?)
+data class MissingWarning(val text: String, val a11y: Boolean, val fix: PermFix?, val fixes: List<PermFix> = listOfNotNull(fix))
 
 /** Warning after a run and the fix to offer (accessibility first, else the first one that has a fix); null when nothing is missing. */
 fun missingWarning(list: List<MissingPerm>, msg: (String, Array<out Any>) -> String): MissingWarning? {
@@ -62,6 +62,13 @@ fun missingWarning(list: List<MissingPerm>, msg: (String, Array<out Any>) -> Str
         if (m.where.isEmpty()) name else msg("missing.item", arrayOf(name, m.where))
     }
     val a11y = list.any { it.label == A11Y_LABEL }
-    val first = if (a11y) A11Y_LABEL else list.firstOrNull { it.label in LABEL_ID }?.label
-    return MissingWarning(msg("missing.warn", arrayOf(names)), a11y, first?.let { permFix(it, msg) })
+    // every missing permission with a fix, accessibility first, no repeats: offered one after another (Next)
+    val labels = ((if (a11y) listOf(A11Y_LABEL) else emptyList()) + list.map { it.label }).distinct().filter { it in LABEL_ID }
+    val fixes = labels.map { permFix(it, msg)!! }
+    return MissingWarning(msg("missing.warn", arrayOf(names)), a11y, fixes.firstOrNull(), fixes)
 }
+
+/** After one fix: its result plus how many are left, and the Next button (null when none is left). */
+fun fixDone(text: String, rest: List<PermFix>, msg: (String, Array<out Any>) -> String): Pair<String, String?> =
+    if (rest.isEmpty()) text to null
+    else msg("missing.left", arrayOf<Any>(text, rest.size)) to msg("missing.next", arrayOf(rest[0].button))

@@ -47,6 +47,17 @@ class MissingPermsTest {
         assertNull(cap.code)
         assertNull(permFix("自定义", fake))
         assertNull(missingWarning(listOf(MissingPerm("自定义", "")), fake)!!.fix)
+        // all fixes in order for Next: accessibility first, no repeats, unknown ones dropped
+        val all = missingWarning(listOf("通知使用权", "自定义", "无障碍", "通知使用权", "图色权限（截图）").map { MissingPerm(it, "") }, fake)!!
+        assertEquals(listOf("无障碍", "通知使用权", "图色权限（截图）"), all.fixes.map { it.label })
+        assertEquals(all.fixes[0], all.fix)
+        assertEquals(emptyList<PermFix>(), missingWarning(listOf(MissingPerm("自定义", "")), fake)!!.fixes)
+        assertEquals("missing.left[done,2]" to "missing.next[missing.fix.notification.button]", fixDone("done", all.fixes.drop(1), fake))
+        assertEquals("done" to null, fixDone("done", emptyList(), fake))
+        val rest = all.fixes.drop(2).map { permFix(it.label, bundle("XScriptBundle_zh_CN.properties"))!! }
+        assertEquals("已打开。 还有 1 项，点「下一项」继续。" to "下一项：在手机上授权截图", fixDone("已打开。", rest, bundle("XScriptBundle_zh_CN.properties")))
+        assertEquals("Opened. 1 more to go: click Next." to "Next: Grant Screen Capture on Phone",
+            fixDone("Opened.", all.fixes.drop(2).map { permFix(it.label, bundle("XScriptBundle.properties"))!! }, bundle("XScriptBundle.properties")))
     }
 
     @Test
