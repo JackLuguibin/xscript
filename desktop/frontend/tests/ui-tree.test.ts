@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { flattenTree, hitTest, nodeXPath, pyStr, rectPercent, selectorChain, selectorCode, xpathStr, type UiNode } from "../src/ui-tree";
+import { FRAGILE_NOTE, flattenTree, hitTest, nodeXPath, pyStr, rectPercent, selectorChain, selectorCode, xpathStr, type UiNode } from "../src/ui-tree";
 
 const child: UiNode = {
   path: "0/0/1",
@@ -50,6 +50,9 @@ describe("ui tree", () => {
     expect(nodeXPath(listAt("0/1"), listRoots)).toBe('//*[@resource-id="android:id/title"][@text="Apps"]');
     expect(nodeXPath(listAt("0/3"), listRoots)).toBe('//*[@resource-id="android:id/title"][@text="Battery"][@path="0/3"]');
     expect(nodeXPath(listAt("0/6"), listRoots)).toBe('//*[@resource-id="com.demo:id/ok"]');
+    // code that only the path can pin says so; a unique id / text does not
+    expect(selectorCode(listAt("0/3"), listRoots)).toBe("from xscript.android import node\n" + FRAGILE_NOTE + "node.Selector().id('android:id/title').text('Battery').path('0/3').find(timeout=5)");
+    expect(selectorCode(listAt("0/1"), listRoots)).not.toContain("#");
     // A clock's text changes every minute: never filter on it, pin a shared clock id with the path instead.
     const clock = (path: string): UiNode => ({ path, id: "com.android.systemui:id/clock", text: "1:57", desc: "1:57 AM", type: "android.widget.TextView" });
     const clocks: UiNode[] = [{ path: "0", children: [clock("0/0"), clock("0/1")] }];
