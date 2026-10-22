@@ -3,7 +3,14 @@ import * as assert from "node:assert/strict";
 import * as fs from "node:fs";
 import * as os from "node:os";
 import * as path from "node:path";
-import { lintFile, plainMessage, projectSources } from "../lint";
+import { Fix, lintFile, plainMessage, projectSources } from "../lint";
+
+/** `text` with the quick fix's edits applied (back to front, as VS Code does). */
+function apply(text: string, fix: Fix | undefined): string {
+  assert.ok(fix && fix.edits, "no edit");
+  for (const e of [...fix.edits].sort((a, b) => b.from - a.from)) text = text.slice(0, e.from) + e.text + text.slice(e.to);
+  return text;
+}
 
 test("lintFile reports the Web IDE's checks with VS Code wording", () => {
   const files = [
@@ -14,14 +21,21 @@ test("lintFile reports the Web IDE's checks with VS Code wording", () => {
     },
   ];
   const got = lintFile(files, "__init__.py").map((p) => `${p.line}:${p.col} ${p.severity} ${p.message}`);
-  assert.ok(got.includes("1:7 unused 未使用的 import os"), got.join("\n"));
+  assert.ok(got.includes("1:7 unused 未使用的 import os（Ctrl/Cmd+. 删除）"), got.join("\n"));
   assert.ok(got.some((m) => m.startsWith("6:4 warning load") && m.includes("async 函数")), got.join("\n"));
   assert.ok(got.includes("7:10 warning 未定义的名字 fetch_statu（是不是 fetch_status？Ctrl/Cmd+. 改正）"), got.join("\n"));
-  assert.ok(got.some((m) => /^9:4 unused 执行不到的代码（前面已经 return）$/.test(m)), got.join("\n"));
+  assert.ok(got.some((m) => /^9:4 unused 执行不到的代码（前面已经 return；Ctrl\/Cmd\+\. 删除）$/.test(m)), got.join("\n"));
   assert.ok(got.every((m) => !m.includes("Ctrl+")), got.join("\n"));
-  const typo = lintFile(files, "__init__.py").find((p) => p.line === 7);
-  assert.deepEqual(typo?.fixes, [{ title: "改为 fetch_status", line: 7, col: 10, length: 11, text: "fetch_status", preferred: true }]);
-  assert.ok(lintFile(files, "__init__.py").filter((p) => p.severity === "unused").every((p) => !p.fixes));
+  const all = lintFile(files, "__init__.py"), src = files[1].content;
+  const typo = all.find((p) => p.line === 7);
+  assert.equal(typo?.fixes?.[0].title, "改为 fetch_status");
+  assert.ok(apply(src, typo?.fixes?.[0]).includes("print(fetch_status())"));
+  // unused import: the whole line goes
+  assert.ok(apply(src, all.find((p) => p.line === 1)?.fixes?.[0]).startsWith("from lib import"));
+  // unreachable code after return: its line goes, the return stays
+  const dead = all.find((p) => p.line === 9)?.fixes?.[0];
+  assert.equal(dead?.title, "删除 1 行执行不到的代码");
+  assert.ok(apply(src, dead).endsWith("    return\n"), JSON.stringify(apply(src, dead)));
   assert.deepEqual(lintFile(files, "lib.py"), []);
 });
 
@@ -33,11 +47,28 @@ test("lintFile offers `from m import name` after the docstring and imports", () 
   const p = lintFile(files, "__init__.py").find((x) => x.message.startsWith("未定义的名字 helper"));
   assert.ok(p, JSON.stringify(lintFile(files, "__init__.py")));
   assert.ok(p.message.includes("Ctrl/Cmd+. 从 util 导入"), p.message);
-  assert.deepEqual(p.fixes, [{ title: "从 util 导入 helper", line: 4, col: 0, length: 0, text: "from util import helper\n", preferred: true }]);
+  assert.equal(p.fixes?.length, 1);
+  assert.equal(p.fixes?.[0].title, "从 util 导入 helper");
+  assert.equal(apply(files[1].content, p.fixes?.[0]), '"""Demo."""\nimport os\n\nfrom util import helper\nprint(os.name, helper())\n');
   // no trailing newline and nothing but imports: append on a new line at the end
   const bare = [files[0], { path: "__init__.py", content: "helper()" }];
   const q = lintFile(bare, "__init__.py").find((x) => x.fixes)!;
-  assert.deepEqual(q.fixes?.[0], { title: "从 util 导入 helper", line: 1, col: 0, length: 0, text: "from util import helper\n", preferred: true });
+  assert.equal(apply("helper()", q.fixes?.[0]), "from util import helper\nhelper()");
+});
+
+test("lintFile offers the check's own edits and the jump to a duplicate definition", () => {
+  const util = { path: "util.py", content: "def tap(x, y):\n    return x + y\n" };
+  const main = { path: "__init__.py", content: "from util import tap\n\n\ndef run():\n    unused = 1\n    tap(540)\n\n\ndef run():\n    return 2\n" };
+  const all = lintFile([util, main], "__init__.py");
+  const args = all.find((p) => p.message.includes("缺少参数"));
+  assert.ok(args, JSON.stringify(all));
+  assert.ok(args.message.includes("Ctrl/Cmd+."), args.message);
+  assert.ok(apply(main.content, args.fixes?.[0]).includes("tap(540, y=...)"));
+  const v = all.find((p) => p.message.startsWith("未使用的变量 unused"));
+  assert.ok(v?.fixes, JSON.stringify(all));
+  assert.ok(!apply(main.content, v?.fixes?.[0]).includes("unused"), apply(main.content, v?.fixes?.[0]));
+  const dup = all.find((p) => p.message.startsWith("重复定义"));
+  assert.deepEqual(dup?.fixes, [{ title: "跳到第 4 行的定义", jump: { line: 4, col: 4 } }]);
 });
 
 test("plainMessage drops the Web IDE's Ctrl+. hints", () => {

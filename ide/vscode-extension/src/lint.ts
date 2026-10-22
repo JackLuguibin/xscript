@@ -19,13 +19,14 @@ export interface Problem {
   fixes?: Fix[];
 }
 
-/** One text edit: replace `length` characters at (1-based line, 0-based col) with `text`. */
+/**
+ * One quick fix: text edits as character offsets into the file text the check saw (`from`..`to` replaced by `text`),
+ * or a place to jump to (1-based line, 0-based col).
+ */
 export interface Fix {
   title: string;
-  line: number;
-  col: number;
-  length: number;
-  text: string;
+  edits?: { from: number; to: number; text: string }[];
+  jump?: { line: number; col: number };
   preferred?: boolean;
 }
 
@@ -38,6 +39,12 @@ interface RawProblem {
   suggest?: string;
   fix?: string[];
   name?: string;
+  kind?: string;
+  stmtLine?: number;
+  names?: number;
+  edit?: { line: number; col: number; length: number; text: string; label: string };
+  jump?: { line: number; col: number };
+  dead?: { from: number; to: number };
 }
 
 interface Index {
@@ -48,6 +55,7 @@ interface Index {
 }
 interface Core {
   build(files: { path: string; content: string }[], docs: unknown): Index;
+  removeImport(text: string, stmtLine: number, name: string, names: number): { from: number; to: number; text: string } | null;
 }
 
 // eslint-disable-next-line @typescript-eslint/no-require-imports
@@ -86,7 +94,7 @@ export function projectSources(root: string, open: Map<string, string> = new Map
 }
 
 /**
- * The Web IDE's hints name its own Ctrl+. quick fixes. VS Code offers the rename and the import too (`hasFix`), so
+ * The Web IDE's hints name its own Ctrl+. quick fixes. When VS Code offers the same fix (`hasFix`),
  * those keep the hint as "Ctrl/Cmd+."; the others (delete an unused import, …) are dropped:
  * "（Ctrl+. 从 m 导入）" -> "（可以从 m 导入）", "（Ctrl+. 删除）" -> "".
  */
@@ -116,18 +124,51 @@ export function lintFile(files: { path: string; content: string }[], file: strin
     });
 }
 
-/** The rename to the "是不是 …" name, or `from m import name` for each module that defines the missing name. */
+/** Offset of (1-based line, 0-based col) in `lines` (clamped to the text). */
+function offsetOf(lines: string[], line: number, col: number): number {
+  let at = 0;
+  for (let i = 0; i < line - 1 && i < lines.length; i++) at += lines[i].length + 1;
+  return at + col;
+}
+
+/**
+ * The Web IDE's Ctrl+. actions for one problem: the "是不是 …" rename, `from m import name` for each module that
+ * defines a missing name, the check's own edit (fill in missing arguments, drop an unused variable), deleting an
+ * unused import or unreachable lines, and jumping to the earlier duplicate definition.
+ */
 function fixesOf(p: RawProblem, text: string, importLine: () => number): Fix[] {
-  if (p.severity === "unused") return [];
-  if (p.suggest) return [{ title: "改为 " + p.suggest, line: p.line, col: p.col, length: p.length, text: p.suggest, preferred: true }];
-  if (!p.fix?.length || !p.name) return [];
   const lines = text.split("\n");
-  let line = importLine(), col = 0, lead = "";
+  const total = text.length;
+  const at = (line: number, col: number) => Math.min(total, offsetOf(lines, line, col));
+  if (p.kind === "import" && p.name && p.stmtLine) {
+    const r = core.removeImport(text, p.stmtLine, p.name, p.names ?? 1);
+    return r ? [{ title: "删除未使用的 import " + p.name, edits: [r], preferred: true }] : [];
+  }
+  if (p.edit) {
+    const from = at(p.edit.line, p.edit.col);
+    return [{ title: p.edit.label, edits: [{ from, to: Math.min(total, from + p.edit.length), text: p.edit.text }], preferred: true }];
+  }
+  if (p.dead) {
+    // whole lines from the first to the last dead line, with their line breaks (the last line takes the one before it)
+    const { from, to } = p.dead;
+    const n = to - from + 1;
+    const title = "删除 " + n + " 行执行不到的代码";
+    if (to >= lines.length && from > 1) return [{ title, edits: [{ from: at(from - 1, lines[from - 2].length), to: total, text: "" }] }];
+    return [{ title, edits: [{ from: at(from, 0), to: Math.min(total, at(to + 1, 0)), text: "" }] }];
+  }
+  if (p.jump) return [{ title: "跳到第 " + p.jump.line + " 行的定义", jump: p.jump }];
+  if (p.severity === "unused") return [];
+  if (p.suggest) {
+    const from = at(p.line, p.col);
+    return [{ title: "改为 " + p.suggest, edits: [{ from, to: from + p.length, text: p.suggest }], preferred: true }];
+  }
+  if (!p.fix?.length || !p.name) return [];
+  let line = importLine(), lead = "";
   if (line > lines.length) {
     // the file ends without a newline: append after its last line
-    line = lines.length;
-    col = lines[line - 1].length;
+    line = lines.length + 1;
     lead = "\n";
   }
-  return p.fix.map((m) => ({ title: "从 " + m + " 导入 " + p.name, line, col, length: 0, text: lead + "from " + m + " import " + p.name + "\n", preferred: p.fix!.length === 1 }));
+  const from = at(line, 0);
+  return p.fix.map((m) => ({ title: "从 " + m + " 导入 " + p.name, edits: [{ from, to: from, text: lead + "from " + m + " import " + p.name + "\n" }], preferred: p.fix!.length === 1 }));
 }
