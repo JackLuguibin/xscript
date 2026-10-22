@@ -20,6 +20,9 @@ import sys
 import time
 import urllib.request
 
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+import devauth  # noqa: E402  pairing code (XSCRIPT_TOKEN or adb), never printed
+
 SERIAL, BASE = sys.argv[1], sys.argv[2].rstrip("/")
 PKG = sys.argv[3] if len(sys.argv) > 3 else "com.xscript.app"
 N_PROJ = int(os.environ.get("XS_BENCH_PROJECTS", "40"))
@@ -29,6 +32,7 @@ BUDGET = {"open_ms": int(os.environ.get("XS_BUDGET_OPEN_MS", "2500")),
           "proj_jank": float(os.environ.get("XS_BUDGET_PROJ_JANK", "60")),
           "log_jank": float(os.environ.get("XS_BUDGET_LOG_JANK", "60"))}
 LOG_PROJECT = "xs_bench_log"
+OPENER = urllib.request.build_opener(urllib.request.ProxyHandler({}))
 
 
 def adb(*a, check=True):
@@ -37,17 +41,21 @@ def adb(*a, check=True):
 
 def api(method, path, body=None):
     req = urllib.request.Request(BASE + path, method=method, data=json.dumps(body).encode() if body is not None else None,
-                                 headers={"Content-Type": "application/json"})
-    with urllib.request.urlopen(req, timeout=60) as r:
+                                 headers=devauth.headers(BASE, {"Content-Type": "application/json"}, serial=SERIAL))
+    with OPENER.open(req, timeout=60) as r:
         return r.read()
+
+
+def find_text(text):
+    adb("shell", "uiautomator", "dump", "/sdcard/xs-bench.xml", check=False)
+    xml = adb("shell", "cat", "/sdcard/xs-bench.xml", check=False)  # parsed in memory only, never printed
+    adb("shell", "rm", "-f", "/sdcard/xs-bench.xml", check=False)
+    return re.search(r'text="%s"[^>]*bounds="\[(\d+),(\d+)\]\[(\d+),(\d+)\]"' % re.escape(text), xml)
 
 
 def tap_text(text):
     for _ in range(3):
-        adb("shell", "uiautomator", "dump", "/sdcard/xs-bench.xml", check=False)
-        xml = adb("shell", "cat", "/sdcard/xs-bench.xml", check=False)
-        adb("shell", "rm", "-f", "/sdcard/xs-bench.xml", check=False)
-        m = re.search(r'text="%s"[^>]*bounds="\[(\d+),(\d+)\]\[(\d+),(\d+)\]"' % re.escape(text), xml)
+        m = find_text(text)
         if m:
             a, b, c, d = map(int, m.groups())
             adb("shell", "input", "tap", str((a + c) // 2), str((b + d) // 2))
@@ -57,8 +65,16 @@ def tap_text(text):
 
 
 def home():
-    adb("shell", "am", "start", "-W", "-n", PKG + "/com.xscript.app.LauncherActivity")
-    time.sleep(2)
+    """The app's home screen: starting LauncherActivity only brings the task forward, so back out of whatever screen
+    an earlier check (or run) left on top first."""
+    for _ in range(5):
+        adb("shell", "am", "start", "-W", "-n", PKG + "/com.xscript.app.LauncherActivity")
+        time.sleep(2)
+        if find_text("小程序列表"):
+            return
+        adb("shell", "input", "keyevent", "KEYCODE_BACK")
+        time.sleep(1)
+    raise SystemExit("bench: could not reach the home screen")
 
 
 def gfx_reset():
@@ -132,6 +148,7 @@ def bench_log():
     finally:
         try:
             api("POST", "/projects/%s/stop" % LOG_PROJECT)
+            adb("shell", "input", "keyevent", "KEYCODE_BACK")
         except Exception:  # noqa: BLE001
             pass
         api("DELETE", "/projects/%s" % LOG_PROJECT)
