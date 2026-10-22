@@ -58,16 +58,26 @@ export function buildRun(
 
 /**
  * One history row: flow, status word, the steps in order, and for a failed run the failing step with its message
- * (e.g. "daily 出错 warm → tap · tap：missing"). `word` maps the status to the UI text.
+ * (e.g. "09:41:05 daily 出错 warm → tap · tap：missing · 3.2s"). `word` maps the status to the UI text.
+ * Times are epoch ms (the desktop store keeps what the page sends); the duration shows only when the run has one
+ * (a run recorded from a pasted trace log starts and ends at the same moment).
  */
 export function runLine(run: FlowRun, word: (status: FlowRun["status"]) => string): string {
   const steps = run.nodes.map((node) => node.node).join(" → ");
-  let line = [run.flow, word(run.status), steps].filter(Boolean).join(" ");
+  const at = run.started_at > 0 ? clock(run.started_at) : "";
+  let line = [at, run.flow, word(run.status), steps].filter(Boolean).join(" ");
   if (run.status === "error" && run.error_node) {
     const summary = run.nodes.find((node) => node.node === run.error_node)?.summary ?? "";
     line += " · " + run.error_node + (summary ? "：" + summary : "");
   }
+  const took = run.ended_at - run.started_at;
+  if (run.started_at > 0 && took > 0) line += " · " + (took < 1000 ? took + "ms" : (took / 1000).toFixed(1) + "s");
   return line;
+}
+
+function clock(ms: number): string {
+  const d = new Date(ms);
+  return [d.getHours(), d.getMinutes(), d.getSeconds()].map((n) => String(n).padStart(2, "0")).join(":");
 }
 
 export function rememberRun(runs: readonly FlowRun[], run: FlowRun, cap = CAP): FlowRun[] {
