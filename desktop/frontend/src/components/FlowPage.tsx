@@ -1581,6 +1581,8 @@ export function FlowPage({ initialLayout }: { initialLayout?: FlowLayout } = {})
     stepTicket.current += 1;
     const preview = literalPreview(outcome.code);
     setTrial({ code: outcome.code, line: preview === null ? t.flow.stepReady : t.flow.stepResult + " " + preview });
+    // like a device step: the value goes into the cache, so the steps after it can be tried with it
+    if (preview !== null) setCache((cur) => (cacheEdited.current.has(id) ? cur : { ...cur, [id]: preview }));
   };
 
   const applyDebug = (mode: "run" | "step" | "stop") => {

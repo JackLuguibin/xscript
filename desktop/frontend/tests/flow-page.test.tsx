@@ -760,6 +760,7 @@ describe("flow page", () => {
     const panel = screen.getByRole("region", { name: "试跑" });
     expect(panel.textContent).toContain("_result = (1 + 2)");
     expect(panel.textContent).toContain("结果 3");
+    expect((screen.getByRole("textbox", { name: "缓存 sum" }) as HTMLInputElement).value).toBe("3");
   });
 
   it("suggests the real pin when a literal uses an unknown name", async () => {
