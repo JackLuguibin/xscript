@@ -21,6 +21,8 @@ class EditorActivity : AppCompatActivity() {
     private lateinit var original: String
     private lateinit var project: String
     private lateinit var path: String
+    /** Too big to edit here ([EditorLimit]): a read-only preview, no 保存. */
+    private var readOnly = false
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -29,13 +31,22 @@ class EditorActivity : AppCompatActivity() {
         val store = ProjectStore(this)
         val file = store.readFile(project, path)
         original = if (file.isFile) file.readText() else ""
+        readOnly = EditorLimit.tooBig(original)
 
         val col = UiKit.screen(this, path, project)
-        UiKit.barAction(col, "保存") { save() }
+        if (readOnly) {
+            UiKit.note(col, "文件太大（${EditorLimit.lines(original)} 行，${original.length / 1024} KB），手机上只读显示前 ${EditorLimit.PREVIEW_LINES} 行。请在电脑上（Cursor / VS Code / PyCharm）编辑。")
+        } else {
+            UiKit.barAction(col, "保存") { save() }
+        }
         (col.parent as ScrollView).isFillViewport = true
 
         editor = EditText(this).apply {
-            setText(original)
+            setText(if (readOnly) EditorLimit.preview(original) else original)
+            if (readOnly) {
+                keyListener = null  // still selectable and copyable, never edited or saved
+                setTextIsSelectable(true)
+            }
             typeface = Typeface.MONOSPACE
             textSize = UiKit.Type.LABEL
             gravity = Gravity.TOP or Gravity.START
@@ -54,7 +65,7 @@ class EditorActivity : AppCompatActivity() {
 
         onBackPressedDispatcher.addCallback(this, object : OnBackPressedCallback(true) {
             override fun handleOnBackPressed() {
-                if (editor.text.toString() == original) {
+                if (readOnly || editor.text.toString() == original) {
                     finish()
                     return
                 }
@@ -69,6 +80,7 @@ class EditorActivity : AppCompatActivity() {
     }
 
     private fun save() {
+        if (readOnly) return
         val text = editor.text.toString()
         ProjectStore(this).writeFile(project, path, text, "utf-8")
         original = text
