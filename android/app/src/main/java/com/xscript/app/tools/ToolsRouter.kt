@@ -41,6 +41,7 @@ class ToolsRouter(private val context: Context) {
         val m = req.method
         WEBSITE_ALIASES[p]?.let { if (m == "GET") return asset("/tools/ui/$it", req.ifNoneMatch) }
         return when {
+            m == "GET" && p == "/tools/ui/combo.js" -> combo(req.query["f"].orEmpty(), req.ifNoneMatch)
             m == "GET" && (p == "/tools" || p == "/tools/" || p.startsWith("/tools/ui/")) -> asset(p, req.ifNoneMatch)
             m == "GET" && p == "/tools/snapshots" -> Reply.json(JSONObject().put("snapshots", snapshots.list()))
             m == "POST" && p == "/tools/snapshots" ->
@@ -260,6 +261,34 @@ class ToolsRouter(private val context: Context) {
         return Reply(200, mime(rel), bytes, etag = assetTag)
     }
 
+    /** Built combos by their `f=` list (pages use a fixed handful; assets only change with the app). */
+    private val combos = java.util.concurrent.ConcurrentHashMap<String, ByteArray>()
+
+    /**
+     * `GET /tools/ui/combo.js?f=a.js,b.js`: the page's scripts joined in order, in one response. Over HTTP/1.1 the
+     * browser opens about six connections, so 17 separate scripts took several round trips on Wi-Fi each time the
+     * Web IDE opened (even when all were 304). Same ETag as the files themselves.
+     */
+    private fun combo(f: String, ifNoneMatch: String?): Reply {
+        val names = comboNames(f) ?: return Reply.json(JSONObject().put("error", "invalid combo"), 400)
+        if (etagMatches(ifNoneMatch, assetTag)) return Reply(304, mime("combo.js"), ByteArray(0), etag = assetTag)
+        val bytes = combos[f] ?: run {
+            val out = java.io.ByteArrayOutputStream()
+            try {
+                names.forEachIndexed { i, n ->
+                    if (i > 0) out.write("\n;\n".toByteArray())
+                    out.write("/* ---- $n ---- */\n".toByteArray())
+                    context.assets.open("tools/$n").use { it.copyTo(out) }
+                }
+            } catch (_: java.io.IOException) {
+                return notFound("missing asset in combo")
+            }
+            out.write('\n'.code)
+            out.toByteArray().also { if (combos.size < 16) combos[f] = it }
+        }
+        return Reply(200, mime("combo.js"), bytes, etag = assetTag)
+    }
+
     private fun mime(name: String): String = when (name.substringAfterLast('.').lowercase()) {
         "html" -> "text/html; charset=utf-8"
         "js" -> "text/javascript; charset=utf-8"
@@ -272,6 +301,15 @@ class ToolsRouter(private val context: Context) {
     private fun notFound(msg: String) = Reply.json(JSONObject().put("error", msg), 404)
 
     companion object {
+        private val COMBO_NAME = Regex("""[A-Za-z0-9_][A-Za-z0-9_.-]*\.js""")
+
+        /** The `f=` list of a combo: plain .js names (no paths), each once, at most 40; null when invalid. */
+        fun comboNames(f: String): List<String>? {
+            val names = f.split(',')
+            if (f.isEmpty() || names.size > 40 || names.toSet().size != names.size) return null
+            return names.takeIf { it.all { n -> COMBO_NAME.matches(n) } }
+        }
+
         /** If-None-Match names [tag] (a list, weak `W/` forms and `*` included). */
         fun etagMatches(ifNoneMatch: String?, tag: String): Boolean =
             ifNoneMatch != null && ifNoneMatch.split(',').map { it.trim() }.any { it == "*" || it.removePrefix("W/") == tag }

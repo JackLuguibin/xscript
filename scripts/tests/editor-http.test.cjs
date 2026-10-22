@@ -82,6 +82,14 @@ test('Web IDE native HTTP contract and packaged asset routes', {timeout:15000}, 
       const again=await fetch(base+url,{headers:{'If-None-Match':tag}});assert.equal(again.status,304,url);assert.equal((await again.text()).length,0,url);
       assert.equal((await fetch(base+url,{headers:{'If-None-Match':'"xs-other"'}})).status,200,url);
     }
+    // editor.html loads its scripts in one combo request: the files joined in the listed order, cached like the rest
+    const html=await (await fetch(base+'/tools/ui/editor.html')).text();
+    const combo=(html.match(/<script src="(\/tools\/ui\/combo\.js\?f=[^"]+)"/)||[])[1];assert.ok(combo,'editor.html uses combo.js');
+    const names=combo.split('f=')[1].split(',');assert.ok(names.length>=15&&names[0]==='common.js'&&names.includes('editor.js'),names.join());
+    const cr=await fetch(base+combo),body=await cr.text();assert.equal(cr.status,200);assert.match(cr.headers.get('content-type'),/javascript/);
+    let at=-1;for(const n of names){const i=body.indexOf('/* ---- '+n+' ---- */');assert.ok(i>at,n+' in order');at=i;assert.ok(body.includes(await (await fetch(base+'/tools/ui/'+n)).text()),n+' whole');}
+    assert.equal((await fetch(base+combo,{headers:{'If-None-Match':cr.headers.get('etag')}})).status,304);
+    for(const bad of ['','../x.js','a.js,a.js','tools.css','sub/x.js','.hidden.js'])assert.equal((await fetch(base+'/tools/ui/combo.js?f='+encodeURIComponent(bad))).status,400,bad);
   } finally {
     child.kill();
   }

@@ -72,5 +72,6 @@
   <section class="ide-console" aria-label="运行日志"><div class="ide-heading"><strong>运行日志</strong><span id="run-state">等待设备</span><span class="spacer"></span><label><input type="checkbox" id="follow" checked> 跟随</label><button type="button" id="clear-logs">清空视图</button></div><pre id="logs" tabindex="0" aria-label="日志输出"></pre></section>
  </section>
 </main>
-<script src="/tools/ui/common.js"></script><script src="/tools/ui/editor-model.js"></script><script src="/tools/ui/editor-syntax.js"></script><script src="/tools/ui/editor-debug.js"></script><script src="/tools/ui/editor-api.js"></script><script src="/tools/ui/editor-docs.js"></script><script src="/tools/ui/editor-complete.js"></script><script src="/tools/ui/editor-parse.js"></script><script src="/tools/ui/editor-check.js"></script><script src="/tools/ui/editor-symbols.js"></script><script src="/tools/ui/editor-assist.js"></script><script src="/tools/ui/editor-search.js"></script><script src="/tools/ui/editor-panels.js"></script><script src="/tools/ui/editor-nodes.js"></script><script src="/tools/ui/ui-form.js"></script><script src="/tools/ui/ui-designer.js"></script><script src="/tools/ui/editor.js"></script>
+<!-- one request for all scripts (ToolsRouter.combo); order as listed -->
+<script src="/tools/ui/combo.js?f=common.js,editor-model.js,editor-syntax.js,editor-debug.js,editor-api.js,editor-docs.js,editor-complete.js,editor-parse.js,editor-check.js,editor-symbols.js,editor-assist.js,editor-search.js,editor-panels.js,editor-nodes.js,ui-form.js,ui-designer.js,editor.js"></script>
 </body></html>
