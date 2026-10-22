@@ -105,6 +105,7 @@
       render(); load(node.path);
     }
   }
+  let treeScrolledTo = "";   // tree row last scrolled into view (see renderTree)
   function renderTree() {
     const box = el("files"), hadFocus = box.contains(document.activeElement);
     box.replaceChildren();
@@ -170,7 +171,10 @@
       box.append(item);
     }
     if (hadFocus) { const again = box.querySelector('[data-path="' + CSS.escape(focusPath) + '"]'); if (again) again.focus({preventScroll: true}); }
-    const sel = box.querySelector(".tree-row.selected"); if (sel && sel.scrollIntoView) sel.scrollIntoView({block: "nearest"});
+    // only when the selection moved: scrollIntoView forces a layout, and render() runs on every keystroke
+    const sel = box.querySelector(".tree-row.selected"), selKey = sel ? sel.dataset.path : "";
+    if (sel && sel.scrollIntoView && selKey !== treeScrolledTo) sel.scrollIntoView({block: "nearest"});
+    treeScrolledTo = selKey;
   }
   // ---- Rename / move (重命名 / 移动): F2, the 重命名 button, the right-click menu, or drag and drop.
   const isEntryPath = path => /^__init__\.pyc?$/.test(path);
@@ -286,22 +290,30 @@
     el("line-numbers").scrollTop = box.scrollTop;
     assist.syncScroll();
   }
+  let gutterKey = "";   // what the line-number gutter was last built for (see cursor)
   function cursor() {
     const value = el("editor").value, pos = el("editor").selectionStart;
     const before = value.slice(0, pos).split("\n");
     el("cursor").textContent = "行 " + before.length + "，列 " + (before[before.length - 1].length + 1);
     const breaks = new Set(current && debuggerClient.breakpoints.get(model.project + ":" + current.path) || []);
     const marks = assist.marks();
+    // The gutter only changes with the line count, breakpoints or marks: rebuilding one span per line on every
+    // keystroke cost ~150 ms per key at 2 000 lines (and seconds at 20 000).
+    let lines = 1; for (let i = value.indexOf("\n"); i >= 0; i = value.indexOf("\n", i + 1)) lines++;
+    const key = lines + "|" + [...breaks].join(",") + "|" + [...marks].map(([l, m]) => l + (assist.warnOnly(l) ? "w" : "e") + m).join("\u0001");
+    if (key !== gutterKey) { gutterKey = key; gutter(lines, breaks, marks); }
+    el("line-numbers").scrollTop = el("editor").scrollTop;
+    assist.renderProblems();
+    schedulePaint();
+  }
+  function gutter(lines, breaks, marks) {
     el("line-numbers").replaceChildren();
-    for (let line = 1; line <= value.split("\n").length; line++) {
+    for (let line = 1; line <= lines; line++) {
       const number = document.createElement("span"); number.textContent = (breaks.has(line) ? "● " : "") + line + "\n";
       number.className = (breaks.has(line) ? "breakpoint-line " : "") + (marks.has(line) ? (assist.warnOnly(line) ? "diag-line warn" : "diag-line") : "");
       if (marks.has(line)) number.title = marks.get(line);
       el("line-numbers").append(number);
     }
-    el("line-numbers").scrollTop = el("editor").scrollTop;
-    assist.renderProblems();
-    schedulePaint();
   }
   // res/ui/<name>.ui.json opens in the form designer (tools/ui-designer.js, shared with the VS Code extension);
   // the document text stays the source of truth, so save / undo-by-reload / dirty state work as for any file.
