@@ -39,4 +39,15 @@ class LogTrimTest {
         assertTrue(src.contains("buffer.append(chunk)"))
         assertFalse("re-setting the whole text re-lays out and redraws all of it on every poll", src.contains("text.text = buffer"))
     }
+
+    @Test
+    fun pollingReadsTheLogFileOffTheMainThread() {
+        val root = generateSequence(File("").absoluteFile) { it.parentFile }
+            .first { File(it, "build.gradle.kts").isFile && File(it, "src/main/res").isDirectory }
+        val src = File(root, "src/main/java/com/xscript/app/ui/LogActivity.kt").readText()
+        val poll = src.substringAfter("private fun poll()").substringBefore("override fun onDestroy")
+        assertTrue("the read runs on the reader thread", poll.contains("reader.execute {") && poll.contains("LogBuffer.since(app, since)"))
+        assertTrue("a read from before 清空 is dropped", poll.contains("gen != generation"))
+        assertTrue(src.contains("reader.shutdownNow()"))
+    }
 }
