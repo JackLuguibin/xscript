@@ -2,7 +2,7 @@
  * reads /ui-tree and /screen, picking a node in the tree or on the screenshot shows its attributes and box, the code
  * follows the chosen kind, 插入到光标 writes it at the caret with the import added once, filter / folding / 完整树 work,
  * the 截图 and 节点 docks replace each other, and a missing accessibility channel is explained.
- * XS_NODES_SHOT=docs/images/ide-nodes.png also saves the documentation screenshot, and ide-nodes-fragile.png beside it
+ * XS_NODES_SHOT=docs/images/ide-nodes.png also saves the documentation screenshot, and ide-nodes-fragile.png (and -run, -a11y) beside it
  * (a node only its path can pin, with the warning comment) and ide-nodes-run.png (在手机上运行 after 插入).
  * Skipped when no local Chrome is found ($CHROME or ~/.cache/puppeteer). */
 const {test} = require('node:test');
@@ -335,6 +335,23 @@ test('Web IDE 节点 dock reads the UI tree and generates node code', {skip: CHR
       await b.waitFor(() => document.getElementById('node-info').classList.contains('error'));
       const v = await b.eval(view);
       assert.match(v.info, /开启 XScript 的无障碍服务/); assert.deepEqual(v.rows, []); assert.equal(v.code, ''); assert.equal(v.insert, true);
+      // one tap opens the phone's accessibility settings through /eval
+      assert.deepEqual(await b.eval(() => [document.getElementById('node-a11y').hidden, document.getElementById('node-shot').hidden]), [false, true]);
+      if (process.env.XS_NODES_SHOT) {
+        await b.cmd('Emulation.setDeviceMetricsOverride', {width: 1280, height: 860, deviceScaleFactor: 2, mobile: false});
+        await new Promise(r => setTimeout(r, 300));
+        const shot = await b.cmd('Page.captureScreenshot', {format: 'png'});
+        fs.writeFileSync(path.resolve(__dirname, '../..', process.env.XS_NODES_SHOT.replace(/\.png$/, '-a11y.png')), Buffer.from(shot.data, 'base64'));
+        await b.cmd('Emulation.clearDeviceMetricsOverride', {});
+      }
+      await b.eval(() => {
+        const real = window.fetch; window.__a11ySent = null;
+        window.fetch = (url, opts) => String(url) === '/eval' ? (window.__a11ySent = JSON.parse(opts.body), Promise.resolve(new Response(JSON.stringify({ok: true, result: '0'}), {headers: {'Content-Type': 'application/json'}}))) : real(url, opts);
+        document.getElementById('node-a11y').click();
+      });
+      await b.waitFor(() => /已在手机上打开无障碍设置/.test(document.getElementById('node-info').textContent));
+      const a = await b.eval(() => ({code: window.__a11ySent.code, error: document.getElementById('node-info').classList.contains('error')}));
+      assert.deepEqual(a, {code: 'from xscript.android import permission\n_result = permission.request(permission.ACCESSIBILITY_SERVICE, 1)', error: false});
     });
 
     assert.deepEqual(b.errors, []);
