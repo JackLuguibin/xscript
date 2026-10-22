@@ -157,6 +157,11 @@ test('a resource id shared by several nodes gets text / desc / path added until 
   assert.equal(xp('0/1'), '//*[@resource-id="android:id/title"][@text="Apps"]');
   assert.equal(xp('0/3'), '//*[@resource-id="android:id/title"][@text="Battery"][@path="0/3"]');
   assert.equal(xp('0/6'), '//*[@resource-id="com.demo:id/ok"]');
+  // code that only the path can pin says so; a unique id / text does not
+  assert.equal(N.snippet(atIn(LIST, '0/3'), 'find', 0, LIST).code, N.FRAGILE + "hit = node.Selector().id('android:id/title').text('Battery').path('0/3').find(timeout=5)");
+  assert.equal(N.snippet(atIn(LIST, '0/3'), 'exists', 0, LIST).code, N.FRAGILE + "if node.Selector().id('android:id/title').text('Battery').path('0/3').exists(timeout=5):\n    pass");
+  assert.ok(N.snippet(atIn(LIST, '0/3'), 'xpath', 0, LIST).code.startsWith(N.FRAGILE));
+  assert.ok(!N.snippet(atIn(LIST, '0/1'), 'find', 0, LIST).code.includes('#'));
   const CLOCKS = [node('0', 'android.widget.FrameLayout', [0, 0, 1080, 130], [
     node('0/0', 'android.widget.TextView', [50, 1, 136, 128], [], {id: 'com.android.systemui:id/clock', text: '1:57', desc: '1:57 AM'}),
     node('0/1', 'android.widget.TextView', [500, 1, 600, 128], [], {id: 'com.android.systemui:id/clock', text: '1:57', desc: '1:57 AM'}),

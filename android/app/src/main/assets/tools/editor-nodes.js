@@ -117,6 +117,10 @@
     return "//" + tag + fields.map(f => "[@" + attr[f] + "=" + xpathStr(n[f]) + "]").join("");
   }
 
+  /** Comment for code that only the node's path can pin (no unique id / text / desc): it breaks when the layout moves. */
+  const FRAGILE = "# 没有唯一的 id、文字或描述，只能靠路径定位：界面变了可能找不到\n";
+  const fragile = (n, roots) => selectorFields(n, roots).includes("path");
+
   const center = r => r ? {x: Math.round((r.l + r.r) / 2), y: Math.round((r.t + r.b) / 2)} : null;
 
   const KINDS = [
@@ -134,11 +138,12 @@
       const c = center(n.rect) || {x: 0, y: 0};
       return {imports: [ACTION_IMPORT], code: "action.click(" + c.x + ", " + c.y + ")  # " + label(n).replace(/\s+/g, " ").slice(0, 40)};
     }
-    if (kind === "xpath") return {imports: [NODE_IMPORT], code: "hit = node.Selector(" + (mode ? "1, " : "") + "xpath=" + pyStr(nodeXPath(n, roots)) + ").find(timeout=5)"};
+    const note = fragile(n, roots) ? FRAGILE : "";
+    if (kind === "xpath") return {imports: [NODE_IMPORT], code: note + "hit = node.Selector(" + (mode ? "1, " : "") + "xpath=" + pyStr(nodeXPath(n, roots)) + ").find(timeout=5)"};
     const chain = selectorChain(n, "node", mode, roots);
-    if (kind === "click") return {imports: [NODE_IMPORT], code: chain + ".click().find(timeout=5)"};
-    if (kind === "exists") return {imports: [NODE_IMPORT], code: "if " + chain + ".exists(timeout=5):\n    pass"};
-    return {imports: [NODE_IMPORT], code: "hit = " + chain + ".find(timeout=5)"};
+    if (kind === "click") return {imports: [NODE_IMPORT], code: note + chain + ".click().find(timeout=5)"};
+    if (kind === "exists") return {imports: [NODE_IMPORT], code: note + "if " + chain + ".exists(timeout=5):\n    pass"};
+    return {imports: [NODE_IMPORT], code: note + "hit = " + chain + ".find(timeout=5)"};
   }
   const fullText = s => s.imports.join("\n") + "\n" + s.code;
 
@@ -179,7 +184,7 @@
     return {left: r.l / w * 100 + "%", top: r.t / h * 100 + "%", width: (r.r - r.l) / w * 100 + "%", height: (r.b - r.t) / h * 100 + "%"};
   }
 
-  const EditorNodes = {hitTest, ancestry, rows, count, label, pyStr, xpathStr, selectorChain, nodeXPath, center, KINDS, snippet, fullText, importEdit, attrs, boxStyle, shortType};
+  const EditorNodes = {hitTest, ancestry, rows, count, label, pyStr, xpathStr, selectorChain, nodeXPath, center, KINDS, snippet, fullText, fragile, FRAGILE, importEdit, attrs, boxStyle, shortType};
 
   // ---- browser dock ----
   // ctx: {message(text, error), insertCode(code, imports) -> bool, onOpen()}

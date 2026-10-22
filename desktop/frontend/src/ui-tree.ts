@@ -119,9 +119,19 @@ export function selectorFields(node: UiNode, roots?: UiNode[]): Field[] {
   return fields;
 }
 
+/** Comment for code that only the node's path can pin (no unique id / text / desc): it breaks when the layout moves.
+ *  Same text as the Web IDE node tool. */
+export const FRAGILE_NOTE = "# 没有唯一的 id、文字或描述，只能靠路径定位：界面变了可能找不到\n";
+
+/** True when the selector needs the node's path, i.e. it is tied to the current layout. */
+export function selectorFragile(node: UiNode, roots?: UiNode[]): boolean {
+  return selectorFields(node, roots).includes("path");
+}
+
 /** A Selector() chain: resource id, text, content-desc as needed to be unique in `roots`, else class + path. */
 export function selectorCode(node: UiNode, roots?: UiNode[]): string {
-  return `from xscript.android import node\n${selectorChain(node, "node", roots)}.find(timeout=5)`;
+  const note = selectorFragile(node, roots) ? FRAGILE_NOTE : "";
+  return `from xscript.android import node\n${note}${selectorChain(node, "node", roots)}.find(timeout=5)`;
 }
 
 /** `<module>.Selector()…` without the find, so callers pick the module alias and timeout. */
