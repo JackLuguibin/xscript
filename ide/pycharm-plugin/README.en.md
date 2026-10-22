@@ -8,6 +8,8 @@ It talks to the device HTTP API (`protocol/openapi.yaml`, default port 9860). On
 
 ![After a run on a phone without accessibility: the log and a notification name what is missing and where it is used; "Open Accessibility Settings on Phone" opens them on the phone](../../docs/images/pycharm-missing.png)
 
+![For other permissions the button changes to match: "Open Notification Access on Phone" here; overlay and file access open their settings pages, screen capture asks the phone for the grant](../../docs/images/pycharm-missing-notif.png)
+
 ![Settings → Tools → XScript: device address, pairing code, Run Selection timeout, upload deletes and basic checks](../../docs/images/pycharm-settings.png)
 
 ![Basic checks: warnings starting with XScript: in the Problems view: an async function called without await, the keyword wiat (did you mean wait?) and the misspelled totl (did you mean total?)](../../docs/images/pycharm-checks.png)

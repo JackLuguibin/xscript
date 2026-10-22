@@ -446,23 +446,29 @@ class XScriptService(private val project: Project) : Disposable {
         }
     }
 
-    /** After a run: the permissions the phone still lacks (console + warning), with a one-tap button that opens accessibility settings. */
+    /** After a run: the permissions the phone still lacks (console + warning), with a one-tap fix for the first one. */
     private fun warnMissing(client: DeviceClient, list: List<MissingPerm>) {
-        val (text, a11y) = missingWarning(list) { k, a -> XScriptBundle.message(k, *a) } ?: return
-        print(text + "\n", ConsoleViewContentType.ERROR_OUTPUT)
-        val n = NotificationGroupManager.getInstance().getNotificationGroup("XScript").createNotification(text, NotificationType.WARNING)
-        if (a11y) {
-            n.addAction(NotificationAction.createSimpleExpiring(XScriptBundle.message("missing.open")) {
+        val w = missingWarning(list) { k, a -> XScriptBundle.message(k, *a) } ?: return
+        print(w.text + "\n", ConsoleViewContentType.ERROR_OUTPUT)
+        val n = NotificationGroupManager.getInstance().getNotificationGroup("XScript").createNotification(w.text, NotificationType.WARNING)
+        val fix = w.fix
+        if (fix != null) {
+            n.addAction(NotificationAction.createSimpleExpiring(fix.button) {
                 ApplicationManager.getApplication().executeOnPooledThread {
                     try {
-                        val r = client.eval(A11Y_CODE, 5000)
+                        if (fix.capture) {
+                            if (client.requestCapture()) notify(fix.opened, NotificationType.INFORMATION)
+                            else notify(XScriptBundle.message("missing.failed", XScriptBundle.message("missing.oldApp"), fix.where), NotificationType.ERROR)
+                            return@executeOnPooledThread
+                        }
+                        val r = client.eval(fix.code!!, 5000)
                         when {
-                            !r.ok -> notify(XScriptBundle.message("missing.failed", r.error.ifEmpty { "?" }), NotificationType.ERROR)
-                            r.result == "1" -> notify(XScriptBundle.message("missing.on"), NotificationType.INFORMATION)
-                            else -> notify(XScriptBundle.message("missing.opened"), NotificationType.INFORMATION)
+                            !r.ok -> notify(XScriptBundle.message("missing.failed", r.error.ifEmpty { "?" }, fix.where), NotificationType.ERROR)
+                            r.result == "1" -> notify(fix.on, NotificationType.INFORMATION)
+                            else -> notify(fix.opened, NotificationType.INFORMATION)
                         }
                     } catch (e: Exception) {
-                        notify(XScriptBundle.message("missing.failed", e.message ?: e.toString()), NotificationType.ERROR)
+                        notify(XScriptBundle.message("missing.failed", e.message ?: e.toString(), fix.where), NotificationType.ERROR)
                     }
                 }
             })

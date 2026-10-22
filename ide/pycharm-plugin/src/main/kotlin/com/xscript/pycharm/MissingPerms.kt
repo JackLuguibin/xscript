@@ -19,21 +19,49 @@ fun missingPerms(reply: JsonObject?): List<MissingPerm> {
     }
 }
 
-/** The phone names permissions in Chinese (PermissionNeeds.Kind.label); bundle keys so the English UI shows English names. */
-private val LABEL_KEY = mapOf(
-    A11Y_LABEL to "missing.label.a11y",
-    "图色权限（截图）" to "missing.label.capture",
-    "悬浮窗权限" to "missing.label.overlay",
-    "通知使用权" to "missing.label.notification",
-    "文件访问权限" to "missing.label.files",
+/** The phone names permissions in Chinese (PermissionNeeds.Kind.label); bundle ids so the English UI shows English names. */
+private val LABEL_ID = mapOf(
+    A11Y_LABEL to "a11y",
+    "图色权限（截图）" to "capture",
+    "悬浮窗权限" to "overlay",
+    "通知使用权" to "notification",
+    "文件访问权限" to "files",
 )
 
-/** Warning after a run and whether to offer the one-tap accessibility fix; null when nothing is missing. */
-fun missingWarning(list: List<MissingPerm>, msg: (String, Array<out Any>) -> String): Pair<String, Boolean>? {
+private fun request(key: String) = "from xscript.android import permission\n_result = permission.request(permission.$key, 1)"
+
+/** `/eval` code that opens the phone's settings page for each permission; screen capture has none (it asks the phone instead). */
+private val FIX_CODE = mapOf(
+    "a11y" to A11Y_CODE,
+    "overlay" to request("OVERLAY"),
+    "notification" to request("NOTIFICATION_LISTENER"),
+    "files" to request("MANAGE_EXTERNAL_STORAGE"),
+)
+
+/**
+ * One-tap fix for a missing permission (same table as the Web IDE's): [code] runs through /eval and opens the phone's
+ * settings page (`_result` "1": already granted), or, when null, the phone is asked for the screen-capture grant.
+ */
+data class PermFix(val label: String, val button: String, val code: String?, val opened: String, val on: String, val where: String) {
+    val capture get() = code == null
+}
+
+fun permFix(label: String, msg: (String, Array<out Any>) -> String): PermFix? {
+    val id = LABEL_ID[label] ?: return null
+    fun m(k: String) = msg("missing.fix.$id.$k", emptyArray())
+    return PermFix(label, m("button"), FIX_CODE[id], m("opened"), m("on"), m("where"))
+}
+
+data class MissingWarning(val text: String, val a11y: Boolean, val fix: PermFix?)
+
+/** Warning after a run and the fix to offer (accessibility first, else the first one that has a fix); null when nothing is missing. */
+fun missingWarning(list: List<MissingPerm>, msg: (String, Array<out Any>) -> String): MissingWarning? {
     if (list.isEmpty()) return null
     val names = list.joinToString(msg("missing.sep", emptyArray())) { m ->
-        val name = LABEL_KEY[m.label]?.let { msg(it, emptyArray()) } ?: m.label
+        val name = LABEL_ID[m.label]?.let { msg("missing.label.$it", emptyArray()) } ?: m.label
         if (m.where.isEmpty()) name else msg("missing.item", arrayOf(name, m.where))
     }
-    return msg("missing.warn", arrayOf(names)) to list.any { it.label == A11Y_LABEL }
+    val a11y = list.any { it.label == A11Y_LABEL }
+    val first = if (a11y) A11Y_LABEL else list.firstOrNull { it.label in LABEL_ID }?.label
+    return MissingWarning(msg("missing.warn", arrayOf(names)), a11y, first?.let { permFix(it, msg) })
 }
