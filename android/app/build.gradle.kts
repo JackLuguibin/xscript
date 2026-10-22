@@ -230,9 +230,27 @@ chaquopy {
 // zips them into requirements-*.imy. The install directory holds common/ and one directory per ABI.
 val pythonPrune: List<Regex> = file("python-prune.txt").readLines().map { it.trim() }
     .filter { it.isNotEmpty() && !it.startsWith("#") }.map { Regex(it) }
+// The build Python environment (pip and its helpers) is an input of installXPythonRequirements, and its .pyc files
+// differ on every extraction (marshal output is not reproducible), so the build cache key never matched. Drop them.
+tasks.matching { Regex("extract\\w*PythonBuildPackages").matches(it.name) }.configureEach {
+    val extract = this
+    // Chaquopy compiles them in its own action, added after this callback; run once the graph is ready to come last.
+    gradle.taskGraph.whenReady {
+        extract.doLast {
+            extract.outputs.files.filter { it.isDirectory }.forEach { root ->
+                root.walkBottomUp().filter { it.isDirectory && it.name == "__pycache__" }.forEach { it.deleteRecursively() }
+            }
+        }
+    }
+}
 tasks.matching { Regex("install\\w*PythonRequirements").matches(it.name) }.configureEach {
     val install = this
     inputs.file("python-prune.txt").withPathSensitivity(PathSensitivity.RELATIVE)
+    // Let the Gradle build cache (restored by setup-gradle in CI) serve the installed packages: pip resolves against
+    // chaquo.com's index on every run otherwise, and an outage there failed both Android jobs on main. The pip
+    // requirements, Python version and ABIs are this task's inputs, so any change still re-runs pip.
+    outputs.cacheIf("pip packages come from pinned requirements") { true }
+    // (The build Python environment is an input too; see the extract tasks below for why its .pyc files are dropped.)
     // Chaquopy adds its pip action after this callback runs; appending once the graph is ready puts the prune last.
     gradle.taskGraph.whenReady {
         install.doLast {
