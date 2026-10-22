@@ -154,9 +154,36 @@ export function selectorFragile(node: UiNode, roots?: UiNode[]): boolean {
   return selectorFields(node, roots).includes("path");
 }
 
+/** For a node only its path can pin: the closest node with a selector without the path, as {node, rel}. Children first,
+ *  then parents; at most 3 levels away (siblings are other controls, never offered). Same rule as the Web IDE node tool's 更稳的选择. */
+export function stableAlternative(node: UiNode, roots?: UiNode[]): { node: UiNode; rel: string } | null {
+  if (!roots || !selectorFragile(node, roots)) return null;
+  const ok = (c: UiNode) => c !== node && !selectorFragile(c, roots);
+  let level = node.children ?? [];
+  for (let d = 0; d < 3 && level.length; d += 1) {
+    const hit = level.find(ok);
+    if (hit) return { node: hit, rel: "子节点" };
+    level = level.flatMap((c) => c.children ?? []);
+  }
+  const trail: UiNode[] = [];
+  const walk = (n: UiNode): boolean => {
+    trail.push(n);
+    if (n === node || (n.children ?? []).some(walk)) return true;
+    trail.pop();
+    return false;
+  };
+  roots.some(walk);
+  const up = trail.slice(0, -1).reverse().slice(0, 3);
+  const parent = up.find(ok);
+  return parent ? { node: parent, rel: "父节点" } : null;
+}
+
 /** A Selector() chain: resource id, text, content-desc as needed to be unique in `roots`, else class + path. */
 export function selectorCode(node: UiNode, roots?: UiNode[]): string {
-  const note = selectorFragile(node, roots) ? FRAGILE_NOTE : "";
+  const alt = stableAlternative(node, roots);
+  const note = selectorFragile(node, roots)
+    ? FRAGILE_NOTE + (alt ? `# 更稳的选择：${alt.rel}「${nodeLabel(alt.node).replace(/\s+/g, " ")}」\n` : "")
+    : "";
   return `from xscript.android import node\n${note}${selectorChain(node, "node", roots)}.find(timeout=5)`;
 }
 

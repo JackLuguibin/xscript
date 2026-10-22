@@ -214,6 +214,24 @@ print(json.dumps(out))
   assert.equal(N.tryVerdict(twenty, at('0/1')).text, '试一下：找到 20 个及以上，第一个是选中的节点（.find 用第一个）');
 });
 
+test('a node only its path can pin gets a stable child or parent to switch to, never a sibling', () => {
+  const T = [node('0', 'android.widget.FrameLayout', [0, 0, 1080, 2400], [
+    node('0/0', 'android.widget.LinearLayout', [0, 0, 1080, 200], [                       // a list row: no id, no text
+      node('0/0/0', 'android.widget.ImageView', [0, 0, 100, 200]),
+      node('0/0/1', 'android.widget.RelativeLayout', [100, 0, 1080, 200], [node('0/0/1/0', 'android.widget.TextView', [100, 0, 1080, 100], [], {text: 'Display'})]),
+    ], {clickable: true}),
+    node('0/1', 'android.widget.Button', [0, 300, 200, 400], [node('0/1/0', 'android.widget.ImageView', [0, 300, 200, 400])], {id: 'com.demo:id/share', clickable: true}),
+    node('0/2', 'android.widget.TextView', [0, 500, 1080, 600], [], {text: 'Same'}),
+    node('0/3', 'android.widget.TextView', [0, 600, 1080, 700], [], {text: 'Same'}),
+  ])];
+  const alt = p => { const r = N.stableAlternative(atIn(T, p), T); return r && r.rel + ' ' + r.node.path; };
+  assert.equal(alt('0/0'), '子节点 0/0/1/0', 'the row: its title, two levels down');
+  assert.equal(alt('0/1/0'), '父节点 0/1', 'the icon: the button around it');
+  assert.equal(alt('0/3'), null, 'a duplicated text: the other one is a sibling, not offered');
+  assert.equal(alt('0/1'), null, 'already stable');
+  assert.equal(N.stableAlternative(atIn(T, '0/0')), null, 'no tree: nothing to compare');
+});
+
 test('generated code finds the picked node with the real python-runtime Selector / XPath', () => {
   const cases = [];
   for (const p of ['0/0/0', '0/0/1', '0/0/2', '0/0/3', '0/0/4']) for (const kind of ['find', 'xpath', 'click', 'exists', 'tap']) cases.push({p, kind, code: N.fullText(N.snippet(at(p), kind, 1))});

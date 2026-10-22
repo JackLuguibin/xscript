@@ -56,6 +56,7 @@
     <div class="node-detail"><dl id="node-attrs" class="node-attrs"></dl>
      <div class="node-code-row"><label for="node-kind">生成</label><select id="node-kind"></select></div>
      <textarea id="node-code" readonly rows="3" aria-label="生成的代码" spellcheck="false"></textarea>
+     <p id="node-alt" class="node-alt" hidden><span id="node-alt-text"></span><button id="node-alt-use" type="button" title="选中这个节点，按它生成代码">换成它</button></p>
      <div class="node-actions"><span id="node-try-result" class="node-try-result" role="status" aria-live="polite"></span><button id="node-try" type="button" disabled title="在手机上按这段代码的条件查找一次（不会点击），截图上框出找到的节点">试一下</button><button id="node-copy" type="button" disabled>复制</button><button id="node-insert" type="button" class="primary" disabled title="插入到编辑器光标处，缺少的 import 加到文件开头（树里按 Enter 也可以）">插入到光标</button></div>
     </div>
    </div>
