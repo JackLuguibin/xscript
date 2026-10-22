@@ -1,5 +1,5 @@
 // Runs INSIDE the VS Code extension host (--extensionTestsPath): puts the editor into the states shown in the README
-// screenshots (run + sidebar + log panel, debugger stopped at a breakpoint, the step-by-step connection check, the lost screen capture warning, the basic checks in the Problems panel, the Ctrl/Cmd+. import quick fix; XS_SHOT_NAMES picks which), and for each one writes <XS_SHOT_DIR>/ready-<name> then waits for done-<name> (capture.js takes the
+// screenshots (run + sidebar + log panel, debugger stopped at a breakpoint, the step-by-step connection check, the lost screen capture warning, the basic checks in the Problems panel, the Ctrl/Cmd+. import quick fix, the missing-permission warning after a run; XS_SHOT_NAMES picks which), and for each one writes <XS_SHOT_DIR>/ready-<name> then waits for done-<name> (capture.js takes the
 // picture through the DevTools protocol in between). Needs a real device: XS_SHOT_DEVICE=127.0.0.1:<forwarded port>.
 const fs = require("fs");
 const path = require("path");
@@ -104,6 +104,22 @@ exports.run = async function run() {
       fs.rmSync(demo, { force: true });
       fs.rmSync(util, { force: true });
       await sleep(500);
+    }
+
+    if (names.includes("missing")) {
+      // accessibility off on the device and a module that clicks: after 运行 the warning offers to open the phone's
+      // accessibility settings (throw-away perm.py, deleted afterwards)
+      const demo = path.join(root, "perm.py");
+      fs.writeFileSync(demo, "from xscript.android import node\n\nnode.Selector().text(\"签到\").exists(timeout=0)\n");
+      await vscode.commands.executeCommand("xscript.run", vscode.Uri.file(file));
+      await sleep(4000);
+      await cmd("workbench.action.focusActiveEditorGroup");
+      await sleep(800);
+      await shot("missing");
+      await cmd("notifications.clearAll");
+      await vscode.commands.executeCommand("xscript.stop", vscode.Uri.file(file));
+      fs.rmSync(demo, { force: true });
+      await sleep(2500);
     }
 
     if (names.includes("run")) {
