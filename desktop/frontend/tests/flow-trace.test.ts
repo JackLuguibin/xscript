@@ -102,8 +102,10 @@ describe("trace playback", () => {
     expect(run.nodes.map((node) => node.node)).toEqual(["warm", "tap"]);
     expect(run.nodes[0]).toMatchObject({ seq: 1, enter_ms: 10, summary: "True" });
     const word = (status: string) => (status === "error" ? "出错" : "完成");
-    expect(runLine(run, word)).toBe("daily 出错 warm → tap · tap：missing");
-    expect(runLine({ ...run, status: "success", error_node: "" }, word)).toBe("daily 完成 warm → tap");
+    const at = new Date(2026, 9, 22, 9, 41, 5).getTime();
+    expect(runLine({ ...run, started_at: at, ended_at: at + 3200 }, word)).toBe("09:41:05 daily 出错 warm → tap · tap：missing · 3.2s");
+    expect(runLine({ ...run, started_at: at, ended_at: at + 250, status: "success", error_node: "" }, word)).toBe("09:41:05 daily 完成 warm → tap · 250ms");
+    expect(runLine({ ...run, started_at: 0, ended_at: 0, status: "success", error_node: "" }, word)).toBe("daily 完成 warm → tap");
     expect(rememberRun([run], { ...run, id: 8 }).map((item) => item.id)).toEqual([8, 7]);
     expect(rememberRun(Array.from({ length: 20 }, (_, index) => ({ ...run, id: index })), { ...run, id: 99 })).toHaveLength(20);
   });
