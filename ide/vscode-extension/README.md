@@ -21,6 +21,8 @@ cd ide/vscode-extension && npm ci && npm run package     # 生成 xscript-vscode
 
 ![缺的是其他权限时，按钮换成对应的一键处理：缺通知使用权时是「Open Notification Access on Phone」，悬浮窗、文件访问打开对应设置页，截图权限在手机上弹出授权](../../docs/images/vscode-missing-notif.png)
 
+![缺好几项时，点完一项后的通知说明还剩几项，并给出「Next: Open File Access Settings on Phone」，逐项点下去即可](../../docs/images/vscode-missing-next.png)
+
 ![一键调试：在断点处停下，左侧是变量、调用栈和断点，底部是调试控制台](../../docs/images/vscode-debug.png)
 
 ![逐项检查连接：手机上的 XScript 没打开，停在「XScript app answers」，Output 里列出每一步，通知给出修法和「修改地址 / 仍然保存 / 排查文档」](../../docs/images/vscode-connect.png)

@@ -11,7 +11,7 @@ import { DEFAULT_SYNCIGNORE, IgnoreRules, SYNCIGNORE_PATH, SyncCache, describeDe
 import { TEMPLATES, createProject, validateProjectName } from "./newProject";
 import { Node, XScriptTree } from "./tree";
 import { captureBadge, captureProblem, captureText } from "./captureStatus";
-import { missingPerms, missingText, missingWarning } from "./missingPerms";
+import { fixDone, missingPerms, missingText, missingWarning, type PermFix } from "./missingPerms";
 import { TROUBLESHOOTING_URL, canConnect, failureSummary, formatCheck, langOf, runConnectCheck, tcpConnect, type CheckStep } from "./connectCheck";
 import { newUiForm, registerUiDesigner } from "./uiDesigner";
 import { registerDiagnostics } from "./diagnostics";
@@ -526,27 +526,42 @@ async function startRun(name: string): Promise<void> {
   await startFollowing(since);
 }
 
-/** The run reply lists permissions the code uses but the phone lacks: warn, and offer the one-tap fix for the first one. */
+/** The run reply lists permissions the code uses but the phone lacks: warn, and offer the one-tap fixes one after another (Next). */
 async function warnMissing(reply: Record<string, unknown>): Promise<void> {
   const lang = langOf(vscode.env.language);
   const warning = missingWarning(missingPerms(reply), lang);
   if (!warning) return;
   output.appendLine("[xscript] " + warning.text);
-  const fix = warning.fix;
-  const pick = await vscode.window.showWarningMessage(warning.text, ...(fix ? [fix.button] : []));
-  if (!fix || pick !== fix.button) return;
+  let fixes = warning.fixes;
+  let button: string | undefined = fixes[0]?.button;
+  let pick = await vscode.window.showWarningMessage(warning.text, ...(button ? [button] : []));
+  while (fixes.length && pick === button) {
+    const text = await applyFix(fixes[0], lang);
+    if (text === undefined) return;
+    fixes = fixes.slice(1);
+    const done = fixDone(text, fixes, lang);
+    button = done.next ?? undefined;
+    pick = await vscode.window.showInformationMessage(done.text, ...(button ? [button] : []));
+  }
+}
+
+/** Runs one fix on the phone: the message to show, or undefined after a failure (already reported). */
+async function applyFix(fix: PermFix, lang: "zh" | "en"): Promise<string | undefined> {
   const t = missingText(lang);
   if (fix.capture) {
     const ok = await guard("grant screen capture", () => client.requestCapture());
-    if (ok === undefined) return;
-    if (ok) vscode.window.showInformationMessage(fix.opened);
-    else vscode.window.showWarningMessage(t.failed(lang === "zh" ? "手机上的 XScript 版本过旧" : "the phone app is too old", fix.where));
-    return;
+    if (ok === undefined) return undefined;
+    if (ok) return fix.opened;
+    vscode.window.showWarningMessage(t.failed(lang === "zh" ? "手机上的 XScript 版本过旧" : "the phone app is too old", fix.where));
+    return undefined;
   }
   const r = await guard("open " + fix.label + " settings", () => client.eval(fix.code ?? "", 5000));
-  if (!r) return;
-  if (!r.ok) vscode.window.showWarningMessage(t.failed(String(r.error ?? "?"), fix.where));
-  else vscode.window.showInformationMessage(String(r.result) === "1" && fix.on ? fix.on : fix.opened);
+  if (!r) return undefined;
+  if (!r.ok) {
+    vscode.window.showWarningMessage(t.failed(String(r.error ?? "?"), fix.where));
+    return undefined;
+  }
+  return String(r.result) === "1" && fix.on ? fix.on : fix.opened;
 }
 
 /** Runs the step-by-step check with a progress notification and writes every step to the output channel. */

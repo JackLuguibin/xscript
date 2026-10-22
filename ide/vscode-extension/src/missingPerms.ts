@@ -79,12 +79,22 @@ export function permFix(label: string, lang: Lang): PermFix | null {
 }
 
 /** The warning after a run and the one-tap fix to offer (accessibility first, else the first one that has a fix); null when nothing is missing. */
-export function missingWarning(list: MissingPerm[], lang: Lang): { text: string; a11y: boolean; fix: PermFix | null } | null {
+export function missingWarning(list: MissingPerm[], lang: Lang): { text: string; a11y: boolean; fix: PermFix | null; fixes: PermFix[] } | null {
   if (!list.length) return null;
   const names = list.map((m) => (lang === "en" ? EN_LABEL[m.label] ?? m.label : m.label) + (m.where ? (lang === "zh" ? "（" + m.where + "）" : " (" + m.where + ")") : "")).join(lang === "zh" ? "、" : ", ");
   const a11y = list.some((m) => m.label === "无障碍");
-  const first = a11y ? "无障碍" : list.find((m) => FIX[m.label])?.label;
-  return { text: TEXT[lang].warn(names), a11y, fix: first ? permFix(first, lang) : null };
+  // every missing permission with a fix, accessibility first, no repeats: offered one after another (Next)
+  const labels = [...new Set((a11y ? ["无障碍"] : []).concat(list.map((m) => m.label)))].filter((l) => FIX[l]);
+  const fixes = labels.map((l) => permFix(l, lang) as PermFix);
+  return { text: TEXT[lang].warn(names), a11y, fix: fixes[0] ?? null, fixes };
+}
+
+/** After one fix: its result plus how many are left, and the button for the next one (null when none is left). */
+export function fixDone(text: string, rest: PermFix[], lang: Lang): { text: string; next: string | null } {
+  if (!rest.length) return { text, next: null };
+  return lang === "zh"
+    ? { text: text + " 还有 " + rest.length + " 项，点「下一项」继续。", next: "下一项：" + rest[0].button }
+    : { text: text + " " + rest.length + " more to go: click Next.", next: "Next: " + rest[0].button };
 }
 
 export function missingText(lang: Lang) {

@@ -2,7 +2,7 @@ import { test } from "node:test";
 import * as assert from "node:assert/strict";
 import * as fs from "node:fs";
 import * as path from "node:path";
-import { A11Y_CODE, missingPerms, missingText, missingWarning, permFix } from "../missingPerms";
+import { A11Y_CODE, fixDone, missingPerms, missingText, missingWarning, permFix } from "../missingPerms";
 
 test("run reply: missing permissions become a warning, with the accessibility fix only when it is missing", () => {
   assert.deepEqual(missingPerms({ ok: true }), []);
@@ -54,5 +54,14 @@ test("per-permission one-tap fix: the first missing permission with a fix, same 
     if (e.permission) assert.equal(f?.code, "from xscript.android import permission\n_result = permission.request(permission." + e.permission + ", 1)");
     else assert.deepEqual([e.captureRequest, f?.capture, f?.code], [true, true, undefined]);
   }
+  // all fixes in order for Next: accessibility first, no repeats, unknown ones dropped
+  const all = missingWarning([{ label: "通知使用权", where: "" }, { label: "未知", where: "" }, { label: "无障碍", where: "" }, { label: "通知使用权", where: "" }, { label: "图色权限（截图）", where: "" }], "en");
+  assert.deepEqual(all?.fixes.map((f) => f.label), ["无障碍", "通知使用权", "图色权限（截图）"]);
+  assert.equal(all?.fix, all?.fixes[0]);
+  assert.deepEqual(missingWarning([{ label: "未知", where: "" }], "zh")?.fixes, []);
+  const rest = all?.fixes.slice(1) ?? [];
+  assert.deepEqual(fixDone("Opened.", rest, "en"), { text: "Opened. 2 more to go: click Next.", next: "Next: Open Notification Access on Phone" });
+  assert.deepEqual(fixDone("已打开。", missingWarning([{ label: "文件访问权限", where: "" }], "zh")?.fixes ?? [], "zh"), { text: "已打开。 还有 1 项，点「下一项」继续。", next: "下一项：打开手机文件访问设置" });
+  assert.deepEqual(fixDone("Opened.", [], "en"), { text: "Opened.", next: null });
   assert.equal(missingText("zh").failed("timeout", "设置 → 无障碍"), "XScript：打开失败（timeout），请在手机的 设置 → 无障碍 里开启 XScript。");
 });
