@@ -21,7 +21,7 @@ import { blame, mapGraph, type FlowSourceMap } from "../flow/map";
 import { builtinSpecs, menuSpecs, nodeBadge } from "../flow/specs";
 import { isTextEntry } from "../shortcuts";
 import { emptyLogCursor, flowEdges, followLogs, LOG_POLL_MS, pictureOf, readTrace, RUN_KEEP_MS, runKept, seqGap, type LogCursor, type NodeRun } from "../flow/trace";
-import { buildRun, readRuns, rememberRun, writeRuns, type FlowRun } from "../flow/runs";
+import { buildRun, readRuns, rememberRun, runLine, writeRuns, type FlowRun } from "../flow/runs";
 import { literalPreview, rememberRuns, stepSnippet } from "../flow/step";
 import { deployPlan, pushPlan } from "../flow/deploy";
 import { errorLine } from "../errors";
@@ -2539,7 +2539,7 @@ export function FlowPage({ initialLayout }: { initialLayout?: FlowLayout } = {})
                 {runs.map((run) => (
                   <li key={run.id}>
                     <Button type="button" onClick={() => locate(run.error_node || run.nodes[0]?.node || "")}>
-                      {run.flow} {run.status} {run.nodes.map((node) => node.node).join(" ")}
+                      {runLine(run, runWord)}
                     </Button>
                   </li>
                 ))}

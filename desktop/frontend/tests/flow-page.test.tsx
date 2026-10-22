@@ -907,7 +907,7 @@ describe("flow page", () => {
     fireEvent.click(screen.getByRole("button", { name: "记下运行" }));
     const history = screen.getByRole("list", { name: "运行历史" });
     expect(history.textContent).toContain("warm");
-    expect(history.textContent).toContain("success");
+    expect(history.textContent).toBe("daily_signin 完成 warm");
   });
 
   it("edits declared pins on a code node", async () => {

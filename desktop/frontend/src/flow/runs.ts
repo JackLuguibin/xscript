@@ -56,6 +56,20 @@ export function buildRun(
   };
 }
 
+/**
+ * One history row: flow, status word, the steps in order, and for a failed run the failing step with its message
+ * (e.g. "daily 出错 warm → tap · tap：missing"). `word` maps the status to the UI text.
+ */
+export function runLine(run: FlowRun, word: (status: FlowRun["status"]) => string): string {
+  const steps = run.nodes.map((node) => node.node).join(" → ");
+  let line = [run.flow, word(run.status), steps].filter(Boolean).join(" ");
+  if (run.status === "error" && run.error_node) {
+    const summary = run.nodes.find((node) => node.node === run.error_node)?.summary ?? "";
+    line += " · " + run.error_node + (summary ? "：" + summary : "");
+  }
+  return line;
+}
+
 export function rememberRun(runs: readonly FlowRun[], run: FlowRun, cap = CAP): FlowRun[] {
   return [run, ...runs.filter((item) => item.id !== run.id)].slice(0, cap);
 }
