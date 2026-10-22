@@ -446,34 +446,44 @@ class XScriptService(private val project: Project) : Disposable {
         }
     }
 
-    /** After a run: the permissions the phone still lacks (console + warning), with a one-tap fix for the first one. */
+    /** After a run: the permissions the phone still lacks (console + warning), with one-tap fixes offered one after another (Next). */
     private fun warnMissing(client: DeviceClient, list: List<MissingPerm>) {
         val w = missingWarning(list) { k, a -> XScriptBundle.message(k, *a) } ?: return
         print(w.text + "\n", ConsoleViewContentType.ERROR_OUTPUT)
-        val n = NotificationGroupManager.getInstance().getNotificationGroup("XScript").createNotification(w.text, NotificationType.WARNING)
-        val fix = w.fix
-        if (fix != null) {
-            n.addAction(NotificationAction.createSimpleExpiring(fix.button) {
+        offerFix(client, w.text, NotificationType.WARNING, w.fixes, w.fixes.firstOrNull()?.button)
+    }
+
+    /** Notification `text`; when `fixes` is not empty its button (`button`) runs the first fix and then offers the rest. */
+    private fun offerFix(client: DeviceClient, text: String, type: NotificationType, fixes: List<PermFix>, button: String?) {
+        val n = NotificationGroupManager.getInstance().getNotificationGroup("XScript").createNotification(text, type)
+        val fix = fixes.firstOrNull()
+        if (fix != null && button != null) {
+            n.addAction(NotificationAction.createSimpleExpiring(button) {
                 ApplicationManager.getApplication().executeOnPooledThread {
-                    try {
-                        if (fix.capture) {
-                            if (client.requestCapture()) notify(fix.opened, NotificationType.INFORMATION)
-                            else notify(XScriptBundle.message("missing.failed", XScriptBundle.message("missing.oldApp"), fix.where), NotificationType.ERROR)
-                            return@executeOnPooledThread
-                        }
-                        val r = client.eval(fix.code!!, 5000)
-                        when {
-                            !r.ok -> notify(XScriptBundle.message("missing.failed", r.error.ifEmpty { "?" }, fix.where), NotificationType.ERROR)
-                            r.result == "1" -> notify(fix.on, NotificationType.INFORMATION)
-                            else -> notify(fix.opened, NotificationType.INFORMATION)
-                        }
-                    } catch (e: Exception) {
-                        notify(XScriptBundle.message("missing.failed", e.message ?: e.toString(), fix.where), NotificationType.ERROR)
-                    }
+                    val done = applyFix(client, fix) ?: return@executeOnPooledThread
+                    val (next, nextButton) = fixDone(done, fixes.drop(1)) { k, a -> XScriptBundle.message(k, *a) }
+                    offerFix(client, next, NotificationType.INFORMATION, fixes.drop(1), nextButton)
                 }
             })
         }
         n.notify(project)
+    }
+
+    /** Runs one fix on the phone: the message to show, or null after a failure (already reported). */
+    private fun applyFix(client: DeviceClient, fix: PermFix): String? = try {
+        if (fix.capture) {
+            if (client.requestCapture()) fix.opened
+            else null.also { notify(XScriptBundle.message("missing.failed", XScriptBundle.message("missing.oldApp"), fix.where), NotificationType.ERROR) }
+        } else {
+            val r = client.eval(fix.code!!, 5000)
+            when {
+                !r.ok -> null.also { notify(XScriptBundle.message("missing.failed", r.error.ifEmpty { "?" }, fix.where), NotificationType.ERROR) }
+                r.result == "1" -> fix.on
+                else -> fix.opened
+            }
+        }
+    } catch (e: Exception) {
+        null.also { notify(XScriptBundle.message("missing.failed", e.message ?: e.toString(), fix.where), NotificationType.ERROR) }
     }
 
     /** Error notification with one action button (e.g. retry). */
