@@ -908,6 +908,16 @@ describe("flow page", () => {
     const history = screen.getByRole("list", { name: "运行历史" });
     expect(history.textContent).toContain("warm");
     expect(history.textContent).toMatch(/^\d\d:\d\d:\d\d daily_signin 完成 warm$/);
+    // a failed control node offers nothing; a failed simple step can be tried again from its row
+    const record = (value: string) => {
+      fireEvent.change(screen.getByRole("textbox", { name: "追踪日志" }), { target: { value } });
+      fireEvent.click(screen.getByRole("button", { name: "记下运行" }));
+    };
+    record("\x1fXF\tenter\tok\t1\n\x1fXF\terror\tok\tboom");
+    expect(screen.queryByRole("button", { name: /^试跑 / })).toBeNull();
+    record("\x1fXF\tenter\tdone\t1\n\x1fXF\terror\tdone\tboom");
+    fireEvent.click(screen.getByRole("button", { name: "试跑 done" }));
+    expect(screen.getByRole("region", { name: "试跑" }).textContent).toContain("print('流程结束')");
   });
 
   it("edits declared pins on a code node", async () => {
