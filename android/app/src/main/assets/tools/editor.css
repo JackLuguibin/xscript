@@ -25,7 +25,8 @@
   .ide:not(.searching) { grid-template-columns:210px minmax(0,1fr); }
   .ide-sidebar { padding:8px; }
   .ide-toolbar i[data-i] { display:none; }
-  .ide-toolbar { flex-wrap:nowrap; overflow-x:auto; scrollbar-width:thin; }
+  .ide-toolbar { flex-wrap:nowrap; overflow-x:auto; scrollbar-width:thin; gap:4px; }
+  .ide-toolbar button, .ide-toolbar .btn { padding:0 6px; }
   .ide-toolbar > * { flex-shrink:0; }
 }
 .ide-tabs { display:flex; overflow:auto; flex-shrink:0; min-height:34px; background:var(--bar); }
@@ -178,6 +179,39 @@
 .shot-info.error { color:var(--bad); }
 .shot-swatch { width:14px; height:14px; border:1px solid var(--divider); border-radius:3px; }
 .shot-swatch[hidden] { display:none; }
+/* Node dock (节点): screenshot with the picked node's box, node tree, attributes and generated code */
+#node-toggle[aria-pressed="true"] { background:var(--accent-soft); border-color:var(--accent); color:var(--text-strong); }
+.ide-nodes { max-height:380px; }
+.ide-nodes .node-full { display:inline-flex; align-items:center; gap:4px; font-size:12px; color:var(--muted); }
+.ide-nodes .node-full input { width:auto; height:auto; margin:0; }
+#node-filter { width:180px; height:26px; box-sizing:border-box; }
+.node-body { flex:1; min-height:0; display:grid; grid-template-columns:auto minmax(200px,1fr) minmax(240px,1.1fr); gap:10px; padding:8px 12px; background:var(--bg); overflow:hidden; }
+.node-screen { min-height:0; overflow:auto; display:flex; flex-direction:column; align-items:center; }
+.node-frame { position:relative; display:inline-block; line-height:0; }
+#node-shot { height:290px; width:auto; max-width:none; cursor:crosshair; border:1px solid var(--divider); border-radius:4px; }
+#node-shot[hidden] { display:none; }
+.node-box { position:absolute; box-sizing:border-box; border:2px solid var(--accent); background:rgba(80,140,255,.16); pointer-events:none; }
+.node-box[hidden] { display:none; }
+.node-tree { min-height:0; max-height:300px; overflow:auto; border:1px solid var(--divider); border-radius:var(--radius); font-size:12px; background:var(--bg); }
+.node-row { display:flex; align-items:center; gap:6px; height:22px; padding-right:6px; cursor:pointer; white-space:nowrap; }
+.node-row:hover { background:var(--bg-hover); }
+.node-row[aria-selected="true"] { background:var(--accent-soft); color:var(--text-strong); }
+.node-row:focus { outline:1px solid var(--accent); outline-offset:-1px; }
+.node-row.match .node-label { font-weight:600; }
+.node-twisty { flex:0 0 12px; text-align:center; color:var(--muted); }
+.node-label { overflow:hidden; text-overflow:ellipsis; min-width:0; }
+.node-type { color:var(--muted); font-size:11px; flex-shrink:0; }
+.node-tag { flex-shrink:0; padding:0 5px; border-radius:9px; background:var(--accent-soft); font-size:10px; }
+.node-empty { margin:6px 8px; font-size:11px; color:var(--muted); line-height:1.4; }
+.node-detail { min-height:0; max-height:300px; overflow:auto; display:flex; flex-direction:column; gap:6px; }
+.node-attrs { display:grid; grid-template-columns:auto minmax(0,1fr); gap:2px 10px; margin:0; font-size:12px; }
+.node-attrs dt { color:var(--muted); white-space:nowrap; }
+.node-attrs dd { margin:0; font-family:var(--mono); word-break:break-all; color:var(--text-strong); }
+.node-code-row { display:flex; align-items:center; gap:6px; font-size:12px; }
+.node-code-row select { flex:1; min-width:0; }
+#node-code { width:100%; box-sizing:border-box; min-height:58px; font-family:var(--mono); font-size:12px; resize:vertical; }
+.node-actions { display:flex; gap:6px; justify-content:flex-end; }
+@media(max-width:900px) { .node-body { grid-template-columns:auto minmax(0,1fr); } .node-detail { grid-column:1 / -1; max-height:none; } }
 
 /* Phone layout (≤600px): one column, explorer as a drawer, compact toolbar and panels. */
 #sidebar-toggle { display:none; }
@@ -197,6 +231,9 @@
   .ide-debug > .ide-heading button { height:26px; padding:0 6px; font-size:12px; }
   .ide-console { height:110px; min-height:80px; }
   .ide-shot { max-height:60vh; }
+  .node-body { grid-template-columns:1fr; overflow:auto; }
+  #node-shot { height:220px; }
+  #node-filter { width:100%; }
   .search-actions { flex-wrap:wrap; }
 }
 

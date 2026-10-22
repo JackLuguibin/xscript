@@ -41,6 +41,27 @@ def _make_png(width=24, height=48):
 
 
 PNG = _make_png()
+
+
+def _mock_login_root(mode):
+    """A nested login screen for the Web IDE 节点 dock: id-less button, hint-only input, desc-only image, quotes in text.
+    Full mode (1) also lists a layout-only View that the simple tree prunes, like NodeDumper."""
+    def n(path, cls, rect, children=(), **kw):
+        node = {"path": path, "id": "", "text": "", "desc": "", "type": cls, "package": "com.demo.app",
+                "rect": dict(zip("ltrb", rect)), "clickable": False, "editable": False, "enabled": True, "visible": True}
+        node.update(kw)
+        node["children"] = list(children)
+        node["childCount"] = len(node["children"])
+        return node
+    form = [
+        n("1/0/0", "android.widget.ImageView", (440, 300, 640, 500), desc="应用图标"),
+        n("1/0/1", "android.widget.EditText", (80, 640, 1000, 760), id="com.demo.app:id/user", hint="请输入账号", clickable=True, editable=True),
+        n("1/0/2", "android.widget.TextView", (80, 800, 1000, 860), text='他说"你好"，\'欢迎\''),
+        n("1/0/3", "android.widget.Button", (80, 980, 1000, 1110), text="登录", clickable=True),
+    ]
+    if mode:
+        form.append(n("1/0/4", "android.view.View", (0, 1200, 1080, 1210)))
+    return n("1", "android.widget.FrameLayout", (0, 0, 1080, 2400), [n("1/0", "android.widget.LinearLayout", (0, 200, 1080, 1300), form)])
 # 24x48 JPEG so a real WebEngine <img> can decode a mock /screen/stream frame (sips, quality 60).
 JPEG = base64.b64decode(
     "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"
@@ -496,7 +517,7 @@ class Handler(BaseHTTPRequestHandler):
                     "editable": False,
                     "enabled": True,
                     "children": [],
-                }],
+                }, _mock_login_root(int(q.get("mode", 0)))],
             })
             return
         if parsed.path == "/projects":
