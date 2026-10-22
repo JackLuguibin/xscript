@@ -39,9 +39,9 @@ class ToolsRouter(private val context: Context) {
 
     fun route(req: Request, p: String): Reply {
         val m = req.method
-        WEBSITE_ALIASES[p]?.let { if (m == "GET") return asset("/tools/ui/$it") }
+        WEBSITE_ALIASES[p]?.let { if (m == "GET") return asset("/tools/ui/$it", req.ifNoneMatch) }
         return when {
-            m == "GET" && (p == "/tools" || p == "/tools/" || p.startsWith("/tools/ui/")) -> asset(p)
+            m == "GET" && (p == "/tools" || p == "/tools/" || p.startsWith("/tools/ui/")) -> asset(p, req.ifNoneMatch)
             m == "GET" && p == "/tools/snapshots" -> Reply.json(JSONObject().put("snapshots", snapshots.list()))
             m == "POST" && p == "/tools/snapshots" ->
                 if (req.body.isEmpty) snapshot() else Reply.json(snapshots.saveUpload(req.body.bytes()))
@@ -239,15 +239,25 @@ class ToolsRouter(private val context: Context) {
 
     // ---- static pages ----
 
-    private fun asset(p: String): Reply {
+    /**
+     * Assets only change when the app is installed again, so the install time is their version: a reload whose
+     * If-None-Match still names it gets a 304 instead of the file (no read, no gzip, no transfer).
+     */
+    private val assetTag: String by lazy {
+        val installed = try { context.packageManager.getPackageInfo(context.packageName, 0).lastUpdateTime } catch (_: Exception) { System.currentTimeMillis() }
+        "\"xs-" + java.lang.Long.toString(installed, 36) + "\""
+    }
+
+    private fun asset(p: String, ifNoneMatch: String? = null): Reply {
         val rel = if (p == "/tools" || p == "/tools/") "index.html" else p.removePrefix("/tools/ui/")
         require(rel.isNotEmpty() && !rel.split('/').any { it == ".." || it.isEmpty() }) { "invalid path" }
+        if (etagMatches(ifNoneMatch, assetTag)) return Reply(304, mime(rel), ByteArray(0), etag = assetTag)
         val bytes = try {
             context.assets.open("tools/$rel").use { it.readBytes() }
         } catch (_: java.io.IOException) {
             return notFound("missing asset $rel")
         }
-        return Reply(200, mime(rel), bytes)
+        return Reply(200, mime(rel), bytes, etag = assetTag)
     }
 
     private fun mime(name: String): String = when (name.substringAfterLast('.').lowercase()) {
@@ -262,6 +272,10 @@ class ToolsRouter(private val context: Context) {
     private fun notFound(msg: String) = Reply.json(JSONObject().put("error", msg), 404)
 
     companion object {
+        /** If-None-Match names [tag] (a list, weak `W/` forms and `*` included). */
+        fun etagMatches(ifNoneMatch: String?, tag: String): Boolean =
+            ifNoneMatch != null && ifNoneMatch.split(',').map { it.trim() }.any { it == "*" || it.removePrefix("W/") == tag }
+
         /**
          * AScript's tool URLs, so bookmarks such as /website/src/screen.html?plug=FindColors open the
          * matching XScript page. Pages load their scripts from absolute /tools/ui/ paths.

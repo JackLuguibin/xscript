@@ -149,6 +149,7 @@ def _vision(req):
 TEXT_EXT = {"py", "txt", "md", "json", "yaml", "yml", "html", "htm", "js", "css", "ini", "cfg", "csv", "xml", "toml"}
 
 # The device serves the web tools from the APK assets; the mock reads the same files.
+ASSET_TAG = '"xs-mock-%x"' % int(time.time() * 1000)
 ASSETS = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "android", "app", "src", "main", "assets", "tools")
 WEBSITE_ALIASES = {"/website/src/screen.html": "color.html", "/website/src/label.html": "label.html", "/website/src/editor.html": "editor.html"}
 MIME = {"html": "text/html; charset=utf-8", "js": "text/javascript; charset=utf-8", "css": "text/css; charset=utf-8",
@@ -323,8 +324,18 @@ class Handler(BaseHTTPRequestHandler):
         if not os.path.isfile(path):
             self._json(404, {"error": "missing asset %s" % rel})
             return
+        # Like the device (ToolsRouter.asset): one validator per install (here: per mock start), revalidated each load.
+        if self.headers.get("If-None-Match") and any(t.strip() in ("*", ASSET_TAG, "W/" + ASSET_TAG) for t in self.headers["If-None-Match"].split(",")):
+            self.send_response(304); self.send_header("ETag", ASSET_TAG); self.send_header("Cache-Control", "no-cache"); self.end_headers()
+            return
         with open(path, "rb") as f:
-            self._send(200, MIME.get(rel.rsplit(".", 1)[-1], "application/octet-stream"), f.read())
+            raw = f.read()
+        self.send_response(200)
+        self.send_header("Content-Type", MIME.get(rel.rsplit(".", 1)[-1], "application/octet-stream"))
+        self.send_header("Content-Length", str(len(raw)))
+        self.send_header("ETag", ASSET_TAG); self.send_header("Cache-Control", "no-cache")
+        self.end_headers()
+        self.wfile.write(raw)
 
     # ---- pairing (same rules as the device's HttpGuard; on only when serve(..., token=...) is given)
 
