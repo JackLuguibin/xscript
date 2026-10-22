@@ -248,6 +248,25 @@ print(json.dumps(out, ensure_ascii=False))
   ]);
 });
 
+test('最近选过: newest first without duplicates, found again by path or (if it moved) by its values', () => {
+  const at = p => atIn(LIST, p);
+  let list = [];
+  for (const p of ['0/1', '0/2', '0/1', '0/6']) list = N.pushRecent(list, N.recentEntry(at(p)));
+  assert.deepEqual(list.map(e => e.path), ['0/6', '0/1', '0/2']);
+  assert.deepEqual(N.recentEntry(at('0/5')), {path: '0/5', id: 'android:id/icon', text: '', desc: 'Bluetooth', type: 'android.widget.ImageView', label: 'Bluetooth'});
+  for (let i = 0; i < 12; i++) list = N.pushRecent(list, {path: 'x/' + i, id: '', text: 't' + i, desc: '', type: '', label: 't' + i});
+  assert.equal(list.length, 8);
+  assert.equal(N.findRecent(LIST, N.recentEntry(at('0/1'))), at('0/1'));
+  // moved: another path, same values, only one such node → found
+  assert.equal(N.findRecent(LIST, Object.assign(N.recentEntry(at('0/1')), {path: '7/7'})), at('0/1'));
+  // moved, but two rows look like it (Battery twice) → not guessed
+  assert.equal(N.findRecent(LIST, Object.assign(N.recentEntry(at('0/3')), {path: '7/7'})), null);
+  // a bare layout node is only known by its path
+  assert.equal(N.findRecent(LIST, {path: '7/7', id: '', text: '', desc: '', type: 'android.widget.FrameLayout', label: 'FrameLayout'}), null);
+  assert.equal(N.findRecent(LIST, {path: '0', id: '', text: '', desc: '', type: 'android.widget.FrameLayout', label: 'FrameLayout'}), LIST[0]);
+  assert.equal(N.findRecent(LIST, {path: '0/1', id: 'android:id/title', text: 'Gone', desc: '', type: 'android.widget.TextView', label: 'Gone'}), null);
+});
+
 test('a node only its path can pin gets a stable child or parent to switch to, never a sibling', () => {
   const T = [node('0', 'android.widget.FrameLayout', [0, 0, 1080, 2400], [
     node('0/0', 'android.widget.LinearLayout', [0, 0, 1080, 200], [                       // a list row: no id, no text

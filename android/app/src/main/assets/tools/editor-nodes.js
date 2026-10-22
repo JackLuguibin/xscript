@@ -185,6 +185,23 @@
     return s.imports.join("\n") + "\n" + code;
   }
 
+  /** A picked node as remembered in 最近选过 (no children, nothing else of the tree). */
+  const recentEntry = n => ({path: n.path || "", id: n.id || "", text: n.text || "", desc: n.desc || "", type: n.type || "", label: label(n)});
+  const sameEntry = (a, b) => a.path === b.path && a.id === b.id && a.text === b.text && a.desc === b.desc && a.type === b.type;
+  /** `list` with `entry` moved to the front, at most `max` long. */
+  function pushRecent(list, entry, max = 8) { return [entry, ...(list || []).filter(e => !sameEntry(e, entry))].slice(0, max); }
+
+  /** Find a remembered node in a freshly read tree: the same path with the same id / text / desc / type, else the one
+   *  node with those values (it may have moved). null when it is gone or more than one node looks like it. */
+  function findRecent(roots, entry) {
+    const all = []; const walk = n => { all.push(n); for (const c of n.children || []) walk(c); }; for (const r of roots || []) walk(r);
+    const same = n => (n.id || "") === entry.id && (n.text || "") === entry.text && (n.desc || "") === entry.desc && (n.type || "") === entry.type;
+    const exact = all.find(n => n.path === entry.path && same(n)); if (exact) return exact;
+    if (!entry.id && !entry.text && !entry.desc) return null;           // a bare layout node is only known by its path
+    const like = all.filter(same);
+    return like.length === 1 ? like[0] : null;
+  }
+
   /** What a try found, for the picked node `n`: {text, ok, hits: [{path, rect}]}. `result` is /eval's JSON text. */
   function tryVerdict(result, n) {
     let list = [];
@@ -233,7 +250,7 @@
     return {left: r.l / w * 100 + "%", top: r.t / h * 100 + "%", width: (r.r - r.l) / w * 100 + "%", height: (r.b - r.t) / h * 100 + "%"};
   }
 
-  const EditorNodes = {hitTest, ancestry, rows, count, label, pyStr, xpathStr, selectorChain, nodeXPath, center, KINDS, snippet, fullText, runCode, tryCode, tryVerdict, fragile, FRAGILE, stableAlternative, importEdit, attrs, boxStyle, shortType};
+  const EditorNodes = {hitTest, ancestry, rows, count, label, pyStr, xpathStr, selectorChain, nodeXPath, center, KINDS, snippet, fullText, runCode, recentEntry, pushRecent, findRecent, tryCode, tryVerdict, fragile, FRAGILE, stableAlternative, importEdit, attrs, boxStyle, shortType};
 
   // ---- browser dock ----
   // ctx: {message(text, error), insertCode(code, imports) -> bool, onOpen()}
@@ -244,6 +261,20 @@
     const info = (text, error = false) => { $("node-info").textContent = text; $("node-info").classList.toggle("error", error); };
     const mode = () => ($("node-full").checked ? 1 : 0);
     for (const k of KINDS) { const o = make("option", "", k.label); o.value = k.id; $("node-kind").append(o); }
+    try { st.recent = JSON.parse(localStorage.getItem("xs-node-recent") || "[]").filter(e => e && typeof e.label === "string"); } catch (e) { st.recent = []; }
+    function renderRecent() {
+      const sel = $("node-recent"); sel.replaceChildren(make("option", "", st.recent.length ? "最近选过（" + st.recent.length + "）" : "最近选过"));
+      sel.firstChild.value = "";
+      st.recent.forEach((e, i) => { const o = make("option", "", e.label + " · " + shortType(e.type)); o.value = String(i); sel.append(o); });
+      sel.disabled = !st.recent.length; sel.value = "";
+    }
+    /** Remember a node the user picked (tree click, screenshot click, 换成它); arrow keys do not count. */
+    function remember(n) {
+      if (!n) return;
+      st.recent = pushRecent(st.recent, recentEntry(n));
+      try { localStorage.setItem("xs-node-recent", JSON.stringify(st.recent)); } catch (e) { /* storage off */ }
+      renderRecent();
+    }
     try { const saved = localStorage.getItem("xs-node-kind"); if (KINDS.some(k => k.id === saved)) $("node-kind").value = saved; } catch (e) { /* storage off */ }
 
     function current() { return st.selected ? snippet(st.selected, $("node-kind").value, mode(), st.tree && st.tree.roots) : null; }
@@ -382,7 +413,15 @@
     $("node-close").addEventListener("click", () => setOpen(false));
     $("node-take").addEventListener("click", take);
     $("node-try").addEventListener("click", tryIt);
-    $("node-alt-use").addEventListener("click", () => { if (st.alt) select(st.alt, {reveal: true, focus: true}); });
+    $("node-alt-use").addEventListener("click", () => { if (st.alt) { remember(st.alt); select(st.alt, {reveal: true, focus: true}); } });
+    $("node-recent").addEventListener("change", () => {
+      const entry = st.recent[Number($("node-recent").value)]; $("node-recent").value = "";
+      if (!entry || !st.tree) return;
+      const n = findRecent(st.tree.roots, entry);
+      if (!n) { info("当前界面上找不到「" + entry.label + "」：先在手机上回到那个界面，再点「重新获取」", true); return; }
+      remember(n); select(n, {reveal: true, focus: true});
+      info("已选中最近的「" + entry.label + "」（路径 " + n.path + "）");
+    });
     $("node-full").addEventListener("change", take);
     $("node-filter").addEventListener("input", renderTree);
     $("node-kind").addEventListener("change", () => { try { localStorage.setItem("xs-node-kind", $("node-kind").value); } catch (e) { /* storage off */ } renderDetail(); });
@@ -400,7 +439,7 @@
       const row = e.target.closest(".node-row"); if (!row) return;
       const n = row._node;
       if (e.target.closest(".node-twisty") && (n.children || []).length) { const k = key(n); if (st.collapsed.has(k)) st.collapsed.delete(k); else st.collapsed.add(k); renderTree(); return; }
-      select(n, {focus: true});
+      remember(n); select(n, {focus: true});
     });
     $("node-tree").addEventListener("keydown", e => {
       const list = [...$("node-tree").querySelectorAll(".node-row")], i = list.indexOf(document.activeElement);
@@ -416,9 +455,9 @@
       const rect = e.currentTarget.getBoundingClientRect(); if (!rect.width || !rect.height) return;
       const x = Math.floor((e.clientX - rect.left) * st.tree.width / rect.width), y = Math.floor((e.clientY - rect.top) * st.tree.height / rect.height);
       const hit = hitTest(st.tree.roots, x, y);
-      if (hit) select(hit, {reveal: true}); else info("x=" + x + "，y=" + y + " 处没有节点");
+      if (hit) { remember(hit); select(hit, {reveal: true}); } else info("x=" + x + "，y=" + y + " 处没有节点");
     });
-    renderDetail();
+    renderRecent(); renderDetail();
     return {take, open: () => setOpen(true), close: () => setOpen(false), state: () => st};
   }
   EditorNodes.initNodes = initNodes;

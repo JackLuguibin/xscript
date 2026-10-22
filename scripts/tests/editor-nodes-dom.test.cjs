@@ -189,6 +189,29 @@ test('Web IDE 节点 dock reads the UI tree and generates node code', {skip: CHR
       await b.key('ArrowUp'); assert.equal((await b.eval(view)).selected, '1/0');
     });
 
+    await t.test('最近选过 lists clicked nodes (not arrow keys) and finds one again after 重新获取', async () => {
+      const recent = () => b.eval(() => [...document.querySelectorAll('#node-recent option')].map(o => o.textContent));
+      const before = await recent();
+      assert.equal(before[0], '最近选过（' + (before.length - 1) + '）');
+      assert.ok(before.includes('com.demo.app:id/user · EditText') && before.includes('登录 · Button'), before.join(' / '));
+      assert.ok(!before.some(o => o.startsWith('应用图标')), 'arrow keys do not count');
+      // newest first, no duplicates
+      await b.eval(() => document.querySelector('#node-tree .node-row[data-path="1/0/2"]').click());
+      await b.eval(() => document.querySelector('#node-tree .node-row[data-path="1/0/3"]').click());
+      const list = await recent();
+      assert.deepEqual(list.slice(1, 3), ['登录 · Button', '他说"你好"，\'欢迎\' · TextView']);
+      assert.equal(list.filter(o => o === '登录 · Button').length, 1);
+      // re-read the tree, pick the EditText from the list
+      await b.eval(() => document.getElementById('node-take').click());
+      await b.waitFor(() => !document.getElementById('node-take').disabled && /个节点/.test(document.getElementById('node-info').textContent));
+      await b.eval(() => { const s = document.getElementById('node-recent'), i = [...s.options].findIndex(o => o.textContent.startsWith('com.demo.app:id/user')); s.value = s.options[i].value; s.dispatchEvent(new Event('change')); });
+      const v = await b.eval(view);
+      assert.equal(v.selected, '1/0/1'); assert.match(v.info, /^已选中最近的「com\.demo\.app:id\/user」（路径 1\/0\/1）/);
+      assert.equal((await recent())[1], 'com.demo.app:id/user · EditText', 'chosen one moves to the front');
+      assert.match(await b.eval(() => localStorage.getItem('xs-node-recent')), /com\.demo\.app:id\/user/);
+      await b.eval(() => document.querySelector('#node-tree .node-row[data-path="1/0/1"]').click());
+    });
+
     await t.test('filter keeps matches and their parents; 完整树 adds layout-only nodes', async () => {
       await b.eval(() => { const f = document.getElementById('node-filter'); f.value = 'edittext'; f.dispatchEvent(new Event('input')); });
       assert.deepEqual((await b.eval(view)).rows, ['1', '1/0', '1/0/1']);
