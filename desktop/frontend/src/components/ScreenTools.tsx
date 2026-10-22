@@ -211,7 +211,7 @@ export function ScreenTools({
             <Textarea className="code-snip" aria-label={t.inspect.code} readOnly value={code} rows={3} />
             <p className="hint">{t.inspect.codeHint}</p>
             <div className="row wrap">
-              <Button size="sm" variant="primary" type="button" onClick={() => { sendToCanvas(selected); toast(t.inspect.sentToCanvas); }}>
+              <Button size="sm" variant="primary" type="button" onClick={() => { sendToCanvas(selected, tree?.roots); toast(t.inspect.sentToCanvas); }}>
                 {t.inspect.toCanvas}
               </Button>
               <Button size="sm" type="button" onClick={() => void copy(selectorCode(selected, tree?.roots))}>
