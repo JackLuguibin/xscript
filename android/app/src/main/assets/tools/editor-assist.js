@@ -137,15 +137,18 @@
       p.append(doc);
       p.hidden = false;
       this.box.setAttribute("aria-expanded", "true"); this.box.setAttribute("aria-controls", "complete");
-      this.select(this.index);
-      this.place();
+      // A fresh list starts at the top, so no scrollIntoView; and the popup is placed in the next frame, together
+      // with the syntax repaint: measuring right after an edit forced an extra layout of the whole textarea per
+      // keystroke (~25 ms at 2 000 lines).
+      this.select(this.index, false);
+      if (!this.placeQueued) { this.placeQueued = true; requestAnimationFrame(() => { this.placeQueued = false; if (!this.popup.hidden && this.range) { this.popup.scrollTop = 0; this.place(); } }); }
     }
-    select(i) {
+    select(i, scroll = true) {
       this.index = (i + this.items.length) % this.items.length;
       const lis = this.popup.querySelectorAll("li");
       lis.forEach((li, n) => li.setAttribute("aria-selected", String(n === this.index)));
       const li = lis[this.index];
-      if (li) { li.scrollIntoView({block: "nearest"}); this.box.setAttribute("aria-activedescendant", li.id); }
+      if (li) { if (scroll) li.scrollIntoView({block: "nearest"}); this.box.setAttribute("aria-activedescendant", li.id); }
       const item = this.items[this.index], doc = this.popup.querySelector(".cdoc");
       if (doc) { const text = ((item.detail ? item.label + item.detail + "\n" : "") + (item.doc || "")).trim(); doc.textContent = text; doc.hidden = !text; }
     }
@@ -160,23 +163,14 @@
     caretBox() {
       const box = this.box, value = box.value, pos = this.range.from;
       const ls = value.lastIndexOf("\n", pos - 1) + 1, row = value.slice(0, pos).split("\n").length - 1;
-      const probe = document.createElement("span"), cs = getComputedStyle(box);
-      probe.style.cssText = "position:absolute;visibility:hidden;white-space:pre;tab-size:4;letter-spacing:0;font-variant-ligatures:none";
-      probe.style.fontFamily = cs.fontFamily; probe.style.fontSize = cs.fontSize; probe.style.fontWeight = cs.fontWeight;
-      probe.textContent = value.slice(ls, pos); this.host.append(probe);
-      const width = probe.getBoundingClientRect().width; probe.remove();
+      const width = this.textWidth(value.slice(ls, pos));
       const hostBox = this.host.getBoundingClientRect();
       return {x: PAD_LEFT + width - box.scrollLeft, y: PAD_TOP + (row + 1) * LINE - box.scrollTop, hostW: hostBox.width, hostH: hostBox.height};
     }
     place() {
       const box = this.box, value = box.value, pos = this.range.from;
       const ls = value.lastIndexOf("\n", pos - 1) + 1, row = value.slice(0, pos).split("\n").length - 1;
-      const probe = document.createElement("span");
-      const cs = getComputedStyle(box);
-      probe.style.cssText = "position:absolute;visibility:hidden;white-space:pre;tab-size:4;letter-spacing:0;font-variant-ligatures:none";
-      probe.style.fontFamily = cs.fontFamily; probe.style.fontSize = cs.fontSize; probe.style.fontWeight = cs.fontWeight;
-      probe.textContent = value.slice(ls, pos); this.host.append(probe);
-      const width = probe.getBoundingClientRect().width; probe.remove();
+      const width = this.textWidth(value.slice(ls, pos));
       const hostBox = this.host.getBoundingClientRect(), pw = this.popup.offsetWidth, ph = this.popup.offsetHeight;
       let left = PAD_LEFT + width - box.scrollLeft, top = PAD_TOP + (row + 1) * LINE - box.scrollTop + 2;
       if (left + pw > hostBox.width - 4) left = Math.max(4, hostBox.width - pw - 4);
@@ -206,8 +200,6 @@
       };
       this.sigTip = make("ide-sig", "sig-help"); this.hoverTip = make("ide-hover", "hover-doc");
       this.sigForced = false; this.hoverKey = ""; this.hoverTimer = 0; this.hoverRaf = 0; this.mouse = null;
-      this.probe = document.createElement("span");
-      this.probe.style.cssText = "position:absolute;visibility:hidden;white-space:pre;tab-size:4;letter-spacing:0;font-variant-ligatures:none;left:-9999px;top:0";
       this.box.addEventListener("mousemove", e => {
         this.mouse = {x: e.clientX, y: e.clientY};
         if (!this.hoverRaf) this.hoverRaf = requestAnimationFrame(() => { this.hoverRaf = 0; this.onHover(); });
@@ -219,12 +211,15 @@
         if (!this.sigTip.hidden || this.sigForced) this.updateSig(this.sigForced); else if (this.enabled) this.updateSig(false);
       });
     }
-    /** Width in px of `text` in the editor font (tabs expand like the textarea's). */
+    /** Width in px of `text` in the editor font (tabs every 4 columns, like the textarea). Measured on a canvas:
+     *  a probe element in the page forced a layout of the whole textarea on each call (every keystroke). */
     textWidth(text) {
-      const cs = getComputedStyle(this.box), p = this.probe;
-      p.style.fontFamily = cs.fontFamily; p.style.fontSize = cs.fontSize; p.style.fontWeight = cs.fontWeight;
-      p.textContent = text; if (!p.isConnected) this.host.append(p);
-      return p.getBoundingClientRect().width;
+      const cs = getComputedStyle(this.box);
+      const ctx = this.measure || (this.measure = document.createElement("canvas").getContext("2d"));
+      ctx.font = cs.fontWeight + " " + cs.fontSize + " " + cs.fontFamily;
+      let line = "";
+      for (const ch of text) line += ch === "\t" ? " ".repeat(4 - line.length % 4) : ch;
+      return ctx.measureText(line).width;
     }
     /** Host-relative {x, top} of text offset `pos` (top = top edge of its line), scrolled like the textarea. */
     coords(pos) {
