@@ -532,22 +532,27 @@
     button.onclick = () => debuggerClient.control(button.dataset.debug).catch(e => message(e.message, true));
   });
   el("debug-disconnect").onclick = async () => { await debuggerClient.close(); el("debug-state").textContent = "已断开，任务仍可运行"; renderDebug(); };
-  el("run").onclick = () => operation(async () => { await debuggerClient.close(); const m = EditorModel.runMessage(model.project, await model.run()); message(m.text, m.warn); runFix = m.fix; el("run-a11y").textContent = m.fix ? m.fix.button : ""; el("run-a11y").hidden = !m.fix; poll(); });
-  // one tap from the run warning: open the phone's settings page for the first missing permission (same /eval as the 节点 panel),
-  // or ask for the screen-capture grant
-  let runFix = null;
+  el("run").onclick = () => operation(async () => { await debuggerClient.close(); const m = EditorModel.runMessage(model.project, await model.run()); message(m.text, m.warn); runFixes = m.fixes; showFix(""); poll(); });
+  // one tap from the run warning: open the phone's settings page for each missing permission in turn (same /eval as the
+  // 节点 panel), or ask for the screen-capture grant; after one is done the button offers the next (下一项)
+  let runFixes = [];
+  const showFix = (prefix) => { const f = runFixes[0]; el("run-a11y").textContent = f ? prefix + f.button : ""; el("run-a11y").hidden = !f; };
   el("run-a11y").onclick = () => operation(async () => {
-    const fix = runFix;
+    const fix = runFixes[0];
     if (!fix) return;
+    let text;
     if (fix.capture) {
       const r = await XS.api("POST", "/capture/request");
       if (!r || !r.ok) throw new Error("申请失败：" + ((r && r.error) || "?") + "，请在手机上的 XScript 里授权截图");
-      message(fix.opened);
-      return;
+      text = fix.opened;
+    } else {
+      const r = await XS.api("POST", "/eval", {code: fix.code, timeout_ms: 5000});
+      if (!r || !r.ok) throw new Error("打开失败：" + ((r && r.error) || "?") + "，请在手机的 " + fix.where + " 里开启 XScript");
+      text = String(r.result) === "1" ? fix.on : fix.opened;
     }
-    const r = await XS.api("POST", "/eval", {code: fix.code, timeout_ms: 5000});
-    if (!r || !r.ok) throw new Error("打开失败：" + ((r && r.error) || "?") + "，请在手机的 " + fix.where + " 里开启 XScript");
-    message(String(r.result) === "1" ? fix.on : fix.opened);
+    runFixes = runFixes.slice(1);
+    message(EditorModel.fixDone(text, runFixes.length));
+    showFix("下一项：");
   });
   el("stop").onclick = () => operation(async () => { await model.stop(); await debuggerClient.close(); el("debug-state").textContent = "已停止"; message("已请求停止当前任务"); poll(); });
   el("delete-file").onclick = () => {
