@@ -755,7 +755,7 @@ object FloatControl {
             } else {
                 val last = Settings.lastProject
                 if (last.isNotEmpty() && com.xscript.app.project.ProjectStore(ctx).exists(last)) {
-                    ScriptService.run(ctx, last)
+                    runChecked(ctx, last)
                 } else {
                     startApp(ctx, ProjectsActivity::class.java)
                 }
@@ -950,6 +950,29 @@ object FloatControl {
                 moveTo(box, fromX + ((tx - fromX) * f).toInt(), fromY + ((ty - fromY) * f).toInt())
             }
             start()
+        }
+    }
+
+    /** Like 运行 on the home screen: missing permissions open the project page, which asks 去开启 / 仍然运行. */
+    private fun runChecked(ctx: Context, project: String) {
+        val app = ctx.applicationContext
+        val dir = com.xscript.app.project.ProjectStore(app).dir(project)
+        kotlin.concurrent.thread(name = "xscript-float-run") {
+            val missing = ProjectActivity.scanDir(dir).count { !com.xscript.app.permission.PermissionStatus.ok(app, it.kind) }
+            android.os.Handler(android.os.Looper.getMainLooper()).post {
+                if (HomeModel.runFromHome(missing) == HomeModel.HomeRun.ASK) {
+                    try {
+                        app.startActivity(Intent(app, ProjectActivity::class.java)
+                            .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                            .putExtra(ProjectActivity.EXTRA_NAME, project)
+                            .putExtra(ProjectActivity.EXTRA_RUN, true))
+                    } catch (_: Exception) {
+                        ScriptService.run(app, project)
+                    }
+                } else {
+                    ScriptService.run(app, project)
+                }
+            }
         }
     }
 
