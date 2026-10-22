@@ -51,6 +51,15 @@ test('run saves every dirty file of the selected project before starting', async
   assert.deepEqual([cap.capture,cap.code,cap.button],[true,undefined,'在手机上授权截图']);
   assert.equal(EditorModel.runMessage('demo',{missing:[{label:'未知'}]}).fix,null);
   for(const f of Object.values(EditorModel.PERM_FIX)) assert.ok(f.button&&f.opened&&f.where);
+  // same table as protocol/permission-fix.json (shared with VS Code and PyCharm)
+  const shared=JSON.parse(require('node:fs').readFileSync(require('node:path').resolve(__dirname,'../../protocol/permission-fix.json'),'utf8')).permissions;
+  assert.deepEqual(Object.keys(EditorModel.PERM_FIX).sort(),shared.map(e=>e.label).sort());
+  for(const e of shared){
+    const f=EditorModel.PERM_FIX[e.label];
+    assert.deepEqual([f.button,f.opened,f.on,f.where],[e.zh.button,e.zh.opened,e.zh.on,e.zh.where],e.label);
+    if(e.permission) assert.equal(f.code,'from xscript.android import permission\n_result = permission.request(permission.'+e.permission+', 1)');
+    else assert.deepEqual([e.captureRequest,f.capture,f.code],[true,true,undefined]);
+  }
 });
 test('failed save blocks execution and retains unsaved content', async()=>{
   const {model,api,calls}=fixture();const doc=await model.open('__init__.py');model.edit(doc,'changed');

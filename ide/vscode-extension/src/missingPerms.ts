@@ -51,22 +51,23 @@ export interface PermFix {
 
 const req = (key: string) => "from xscript.android import permission\n_result = permission.request(permission." + key + ", 1)";
 
+// same table as protocol/permission-fix.json (src/test/missingPerms.test.ts compares them); opened / on get the "XScript: " prefix
 const FIX: Record<string, { code?: string; capture?: boolean; zh: [string, string, string, string]; en: [string, string, string, string] }> = {
   "无障碍": { code: A11Y_CODE,
     zh: ["打开手机无障碍设置", "XScript：已在手机上打开无障碍设置，开启 XScript 后再运行。", "XScript：无障碍服务已开启，可以再运行一次。", "设置 → 无障碍"],
-    en: ["Open Accessibility Settings on Phone", "XScript: accessibility settings are open on the phone. Turn on XScript there, then run again.", "XScript: the accessibility service is on now; run again.", "Settings → Accessibility"] },
+    en: ["Open Accessibility Settings on Phone", "XScript: Accessibility settings are open on the phone. Turn on XScript there, then run again.", "XScript: The accessibility service is on now; run again.", "Settings → Accessibility"] },
+  "图色权限（截图）": { capture: true,
+    zh: ["在手机上授权截图", "XScript：已在手机上弹出截图授权，点「立即开始」后再运行。", "XScript：截图权限已可用，可以再运行一次。", "手机上的 XScript → 图色权限"],
+    en: ["Grant Screen Capture on Phone", "XScript: The screen-capture prompt is up on the phone. Tap Start now, then run again.", "XScript: Screen capture is available now; run again.", "XScript app on the phone → Screen capture"] },
   "悬浮窗权限": { code: req("OVERLAY"),
     zh: ["打开手机悬浮窗设置", "XScript：已在手机上打开悬浮窗设置，允许 XScript 后再运行。", "XScript：悬浮窗权限已开启，可以再运行一次。", "设置 → 应用 → XScript → 显示在其他应用的上层"],
-    en: ["Open Overlay Settings on Phone", "XScript: overlay settings are open on the phone. Allow XScript there, then run again.", "XScript: the overlay permission is on now; run again.", "Settings → Apps → XScript → Display over other apps"] },
+    en: ["Open Overlay Settings on Phone", "XScript: Overlay settings are open on the phone. Allow XScript there, then run again.", "XScript: The overlay permission is on now; run again.", "Settings → Apps → XScript → Display over other apps"] },
   "通知使用权": { code: req("NOTIFICATION_LISTENER"),
     zh: ["打开手机通知使用权设置", "XScript：已在手机上打开通知使用权设置，允许 XScript 后再运行。", "XScript：通知使用权已开启，可以再运行一次。", "设置 → 通知 → 设备和应用通知"],
-    en: ["Open Notification Access on Phone", "XScript: notification access settings are open on the phone. Allow XScript there, then run again.", "XScript: notification access is on now; run again.", "Settings → Notifications → Device & app notifications"] },
+    en: ["Open Notification Access on Phone", "XScript: Notification access settings are open on the phone. Allow XScript there, then run again.", "XScript: Notification access is on now; run again.", "Settings → Notifications → Device & app notifications"] },
   "文件访问权限": { code: req("MANAGE_EXTERNAL_STORAGE"),
     zh: ["打开手机文件访问设置", "XScript：已在手机上打开文件访问设置，允许 XScript 后再运行。", "XScript：文件访问权限已开启，可以再运行一次。", "设置 → 应用 → 特殊应用权限 → 所有文件访问权限"],
-    en: ["Open File Access Settings on Phone", "XScript: file access settings are open on the phone. Allow XScript there, then run again.", "XScript: file access is on now; run again.", "Settings → Apps → Special app access → All files access"] },
-  "图色权限（截图）": { capture: true,
-    zh: ["在手机上授权截图", "XScript：已在手机上弹出截图授权，点「立即开始」后再运行。", "", "手机上的 XScript → 图色权限"],
-    en: ["Grant Screen Capture on Phone", "XScript: the screen-capture prompt is up on the phone. Tap Start now, then run again.", "", "XScript app on the phone → Screen capture"] },
+    en: ["Open File Access Settings on Phone", "XScript: File access settings are open on the phone. Allow XScript there, then run again.", "XScript: File access is on now; run again.", "Settings → Apps → Special app access → All files access"] },
 };
 
 /** The fix for one permission label, or null when there is none. */

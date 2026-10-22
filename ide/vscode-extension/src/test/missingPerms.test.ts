@@ -1,5 +1,7 @@
 import { test } from "node:test";
 import * as assert from "node:assert/strict";
+import * as fs from "node:fs";
+import * as path from "node:path";
 import { A11Y_CODE, missingPerms, missingText, missingWarning, permFix } from "../missingPerms";
 
 test("run reply: missing permissions become a warning, with the accessibility fix only when it is missing", () => {
@@ -36,6 +38,21 @@ test("per-permission one-tap fix: the first missing permission with a fix, same 
       const f = permFix(label, lang);
       assert.ok(f && f.button && f.opened && f.where, label + " " + lang);
     }
+  }
+  // same table as protocol/permission-fix.json (shared with the Web IDE and PyCharm); opened / on carry the "XScript" prefix
+  const shared = JSON.parse(fs.readFileSync(path.resolve(__dirname, "../../../../protocol/permission-fix.json"), "utf8")).permissions as
+    { label: string; permission?: string; captureRequest?: boolean; zh: Record<string, string>; en: Record<string, string> }[];
+  assert.equal(shared.length, 5);
+  for (const e of shared) {
+    for (const lang of ["zh", "en"] as const) {
+      const f = permFix(e.label, lang);
+      const prefix = lang === "zh" ? "XScript：" : "XScript: ";
+      assert.deepEqual([f?.button, f?.opened, f?.on, f?.where], [e[lang].button, prefix + e[lang].opened, prefix + e[lang].on, e[lang].where], e.label + " " + lang);
+      assert.equal(missingWarning([{ label: e.label, where: "" }], lang)?.text.includes(e[lang].name), true, e.label + " name " + lang);
+    }
+    const f = permFix(e.label, "zh");
+    if (e.permission) assert.equal(f?.code, "from xscript.android import permission\n_result = permission.request(permission." + e.permission + ", 1)");
+    else assert.deepEqual([e.captureRequest, f?.capture, f?.code], [true, true, undefined]);
   }
   assert.equal(missingText("zh").failed("timeout", "设置 → 无障碍"), "XScript：打开失败（timeout），请在手机的 设置 → 无障碍 里开启 XScript。");
 });

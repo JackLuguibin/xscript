@@ -389,7 +389,7 @@ test('Web IDE 节点 dock reads the UI tree and generates node code', {skip: CHR
         await b.cmd('Emulation.clearDeviceMetricsOverride', {});
       }
       await b.eval(() => document.getElementById('run-a11y').click());
-      await b.waitFor(() => /悬浮窗设置：允许 XScript 后再运行/.test(document.getElementById('message').textContent));
+      await b.waitFor(() => /悬浮窗设置，允许 XScript 后再运行/.test(document.getElementById('message').textContent));
       await b.eval(() => { window.__missing = [{label: '图色权限（截图）', why: '找图', where: 'a.py:1'}]; document.getElementById('run').click(); });
       await b.waitFor(() => document.getElementById('run-a11y').textContent === '在手机上授权截图' && !document.getElementById('run-a11y').hidden);
       await b.eval(() => document.getElementById('run-a11y').click());
