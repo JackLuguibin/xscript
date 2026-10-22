@@ -205,10 +205,15 @@ print(json.dumps(out))
       assert.equal(N.tryVerdict(JSON.stringify(out[i]), at('0/3')).text, '试一下：找到 4 个，第一个不是选中的节点（路径 0/0）');
     } else {
       assert.deepEqual(out[i].map(h => h[0]), [c.p], c.kind + ' ' + c.p);
-      assert.deepEqual(N.tryVerdict(JSON.stringify(out[i]), at(c.p)), {ok: true, hits: [{path: c.p, rect: at(c.p).rect ? {l: at(c.p).rect.l, t: at(c.p).rect.t, r: at(c.p).rect.r, b: at(c.p).rect.b} : {l: 0, t: 0, r: 0, b: 0}}], text: '试一下：找到 1 个，就是选中的节点'});
+      assert.deepEqual(N.tryVerdict(JSON.stringify(out[i]), at(c.p)), {ok: true, hits: [{path: c.p, rect: at(c.p).rect ? {l: at(c.p).rect.l, t: at(c.p).rect.t, r: at(c.p).rect.r, b: at(c.p).rect.b} : {l: 0, t: 0, r: 0, b: 0}, self: true}], text: '试一下：找到 1 个，就是选中的节点'});
     }
   });
   assert.equal(N.tryVerdict('[]', at('0/1')).ok, false);
+  // the list scrolled after the tree was read: the same control at another path still counts as the picked one
+  const moved = N.tryVerdict(JSON.stringify([['0/0', 0, 50, 1080, 150, 'android:id/title', 'Apps', '', 'android.widget.TextView']]), at('0/1'));
+  assert.deepEqual([moved.ok, moved.hits[0].self, moved.text], [true, true, '试一下：找到 1 个，是选中的节点，但它移动了（现在路径 0/0），可点「重新获取」']);
+  const other = N.tryVerdict(JSON.stringify([['0/1', 0, 0, 1, 1, 'android:id/title', 'Battery', '', 'android.widget.TextView'], ['0/0', 0, 0, 1, 1, 'android:id/title', 'Apps', '', 'android.widget.TextView']]), at('0/1'));
+  assert.deepEqual([other.ok, other.hits.map(h => h.self)], [false, [false, true]], 'same path but another control is not the picked one');
   assert.equal(N.tryVerdict('not json', at('0/1')).text, '试一下：没找到。界面可能变了，点「重新获取」再试');
   const twenty = JSON.stringify(Array.from({length: 20}, () => ['0/1', 0, 0, 1, 1]));
   assert.equal(N.tryVerdict(twenty, at('0/1')).text, '试一下：找到 20 个及以上，第一个是选中的节点（.find 用第一个）');

@@ -100,7 +100,7 @@ test('Web IDE 节点 dock reads the UI tree and generates node code', {skip: CHR
       assert.notEqual(await b.eval(() => document.getElementById('node-shot').src), shotBefore);
       assert.equal(await b.eval(() => document.getElementById('node-box').hidden), true); assert.match(v.cls, /\bok\b/);
       assert.deepEqual(v.hits, ['node-hit self 1/0/3']);
-      assert.equal(v.sent.code, "from xscript.android import node\n_hits = node.Selector().text('登录').clickable().find_all(timeout=0, limit=20)\n_result = [[h.path, h.left, h.top, h.right, h.bottom] for h in _hits]");
+      assert.equal(v.sent.code, "from xscript.android import node\n_hits = node.Selector().text('登录').clickable().find_all(timeout=0, limit=20)\n_result = [[h.path, h.left, h.top, h.right, h.bottom, h.id, h.text, h.desc, h.type] for h in _hits]");
       assert.equal(v.sent.timeout_ms, 5000);
       await b.eval(() => { window.__evalReply = {ok: true, result: '[["1/0/2", 80, 800, 1000, 900], ["1/0/3", 80, 980, 1000, 1110]]', error: ''}; });
       v = await tryNow();
