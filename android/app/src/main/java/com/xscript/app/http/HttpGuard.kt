@@ -49,6 +49,10 @@ object HttpGuard {
     }
 
     /** Pages a browser opens directly: unpaired, they redirect to the pairing page instead of a JSON 401. */
+    /** Pairing page that comes back to [path] with its [query] (e.g. the Web IDE's ?project=…&file=… link). */
+    fun pairRedirect(path: String, query: String?): String =
+        "/pair?next=" + java.net.URLEncoder.encode(path + (query?.takeIf { it.isNotEmpty() }?.let { "?$it" } ?: ""), "UTF-8")
+
     fun isPage(method: String, path: String): Boolean {
         if (method != "GET") return false
         val p = path.trimEnd('/').ifEmpty { "/" }
