@@ -35,6 +35,10 @@ test('run saves every dirty file of the selected project before starting', async
   assert.equal(projects.demo['utils.py'],'value=42');
   assert.deepEqual(calls.slice(-3).map(c=>[c.method,c.url]),[['PUT','/projects/demo/files'],['PUT','/projects/demo/files'],['POST','/projects/demo/run']]);
   assert.equal(model.unsaved().length,0);
+  // the run reply may list permissions the phone is missing: the status line says so
+  assert.deepEqual(EditorModel.runMessage('demo',{ok:true}),{text:'已请求运行 demo',warn:false});
+  assert.deepEqual(EditorModel.runMessage('demo',{ok:true,missing:[{label:'无障碍',where:'__init__.py:4'},{label:'悬浮窗权限',where:''}]}),
+    {text:'已请求运行 demo · 手机上还缺：无障碍（__init__.py:4）、悬浮窗权限，相关操作会失败，请在手机上的小程序详情页开启',warn:true});
 });
 test('failed save blocks execution and retains unsaved content', async()=>{
   const {model,api,calls}=fixture();const doc=await model.open('__init__.py');model.edit(doc,'changed');

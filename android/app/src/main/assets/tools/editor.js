@@ -532,7 +532,7 @@
     button.onclick = () => debuggerClient.control(button.dataset.debug).catch(e => message(e.message, true));
   });
   el("debug-disconnect").onclick = async () => { await debuggerClient.close(); el("debug-state").textContent = "已断开，任务仍可运行"; renderDebug(); };
-  el("run").onclick = () => operation(async () => { await debuggerClient.close(); await model.run(); message("已请求运行 " + model.project); poll(); });
+  el("run").onclick = () => operation(async () => { await debuggerClient.close(); const m = EditorModel.runMessage(model.project, await model.run()); message(m.text, m.warn); poll(); });
   el("stop").onclick = () => operation(async () => { await model.stop(); await debuggerClient.close(); el("debug-state").textContent = "已停止"; message("已请求停止当前任务"); poll(); });
   el("delete-file").onclick = () => {
     if (selectedDir()) {
