@@ -263,6 +263,10 @@ async def create_job(request: Request, options: str = Form(...), project: Upload
             source_zip = scripts_store.version_dir(c.config, sc.id, v.id) / "source.zip"
             if not source_zip.is_file():
                 raise HTTPException(404, "版本文件已丢失")
+            if o.hot_update and o.project_name and o.project_name != sc.project_name:
+                # The update manifest names the 小程序's project; the app rejects any other name,
+                # so a renamed pack would never apply an update.
+                raise HTTPException(400, "热更新要求工程名和小程序一致（%s），请清空高级选项里的工程名" % sc.project_name)
             o.project_name = o.project_name or sc.project_name
             o.protect = o.protect or sc.protect
         opts: dict[str, Any] = o.model_dump(exclude={"app_id", "app_name", "version", "version_code", "project_name"})
