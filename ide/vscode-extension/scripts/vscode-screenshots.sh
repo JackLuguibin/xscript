@@ -8,7 +8,7 @@
 # XScript on the device first (adb shell am force-stop <app id>) so the check stops at "XScript app answers". "capture" is
 # the status bar warning for a lost screen-recording grant: turn accessibility off, force-stop XScript and open it again.
 # "problems" is the Web IDE's basic checks (undefined name, async call without await, unused import, unreachable code)
-# in the Problems panel.
+# in the Problems panel; "quickfix" is the Ctrl/Cmd+. menu offering the missing import.
 # A device that needs its pairing code: set XS_SHOT_CODE (typed into the Pair box through DevTools; the throw-away
 # profile uses a mock keychain, and the code is not passed to VS Code's environment).
 set -euo pipefail
