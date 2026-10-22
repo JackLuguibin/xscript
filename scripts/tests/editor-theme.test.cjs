@@ -51,7 +51,7 @@ function measure() {
     debug: rows(document.querySelector('.ide-debug > .ide-heading')), low: [...new Set(low)]};
 }
 
-test('Web IDE light and dark theme: layout and text contrast', {skip: CHROME ? false : 'no local Chrome', timeout: 60000}, async t => {
+test('Web IDE light and dark theme: layout and text contrast', {skip: CHROME ? false : 'no local Chrome', timeout: 60000 + cdp.LAUNCH_BUDGET_MS}, async t => {
   const mock = startMock();
   let b;
   try {

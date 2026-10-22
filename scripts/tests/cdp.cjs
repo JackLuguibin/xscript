@@ -36,7 +36,11 @@ async function attach(endpoint) {
  *  `attempts` starts in all. An orphaned Chrome would otherwise keep the test process alive until the CI job limit. */
 // onStart(child, profile) is called synchronously for every Chrome spawned (tests count attempts with it: a process killed
 // at the startup deadline may never have run a single instruction, so it cannot be counted from inside).
-async function launch(bin, {startupMs = 15000, attempts = 2, onStart} = {}) {
+const STARTUP_MS = 15000, ATTEMPTS = 2;
+/** Worst case launch() can spend before the page is driven (a hung first start, then a retry). Browser tests add it to
+ *  their own timeout so a slow Chrome start on a busy CI runner does not eat the time budgeted for the steps. */
+const LAUNCH_BUDGET_MS = STARTUP_MS * ATTEMPTS;
+async function launch(bin, {startupMs = STARTUP_MS, attempts = ATTEMPTS, onStart} = {}) {
   let last;
   for (let i = 0; i < attempts; i++) {
     const {child, profile, wsUrl} = startChrome(bin, startupMs);
@@ -136,4 +140,4 @@ async function session(wsUrl, child, profile) {
   };
 }
 
-module.exports = {find, launch, attach};
+module.exports = {find, launch, attach, LAUNCH_BUDGET_MS};

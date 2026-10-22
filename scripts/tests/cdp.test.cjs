@@ -21,6 +21,10 @@ function fakeChrome(body) {
 
 const alive = pid => { try { process.kill(pid, 0); return true; } catch { return false; } };
 
+test('browser tests budget the worst-case launch (hung start + retry) on top of their own steps', () => {
+  assert.equal(cdp.LAUNCH_BUDGET_MS, 30000);
+});
+
 test('a Chrome that never reports its DevTools socket is killed and retried once', {skip: process.platform === 'win32'}, async () => {
   const fake = fakeChrome('exec sleep 600');
   const spawned = [];
