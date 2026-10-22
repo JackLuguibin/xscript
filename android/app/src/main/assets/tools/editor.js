@@ -291,10 +291,19 @@
     assist.syncScroll();
   }
   let gutterKey = "";   // what the line-number gutter was last built for (see cursor)
+  // While typing, the gutter / scroll sync / problems button wait for the next frame: reading scrollTop right after
+  // an edit forces a layout of the whole textarea (~60 ms at 20 000 lines), and one keystroke used to do it twice.
+  let typing = false, frameQueued = false;
   function cursor() {
-    const value = el("editor").value, pos = el("editor").selectionStart;
-    const before = value.slice(0, pos).split("\n");
-    el("cursor").textContent = "行 " + before.length + "，列 " + (before[before.length - 1].length + 1);
+    const box = el("editor"), value = box.value, pos = box.selectionStart, start = value.lastIndexOf("\n", pos - 1) + 1;
+    let row = 1; for (let i = value.indexOf("\n"); i >= 0 && i < pos; i = value.indexOf("\n", i + 1)) row++;
+    el("cursor").textContent = "行 " + row + "，列 " + (pos - start + 1);
+    if (typing) { if (!frameQueued) { frameQueued = true; requestAnimationFrame(cursorFrame); } return; }
+    cursorFrame();
+  }
+  function cursorFrame() {
+    frameQueued = false;
+    const value = el("editor").value;
     const breaks = new Set(current && debuggerClient.breakpoints.get(model.project + ":" + current.path) || []);
     const marks = assist.marks();
     // The gutter only changes with the line count, breakpoints or marks: rebuilding one span per line on every
@@ -567,7 +576,7 @@
       message("已删除 " + doc.path);
     });
   };
-  el("editor").addEventListener("input", e => { if (!current || current.binary) return; model.edit(current, el("editor").value); message(current.path + " · 未保存"); assist.onInput(e); cursor(); render(); });
+  el("editor").addEventListener("input", e => { if (!current || current.binary) return; model.edit(current, el("editor").value); message(current.path + " · 未保存"); typing = true; try { assist.onInput(e); cursor(); } finally { typing = false; } render(); });
   for (const name of ["click", "keyup"]) el("editor").addEventListener(name, cursor);
   el("editor").addEventListener("scroll", () => { syncScroll(); assist.onScroll(); });
   el("editor").addEventListener("keydown", e => {
