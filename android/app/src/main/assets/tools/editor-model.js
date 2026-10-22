@@ -418,9 +418,9 @@
         fix: fixes[0] || null, fixes};
     }
 
-    /** Status line after one fix: its result, plus how many fixes are left for the 下一项 button. */
+    /** Status line after one fix: its result, plus how many fixes are left for the 下一项 button, or 再运行一次 after the last one. */
     static fixDone(text, left) {
-      return left > 0 ? text + " 还有 " + left + " 项，点「下一项」继续" : text;
+      return left > 0 ? text + " 还有 " + left + " 项，点「下一项」继续" : text + " 开启后点「再运行一次」";
     }
 
     /** One-tap fix per missing permission (labels from PermissionNeeds.Kind): /eval `code` opens the phone's settings page

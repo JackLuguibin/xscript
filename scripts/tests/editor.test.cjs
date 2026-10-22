@@ -54,7 +54,7 @@ test('run saves every dirty file of the selected project before starting', async
   assert.deepEqual(EditorModel.runMessage('demo',{missing:[{label:'通知使用权'},{label:'未知'},{label:'无障碍'},{label:'通知使用权'},{label:'图色权限（截图）'}]}).fixes.map(f=>f.label),['无障碍','通知使用权','图色权限（截图）']);
   assert.deepEqual(EditorModel.runMessage('demo',{missing:[{label:'未知'}]}).fixes,[]);
   assert.equal(EditorModel.fixDone('已打开。',2),'已打开。 还有 2 项，点「下一项」继续');
-  assert.equal(EditorModel.fixDone('已打开。',0),'已打开。');
+  assert.equal(EditorModel.fixDone('已打开。',0),'已打开。 开启后点「再运行一次」');
   for(const f of Object.values(EditorModel.PERM_FIX)) assert.ok(f.button&&f.opened&&f.where);
   // same table as protocol/permission-fix.json (shared with VS Code and PyCharm)
   const shared=JSON.parse(require('node:fs').readFileSync(require('node:path').resolve(__dirname,'../../protocol/permission-fix.json'),'utf8')).permissions;
