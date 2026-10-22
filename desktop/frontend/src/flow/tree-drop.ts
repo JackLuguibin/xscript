@@ -62,7 +62,8 @@ export function dropTreeNode(graph: FlowGraph, pick: UiNode & Pick<CanvasPick, "
     hit = find + ".node";
     found = find + ".found";
   } else {
-    const source = ["from xscript.android import node as xs_node", "hit = " + (pick.where ? "xs_node.Selector()" + pick.where.chain : selectorChain(pick, "xs_node")) + ".find(timeout=5)", "found = hit is not None"].join("\n");
+    const why = pick.where?.why ? [pick.where.why] : [];
+    const source = ["from xscript.android import node as xs_node", ...why, "hit = " + (pick.where ? "xs_node.Selector()" + pick.where.chain : selectorChain(pick, "xs_node")) + ".find(timeout=5)", "found = hit is not None"].join("\n");
     nodes.push({ id: find, type: "code.python", config: { source, outPins: "hit:node?, found:bool" } });
     hit = find + ".hit";
     found = find + ".found";

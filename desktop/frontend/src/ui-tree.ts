@@ -102,12 +102,16 @@ export function volatileText(node: Pick<UiNode, "id" | "type">): boolean {
  *  still match other nodes of `roots` (every row of a settings list shares one resource id, for example), so the code
  *  finds the picked node rather than the first look-alike. Without `roots` the first field is enough; when none is
  *  unique the node's path pins it. Text and desc of a clock (volatileText) are never used. Same rule as the Web IDE node tool (android/app/src/main/assets/tools/editor-nodes.js). */
-export function selectorFields(node: UiNode, roots?: UiNode[]): Field[] {
+function matcher(node: UiNode, roots?: UiNode[]): (fields: Field[]) => number {
   const all: UiNode[] = [];
   const walk = (n: UiNode) => { all.push(n); (n.children ?? []).forEach(walk); };
   (roots ?? []).forEach(walk);
-  const same = (fields: Field[]) =>
+  return (fields) =>
     all.filter((x) => fields.every((f) => (x[f] ?? "") === (node[f] ?? "")) && (!node.clickable || x.clickable)).length;
+}
+
+export function selectorFields(node: UiNode, roots?: UiNode[]): Field[] {
+  const same = matcher(node, roots);
   const fields: Field[] = [];
   for (const f of ["id", "text", "desc"] as const) {
     if (!node[f] || (f !== "id" && volatileText(node))) continue;
@@ -117,6 +121,28 @@ export function selectorFields(node: UiNode, roots?: UiNode[]): Field[] {
   if (!fields.length && node.type) fields.push("type");
   if (node.path) fields.push("path");
   return fields;
+}
+
+const FIELD_NAME: Record<Field, string> = { id: "id", text: "文字", desc: "描述", type: "类名", path: "路径" };
+
+/** A Python comment saying why the selector has the fields it has, e.g. `# id 'android:id/title' 有 5 个控件，加文字
+ *  'Battery' 还有 2 个，再加路径 '0/3' 才是这一个`. Shown in the code node a dropped control becomes. Empty without `roots`. */
+export function selectorWhy(node: UiNode, roots?: UiNode[]): string {
+  if (!roots) return "";
+  const same = matcher(node, roots);
+  const fields = selectorFields(node, roots);
+  const named = (f: Field) => `${FIELD_NAME[f]} ${pyStr(node[f] ?? "")}`;
+  const scope = node.clickable ? "可点击的控件" : "控件";
+  if (fields.length === 1 && fields[0] !== "path") return `# ${named(fields[0])} 在界面上只有这一个${scope}`;
+  const parts: string[] = [];
+  for (let i = 0; i < fields.length; i += 1) {
+    const f = fields[i];
+    if (f === "path") { parts.push(`${i ? "再加" : "按"}${named(f)} 才是这一个`); break; }
+    if (f === "type") { parts.push(`没有 id、文字或描述，按${named(f)} 有 ${same(fields.slice(0, i + 1))} 个`); continue; }
+    const n = same(fields.slice(0, i + 1));
+    parts.push(i ? `加${named(f)} ${n > 1 ? `还有 ${n} 个` : "就只剩这一个"}` : `${named(f)} 有 ${n} 个${scope}`);
+  }
+  return "# " + parts.join("，");
 }
 
 /** Comment for code that only the node's path can pin (no unique id / text / desc): it breaks when the layout moves.

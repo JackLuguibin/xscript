@@ -1,6 +1,6 @@
 // Hand-off from other pages to the flow canvas (design §11.1: "drop a control onto the canvas").
 // The screen page queues a picked control; the shell switches to the flow page, which takes the queue.
-import { selectorChain, volatileText, type UiNode } from "../ui-tree";
+import { selectorChain, selectorWhy, volatileText, type UiNode } from "../ui-tree";
 
 export type CanvasPick = Pick<UiNode, "id" | "text" | "desc" | "type" | "path" | "clickable"> & {
   /** Worked out against the screen's tree when the control is sent (the tree itself is not queued). */
@@ -9,6 +9,8 @@ export type CanvasPick = Pick<UiNode, "id" | "text" | "desc" | "type" | "path" |
     textUnique: boolean;
     /** Selector calls after `Selector()` that find only this control, e.g. `.id('android:id/title').text('Apps')`. */
     chain: string;
+    /** Python comment saying why the chain has these calls (see selectorWhy); old queued picks lack it. */
+    why?: string;
   };
 };
 
@@ -31,7 +33,7 @@ const listeners = new Set<() => void>();
 export function sendToCanvas(pick: CanvasPick, roots?: UiNode[]): void {
   const { id, text, desc, type, path, clickable } = pick;
   const where = roots
-    ? { textUnique: !!text && !volatileText(pick) && sameText(roots, text) === 1, chain: selectorChain(pick, "", roots).slice(".Selector()".length) }
+    ? { textUnique: !!text && !volatileText(pick) && sameText(roots, text) === 1, chain: selectorChain(pick, "", roots).slice(".Selector()".length), why: selectorWhy(pick, roots) }
     : pick.where;
   pending.push({ id, text, desc, type, path, clickable, ...(where ? { where } : {}) });
   for (const listener of [...listeners]) listener();
