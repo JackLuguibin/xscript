@@ -2,7 +2,8 @@
 # Device checks on a throwaway CI emulator (.github/workflows/emulator-nightly.yml); also usable on a local disposable AVD:
 #   ANDROID_SERIAL=emulator-5556 PKG=com.xscript.app.perf APK=app-debug.apk bash scripts/ci_emulator_checks.sh
 # Installs the APK, grants what the app needs, then runs device_guide_smoke.py, device_endpoint_e2e.py (needs adb root),
-# device_pairing_copy_e2e.py, the orientation section of device_float_e2e.py and device_ui_try_e2e.py (needs node).
+# device_pairing_copy_e2e.py, the orientation section of device_float_e2e.py, device_ui_try_e2e.py (needs node) and
+# the soft screen benchmarks in scripts/bench/device_screens.py.
 set -euo pipefail
 : "${ANDROID_SERIAL:?set ANDROID_SERIAL to a disposable emulator}"
 PKG=${PKG:-com.xscript.app}
@@ -34,3 +35,5 @@ python3 scripts/device_pairing_copy_e2e.py "$PKG" http://127.0.0.1:19860
 XS_PKG="$PKG" XS_ONLY=orientation python3 scripts/device_float_e2e.py "$ANDROID_SERIAL" http://127.0.0.1:19860
 # 桌面端「在手机上试运行」: the generated form opens on the phone, 开始/取消 return the values / null (needs node)
 python3 scripts/device_ui_try_e2e.py "$ANDROID_SERIAL" http://127.0.0.1:19860
+# 小程序列表 open/scroll and 运行日志 at 500 lines/s; soft: over-budget values only warn
+python3 scripts/bench/device_screens.py "$ANDROID_SERIAL" http://127.0.0.1:19860 "$PKG"
