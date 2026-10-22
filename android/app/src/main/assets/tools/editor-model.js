@@ -409,8 +409,24 @@
     /** Status line after 运行: the reply's `missing` lists permissions the code uses but the phone has not granted. */
     static runMessage(project, reply) {
       const missing = reply && Array.isArray(reply.missing) ? reply.missing : [];
-      if (!missing.length) return {text: "已请求运行 " + project, warn: false, a11y: false};
-      return {text: "已请求运行 " + project + " · 手机上还缺：" + missing.map(m => m.label + (m.where ? "（" + m.where + "）" : "")).join("、") + "，相关操作会失败，请在手机上的小程序详情页开启", warn: true, a11y: missing.some(m => m.label === "无障碍")};
+      if (!missing.length) return {text: "已请求运行 " + project, warn: false, a11y: false, fix: null};
+      const a11y = missing.some(m => m.label === "无障碍");
+      const first = a11y ? "无障碍" : (missing.find(m => EditorModel.PERM_FIX[m.label]) || {}).label;
+      return {text: "已请求运行 " + project + " · 手机上还缺：" + missing.map(m => m.label + (m.where ? "（" + m.where + "）" : "")).join("、") + "，相关操作会失败，请在手机上的小程序详情页开启", warn: true, a11y,
+        fix: first ? Object.assign({label: first}, EditorModel.PERM_FIX[first]) : null};
+    }
+
+    /** One-tap fix per missing permission (labels from PermissionNeeds.Kind): /eval `code` opens the phone's settings page
+     * (`_result` "1": already granted), or `capture` asks the phone for the screen-capture grant (POST /capture/request). */
+    static get PERM_FIX() {
+      const req = key => "from xscript.android import permission\n_result = permission.request(permission." + key + ", 1)";
+      return {
+        "无障碍": {button: "打开手机无障碍设置", code: req("ACCESSIBILITY_SERVICE"), opened: "已在手机上打开无障碍设置：开启 XScript 后再运行", on: "无障碍服务已开启，可以再运行一次", where: "设置 → 无障碍"},
+        "悬浮窗权限": {button: "打开手机悬浮窗设置", code: req("OVERLAY"), opened: "已在手机上打开悬浮窗设置：允许 XScript 后再运行", on: "悬浮窗权限已开启，可以再运行一次", where: "设置 → 应用 → XScript → 显示在其他应用的上层"},
+        "通知使用权": {button: "打开手机通知使用权设置", code: req("NOTIFICATION_LISTENER"), opened: "已在手机上打开通知使用权设置：允许 XScript 后再运行", on: "通知使用权已开启，可以再运行一次", where: "设置 → 通知 → 设备和应用通知"},
+        "文件访问权限": {button: "打开手机文件访问设置", code: req("MANAGE_EXTERNAL_STORAGE"), opened: "已在手机上打开文件访问设置：允许 XScript 后再运行", on: "文件访问权限已开启，可以再运行一次", where: "设置 → 应用 → 特殊应用权限 → 所有文件访问权限"},
+        "图色权限（截图）": {button: "在手机上授权截图", capture: true, opened: "已在手机上弹出截图授权：点「立即开始」后再运行", on: "", where: "手机上的 XScript → 图色权限"},
+      };
     }
   }
   if (typeof module !== "undefined" && module.exports) module.exports = { EditorModel };

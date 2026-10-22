@@ -532,12 +532,22 @@
     button.onclick = () => debuggerClient.control(button.dataset.debug).catch(e => message(e.message, true));
   });
   el("debug-disconnect").onclick = async () => { await debuggerClient.close(); el("debug-state").textContent = "已断开，任务仍可运行"; renderDebug(); };
-  el("run").onclick = () => operation(async () => { await debuggerClient.close(); const m = EditorModel.runMessage(model.project, await model.run()); message(m.text, m.warn); el("run-a11y").hidden = !m.a11y; poll(); });
-  // one tap from the run warning: open the phone's accessibility settings (same /eval as the 节点 panel)
+  el("run").onclick = () => operation(async () => { await debuggerClient.close(); const m = EditorModel.runMessage(model.project, await model.run()); message(m.text, m.warn); runFix = m.fix; el("run-a11y").textContent = m.fix ? m.fix.button : ""; el("run-a11y").hidden = !m.fix; poll(); });
+  // one tap from the run warning: open the phone's settings page for the first missing permission (same /eval as the 节点 panel),
+  // or ask for the screen-capture grant
+  let runFix = null;
   el("run-a11y").onclick = () => operation(async () => {
-    const r = await XS.api("POST", "/eval", {code: EditorNodes.A11Y_CODE, timeout_ms: 5000});
-    if (!r || !r.ok) throw new Error("打开失败：" + ((r && r.error) || "?") + "，请在手机的 设置 → 无障碍 里开启 XScript");
-    message(String(r.result) === "1" ? "无障碍服务已开启，可以再运行一次" : "已在手机上打开无障碍设置：开启 XScript 后再运行");
+    const fix = runFix;
+    if (!fix) return;
+    if (fix.capture) {
+      const r = await XS.api("POST", "/capture/request");
+      if (!r || !r.ok) throw new Error("申请失败：" + ((r && r.error) || "?") + "，请在手机上的 XScript 里授权截图");
+      message(fix.opened);
+      return;
+    }
+    const r = await XS.api("POST", "/eval", {code: fix.code, timeout_ms: 5000});
+    if (!r || !r.ok) throw new Error("打开失败：" + ((r && r.error) || "?") + "，请在手机的 " + fix.where + " 里开启 XScript");
+    message(String(r.result) === "1" ? fix.on : fix.opened);
   });
   el("stop").onclick = () => operation(async () => { await model.stop(); await debuggerClient.close(); el("debug-state").textContent = "已停止"; message("已请求停止当前任务"); poll(); });
   el("delete-file").onclick = () => {
