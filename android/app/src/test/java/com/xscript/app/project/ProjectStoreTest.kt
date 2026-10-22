@@ -27,6 +27,22 @@ class ProjectStoreTest {
     }
 
     @Test
+    fun describeCountsFilesAndUsesNewestMtimeSkippingPycache() {
+        store.createNew("demo")
+        val dir = File(root, "demo")
+        File(dir, "lib").mkdirs()
+        File(dir, "lib/a.py").writeText("A = 1\n")
+        File(dir, "lib/a.py").setLastModified(2_000_000_000_000L)
+        File(dir, "__pycache__").mkdirs()
+        File(dir, "__pycache__/x.pyc").writeText("")
+        File(dir, "__pycache__/x.pyc").setLastModified(2_100_000_000_000L)
+        val d = store.describe().getJSONObject(0)
+        assertEquals("demo", d.getString("name"))
+        assertEquals(2, d.getInt("files"))
+        assertEquals(2_000_000_000_000L, d.getLong("modified"))
+    }
+
+    @Test
     fun createNewMakesEntryAndRejectsInvalidOrDuplicateNames() {
         store.createNew("demo")
         assertTrue(File(root, "demo/__init__.py").isFile)

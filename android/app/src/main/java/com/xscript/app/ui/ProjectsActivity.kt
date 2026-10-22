@@ -142,9 +142,20 @@ class ProjectsActivity : AppCompatActivity() {
         render()
     }
 
+    /** Bumped on every render so a slow, stale project scan never overwrites a newer one. */
+    private var renderGen = 0
+
+    /** Scanning project folders walks every file, so it runs off the main thread; rows are built when it returns. */
     private fun render() {
+        val gen = ++renderGen
+        thread(name = "xs-projects") {
+            val details = store.describe()
+            runOnUiThread { if (gen == renderGen && !isDestroyed) show(details) }
+        }
+    }
+
+    private fun show(details: org.json.JSONArray) {
         list.removeAllViews()
-        val details = store.describe()
         if (details.length() == 0) {
             UiKit.empty(list, "还没有小程序", "新建一个，或导入 zip / 已安装的 AScript 脚本", "新建" to { create() }, "导入" to { chooseImport() })
             return
