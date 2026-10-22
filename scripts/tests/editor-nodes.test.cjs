@@ -214,6 +214,40 @@ print(json.dumps(out))
   assert.equal(N.tryVerdict(twenty, at('0/1')).text, '试一下：找到 20 个及以上，第一个是选中的节点（.find 用第一个）');
 });
 
+test('在手机上运行 code really runs the inserted snippet and answers in _result', () => {
+  const at = p => atIn(LIST, p);
+  const cases = [];
+  for (const kind of ['find', 'xpath', 'click', 'exists', 'tap']) cases.push({p: '0/1', kind, code: N.runCode(at('0/1'), kind, 0, LIST)});
+  cases.push({p: '0/3', kind: 'click', code: N.runCode(at('0/3'), 'click', 0, LIST)});                       // with the path warning above
+  const gone = Object.assign({}, at('0/1'), {text: 'Gone', id: 'com.demo:id/gone'});
+  for (const kind of ['find', 'exists']) cases.push({p: 'gone', kind, code: N.runCode(gone, kind).replace(/timeout=5/g, 'timeout=0')});
+  const py = `
+import json, sys
+from xscript.android import node as node_mod, action as action_mod
+roots = json.loads(sys.argv[1]); cases = json.loads(sys.argv[2]); out = []
+node_mod.dump = lambda mode=0: {"roots": roots}
+for c in cases:
+    log = []
+    node_mod.Node.click = lambda self, log=log: log.append(self.path) or True
+    action_mod.click = lambda x, y=None, dur=20, log=log: log.append([x, y]) or True
+    env = {"_result": None}
+    exec(c["code"], env)
+    out.append([env["_result"], log])
+print(json.dumps(out, ensure_ascii=False))
+`;
+  const r = spawnSync(process.env.PYTHON || 'python3', ['-c', py, JSON.stringify(LIST), JSON.stringify(cases)],
+    {env: Object.assign({}, process.env, {PYTHONPATH: path.resolve(__dirname, '../../android/python-runtime')}), encoding: 'utf8'});
+  assert.equal(r.status, 0, r.stderr);
+  const out = JSON.parse(r.stdout);
+  const nodeRepr = "Node(text='Apps', id='android:id/title', type='TextView', path='0/1')";
+  assert.deepEqual(out, [
+    ['找到 ' + nodeRepr, []], ['找到 ' + nodeRepr, []], ['已点击 ' + nodeRepr, ['0/1']], ['条件成立：找到了', []],
+    ['已点击坐标', [[540, 250]]],
+    ["已点击 Node(text='Battery', id='android:id/title', type='TextView', path='0/3')", ['0/3']],
+    ['没找到（5 秒内）', []], ['条件不成立：5 秒内没找到', []],
+  ]);
+});
+
 test('a node only its path can pin gets a stable child or parent to switch to, never a sibling', () => {
   const T = [node('0', 'android.widget.FrameLayout', [0, 0, 1080, 2400], [
     node('0/0', 'android.widget.LinearLayout', [0, 0, 1080, 200], [                       // a list row: no id, no text

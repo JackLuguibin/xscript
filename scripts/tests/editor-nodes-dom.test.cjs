@@ -3,7 +3,7 @@
  * follows the chosen kind, 插入到光标 writes it at the caret with the import added once, filter / folding / 完整树 work,
  * the 截图 and 节点 docks replace each other, and a missing accessibility channel is explained.
  * XS_NODES_SHOT=docs/images/ide-nodes.png also saves the documentation screenshot, and ide-nodes-fragile.png beside it
- * (a node only its path can pin, with the warning comment).
+ * (a node only its path can pin, with the warning comment) and ide-nodes-run.png (在手机上运行 after 插入).
  * Skipped when no local Chrome is found ($CHROME or ~/.cache/puppeteer). */
 const {test} = require('node:test');
 const assert = require('node:assert/strict');
@@ -141,6 +141,32 @@ test('Web IDE 节点 dock reads the UI tree and generates node code', {skip: CHR
       assert.match(v.editor, /\n    if node\.Selector\(\)\.text\('登录'\)\.clickable\(\)\.exists\(timeout=5\):\n        pass\n    time\.sleep/);
     });
 
+    await t.test('after 插入, 在手机上运行 runs the inserted code for real and says what happened', async () => {
+      const state = () => b.eval(() => ({hidden: document.getElementById('node-run').hidden, label: document.getElementById('node-run').textContent}));
+      // shown only after an insert; a new pick hides it
+      assert.deepEqual(await state(), {hidden: false, label: '在手机上运行'});
+      await b.eval(() => document.querySelector('#node-tree .node-row[data-path="1/0/3"]').click());
+      assert.equal((await state()).hidden, true);
+      const before = await b.eval(() => document.getElementById('editor').value);
+      await b.eval(() => {
+        const e = document.getElementById('editor'), at = e.value.indexOf('    time.sleep'); e.value = e.value.slice(0, at) + '    \n' + e.value.slice(at); e.focus(); e.setSelectionRange(at + 4, at + 4);
+        const s = document.getElementById('node-kind'); s.value = 'click'; s.dispatchEvent(new Event('change')); document.getElementById('node-insert').click();
+      });
+      assert.deepEqual(await state(), {hidden: false, label: '在手机上运行（会点击）'});
+      await b.eval(() => { window.__evalReply = {ok: true, result: "已点击 Node(text='登录', id='', type='Button', path='1/0/3')", error: ''}; document.getElementById('node-run').click(); });
+      await b.waitFor(() => /^运行结果/.test(document.getElementById('node-try-result').textContent));
+      assert.equal(await b.eval(() => document.getElementById('node-try-result').textContent), "运行结果：已点击 Node(text='登录', id='', type='Button', path='1/0/3')");
+      const sent = await b.eval(() => window.__evalSent.slice(-1)[0]);
+      assert.equal(sent.code, "from xscript.android import node\nhit = node.Selector().text('登录').clickable().click().find(timeout=5)\n_result = \"没找到（5 秒内）\" if hit is None else (\"已点击 \" if True else \"找到 \") + repr(hit)");
+      assert.equal(sent.timeout_ms, 8000);
+      await b.eval(() => { window.__evalReply = {ok: true, result: '没找到（5 秒内）', error: ''}; document.getElementById('node-run').click(); });
+      await b.waitFor(() => /没找到/.test(document.getElementById('node-try-result').textContent));
+      assert.match(await b.eval(() => document.getElementById('node-try-result').className), /\berror\b/);
+      // put the editor and kind back for the tests below
+      await b.eval(() => { const k = document.getElementById('node-kind'); k.value = 'exists'; k.dispatchEvent(new Event('change')); try { localStorage.setItem('xs-node-kind', 'exists'); } catch (e) { /* off */ } });
+      await b.eval(v => { const e = document.getElementById('editor'); e.value = v; e.dispatchEvent(new Event('input')); }, before);
+    });
+
     await t.test('clicking the screenshot selects the node under the point and reveals it', async () => {
       await b.eval(() => { document.querySelector('#node-tree .node-row[data-path="1/0"] .node-twisty').click(); });
       assert.deepEqual((await b.eval(view)).rows, ['0/0', '1', '1/0']);
@@ -221,6 +247,11 @@ test('Web IDE 节点 dock reads the UI tree and generates node code', {skip: CHR
       await b.eval(() => { window.__evalReply = {ok: true, result: '[["1/0/3", 80, 980, 1000, 1110]]', error: ''}; document.getElementById('node-try').click(); });
       await b.waitFor(() => /就是选中的节点/.test(document.getElementById('node-try-result').textContent));
       await save(process.env.XS_NODES_SHOT);
+      // 插入到光标, then 在手机上运行 (stubbed /eval answers like the phone does)
+      await b.eval(() => { const e = document.getElementById('editor'), at = e.value.indexOf('    time.sleep'); e.value = e.value.slice(0, at) + '    \n' + e.value.slice(at); e.dispatchEvent(new Event('input')); e.focus(); e.setSelectionRange(at + 4, at + 4); document.getElementById('node-insert').click(); });
+      await b.eval(() => { window.__evalReply = {ok: true, result: "已点击 Node(text='登录', id='', type='Button', path='1/0/3')", error: ''}; document.getElementById('node-run').click(); });
+      await b.waitFor(() => /^运行结果/.test(document.getElementById('node-try-result').textContent));
+      await save(process.env.XS_NODES_SHOT.replace(/\.png$/, '-run.png'));
     });
 
     await t.test('the 截图 and 节点 docks replace each other', async () => {

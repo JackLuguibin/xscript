@@ -197,9 +197,10 @@
 .node-alt { display:flex; align-items:center; gap:6px; margin:0; font-size:12px; line-height:1.4; color:var(--warn); }
 .node-alt[hidden] { display:none; }
 .node-alt span { flex:1; min-width:0; }
-.node-try-result { flex:1; min-width:0; font-size:12px; line-height:1.4; color:var(--muted); }
+.node-try-result { flex:1 1 100%; min-width:0; overflow-wrap:anywhere; font-size:12px; line-height:1.4; color:var(--muted); }
 .node-try-result.ok { color:var(--ok); }
 .node-try-result.error { color:var(--bad); }
+.node-try-result:empty { display:none; }
 .node-tree { min-height:0; max-height:300px; overflow:auto; border:1px solid var(--divider); border-radius:var(--radius); font-size:12px; background:var(--bg); }
 .node-row { display:flex; align-items:center; gap:6px; height:22px; padding-right:6px; cursor:pointer; white-space:nowrap; }
 .node-row:hover { background:var(--bg-hover); }
@@ -218,7 +219,7 @@
 .node-code-row { display:flex; align-items:center; gap:6px; font-size:12px; }
 .node-code-row select { flex:1; min-width:0; }
 #node-code { width:100%; box-sizing:border-box; min-height:58px; font-family:var(--mono); font-size:12px; resize:vertical; }
-.node-actions { display:flex; gap:6px; justify-content:flex-end; align-items:center; }
+.node-actions { display:flex; flex-wrap:wrap; gap:6px; justify-content:flex-end; align-items:center; }
 @media(max-width:900px) { .node-body { grid-template-columns:auto minmax(0,1fr); } .node-detail { grid-column:1 / -1; max-height:none; } }
 
 /* Phone layout (≤600px): one column, explorer as a drawer, compact toolbar and panels. */

@@ -171,6 +171,20 @@
     return NODE_IMPORT + "\n_hits = " + sel + ".find_all(timeout=0, limit=20)\n_result = [[h.path, h.left, h.top, h.right, h.bottom] for h in _hits]";
   }
 
+  /** The inserted snippet as a POST /eval body that really runs on the phone (find-and-click clicks, 点击中心坐标 taps)
+   *  and answers in `_result`: what was found, whether the condition held, or that the tap was sent. */
+  function runCode(n, kind = "find", mode = 0, roots = null) {
+    const s = snippet(n, kind, mode, roots);
+    let code = s.code;
+    if (kind === "tap") code += "\n_result = \"已点击坐标\"";
+    else if (kind === "exists") code = code.replace(/\n    pass$/, "\n    _result = \"条件成立：找到了\"\nelse:\n    _result = \"条件不成立：5 秒内没找到\"");
+    else {
+      if (kind === "click") code = code.replace(/^(node\.Selector)/m, "hit = $1");
+      code += "\n_result = \"没找到（5 秒内）\" if hit is None else (\"已点击 \" if " + (kind === "click" ? "True" : "False") + " else \"找到 \") + repr(hit)";
+    }
+    return s.imports.join("\n") + "\n" + code;
+  }
+
   /** What a try found, for the picked node `n`: {text, ok, hits: [{path, rect}]}. `result` is /eval's JSON text. */
   function tryVerdict(result, n) {
     let list = [];
@@ -219,7 +233,7 @@
     return {left: r.l / w * 100 + "%", top: r.t / h * 100 + "%", width: (r.r - r.l) / w * 100 + "%", height: (r.b - r.t) / h * 100 + "%"};
   }
 
-  const EditorNodes = {hitTest, ancestry, rows, count, label, pyStr, xpathStr, selectorChain, nodeXPath, center, KINDS, snippet, fullText, tryCode, tryVerdict, fragile, FRAGILE, stableAlternative, importEdit, attrs, boxStyle, shortType};
+  const EditorNodes = {hitTest, ancestry, rows, count, label, pyStr, xpathStr, selectorChain, nodeXPath, center, KINDS, snippet, fullText, runCode, tryCode, tryVerdict, fragile, FRAGILE, stableAlternative, importEdit, attrs, boxStyle, shortType};
 
   // ---- browser dock ----
   // ctx: {message(text, error), insertCode(code, imports) -> bool, onOpen()}
@@ -245,6 +259,7 @@
       if (alt) $("node-alt-text").textContent = "更稳的选择：" + alt.rel + "「" + label(alt.node) + "」，它的 id、文字或描述在界面上唯一";
       $("node-try").disabled = !n || !tryCode(n, $("node-kind").value, mode(), st.tree && st.tree.roots);
       clearTry();
+      $("node-run").hidden = true;
       const box = $("node-box"), css = n && st.tree && boxStyle(n.rect, st.tree.width, st.tree.height);
       box.hidden = !css || $("node-shot").hidden;
       if (css) Object.assign(box.style, css);
@@ -305,6 +320,25 @@
       finally { if (token === st.tryToken) $("node-try").disabled = false; }
     }
 
+    /** Run the snippet that was just inserted, for real (POST /eval): find-and-click clicks, 点击中心坐标 taps. */
+    async function runIt() {
+      const n = st.selected; if (!n) return;
+      const code = runCode(n, $("node-kind").value, mode(), st.tree && st.tree.roots);
+      clearTry();
+      const token = st.tryToken, out = $("node-try-result");
+      $("node-run").disabled = true; out.textContent = "在手机上运行…";
+      try {
+        const r = await fetch("/eval", {method: "POST", cache: "no-store", headers: {"Content-Type": "application/json", "X-XScript-Client": "tools"}, body: JSON.stringify({code, timeout_ms: 8000})});
+        if (r.status === 401) { location.href = "/pair?next=" + encodeURIComponent(location.pathname + location.search); return; }
+        let data = null; try { data = await r.json(); } catch (e) { /* not JSON */ }
+        if (token !== st.tryToken) return;
+        if (!r.ok || !data || !data.ok) throw new Error("运行失败：" + ((data && (data.error || "").trim().split("\n").pop()) || "HTTP " + r.status));
+        const text = String(data.result || "");
+        out.textContent = "运行结果：" + text; out.classList.add(/^(没找到|条件不成立)/.test(text) ? "error" : "ok");
+      } catch (e) { if (token === st.tryToken) { out.textContent = e.message; out.classList.add("error"); } }
+      finally { if (token === st.tryToken) $("node-run").disabled = false; }
+    }
+
     async function take() {
       const token = ++st.token;
       $("node-take").disabled = true; info("读取节点…");
@@ -353,7 +387,15 @@
     $("node-filter").addEventListener("input", renderTree);
     $("node-kind").addEventListener("change", () => { try { localStorage.setItem("xs-node-kind", $("node-kind").value); } catch (e) { /* storage off */ } renderDetail(); });
     $("node-copy").addEventListener("click", () => { const s = current(); if (s) XS.copy(fullText(s), "已复制代码"); });
-    $("node-insert").addEventListener("click", () => { const s = current(); if (s && ctx.insertCode(s.code, s.imports)) ctx.message("已插入节点代码：" + label(st.selected)); });
+    $("node-insert").addEventListener("click", () => {
+      const s = current(); if (!s || !ctx.insertCode(s.code, s.imports)) return;
+      ctx.message("已插入节点代码：" + label(st.selected));
+      // offer to run what was just inserted; it acts on the phone for the click kinds, so the button says so
+      const acts = ["click", "tap"].includes($("node-kind").value);
+      $("node-run").textContent = acts ? "在手机上运行（会点击）" : "在手机上运行";
+      $("node-run").hidden = false; $("node-run").disabled = false;
+    });
+    $("node-run").addEventListener("click", runIt);
     $("node-tree").addEventListener("click", e => {
       const row = e.target.closest(".node-row"); if (!row) return;
       const n = row._node;
