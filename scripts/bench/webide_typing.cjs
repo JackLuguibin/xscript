@@ -6,15 +6,16 @@
  * (input handler + next frame, ~16 keys/s), counting long tasks (>50 ms) while typing.
  * --check compares with the soft budgets below: over budget prints a GitHub "::warning::" (and a line in the job
  * summary) but still exits 0, so a slow runner never blocks a merge; only a crash exits 1.
- * Budgets have headroom for CI runners: at 2 000 lines a Mac does ~38 ms per key and 0 long tasks; before #337
- * it was ~66 ms and ~30 long tasks, which the long-task budget catches. */
+ * Budgets are set for the GitHub ubuntu runner (much slower than a Mac): at 2 000 lines main measured a keystroke
+ * median of 96-115 ms with 67-82 long tasks; the editor from before #337 measured 303 ms and 172 long tasks there.
+ * The budgets sit between the two. (On a Mac: ~38 ms / 0 long tasks now, ~66 ms / ~25 before #337.) */
 const path = require('node:path'), fs = require('node:fs'), {spawn} = require('node:child_process');
 const repo = path.resolve(__dirname, '../..');
 const cdp = require(path.join(repo, 'scripts/tests/cdp.cjs'));
 const args = process.argv.slice(2);
 const lines = args.includes('--lines') ? Number(args[args.indexOf('--lines') + 1]) : 2000;
 const check = args.includes('--check');
-const BUDGET = {keyMedianMs: 80, keyP90Ms: 120, longTasksWhileTyping: 5};
+const BUDGET = {keyMedianMs: 180, keyP90Ms: 250, longTasksWhileTyping: 130};
 
 /** Over-budget messages for one result (exported shape for the unit test). */
 function overBudget(r, budget = BUDGET) {
