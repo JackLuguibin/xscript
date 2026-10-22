@@ -258,6 +258,21 @@ test('Web IDE explorer, editor and create/delete flows in a real browser', {skip
       await b.waitFor(() => document.getElementById('highlight').textContent.startsWith('while True:'));
       assert.deepEqual(await b.eval(() => [...document.querySelectorAll('#highlight .tok-keyword')].map(n => n.textContent)), ['while', 'True', 'pass']);
       assert.ok(await b.eval(() => [...document.querySelectorAll('#highlight span')].some(n => n.textContent === 'while')));
+      // long file: only lines near the viewport are in the overlay, yet each sits on its textarea row, also after scrolling
+      await b.eval(() => { const e = document.getElementById('editor'); e.value = Array.from({length: 3000}, (_, i) => 'v_' + i + ' = "s"  # ' + i).join('\n'); e.dispatchEvent(new Event('input')); });
+      const rowAt = n => b.eval(k => { const e = document.getElementById('editor'), pre = document.getElementById('highlight');
+        const w = document.createTreeWalker(pre, NodeFilter.SHOW_TEXT); let node; while ((node = w.nextNode()) && !node.data.includes('v_' + k + ' ')) {}
+        if (!node) return null; const r = document.createRange(), at = node.data.indexOf('v_' + k + ' '); r.setStart(node, at); r.setEnd(node, at + 1);
+        return {got: r.getBoundingClientRect().top - pre.getBoundingClientRect().top, want: 16 + k * 21 - e.scrollTop, spans: pre.querySelectorAll('span').length}; }, n);
+      await b.waitFor(() => document.querySelector('#highlight .tok-string'));
+      const first = await rowAt(0), glyph = first.got - first.want;   // glyph box sits a few px inside the line box
+      assert.ok(Math.abs(glyph) <= 4, JSON.stringify(first));
+      let at = await rowAt(5); assert.ok(at && Math.abs(at.got - at.want - glyph) <= 1, JSON.stringify(at)); assert.ok(at.spans < 3000, 'windowed: ' + at.spans + ' spans');
+      assert.equal(await rowAt(2000), null, 'far lines are not rendered');
+      await b.eval(() => { const e = document.getElementById('editor'); e.scrollTop = 16 + 2000 * 21 - 100; e.dispatchEvent(new Event('scroll')); });
+      await b.waitFor(() => document.getElementById('highlight').textContent.includes('v_2000 '));
+      at = await rowAt(2000); assert.ok(at && Math.abs(at.got - at.want - glyph) <= 1, JSON.stringify(at));
+      assert.ok(await b.eval(() => Math.abs(document.getElementById('highlight').scrollHeight - document.getElementById('editor').scrollHeight) <= 2), 'same scroll height');
       await b.eval(click, row('readme.txt'));
       await b.waitFor(() => document.getElementById('editor').value === 'hello\n');
       await b.waitFor(() => !document.getElementById('editor').classList.contains('highlighted') || !document.querySelector('#highlight span'));

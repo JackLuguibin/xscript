@@ -280,12 +280,36 @@
     const plain = !current || current.binary || box.disabled;
     el("editor").classList.toggle("highlighted", !plain);
     // Trailing newline keeps the last (empty) line the same height as in the textarea.
-    pre.innerHTML = plain ? "" : XSyntax.highlight(current.path, box.value) + "\n";
+    if (plain) { paintWindow = null; pre.innerHTML = ""; }
+    else paintLines(box, pre);
     syncScroll();
+  }
+  // Long files: only the lines around the viewport go into the overlay; spacers stand in for the rest, so the
+  // overlay scrolls like the textarea while the browser lays out ~150 lines instead of all of them per keystroke.
+  const WINDOW_FROM = 400, WINDOW_MARGIN = 60, LINE_PX = 21;
+  let paintWindow = null;
+  function paintLines(box, pre) {
+    const value = box.value, lines = value.split("\n");
+    if (lines.length < WINDOW_FROM) {
+      paintWindow = null;
+      pre.innerHTML = XSyntax.highlight(current.path, value) + "\n"; return;
+    }
+    const top = Math.floor(box.scrollTop / LINE_PX), rows = Math.ceil(box.clientHeight / LINE_PX);
+    const from = Math.max(0, top - WINDOW_MARGIN), to = Math.min(lines.length, top + rows + WINDOW_MARGIN);
+    paintWindow = {from, to, lines: lines.length};
+    const html = XSyntax.highlightLines(current.path, value, from, to);
+    let widest = 0; for (const l of lines) if (l.length > widest) widest = l.length;
+    // block spacers (not padding: a padded box taller than the editor would grow past it instead of scrolling)
+    const gap = n => '<div style="height:' + n * LINE_PX + 'px;width:' + widest + 'ch"></div>';
+    pre.innerHTML = gap(from) + html + "\n" + gap(lines.length - to);
   }
   function schedulePaint() { if (!paintQueued) { paintQueued = true; requestAnimationFrame(paint); } }
   function syncScroll() {
     const box = el("editor");
+    if (paintWindow) {
+      const top = Math.floor(box.scrollTop / LINE_PX), rows = Math.ceil(box.clientHeight / LINE_PX);
+      if ((top < paintWindow.from && paintWindow.from > 0) || (top + rows > paintWindow.to && paintWindow.to < paintWindow.lines)) schedulePaint();
+    }
     el("highlight").scrollTop = box.scrollTop; el("highlight").scrollLeft = box.scrollLeft;
     el("line-numbers").scrollTop = box.scrollTop;
     assist.syncScroll();

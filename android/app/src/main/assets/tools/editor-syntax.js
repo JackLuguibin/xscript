@@ -63,7 +63,23 @@
     const value = String(text || "");
     return /\.pyw?$/i.test(path || "") && value.length <= limit ? highlightPython(value) : escapeHtml(value);
   }
-  const api = { tokenizePython, highlightPython, highlight, escapeHtml };
+  /** HTML for lines [from, to) only (joined with "\n"); tokens are still found on the whole text, so a string or
+   *  comment that starts above `from` keeps its colour. Same fallback as highlight() for large / non-Python files. */
+  function highlightLines(path, text, from, to) {
+    const value = String(text || "");
+    if (!(/\.pyw?$/i.test(path || "") && value.length <= 300000)) return escapeHtml(value.split("\n").slice(from, to).join("\n"));
+    let line = 0, out = "";
+    for (const t of tokenizePython(value)) {
+      const parts = t.text.split("\n"), plain = t.type === "plain" || t.type === "space" || t.type === "punct";
+      for (let k = 0; k < parts.length; k++) {
+        if (k > 0) { if (line >= from && line < to - 1) out += "\n"; line++; }
+        if (line >= to) return out;
+        if (line >= from && parts[k]) out += plain ? escapeHtml(parts[k]) : '<span class="tok-' + t.type + '">' + escapeHtml(parts[k]) + "</span>";
+      }
+    }
+    return out;
+  }
+  const api = { tokenizePython, highlightPython, highlight, highlightLines, escapeHtml };
   if (typeof module !== "undefined" && module.exports) module.exports = api;
   else root.XSyntax = api;
 })(typeof globalThis !== "undefined" ? globalThis : this);

@@ -6,6 +6,15 @@ const kinds = (src, type) => S.tokenizePython(src).filter(t => t.type === type).
 test('tokens always reproduce the source exactly (overlay alignment)', () => {
   const samples = ['', '\n', 'x = 1\n\n', 'def f():\n\treturn "a\\"b"  # 中文\n', "s = '''open\nnever closed", 'x = "unterminated\ny = 2', '@a.b(1)\nclass C: pass', 'π = 3.14j; λ = 1e-3', '\r\nprint(1)\r\n'];
   for (const src of samples) assert.equal(S.tokenizePython(src).map(t => t.text).join(''), src, JSON.stringify(src));
+  // highlightLines (long-file overlay window): exactly lines [from, to), colours from tokens that start above
+  const text = h => h.replace(/<[^>]+>/g, '').replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&amp;/g, '&');
+  for (const src of samples) {
+    const lines = src.split('\n');
+    for (let from = 0; from <= lines.length; from++) for (let to = from; to <= lines.length; to++)
+      assert.equal(text(S.highlightLines('a.py', src, from, to)), lines.slice(from, to).join('\n'), JSON.stringify([src, from, to]));
+  }
+  assert.equal(S.highlightLines('a.py', 'x = """a\nb <c>\nd"""\ny = 1', 1, 2), '<span class="tok-string">b &lt;c&gt;</span>');
+  assert.equal(S.highlightLines('a.txt', 'a\n<b>\nc', 1, 3), '&lt;b&gt;\nc');
 });
 test('keywords, builtins, definitions, self and decorators are classified', () => {
   const src = '@retry(times=3)\nasync def tap(self, name):\n    if name is None and not True:\n        print(len(name))\nclass Bot(object): pass\n';
