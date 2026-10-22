@@ -532,12 +532,14 @@
     button.onclick = () => debuggerClient.control(button.dataset.debug).catch(e => message(e.message, true));
   });
   el("debug-disconnect").onclick = async () => { await debuggerClient.close(); el("debug-state").textContent = "已断开，任务仍可运行"; renderDebug(); };
-  el("run").onclick = () => operation(async () => { await debuggerClient.close(); const m = EditorModel.runMessage(model.project, await model.run()); message(m.text, m.warn); runFixes = m.fixes; showFix(""); poll(); });
+  el("run").onclick = () => operation(async () => { await debuggerClient.close(); const m = EditorModel.runMessage(model.project, await model.run()); message(m.text, m.warn); runAgain = false; runFixes = m.fixes; showFix(""); poll(); });
   // one tap from the run warning: open the phone's settings page for each missing permission in turn (same /eval as the
   // 节点 panel), or ask for the screen-capture grant; after one is done the button offers the next (下一项)
   let runFixes = [];
+  // after the last fix the same button runs the project again (再运行一次)
+  let runAgain = false;
   const showFix = (prefix) => { const f = runFixes[0]; el("run-a11y").textContent = f ? prefix + f.button : ""; el("run-a11y").hidden = !f; };
-  el("run-a11y").onclick = () => operation(async () => {
+  el("run-a11y").onclick = () => runAgain ? (runAgain = false, el("run").click()) : operation(async () => {
     const fix = runFixes[0];
     if (!fix) return;
     let text;
@@ -553,6 +555,7 @@
     runFixes = runFixes.slice(1);
     message(EditorModel.fixDone(text, runFixes.length));
     showFix("下一项：");
+    if (!runFixes.length) { runAgain = true; el("run-a11y").textContent = "再运行一次"; el("run-a11y").hidden = false; }
   });
   el("stop").onclick = () => operation(async () => { await model.stop(); await debuggerClient.close(); el("debug-state").textContent = "已停止"; message("已请求停止当前任务"); poll(); });
   el("delete-file").onclick = () => {
