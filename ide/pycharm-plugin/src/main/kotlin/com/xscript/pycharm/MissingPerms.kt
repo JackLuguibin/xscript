@@ -68,7 +68,7 @@ fun missingWarning(list: List<MissingPerm>, msg: (String, Array<out Any>) -> Str
     return MissingWarning(msg("missing.warn", arrayOf(names)), a11y, fixes.firstOrNull(), fixes)
 }
 
-/** After one fix: its result plus how many are left, and the Next button (null when none is left). */
-fun fixDone(text: String, rest: List<PermFix>, msg: (String, Array<out Any>) -> String): Pair<String, String?> =
-    if (rest.isEmpty()) text to null
+/** After one fix: its result plus how many are left and the Next button; after the last one, the Run Again button. */
+fun fixDone(text: String, rest: List<PermFix>, msg: (String, Array<out Any>) -> String): Pair<String, String> =
+    if (rest.isEmpty()) msg("missing.again", arrayOf<Any>(text)) to msg("missing.againButton", arrayOf<Any>())
     else msg("missing.left", arrayOf<Any>(text, rest.size)) to msg("missing.next", arrayOf(rest[0].button))

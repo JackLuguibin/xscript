@@ -20,7 +20,7 @@ import java.util.concurrent.TimeUnit
  * Settings | Tools | XScript (`settings`), selects the first `_result` line and runs Run Selection on Device (`eval`), or starts
  * Pull Project from Device (`pull`), or runs a device project and opens the Device Projects tab (`projects`), or opens Connect to Device and checks
  * -Dxscript.screenshotConnect (`connect`, `capture`), or just opens __init__.py with the basic checks' warnings (`lint`), or also puts the caret on the first `totl` and opens
- * Alt+Enter (`lintfix`), or runs Upload and Run against -Dxscript.screenshotConnect on a phone missing a permission the code uses (`missing`; `missingnext` also presses the warning's button), so screenshots need no scripted mouse clicks. Does nothing otherwise.
+ * Alt+Enter (`lintfix`), or runs Upload and Run against -Dxscript.screenshotConnect on a phone missing a permission the code uses (`missing`; `missingnext` also presses the warning's button; `missingagain` then presses Next until Run Again shows, shoots, and presses it), so screenshots need no scripted mouse clicks. Does nothing otherwise.
  */
 class ScreenshotDemoActivity : ProjectActivity {
     override suspend fun execute(project: Project) {
@@ -67,7 +67,7 @@ class ScreenshotDemoActivity : ProjectActivity {
                 }, 14, TimeUnit.SECONDS)
                 return@invokeLater
             }
-            if (mode == "missing" || mode == "missingnext") {
+            if (mode == "missing" || mode == "missingnext" || mode == "missingagain") {
                 // after the startup tidy-up, so the warning balloon stays for the shot
                 AppExecutorUtil.getAppScheduledExecutorService().schedule({
                     System.getProperty("xscript.screenshotConnect")?.let { XScriptSettings.get().device = it }
@@ -104,17 +104,25 @@ class ScreenshotDemoActivity : ProjectActivity {
                     }
                 }
                 if (mode == "lint" || mode == "lintfix") ToolWindowManager.getInstance(project).getToolWindow("Problems View")?.show()
-                if (mode == "run" || mode == "eval" || mode == "missing" || mode == "missingnext") ToolWindowManager.getInstance(project).getToolWindow(XScriptService.TOOL_WINDOW_ID)?.show()
+                if (mode == "run" || mode == "eval" || mode == "missing" || mode == "missingnext" || mode == "missingagain") ToolWindowManager.getInstance(project).getToolWindow(XScriptService.TOOL_WINDOW_ID)?.show()
             }, project.disposed)
         }, 12, TimeUnit.SECONDS)
         // missingnext: press the run warning's one-tap button; the follow-up says how many are left and offers Next
-        if (mode == "missingnext") AppExecutorUtil.getAppScheduledExecutorService().schedule({
+        if (mode == "missingnext" || mode == "missingagain") AppExecutorUtil.getAppScheduledExecutorService().schedule({
             app.invokeLater({
                 NotificationsManager.getNotificationsManager().getNotificationsOfType(Notification::class.java, project)
                     .firstOrNull { it.type == com.intellij.notification.NotificationType.WARNING && it.actions.isNotEmpty() }
                     ?.let { Notification.fire(it, it.actions.first(), null) }
             }, project.disposed)
         }, 22, TimeUnit.SECONDS)
+        // missingagain: press Next on each follow-up until the last fix (shot at 32 s shows Run Again), then press Run Again
+        if (mode == "missingagain") for (at in listOf(26L, 35L)) AppExecutorUtil.getAppScheduledExecutorService().schedule({
+            app.invokeLater({
+                NotificationsManager.getNotificationsManager().getNotificationsOfType(Notification::class.java, project)
+                    .lastOrNull { it.type == com.intellij.notification.NotificationType.INFORMATION && it.actions.isNotEmpty() }
+                    ?.let { Notification.fire(it, it.actions.first(), null) }
+            }, project.disposed)
+        }, at, TimeUnit.SECONDS)
         // lintfix: the caret on the first misspelled `totl`, then Alt+Enter (the checks have run by now)
         if (mode == "lintfix") AppExecutorUtil.getAppScheduledExecutorService().schedule({
             app.invokeLater({
@@ -151,7 +159,7 @@ class ScreenshotDemoActivity : ProjectActivity {
             AppExecutorUtil.getAppScheduledExecutorService().schedule({
                 app.invokeLater({ shoot(project, mode) }, com.intellij.openapi.application.ModalityState.any())
             }, 2, TimeUnit.SECONDS)
-        }, when (mode) { "lintfix" -> 36; "missingnext" -> 28; else -> 22 }, TimeUnit.SECONDS)
+        }, when (mode) { "lintfix" -> 36; "missingnext" -> 28; "missingagain" -> 30; else -> 22 }, TimeUnit.SECONDS)
     }
 
     /** With -Dxscript.screenshotOut=<dir>: paints the frontmost IDE window (a dialog if one is open) into <dir>/<name>.png. */
@@ -184,6 +192,6 @@ class ScreenshotDemoActivity : ProjectActivity {
 
     companion object {
         fun mode(): String? = System.getProperty("xscript.screenshotDemo")?.takeIf { it in MODES }
-        private val MODES = setOf("run", "settings", "eval", "pull", "projects", "connect", "capture", "lint", "lintfix", "missing", "missingnext")
+        private val MODES = setOf("run", "settings", "eval", "pull", "projects", "connect", "capture", "lint", "lintfix", "missing", "missingnext", "missingagain")
     }
 }

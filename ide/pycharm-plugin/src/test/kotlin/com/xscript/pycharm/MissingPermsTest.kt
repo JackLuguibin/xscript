@@ -53,7 +53,9 @@ class MissingPermsTest {
         assertEquals(all.fixes[0], all.fix)
         assertEquals(emptyList<PermFix>(), missingWarning(listOf(MissingPerm("自定义", "")), fake)!!.fixes)
         assertEquals("missing.left[done,2]" to "missing.next[missing.fix.notification.button]", fixDone("done", all.fixes.drop(1), fake))
-        assertEquals("done" to null, fixDone("done", emptyList(), fake))
+        assertEquals("missing.again[done]" to "missing.againButton", fixDone("done", emptyList(), fake))
+        assertEquals("已打开。 开启后点「再运行一次」。" to "再运行一次", fixDone("已打开。", emptyList(), bundle("XScriptBundle_zh_CN.properties")))
+        assertEquals("Opened. Click Run Again when ready." to "Run Again", fixDone("Opened.", emptyList(), bundle("XScriptBundle.properties")))
         val rest = all.fixes.drop(2).map { permFix(it.label, bundle("XScriptBundle_zh_CN.properties"))!! }
         assertEquals("已打开。 还有 1 项，点「下一项」继续。" to "下一项：在手机上授权截图", fixDone("已打开。", rest, bundle("XScriptBundle_zh_CN.properties")))
         assertEquals("Opened. 1 more to go: click Next." to "Next: Grant Screen Capture on Phone",
