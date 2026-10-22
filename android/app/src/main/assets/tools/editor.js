@@ -352,23 +352,24 @@
       render();
     }
   }
-  async function selectProject(project) {
+  // `file`: open this project-relative path instead of the entry file (from ?file=, e.g. the phone editor's link)
+  async function selectProject(project, file) {
     await debuggerClient.close(); el("debug-state").textContent = "未连接";
     el("debug-stack").replaceChildren(); el("debug-variables").textContent = "";
     ++generation; model.project = project; current = null; files = []; dirs = []; selected = null; search.reset();
     el("editor").value = ""; el("editor").disabled = true; assist.setFile(null); showDesigner(null); render(); cursor();
     await refreshFiles();
     if (model.project !== project) return;
-    const first = files.find(f => f.path === "__init__.py") || files[0];
+    const first = (file && files.find(f => f.path === file)) || files.find(f => f.path === "__init__.py") || files[0];
     if (first) await load(first.path);
     else message(project ? "请选择或新建文件" : "新建一个工程开始编写脚本");
   }
-  async function projects(preferred) {
+  async function projects(preferred, file) {
     const list = await model.listProjects();
     el("projects").replaceChildren(new Option("选择工程…", ""), ...list.map(name => new Option(name, name)));
     const target = list.includes(preferred) ? preferred : list[0] || "";
     el("projects").value = target;
-    await selectProject(target);
+    await selectProject(target, target === preferred ? file : null);
   }
   // ---- closing tabs ----
   // A tab is just an open document; closing drops it (and its unsaved edits, after a confirm).
@@ -800,6 +801,7 @@
   })();
   window.addEventListener("pageshow", e => { if (e.persisted) location.reload(); });
   document.addEventListener("visibilitychange", () => !document.hidden && poll());
-  projects(new URLSearchParams(location.search).get("project") || "").catch(e => message(e.message, true));
+  const query = new URLSearchParams(location.search);
+  projects(query.get("project") || "", query.get("file")).catch(e => message(e.message, true));
   poll(); render();
 })();
