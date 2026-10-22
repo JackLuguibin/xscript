@@ -88,8 +88,10 @@ test('Web IDE native HTTP contract and packaged asset routes', {timeout:15000}, 
     const names=combo.split('f=')[1].split(',');assert.ok(names.length>=15&&names[0]==='common.js'&&names.includes('editor.js'),names.join());
     const cr=await fetch(base+combo),body=await cr.text();assert.equal(cr.status,200);assert.match(cr.headers.get('content-type'),/javascript/);
     let at=-1;for(const n of names){const i=body.indexOf('/* ---- '+n+' ---- */');assert.ok(i>at,n+' in order');at=i;assert.ok(body.includes(await (await fetch(base+'/tools/ui/'+n)).text()),n+' whole');}
-    assert.equal((await fetch(base+combo,{headers:{'If-None-Match':cr.headers.get('etag')}})).status,304);
-    for(const bad of ['','../x.js','a.js,a.js','tools.css','sub/x.js','.hidden.js'])assert.equal((await fetch(base+'/tools/ui/combo.js?f='+encodeURIComponent(bad))).status,400,bad);
+    // read every body so the keep-alive connection is reused cleanly (an unread body can trip undici on CI)
+    const st=async(u,h)=>{const r=await fetch(base+u,h?{headers:h}:undefined);await r.arrayBuffer();return r.status;};
+    assert.equal(await st(combo,{'If-None-Match':cr.headers.get('etag')}),304);
+    for(const bad of ['','../x.js','a.js,a.js','tools.css','sub/x.js','.hidden.js'])assert.equal(await st('/tools/ui/combo.js?f='+encodeURIComponent(bad)),400,bad);
   } finally {
     child.kill();
   }
