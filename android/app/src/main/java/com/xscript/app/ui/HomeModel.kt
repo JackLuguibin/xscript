@@ -33,8 +33,8 @@ object HomeModel {
      */
     fun a11yBanner(on: Boolean, listed: Boolean, root: Boolean?): String? = when {
         on || root == true -> null
-        listed -> "无障碍服务已开启但没连上（重装后常见）：点此在设置里关掉再打开"
-        else -> "无障碍服务未开启，找控件、点击等自动化用不了：点此去开启"
+        listed -> "无障碍服务已开启但没连上（重装后常见），需在设置里关掉再打开"
+        else -> "无障碍服务未开启，找控件、点击等自动化用不了"
     }
 
     /** Trailing text of the permissions section header. */

@@ -190,7 +190,7 @@ class MainActivity : AppCompatActivity() {
         a11yCard.visibility = if (banner == null) android.view.View.GONE else android.view.View.VISIBLE
         if (banner != null) {
             UiKit.setText(a11yBanner.title, banner)
-            a11yBanner.value("去开启", ui.danger)
+            a11yBanner.value(if (listed) "去设置" else "去开启", ui.danger)
         }
 
         when (RootShell.known()) {
