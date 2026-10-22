@@ -16,8 +16,11 @@ import java.nio.file.Path
  * async / await misuse, duplicate definitions, ...) as warnings in .py files of an XScript project. Off with
  * Settings | Tools | XScript | Basic checks.
  */
-class XScriptLintAnnotator : ExternalAnnotator<XScriptLintAnnotator.Input, List<LintProblem>>() {
+class XScriptLintAnnotator : ExternalAnnotator<XScriptLintAnnotator.Input, XScriptLintAnnotator.Result>() {
     class Input(val root: Path, val file: String, val open: Map<Path, String>)
+
+    /** The problems and the text they were found in (quick fixes are offsets into it). */
+    class Result(val text: String, val problems: List<LintProblem>)
 
     override fun collectInformation(file: PsiFile, editor: Editor, hasErrors: Boolean): Input? = collect(file)
 
@@ -39,21 +42,27 @@ class XScriptLintAnnotator : ExternalAnnotator<XScriptLintAnnotator.Input, List<
         return Input(root, root.relativize(path).joinToString("/"), open)
     }
 
-    override fun doAnnotate(input: Input): List<LintProblem>? =
-        LintEngine.get().lint(LintRules.sources(input.root, input.open), input.file)
+    override fun doAnnotate(input: Input): Result? {
+        val sources = LintRules.sources(input.root, input.open)
+        val problems = LintEngine.get().lint(sources, input.file) ?: return null
+        return Result(sources.firstOrNull { it.first == input.file }?.second ?: "", problems)
+    }
 
-    override fun apply(file: PsiFile, problems: List<LintProblem>?, holder: AnnotationHolder) {
+    override fun apply(file: PsiFile, result: Result?, holder: AnnotationHolder) {
         val doc = PsiDocumentManager.getInstance(file.project).getDocument(file) ?: return
-        for (p in problems ?: return) {
+        // quick fixes only while the document still holds the checked text (they are offsets into it)
+        val same = result != null && doc.text == result.text
+        for (p in result?.problems ?: return) {
             val line = p.line - 1
             if (line < 0 || line >= doc.lineCount) continue
             val start = doc.getLineStartOffset(line) + p.col
             val end = minOf(start + p.length, doc.getLineEndOffset(line))
             if (start >= end) continue
-            holder.newAnnotation(HighlightSeverity.WARNING, "XScript: " + p.message)
+            var b = holder.newAnnotation(HighlightSeverity.WARNING, "XScript: " + p.message)
                 .range(TextRange(start, end))
                 .highlightType(ProblemHighlightType.WARNING)
-                .create()
+            if (same) for (f in p.fixes) b = b.withFix(LintQuickFix(f, doc.modificationStamp))
+            b.create()
         }
     }
 }

@@ -9,6 +9,7 @@ import com.intellij.openapi.util.Disposer
 import com.intellij.ui.jcef.JBCefApp
 import com.intellij.ui.jcef.JBCefBrowser
 import com.intellij.ui.jcef.JBCefBrowserBase
+import com.intellij.ui.jcef.JBCefClient
 import com.intellij.ui.jcef.JBCefJSQuery
 import java.util.concurrent.CompletableFuture
 import java.util.concurrent.ConcurrentHashMap
@@ -42,7 +43,7 @@ class LintEngine : Disposable {
         browser?.cefBrowser?.executeJavaScript("xsLint($id, ${Gson().toJson(payload)})", "xscript://lint", 0)
         return try {
             val raw = answer.get(timeoutMs, TimeUnit.MILLISECONDS)
-            if (raw.startsWith("!")) { log.info("XScript checks failed: " + raw.drop(1)); null } else LintRules.parse(raw)
+            if (raw.startsWith("!")) { log.info("XScript checks failed: " + raw.drop(1)); null } else LintRules.parse(raw, files.firstOrNull { it.first == file }?.second ?: "")
         } catch (e: Exception) {
             log.info("XScript checks: no answer for $file ($e)")
             null
@@ -55,7 +56,11 @@ class LintEngine : Disposable {
     private fun start(): Boolean {
         if (browser != null) return true
         return try {
-            val b = JBCefBrowser.createBuilder().setOffScreenRendering(true).setCreateImmediately(true).build()  // never shown: create now
+            // never shown, so created at once; a JS query on an already created browser needs a pool slot reserved on its
+            // client first (otherwise JBCefJSQuery.create throws IllegalStateException and the checks never run)
+            val client = JBCefApp.getInstance().createClient()
+            client.setProperty(JBCefClient.Properties.JS_QUERY_POOL_SIZE, 1)
+            val b = JBCefBrowser.createBuilder().setClient(client).setOffScreenRendering(true).setCreateImmediately(true).build()
             val query = JBCefJSQuery.create(b as JBCefBrowserBase)
             query.addHandler { msg ->
                 val at = msg.indexOf(':')
@@ -65,6 +70,7 @@ class LintEngine : Disposable {
             }
             Disposer.register(this, query)
             Disposer.register(this, b)
+            Disposer.register(this, client)
             b.loadHTML(page(query.inject("m")))
             browser = b
             true
@@ -95,7 +101,9 @@ class LintEngine : Disposable {
                 const idx = EditorSymbols.build(req.files, window.XSDocs || null);
                 const dead = idx.unreachableIn(req.file), deadLines = new Set(dead.map(d => d.line));
                 const all = idx.problemsIn(req.file).concat(idx.unusedIn(req.file).filter(u => !deadLines.has(u.line)), dead);
-                xsSend(id + ":" + JSON.stringify(all.map(p => ({line: p.line, col: p.col, length: p.length, message: p.message, severity: p.severity}))));
+                const keep = p => ({line: p.line, col: p.col, length: p.length, message: p.message, severity: p.severity,
+                  suggest: p.suggest, fix: p.fix, name: p.name, edit: p.edit, jump: p.jump});
+                xsSend(id + ":" + JSON.stringify({importLine: idx.importLine(req.file), problems: all.map(keep)}));
               } catch (e) { xsSend(id + ":!" + e); }
             };
             xsSend("0:ready");
