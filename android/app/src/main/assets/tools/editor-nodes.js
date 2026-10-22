@@ -74,29 +74,42 @@
     return "concat(" + v.split('"').map(p => '"' + p + '"').join(", '\"', ") + ")";
   }
 
-  /** `<module>.Selector(...)` chain: resource id, else text, else content-desc, else class + path; plus .clickable(). */
-  function selectorChain(n, module = "node", mode = 0) {
-    const calls = [];
-    if (n.id) calls.push(".id(" + pyStr(n.id) + ")");
-    else if (n.text) calls.push(".text(" + pyStr(n.text) + ")");
-    else if (n.desc) calls.push(".desc(" + pyStr(n.desc) + ")");
-    else {
-      if (n.type) calls.push(".type(" + pyStr(n.type) + ")");
-      if (n.path) calls.push(".path(" + pyStr(n.path) + ")");
+  /** Fields the Selector / XPath filters on, in the order they are tried. A field is added only while the earlier
+   *  ones still match other nodes of `roots` (e.g. every row of a list shares one resource id), so the code finds
+   *  the picked node rather than the first look-alike. Without `roots` (or a unique match) the first field is enough;
+   *  when none of them is unique the node's path pins it. */
+  function selectorFields(n, roots) {
+    const all = []; const walk = x => { all.push(x); for (const k of x.children || []) walk(k); }; for (const r of roots || []) walk(r);
+    const same = fields => all.filter(x => fields.every(f => x[f] === n[f]) && (!n.clickable || x.clickable)).length;
+    const fields = [];
+    for (const f of ["id", "text", "desc"]) {
+      if (!n[f]) continue;
+      fields.push(f);
+      if (!roots || same(fields) <= 1) return fields;
     }
+    if (!fields.length && n.type) fields.push("type");
+    if (n.path) fields.push("path");
+    return fields;
+  }
+  const CALL = {id: "id", text: "text", desc: "desc", type: "type", path: "path"};
+
+  /** `<module>.Selector(...)` chain: resource id, text, content-desc as needed to be unique in `roots`, else class +
+   *  path; plus .clickable(). */
+  function selectorChain(n, module = "node", mode = 0, roots = null) {
+    const calls = selectorFields(n, roots).map(f => "." + CALL[f] + "(" + pyStr(n[f]) + ")");
     if (n.clickable) calls.push(".clickable()");
     const chain = calls.length ? calls.join("") : ".path(" + pyStr(n.path || "0") + ")";
     return module + ".Selector(" + (mode ? "1" : "") + ")" + chain;
   }
 
-  /** One XPath for the node: resource-id, then text, then content-desc, then path. */
-  function nodeXPath(n) {
+  /** One XPath for the node: resource-id, text, content-desc as needed to be unique in `roots`, else path. */
+  function nodeXPath(n, roots = null) {
     const cls = shortType(n.type) || "*";
-    if (n.id) return "//*[@resource-id=" + xpathStr(n.id) + "]";
-    if (n.text) return "//" + cls + "[@text=" + xpathStr(n.text) + "]";
-    if (n.desc) return "//" + cls + "[@content-desc=" + xpathStr(n.desc) + "]";
-    if (n.path) return "//*[@path=" + xpathStr(n.path) + "]";
-    return "//" + cls;
+    const fields = selectorFields(n, roots).filter(f => f !== "type");
+    if (!fields.length) return "//" + cls;
+    const attr = {id: "resource-id", text: "text", desc: "content-desc", path: "path"};
+    const tag = fields[0] === "id" || fields[0] === "path" ? "*" : cls;
+    return "//" + tag + fields.map(f => "[@" + attr[f] + "=" + xpathStr(n[f]) + "]").join("");
   }
 
   const center = r => r ? {x: Math.round((r.l + r.r) / 2), y: Math.round((r.t + r.b) / 2)} : null;
@@ -111,13 +124,13 @@
   const NODE_IMPORT = "from xscript.android import node", ACTION_IMPORT = "from xscript.android import action";
 
   /** Code for one node: {imports: [lines], code}. `mode` 1 when the tree was dumped in full mode (Selector(1) sees it). */
-  function snippet(n, kind = "find", mode = 0) {
+  function snippet(n, kind = "find", mode = 0, roots = null) {
     if (kind === "tap") {
       const c = center(n.rect) || {x: 0, y: 0};
       return {imports: [ACTION_IMPORT], code: "action.click(" + c.x + ", " + c.y + ")  # " + label(n).replace(/\s+/g, " ").slice(0, 40)};
     }
-    if (kind === "xpath") return {imports: [NODE_IMPORT], code: "hit = node.Selector(" + (mode ? "1, " : "") + "xpath=" + pyStr(nodeXPath(n)) + ").find(timeout=5)"};
-    const chain = selectorChain(n, "node", mode);
+    if (kind === "xpath") return {imports: [NODE_IMPORT], code: "hit = node.Selector(" + (mode ? "1, " : "") + "xpath=" + pyStr(nodeXPath(n, roots)) + ").find(timeout=5)"};
+    const chain = selectorChain(n, "node", mode, roots);
     if (kind === "click") return {imports: [NODE_IMPORT], code: chain + ".click().find(timeout=5)"};
     if (kind === "exists") return {imports: [NODE_IMPORT], code: "if " + chain + ".exists(timeout=5):\n    pass"};
     return {imports: [NODE_IMPORT], code: "hit = " + chain + ".find(timeout=5)"};
@@ -174,7 +187,7 @@
     for (const k of KINDS) { const o = make("option", "", k.label); o.value = k.id; $("node-kind").append(o); }
     try { const saved = localStorage.getItem("xs-node-kind"); if (KINDS.some(k => k.id === saved)) $("node-kind").value = saved; } catch (e) { /* storage off */ }
 
-    function current() { return st.selected ? snippet(st.selected, $("node-kind").value, mode()) : null; }
+    function current() { return st.selected ? snippet(st.selected, $("node-kind").value, mode(), st.tree && st.tree.roots) : null; }
     function renderDetail() {
       const n = st.selected, dl = $("node-attrs"); dl.replaceChildren();
       if (!n) { dl.append(make("p", "node-empty", st.tree ? "在树里或截图上点一个节点" : "")); }

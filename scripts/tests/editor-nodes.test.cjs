@@ -112,6 +112,60 @@ test('attrs and the overlay box', () => {
   assert.equal(N.boxStyle(null, 1080, 2400), null); assert.equal(N.boxStyle({l: 0, t: 0, r: 1, b: 1}, 0, 0), null);
 });
 
+const runPy = (roots, cases) => {
+  const py = `
+import json, sys
+from xscript.android import node as node_mod, action as action_mod
+roots = json.loads(sys.argv[1]); cases = json.loads(sys.argv[2]); out = []
+node_mod.dump = lambda mode=0: {"roots": roots}
+for c in cases:
+    log = []
+    node_mod.Node.click = lambda self, log=log: log.append(self.path) or True
+    action_mod.click = lambda x, y=None, dur=20, log=log: log.append((x, y)) or True
+    env = {}
+    exec(c["code"], env)
+    hit = env.get("hit")
+    out.append({"p": c["p"], "kind": c["kind"], "hit": hit.path if hit is not None else None, "log": log})
+print(json.dumps(out))
+`;
+  const r = spawnSync(process.env.PYTHON || 'python3', ['-c', py, JSON.stringify(roots), JSON.stringify(cases)],
+    {cwd: path.resolve(__dirname, '../..'), env: Object.assign({}, process.env, {PYTHONPATH: path.resolve(__dirname, '../../android/python-runtime')}), encoding: 'utf8'});
+  assert.equal(r.status, 0, r.stderr);
+  return JSON.parse(r.stdout);
+};
+
+// A settings-style list: every row's title shares one resource id, two rows even share their text.
+const LIST = [node('0', 'android.widget.FrameLayout', [0, 0, 1080, 2400], [
+  node('0/0', 'android.widget.TextView', [0, 100, 1080, 200], [], {id: 'android:id/title', text: 'Network & internet'}),
+  node('0/1', 'android.widget.TextView', [0, 200, 1080, 300], [], {id: 'android:id/title', text: 'Apps'}),
+  node('0/2', 'android.widget.TextView', [0, 300, 1080, 400], [], {id: 'android:id/title', text: 'Battery'}),
+  node('0/3', 'android.widget.TextView', [0, 400, 1080, 500], [], {id: 'android:id/title', text: 'Battery'}),
+  node('0/4', 'android.widget.ImageView', [0, 500, 100, 600], [], {id: 'android:id/icon', desc: 'Wi-Fi'}),
+  node('0/5', 'android.widget.ImageView', [100, 500, 200, 600], [], {id: 'android:id/icon', desc: 'Bluetooth'}),
+  node('0/6', 'android.widget.Button', [0, 700, 1080, 800], [], {id: 'com.demo:id/ok', text: 'OK', clickable: true}),
+])];
+const atIn = (roots, p) => { let hit = null; const walk = l => l.forEach(n => { if (n.path === p) hit = n; walk(n.children); }); walk(roots); return hit; };
+
+test('a resource id shared by several nodes gets text / desc / path added until the selector is unique', () => {
+  const sel = p => N.selectorChain(atIn(LIST, p), 'node', 0, LIST);
+  assert.equal(sel('0/1'), "node.Selector().id('android:id/title').text('Apps')");
+  assert.equal(sel('0/3'), "node.Selector().id('android:id/title').text('Battery').path('0/3')");
+  assert.equal(sel('0/5'), "node.Selector().id('android:id/icon').desc('Bluetooth')");
+  assert.equal(sel('0/6'), "node.Selector().id('com.demo:id/ok').clickable()", 'a unique id stays alone');
+  assert.equal(N.selectorChain(atIn(LIST, '0/1')), "node.Selector().id('android:id/title')", 'no tree: unchanged');
+  const xp = p => N.nodeXPath(atIn(LIST, p), LIST);
+  assert.equal(xp('0/1'), '//*[@resource-id="android:id/title"][@text="Apps"]');
+  assert.equal(xp('0/3'), '//*[@resource-id="android:id/title"][@text="Battery"][@path="0/3"]');
+  assert.equal(xp('0/6'), '//*[@resource-id="com.demo:id/ok"]');
+  const cases = [];
+  for (const p of ['0/0', '0/1', '0/2', '0/3', '0/4', '0/5', '0/6']) for (const kind of ['find', 'xpath', 'click'])
+    cases.push({p, kind, code: N.fullText(N.snippet(atIn(LIST, p), kind, 1, LIST))});
+  for (const o of runPy(LIST, cases)) {
+    if (o.kind === 'click') assert.deepEqual(o.log, [o.p], 'click ' + o.p);
+    else assert.equal(o.hit, o.p, o.kind + ' ' + o.p);
+  }
+});
+
 test('generated code finds the picked node with the real python-runtime Selector / XPath', () => {
   const cases = [];
   for (const p of ['0/0/0', '0/0/1', '0/0/2', '0/0/3', '0/0/4']) for (const kind of ['find', 'xpath', 'click', 'exists', 'tap']) cases.push({p, kind, code: N.fullText(N.snippet(at(p), kind, 1))});
