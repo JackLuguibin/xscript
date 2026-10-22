@@ -175,6 +175,17 @@ test('Web IDE 节点 dock reads the UI tree and generates node code', {skip: CHR
       const v = await b.eval(view);
       assert.match(v.info, /^8 个节点/);
       assert.match(v.code, /\n# 没有唯一的 id、文字或描述，只能靠路径定位：界面变了可能找不到\nif node\.Selector\(1\)\.type\('android\.view\.View'\)\.path\('1\/0\/4'\)\.exists/);
+      // nothing stable around the View (its parents have no id / text either): no suggestion
+      assert.equal(await b.eval(() => document.getElementById('node-alt').hidden), true);
+      // the LinearLayout holding the form: its icon's description is unique, one click switches to it
+      await b.eval(() => document.querySelector('#node-tree .node-row[data-path="1/0"]').click());
+      assert.deepEqual(await b.eval(() => [document.getElementById('node-alt').hidden, document.getElementById('node-alt-text').textContent]),
+        [false, '更稳的选择：子节点「应用图标」，它的 id、文字或描述在界面上唯一']);
+      await b.eval(() => document.getElementById('node-alt-use').click());
+      const w = await b.eval(view);
+      assert.equal(w.selected, '1/0/0'); assert.doesNotMatch(w.code, /path\(/);
+      assert.equal(await b.eval(() => document.getElementById('node-alt').hidden), true);
+      await b.eval(() => document.querySelector('#node-tree .node-row[data-path="1/0/4"]').click());
     });
 
     if (process.env.XS_NODES_SHOT) await t.test('documentation screenshot', async () => {
@@ -198,8 +209,8 @@ test('Web IDE 节点 dock reads the UI tree and generates node code', {skip: CHR
         fs.writeFileSync(path.resolve(__dirname, '../..', file), Buffer.from(shot.data, 'base64'));
         await b.cmd('Emulation.clearDeviceMetricsOverride', {});
       };
-      // full tree, the layout-only View (no id / text / desc) picked by the previous test: the code warns about the path
-      await b.eval(() => { const s = document.getElementById('node-kind'); s.value = 'click'; s.dispatchEvent(new Event('change')); });
+      // full tree, the form's LinearLayout (no id / text / desc): the code warns about the path, 更稳的选择 offers its icon
+      await b.eval(() => { const s = document.getElementById('node-kind'); s.value = 'click'; s.dispatchEvent(new Event('change')); document.querySelector('#node-tree .node-row[data-path="1/0"]').click(); });
       await paint();
       await save(process.env.XS_NODES_SHOT.replace(/\.png$/, '-fragile.png'));
       await b.eval(() => { const c = document.getElementById('node-full'); c.checked = false; c.dispatchEvent(new Event('change')); });

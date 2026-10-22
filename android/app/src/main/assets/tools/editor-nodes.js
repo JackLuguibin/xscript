@@ -121,6 +121,22 @@
   const FRAGILE = "# 没有唯一的 id、文字或描述，只能靠路径定位：界面变了可能找不到\n";
   const fragile = (n, roots) => selectorFields(n, roots).includes("path");
 
+  /** For a node only its path can pin: the closest node that has a selector without the path, as {node, rel}. Children
+   *  first (a list row's title), then parents (the button around an icon); at most 3 levels away. Siblings are other
+   *  controls, so they are never offered. null when the node is stable already or nothing around it is. */
+  function stableAlternative(n, roots) {
+    if (!roots || !fragile(n, roots)) return null;
+    const ok = c => c !== n && !fragile(c, roots);
+    let level = n.children || [];
+    for (let d = 0; d < 3 && level.length; d++) {
+      const hit = level.find(ok); if (hit) return {node: hit, rel: "子节点"};
+      level = level.flatMap(c => c.children || []);
+    }
+    const up = ancestry(roots, n).slice(0, -1).reverse().slice(0, 3);
+    const parent = up.find(ok);
+    return parent ? {node: parent, rel: "父节点"} : null;
+  }
+
   const center = r => r ? {x: Math.round((r.l + r.r) / 2), y: Math.round((r.t + r.b) / 2)} : null;
 
   const KINDS = [
@@ -203,7 +219,7 @@
     return {left: r.l / w * 100 + "%", top: r.t / h * 100 + "%", width: (r.r - r.l) / w * 100 + "%", height: (r.b - r.t) / h * 100 + "%"};
   }
 
-  const EditorNodes = {hitTest, ancestry, rows, count, label, pyStr, xpathStr, selectorChain, nodeXPath, center, KINDS, snippet, fullText, tryCode, tryVerdict, fragile, FRAGILE, importEdit, attrs, boxStyle, shortType};
+  const EditorNodes = {hitTest, ancestry, rows, count, label, pyStr, xpathStr, selectorChain, nodeXPath, center, KINDS, snippet, fullText, tryCode, tryVerdict, fragile, FRAGILE, stableAlternative, importEdit, attrs, boxStyle, shortType};
 
   // ---- browser dock ----
   // ctx: {message(text, error), insertCode(code, imports) -> bool, onOpen()}
@@ -224,6 +240,9 @@
       const s = current();
       $("node-code").value = s ? fullText(s) : "";
       $("node-copy").disabled = $("node-insert").disabled = !s;
+      const alt = n && st.tree ? stableAlternative(n, st.tree.roots) : null;
+      $("node-alt").hidden = !alt; st.alt = alt && alt.node;
+      if (alt) $("node-alt-text").textContent = "更稳的选择：" + alt.rel + "「" + label(alt.node) + "」，它的 id、文字或描述在界面上唯一";
       $("node-try").disabled = !n || !tryCode(n, $("node-kind").value, mode(), st.tree && st.tree.roots);
       clearTry();
       const box = $("node-box"), css = n && st.tree && boxStyle(n.rect, st.tree.width, st.tree.height);
@@ -329,6 +348,7 @@
     $("node-close").addEventListener("click", () => setOpen(false));
     $("node-take").addEventListener("click", take);
     $("node-try").addEventListener("click", tryIt);
+    $("node-alt-use").addEventListener("click", () => { if (st.alt) select(st.alt, {reveal: true, focus: true}); });
     $("node-full").addEventListener("change", take);
     $("node-filter").addEventListener("input", renderTree);
     $("node-kind").addEventListener("change", () => { try { localStorage.setItem("xs-node-kind", $("node-kind").value); } catch (e) { /* storage off */ } renderDetail(); });

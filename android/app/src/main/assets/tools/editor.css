@@ -194,6 +194,9 @@
 .node-box[hidden] { display:none; }
 .node-hit { position:absolute; box-sizing:border-box; border:2px dashed var(--bad); pointer-events:none; }
 .node-hit.self { border-color:var(--ok); }
+.node-alt { display:flex; align-items:center; gap:6px; margin:0; font-size:12px; line-height:1.4; color:var(--warn); }
+.node-alt[hidden] { display:none; }
+.node-alt span { flex:1; min-width:0; }
 .node-try-result { flex:1; min-width:0; font-size:12px; line-height:1.4; color:var(--muted); }
 .node-try-result.ok { color:var(--ok); }
 .node-try-result.error { color:var(--bad); }

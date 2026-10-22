@@ -53,6 +53,14 @@ describe("ui tree", () => {
     // code that only the path can pin says so; a unique id / text does not
     expect(selectorCode(listAt("0/3"), listRoots)).toBe("from xscript.android import node\n" + FRAGILE_NOTE + "node.Selector().id('android:id/title').text('Battery').path('0/3').find(timeout=5)");
     expect(selectorCode(listAt("0/1"), listRoots)).not.toContain("#");
+    // a row without id / text: the code names its title as the more stable choice (children first, then parents)
+    const rowTree: UiNode[] = [{ path: "0", type: "android.widget.FrameLayout", children: [
+      { path: "0/0", type: "android.widget.LinearLayout", clickable: true, children: [{ path: "0/0/0", type: "android.widget.TextView", text: "Display" }] },
+      { path: "0/1", id: "com.demo:id/share", type: "android.widget.Button", children: [{ path: "0/1/0", type: "android.widget.ImageView" }] },
+    ] }];
+    expect(selectorCode(rowTree[0].children![0], rowTree)).toBe("from xscript.android import node\n" + FRAGILE_NOTE + "# 更稳的选择：子节点「Display」\nnode.Selector().type('android.widget.LinearLayout').path('0/0').clickable().find(timeout=5)");
+    expect(selectorCode(rowTree[0].children![1].children![0], rowTree)).toContain("# 更稳的选择：父节点「com.demo:id/share」\n");
+    expect(selectorCode(listAt("0/3"), listRoots)).not.toContain("更稳的选择");
     // A clock's text changes every minute: never filter on it, pin a shared clock id with the path instead.
     const clock = (path: string): UiNode => ({ path, id: "com.android.systemui:id/clock", text: "1:57", desc: "1:57 AM", type: "android.widget.TextView" });
     const clocks: UiNode[] = [{ path: "0", children: [clock("0/0"), clock("0/1")] }];
