@@ -2,7 +2,7 @@
  * reads /ui-tree and /screen, picking a node in the tree or on the screenshot shows its attributes and box, the code
  * follows the chosen kind, 插入到光标 writes it at the caret with the import added once, filter / folding / 完整树 work,
  * the 截图 and 节点 docks replace each other, and a missing accessibility channel is explained.
- * XS_NODES_SHOT=docs/images/ide-nodes.png also saves the documentation screenshot, and ide-nodes-fragile.png (and -run, -a11y) beside it
+ * XS_NODES_SHOT=docs/images/ide-nodes.png also saves the documentation screenshot, and ide-nodes-fragile.png (and -run, -a11y, ide-run-a11y, ide-run-overlay) beside it
  * (a node only its path can pin, with the warning comment) and ide-nodes-run.png (在手机上运行 after 插入).
  * Skipped when no local Chrome is found ($CHROME or ~/.cache/puppeteer). */
 const {test} = require('node:test');
@@ -371,6 +371,30 @@ test('Web IDE 节点 dock reads the UI tree and generates node code', {skip: CHR
       await b.eval(() => document.getElementById('run-a11y').click());
       await b.waitFor(() => /开启 XScript 后再运行/.test(document.getElementById('message').textContent));
       assert.deepEqual(await b.eval(() => [window.__runA11y.code, document.getElementById('run-a11y').hidden]), ['from xscript.android import permission\n_result = permission.request(permission.ACCESSIBILITY_SERVICE, 1)', true]);
+      // only the overlay missing: the button names that page and opens it; screen capture asks the phone instead
+      await b.eval(() => {
+        const real = window.fetch; window.__runFix = [];
+        window.fetch = (url, opts) => /\/projects\/[^/]+\/run$/.test(String(url)) ? Promise.resolve(new Response(JSON.stringify({ok: true, running: true, missing: window.__missing}), {headers: {'Content-Type': 'application/json'}}))
+          : (String(url) === '/eval' || String(url) === '/capture/request') ? (window.__runFix.push([String(url), opts.body ? JSON.parse(opts.body).code : null]), Promise.resolve(new Response(JSON.stringify({ok: true, result: '0'}), {headers: {'Content-Type': 'application/json'}}))) : real(url, opts);
+        window.__missing = [{label: '悬浮窗权限', why: '悬浮窗、浮动菜单、网页窗口', where: '__init__.py:2'}];
+        document.getElementById('run').click();
+      });
+      await b.waitFor(() => /手机上还缺：悬浮窗权限/.test(document.getElementById('message').textContent));
+      assert.deepEqual(await b.eval(() => [document.getElementById('run-a11y').hidden, document.getElementById('run-a11y').textContent]), [false, '打开手机悬浮窗设置']);
+      if (process.env.XS_NODES_SHOT) {
+        await b.cmd('Emulation.setDeviceMetricsOverride', {width: 1280, height: 860, deviceScaleFactor: 2, mobile: false});
+        await new Promise(r => setTimeout(r, 300));
+        const shot = await b.cmd('Page.captureScreenshot', {format: 'png'});
+        fs.writeFileSync(path.resolve(__dirname, '../..', process.env.XS_NODES_SHOT.replace(/ide-nodes\.png$/, 'ide-run-overlay.png')), Buffer.from(shot.data, 'base64'));
+        await b.cmd('Emulation.clearDeviceMetricsOverride', {});
+      }
+      await b.eval(() => document.getElementById('run-a11y').click());
+      await b.waitFor(() => /悬浮窗设置：允许 XScript 后再运行/.test(document.getElementById('message').textContent));
+      await b.eval(() => { window.__missing = [{label: '图色权限（截图）', why: '找图', where: 'a.py:1'}]; document.getElementById('run').click(); });
+      await b.waitFor(() => document.getElementById('run-a11y').textContent === '在手机上授权截图' && !document.getElementById('run-a11y').hidden);
+      await b.eval(() => document.getElementById('run-a11y').click());
+      await b.waitFor(() => /截图授权/.test(document.getElementById('message').textContent));
+      assert.deepEqual(await b.eval(() => window.__runFix), [['/eval', 'from xscript.android import permission\n_result = permission.request(permission.OVERLAY, 1)'], ['/capture/request', null]]);
     });
 
     assert.deepEqual(b.errors, []);

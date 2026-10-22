@@ -36,10 +36,21 @@ test('run saves every dirty file of the selected project before starting', async
   assert.deepEqual(calls.slice(-3).map(c=>[c.method,c.url]),[['PUT','/projects/demo/files'],['PUT','/projects/demo/files'],['POST','/projects/demo/run']]);
   assert.equal(model.unsaved().length,0);
   // the run reply may list permissions the phone is missing: the status line says so
-  assert.deepEqual(EditorModel.runMessage('demo',{ok:true}),{text:'已请求运行 demo',warn:false,a11y:false});
-  assert.deepEqual(EditorModel.runMessage('demo',{ok:true,missing:[{label:'无障碍',where:'__init__.py:4'},{label:'悬浮窗权限',where:''}]}),
-    {text:'已请求运行 demo · 手机上还缺：无障碍（__init__.py:4）、悬浮窗权限，相关操作会失败，请在手机上的小程序详情页开启',warn:true,a11y:true});
-  assert.equal(EditorModel.runMessage('demo',{missing:[{label:'悬浮窗权限',where:''}]}).a11y,false);
+  assert.deepEqual(EditorModel.runMessage('demo',{ok:true}),{text:'已请求运行 demo',warn:false,a11y:false,fix:null});
+  const both=EditorModel.runMessage('demo',{ok:true,missing:[{label:'悬浮窗权限',where:''},{label:'无障碍',where:'__init__.py:4'}]});
+  assert.deepEqual([both.text,both.warn,both.a11y,both.fix.label,both.fix.button],
+    ['已请求运行 demo · 手机上还缺：悬浮窗权限、无障碍（__init__.py:4），相关操作会失败，请在手机上的小程序详情页开启',true,true,'无障碍','打开手机无障碍设置']);
+  // the one-tap fix: accessibility first, else the first permission it can open; the accessibility code matches the 节点 panel's
+  const {EditorNodes}=require('../../android/app/src/main/assets/tools/editor-nodes.js');
+  assert.equal(both.fix.code,EditorNodes.A11Y_CODE);
+  const overlay=EditorModel.runMessage('demo',{missing:[{label:'未知',where:''},{label:'悬浮窗权限',where:'a.py:2'}]});
+  assert.deepEqual([overlay.a11y,overlay.fix.label,overlay.fix.button,overlay.fix.code],[false,'悬浮窗权限','打开手机悬浮窗设置','from xscript.android import permission\n_result = permission.request(permission.OVERLAY, 1)']);
+  assert.match(EditorModel.runMessage('demo',{missing:[{label:'通知使用权'}]}).fix.code,/permission\.NOTIFICATION_LISTENER, 1\)$/);
+  assert.match(EditorModel.runMessage('demo',{missing:[{label:'文件访问权限'}]}).fix.code,/permission\.MANAGE_EXTERNAL_STORAGE, 1\)$/);
+  const cap=EditorModel.runMessage('demo',{missing:[{label:'图色权限（截图）'}]}).fix;
+  assert.deepEqual([cap.capture,cap.code,cap.button],[true,undefined,'在手机上授权截图']);
+  assert.equal(EditorModel.runMessage('demo',{missing:[{label:'未知'}]}).fix,null);
+  for(const f of Object.values(EditorModel.PERM_FIX)) assert.ok(f.button&&f.opened&&f.where);
 });
 test('failed save blocks execution and retains unsaved content', async()=>{
   const {model,api,calls}=fixture();const doc=await model.open('__init__.py');model.edit(doc,'changed');
