@@ -20,6 +20,7 @@ import com.xscript.app.runtime.ScriptService
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
+import java.util.concurrent.Executors
 
 /** Live tail of the runtime log (stdout black, stderr red). */
 class LogActivity : AppCompatActivity() {
@@ -31,6 +32,13 @@ class LogActivity : AppCompatActivity() {
     private lateinit var emptyHint: View
     private lateinit var logCard: View
     private var next = 0L
+
+    /** Reads the log file (a file lock shared with the writing script) off the main thread; one read at a time. */
+    private val reader = Executors.newSingleThreadExecutor()
+    private var reading = false
+
+    /** Bumped by 清空, so a read that started before it does not bring the old lines back. */
+    private var generation = 0
 
     /** The TextView's own Editable: new lines are appended to it (see [append]). */
     private val buffer: Editable get() = text.editableText
@@ -56,6 +64,7 @@ class LogActivity : AppCompatActivity() {
         if (range == null) {
             UiKit.barAction(col, "清空") {
                 LogBuffer.clear(this)
+                generation++
                 buffer.clear()
                 showEmpty(true)
             }
@@ -120,12 +129,29 @@ class LogActivity : AppCompatActivity() {
     private fun poll() {
         updateStop()
         showEmpty(buffer.isEmpty())
-        val (entries, n) = LogBuffer.since(this, next)
-        if (n < next) {
-            buffer.clear()
+        if (reading) return
+        reading = true
+        val since = next
+        val gen = generation
+        val app = applicationContext
+        reader.execute {
+            val read = runCatching { LogBuffer.since(app, since) }.getOrNull()
+            handler.post {
+                reading = false
+                if (isDestroyed || read == null || gen != generation) return@post
+                val (entries, n) = read
+                if (n < next) buffer.clear()
+                next = n
+                if (entries.isNotEmpty()) append(entries)
+                showEmpty(buffer.isEmpty())
+            }
         }
-        next = n
-        if (entries.isNotEmpty()) append(entries)
+    }
+
+    override fun onDestroy() {
+        handler.removeCallbacksAndMessages(null)
+        reader.shutdownNow()
+        super.onDestroy()
     }
 
     private fun showEmpty(empty: Boolean) {
