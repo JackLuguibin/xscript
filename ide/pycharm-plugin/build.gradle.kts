@@ -92,7 +92,7 @@ tasks.runIde {
     if (providers.gradleProperty("runIdeHeadlessConsent").isPresent) {
         jvmArgs("-Djb.privacy.policy.text=<!--999.999-->", "-Djb.consents.confirmation.enabled=false", "-Didea.initially.ask.config=never", "-Didea.trust.all.projects=true")
     }
-    // -PrunIdeScreenshotDemo=run|settings|eval|pull|projects|connect|capture|lint|lintfix (-PrunIdeScreenshotConnect=<address> for connect / capture; XS_SHOT_CODE=<pairing code> in the environment for capture): ScreenshotDemoActivity drives one feature for docs screenshots
+    // -PrunIdeScreenshotDemo=run|settings|eval|pull|projects|connect|capture|lint|lintfix|missing (-PrunIdeScreenshotConnect=<address> for connect / capture / missing; XS_SHOT_CODE=<pairing code> in the environment for capture): ScreenshotDemoActivity drives one feature for docs screenshots
     // -PrunIdeScreenshotOut=<dir>: the demo also saves PNGs of the IDE window there (no screen-recording permission needed)
     providers.gradleProperty("runIdeScreenshotOut").orNull?.let { jvmArgs("-Dxscript.screenshotOut=$it") }
     providers.gradleProperty("runIdeScreenshotConnect").orNull?.let { jvmArgs("-Dxscript.screenshotConnect=$it") }

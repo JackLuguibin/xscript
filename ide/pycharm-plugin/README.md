@@ -8,6 +8,8 @@
 
 ![运行后底部 XScript 工具窗口实时输出日志，右下角状态栏显示「XScript: Running daily_signin」](../../docs/images/pycharm-run.png)
 
+![运行后手机上缺无障碍：日志和通知写明缺什么、在哪一行用到，通知上「打开手机无障碍设置」一键打开手机的无障碍设置](../../docs/images/pycharm-missing.png)
+
 ![Settings → Tools → XScript：设备地址、配对码、运行选中代码超时、「上传时同步删除」和「编辑器里的基本检查」](../../docs/images/pycharm-settings.png)
 
 ![基本检查：问题面板里以 XScript: 开头的警告，在 async 函数里直接调用 async 函数、关键字参数 wiat（是不是 wait？）、拼错的 totl（是不是 total？Alt+Enter 改正）](../../docs/images/pycharm-checks.png)
@@ -79,5 +81,5 @@ cd ide/pycharm-plugin
 ```
 
 - 新建工程模板 `src/main/resources/templates.json` 是生成的：改 `ide/vscode-extension/src/newProject.ts` 后，在 `ide/vscode-extension` 里 `npm run compile && node scripts/export-templates.js`。CI 用 `--check` 检查。
-- 截图：先在 `.intellijPlatform/sandbox/xscript-pycharm/PC-2024.2.6/config_runIde/options/xscript.xml` 里把设备地址设为本机 mock 设备，再 `./gradlew runIde -PrunIdeProject=<演示工程> -PrunIdeHeadlessConsent -PrunIdeScreenshotDemo=run -PrunIdeScreenshotOut=<目录>`（模式还有 `settings`、`eval`、`pull`、`projects`、`connect`、`lint`（只打开 `__init__.py` 和问题面板，看基本检查；演示工程里要有写错的代码）、`lintfix`（同上，再把光标放到第一个 `totl` 上打开 Alt+Enter 列表，约 40 秒后截图）；`connect` 用 `-PrunIdeScreenshotConnect=<地址>` 指定要检查的地址）。这些开关只用于这个一次性的沙盒：跳过用户协议，打开演示工程，执行对应功能（`pull` 会自动按下选择和覆盖对话框的默认按钮；演示工程里要有与设备工程同名的文件夹），约 25 秒后把 IDE 窗口（有对话框时截对话框）存成 `<目录>/<模式>.png`，不需要系统录屏权限。
+- 截图：先在 `.intellijPlatform/sandbox/xscript-pycharm/PC-2024.2.6/config_runIde/options/xscript.xml` 里把设备地址设为本机 mock 设备，再 `./gradlew runIde -PrunIdeProject=<演示工程> -PrunIdeHeadlessConsent -PrunIdeScreenshotDemo=run -PrunIdeScreenshotOut=<目录>`（模式还有 `settings`、`eval`、`pull`、`projects`、`connect`、`lint`（只打开 `__init__.py` 和问题面板，看基本检查；演示工程里要有写错的代码）、`lintfix`（同上，再把光标放到第一个 `totl` 上打开 Alt+Enter 列表，约 40 秒后截图）、`missing`（连 `-PrunIdeScreenshotConnect=<地址>`，对演示工程执行上传并运行；手机关闭无障碍，工程里有用到 `node` 的文件时右下角出现缺权限提示）；`connect` 用 `-PrunIdeScreenshotConnect=<地址>` 指定要检查的地址；`missing` 会把沙盒的设备地址设成它）。这些开关只用于这个一次性的沙盒：跳过用户协议，打开演示工程，执行对应功能（`pull` 会自动按下选择和覆盖对话框的默认按钮；演示工程里要有与设备工程同名的文件夹），约 25 秒后把 IDE 窗口（有对话框时截对话框）存成 `<目录>/<模式>.png`，不需要系统录屏权限。
 - 本机没有系统 JDK 时可以用 Android Studio 自带的：`JAVA_HOME="/Applications/Android Studio.app/Contents/jbr/Contents/Home"`。
