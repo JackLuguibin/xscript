@@ -55,7 +55,15 @@ exports.run = async function run() {
           let diags = [];
           for (let i = 0; i < 20 && diags.length < 2; i++) { await sleep(300); diags = vscode.languages.getDiagnostics(uri).filter((d) => d.source === "XScript"); }
           const msgs = diags.map((d) => d.message);
-          check(msgs.includes("未定义的名字 totl（是不是 total？）") && msgs.includes("未使用的 import os"), "Problems show the basic checks (undefined name, unused import)", msgs.join(" | "));
+          check(msgs.includes("未定义的名字 totl（是不是 total？Ctrl/Cmd+. 改正）") && msgs.includes("未使用的 import os"), "Problems show the basic checks (undefined name, unused import)", msgs.join(" | "));
+          // Ctrl/Cmd+.: the "是不是 total" quick fix renames totl in place
+          const typo = diags.find((d) => d.message.startsWith("未定义的名字 totl"));
+          const actions = typo ? await vscode.commands.executeCommand("vscode.executeCodeActionProvider", uri, typo.range, "quickfix") : [];
+          const rename = (actions || []).find((a) => a.title === "改为 total");
+          if (rename && rename.edit) await vscode.workspace.applyEdit(rename.edit);
+          const doc = vscode.workspace.textDocuments.find((d) => d.uri.fsPath === uri.fsPath);
+          check(!!rename && !!rename.isPreferred && doc && doc.lineAt(2).text === "print(total)", "Quick fix renames a misspelled name", (actions || []).map((a) => a.title).join(" | ") + " / " + (doc && doc.lineAt(2).text));
+          await vscode.commands.executeCommand("workbench.action.files.revert");
           await vscode.commands.executeCommand("workbench.action.closeActiveEditor");
         } finally {
           fs.rmSync(root, { recursive: true, force: true });

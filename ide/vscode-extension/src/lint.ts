@@ -15,12 +15,36 @@ export interface Problem {
   message: string;
   /** "warning" for a likely bug; "unused" for code that can go (unused import/variable, unreachable). */
   severity: "warning" | "unused";
+  /** Quick fixes (VS Code Ctrl/Cmd+.) built from the check's own data: the "是不是 …" rename and the missing import. */
+  fixes?: Fix[];
+}
+
+/** One text edit: replace `length` characters at (1-based line, 0-based col) with `text`. */
+export interface Fix {
+  title: string;
+  line: number;
+  col: number;
+  length: number;
+  text: string;
+  preferred?: boolean;
+}
+
+interface RawProblem {
+  line: number;
+  col: number;
+  length: number;
+  message: string;
+  severity: string;
+  suggest?: string;
+  fix?: string[];
+  name?: string;
 }
 
 interface Index {
-  problemsIn(path: string): Problem[];
-  unusedIn(path: string): Problem[];
-  unreachableIn(path: string): Problem[];
+  importLine(path: string): number;
+  problemsIn(path: string): RawProblem[];
+  unusedIn(path: string): RawProblem[];
+  unreachableIn(path: string): RawProblem[];
 }
 interface Core {
   build(files: { path: string; content: string }[], docs: unknown): Index;
@@ -62,10 +86,12 @@ export function projectSources(root: string, open: Map<string, string> = new Map
 }
 
 /**
- * The Web IDE's hints name its own Ctrl+. quick fixes, which VS Code does not have:
- * "（是不是 x？Ctrl+. 改正）" -> "（是不是 x？）", "（Ctrl+. 从 m 导入）" -> "（可以从 m 导入）", "（Ctrl+. 删除）" -> "".
+ * The Web IDE's hints name its own Ctrl+. quick fixes. VS Code offers the rename and the import too (`hasFix`), so
+ * those keep the hint as "Ctrl/Cmd+."; the others (delete an unused import, …) are dropped:
+ * "（Ctrl+. 从 m 导入）" -> "（可以从 m 导入）", "（Ctrl+. 删除）" -> "".
  */
-export function plainMessage(message: string): string {
+export function plainMessage(message: string, hasFix = false): string {
+  if (hasFix) return message.replace(/Ctrl\+\./g, "Ctrl/Cmd+.");
   return message
     .replace(/Ctrl\+\. 从 /g, "可以从 ")
     .replace(/[；;]?\s*Ctrl\+\.[^）)]*/g, "")
@@ -78,8 +104,30 @@ export function lintFile(files: { path: string; content: string }[], file: strin
   const index = core.build(files, docs);
   const dead = index.unreachableIn(file);
   const deadLines = new Set(dead.map((d) => d.line));
+  const text = files.find((f) => f.path === file)?.content ?? "";
   return index
     .problemsIn(file)
     .concat(index.unusedIn(file).filter((u) => !deadLines.has(u.line)), dead)
-    .map((p) => ({ line: p.line, col: p.col, length: Math.max(1, p.length), message: plainMessage(p.message), severity: p.severity === "unused" ? "unused" : "warning" }));
+    .map((p) => {
+      const fixes = fixesOf(p, text, () => index.importLine(file));
+      const out: Problem = { line: p.line, col: p.col, length: Math.max(1, p.length), message: plainMessage(p.message, fixes.length > 0), severity: p.severity === "unused" ? "unused" : "warning" };
+      if (fixes.length) out.fixes = fixes;
+      return out;
+    });
+}
+
+/** The rename to the "是不是 …" name, or `from m import name` for each module that defines the missing name. */
+function fixesOf(p: RawProblem, text: string, importLine: () => number): Fix[] {
+  if (p.severity === "unused") return [];
+  if (p.suggest) return [{ title: "改为 " + p.suggest, line: p.line, col: p.col, length: p.length, text: p.suggest, preferred: true }];
+  if (!p.fix?.length || !p.name) return [];
+  const lines = text.split("\n");
+  let line = importLine(), col = 0, lead = "";
+  if (line > lines.length) {
+    // the file ends without a newline: append after its last line
+    line = lines.length;
+    col = lines[line - 1].length;
+    lead = "\n";
+  }
+  return p.fix.map((m) => ({ title: "从 " + m + " 导入 " + p.name, line, col, length: 0, text: lead + "from " + m + " import " + p.name + "\n", preferred: p.fix!.length === 1 }));
 }
