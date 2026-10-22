@@ -17,6 +17,8 @@ cd ide/vscode-extension && npm ci && npm run package     # 生成 xscript-vscode
 
 ![XScript 活动栏：设备、手机上的工程、工具；运行后 Output → XScript 实时输出日志](../../docs/images/vscode-run.png)
 
+![运行后手机上缺无障碍：Output 和通知写明缺什么、在哪一行用到，通知上「Open Accessibility Settings on Phone」一键打开手机的无障碍设置](../../docs/images/vscode-missing.png)
+
 ![一键调试：在断点处停下，左侧是变量、调用栈和断点，底部是调试控制台](../../docs/images/vscode-debug.png)
 
 ![逐项检查连接：手机上的 XScript 没打开，停在「XScript app answers」，Output 里列出每一步，通知给出修法和「修改地址 / 仍然保存 / 排查文档」](../../docs/images/vscode-connect.png)
