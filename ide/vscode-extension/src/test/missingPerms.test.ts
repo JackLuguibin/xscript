@@ -43,12 +43,14 @@ test("per-permission one-tap fix: the first missing permission with a fix, same 
   const shared = JSON.parse(fs.readFileSync(path.resolve(__dirname, "../../../../protocol/permission-fix.json"), "utf8")).permissions as
     { label: string; permission?: string; captureRequest?: boolean; zh: Record<string, string>; en: Record<string, string> }[];
   assert.equal(shared.length, 5);
+  for (const e of shared) assert.equal(e.zh.name, e.label);
   for (const e of shared) {
     for (const lang of ["zh", "en"] as const) {
       const f = permFix(e.label, lang);
       const prefix = lang === "zh" ? "XScript：" : "XScript: ";
       assert.deepEqual([f?.button, f?.opened, f?.on, f?.where], [e[lang].button, prefix + e[lang].opened, prefix + e[lang].on, e[lang].where], e.label + " " + lang);
-      assert.equal(missingWarning([{ label: e.label, where: "" }], lang)?.text.includes(e[lang].name), true, e.label + " name " + lang);
+      // the permission name in the warning is exactly the shared one (zh: the phone's own label)
+      assert.equal(missingWarning([{ label: e.label, where: "" }], lang)?.text, missingText(lang).warn(e[lang].name), e.label + " name " + lang);
     }
     const f = permFix(e.label, "zh");
     if (e.permission) assert.equal(f?.code, "from xscript.android import permission\n_result = permission.request(permission." + e.permission + ", 1)");

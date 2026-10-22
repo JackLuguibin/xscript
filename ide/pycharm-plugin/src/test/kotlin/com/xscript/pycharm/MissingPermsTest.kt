@@ -71,13 +71,15 @@ class MissingPermsTest {
         // same table as protocol/permission-fix.json (shared with the Web IDE and VS Code)
         val shared = JsonParser.parseString(java.io.File("../../protocol/permission-fix.json").readText()).asJsonObject.getAsJsonArray("permissions")
         assertEquals(5, shared.size())
+        for (e in shared) assertEquals(e.asJsonObject.get("label").asString, e.asJsonObject.getAsJsonObject("zh").get("name").asString)
         for (e in shared.map { it.asJsonObject }) {
             val label = e.get("label").asString
             for ((lang, name) in listOf("en" to "XScriptBundle.properties", "zh" to "XScriptBundle_zh_CN.properties")) {
                 val t = e.getAsJsonObject(lang)
                 val f = permFix(label, bundle(name))!!
                 assertEquals("$label $lang", listOf("button", "opened", "on", "where").map { t.get(it).asString }, listOf(f.button, f.opened, f.on, f.where))
-                assertTrue("$label name $lang", missingWarning(listOf(MissingPerm(label, "")), bundle(name))!!.text.contains(t.get("name").asString))
+                // the permission name in the warning is exactly the shared one (zh: the phone's own label)
+                assertEquals("$label name $lang", bundle(name)("missing.warn", arrayOf(t.get("name").asString)), missingWarning(listOf(MissingPerm(label, "")), bundle(name))!!.text)
             }
             val f = permFix(label, fake)!!
             val key = e.get("permission")?.asString
