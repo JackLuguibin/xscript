@@ -27,7 +27,7 @@ function startMock() {
 const rect = sel => { const n = document.querySelector(sel); if (!n) return null; const r = n.getBoundingClientRect(); return {l: r.left, r: r.right, t: r.top, b: r.bottom, w: r.width, h: r.height}; };
 const inside = (r, w, h) => r && r.l >= -0.5 && r.r <= w + 0.5 && r.t >= -0.5 && r.b <= h + 0.5;
 
-test('Web IDE on phone-sized viewports', {skip: CHROME || REMOTE ? false : 'no local Chrome (set $CHROME or install puppeteer browsers)', timeout: 90000}, async t => {
+test('Web IDE on phone-sized viewports', {skip: CHROME || REMOTE ? false : 'no local Chrome (set $CHROME or install puppeteer browsers)', timeout: 60000 + cdp.LAUNCH_BUDGET_MS}, async t => {
   const device = process.env.XS_DEVICE_URL ? process.env.XS_DEVICE_URL.replace(/\/$/, '') : '';
   const mock = device ? null : startMock();
   let b;

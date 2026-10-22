@@ -26,7 +26,7 @@ function startMock() {
 const SPEC = {version: 1, title: '设置', submit: '开始', cancel: '取消', width: '85vw', height: '60vh',
   fields: [{kind: 'text', id: 'name', label: '名称', default: ''}, {kind: 'number', id: 'rounds', label: '次数', default: 3}]};
 
-test('Web IDE UI designer edits a form spec and saving generates the code', {skip: CHROME ? false : 'no local Chrome (set $CHROME or install puppeteer browsers)', timeout: 60000}, async t => {
+test('Web IDE UI designer edits a form spec and saving generates the code', {skip: CHROME ? false : 'no local Chrome (set $CHROME or install puppeteer browsers)', timeout: 60000 + cdp.LAUNCH_BUDGET_MS}, async t => {
   const mock = startMock();
   let browser;
   try {

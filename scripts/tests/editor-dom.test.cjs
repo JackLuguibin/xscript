@@ -41,7 +41,7 @@ const click = sel => { const n = document.querySelector(sel); if (!n) throw Erro
 const row = p => '#files .tree-row[data-path="' + p + '"]';
 const idle = () => !document.getElementById('new-file').disabled;
 
-test('Web IDE explorer, editor and create/delete flows in a real browser', {skip: CHROME || REMOTE ? false : 'no local Chrome (set $CHROME or install puppeteer browsers)', timeout: 60000}, async t => {
+test('Web IDE explorer, editor and create/delete flows in a real browser', {skip: CHROME || REMOTE ? false : 'no local Chrome (set $CHROME or install puppeteer browsers)', timeout: 60000 + cdp.LAUNCH_BUDGET_MS}, async t => {
   const device = process.env.XS_DEVICE_URL ? process.env.XS_DEVICE_URL.replace(/\/$/, '') : '';
   const mock = device ? null : startMock();
   let browser, base;
@@ -61,8 +61,10 @@ test('Web IDE explorer, editor and create/delete flows in a real browser', {skip
       {path: 'utils/deep/c.py', content: 'C = 3\n'}, {path: 'readme.txt', content: 'hello\n'}]});
     await api('POST', '/projects/dom/dir', {path: 'assets'});
 
+    const launched = Date.now();
     browser = REMOTE ? await cdp.attach(REMOTE) : await cdp.launch(CHROME);
     const b = browser;
+    t.diagnostic('browser ready in ' + (Date.now() - launched) + ' ms');   // the slow part when CI times out
     const prompts = answers => b.eval(a => { window.__prompts = []; window.__answers = a.slice(); window.prompt = (msg, def) => { window.__prompts.push({msg, def}); return window.__answers.length ? window.__answers.shift() : null; }; }, answers);
     const confirms = answers => b.eval(a => { window.__confirms = []; window.__cAnswers = a.slice(); window.confirm = msg => { window.__confirms.push(msg); return window.__cAnswers.length ? window.__cAnswers.shift() : false; }; }, answers);
     const settle = () => b.waitFor(idle);
