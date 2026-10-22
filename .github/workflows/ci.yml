@@ -290,7 +290,7 @@ jobs:
       - name: Build the arm64-v8a release APK and check its ABIs
         if: matrix.part == 'release'
         run: |
-          XSCRIPT_GRADLE_TASK=:app:assembleRelease bash android/build.sh -Pxscript.abis=arm64-v8a --console=plain -Dorg.gradle.caching.debug=true
+          XSCRIPT_GRADLE_TASK=:app:assembleRelease bash android/build.sh -Pxscript.abis=arm64-v8a --console=plain
           apk=android/app/build/outputs/apk/release/app-release-unsigned.apk
           python scripts/check_16kb.py "$apk"
           python - "$apk" <<'PY'
