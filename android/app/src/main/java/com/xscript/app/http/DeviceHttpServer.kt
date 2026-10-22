@@ -41,7 +41,7 @@ class DeviceHttpServer(
         when (verdict) {
             HttpGuard.Verdict.BAD_HOST -> return error(Response.Status.FORBIDDEN, "host not allowed")
             HttpGuard.Verdict.BAD_ORIGIN -> return error(Response.Status.FORBIDDEN, "cross-origin request refused")
-            HttpGuard.Verdict.UNAUTHORIZED -> return unauthorized(method, path, headers, remote)
+            HttpGuard.Verdict.UNAUTHORIZED -> return unauthorized(method, path, session.queryParameterString, headers, remote)
             HttpGuard.Verdict.OK -> Unit
         }
         val authed = !required || HttpGuard.matches(HttpGuard.presented(headers), code)
@@ -124,11 +124,11 @@ class DeviceHttpServer(
         }
     }
 
-    private fun unauthorized(method: String, path: String, headers: Map<String, String>, remote: String): Response {
+    private fun unauthorized(method: String, path: String, query: String?, headers: Map<String, String>, remote: String): Response {
         val now = System.currentTimeMillis()
         if (Pairing.Throttle.blocked(remote, now)) return error(Response.Status.TOO_MANY_REQUESTS, "too many wrong pairing codes, retry in a minute")
         if (HttpGuard.presented(headers).isNotEmpty()) Pairing.Throttle.fail(remote, now)
-        if (HttpGuard.isPage(method, path)) return redirect("/pair?next=" + java.net.URLEncoder.encode(path, "UTF-8"))
+        if (HttpGuard.isPage(method, path)) return redirect(HttpGuard.pairRedirect(path, query))
         return newFixedLengthResponse(
             Response.Status.UNAUTHORIZED, JSON,
             JSONObject().put("error", "pairing required").put("pairing", true)

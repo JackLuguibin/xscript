@@ -79,6 +79,9 @@ class HttpGuardTest {
 
     @Test
     fun pagesRedirectInsteadOf401() {
+        assertEquals("/pair?next=%2Ftools%2Fui%2Feditor.html%3Fproject%3Dp%26file%3Da%2520b.py",
+            HttpGuard.pairRedirect("/tools/ui/editor.html", "project=p&file=a%20b.py"))
+        assertEquals("/pair?next=%2Ftools%2F", HttpGuard.pairRedirect("/tools/", null))
         assertTrue(HttpGuard.isPage("GET", "/"))
         assertTrue(HttpGuard.isPage("GET", "/tools/"))
         assertTrue(HttpGuard.isPage("GET", "/tools/ui/mirror.html"))
