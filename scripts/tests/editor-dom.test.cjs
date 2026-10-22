@@ -1222,6 +1222,22 @@ test('Web IDE explorer, editor and create/delete flows in a real browser', {skip
       await fetch(base + '/projects/' + name, {method: 'DELETE'});
     });
 
+    await t.test('line-number gutter: kept while typing on a line, rebuilt when the line count changes', async () => {
+      await api('PUT', '/projects/dom/files', {files: [{path: 'gut_main.py', content: 'a = 1\nb = 2\n'}]});
+      await b.goto((process.env.XS_PAGE_URL ? process.env.XS_PAGE_URL.replace(/\/$/, '') : base) + '/tools/ui/editor.html?project=dom');
+      await b.waitFor(() => !document.getElementById('editor').disabled); await b.waitFor(idle);
+      await b.eval(click, row('gut_main.py'));
+      await b.waitFor(() => document.getElementById('editor').value === 'a = 1\nb = 2\n' && !document.getElementById('editor').disabled);
+      await b.eval(() => { window.__firstNumber = document.querySelector('#line-numbers span'); });
+      const type = text => b.eval(v => { const e = document.getElementById('editor'); e.focus(); e.setSelectionRange(5, 5); e.setRangeText(v, 5, 5, 'end'); e.dispatchEvent(new InputEvent('input', {inputType: 'insertText', data: v})); }, text);
+      await type('0');
+      assert.equal(await b.eval(() => document.querySelector('#line-numbers span') === window.__firstNumber), true, 'same gutter nodes after typing within a line');
+      assert.equal(await b.eval(() => document.querySelectorAll('#line-numbers span').length), 3);
+      await type('\n');
+      assert.deepEqual(await b.eval(() => [...document.querySelectorAll('#line-numbers span')].map(s => s.textContent.trim())), ['1', '2', '3', '4']);
+      assert.equal(await b.eval(() => document.getElementById('cursor').textContent), '行 2，列 1');
+    });
+
     await t.test('?project=…&file=… opens that file (the phone editor links here for files too big to edit on the phone)', async () => {
       await api('PUT', '/projects/dom/files', {files: [{path: 'link dir/deep link.py', content: 'LINKED = 1\n'}]});
       await b.goto((process.env.XS_PAGE_URL ? process.env.XS_PAGE_URL.replace(/\/$/, '') : base) + '/tools/ui/editor.html?project=dom&file=' + encodeURIComponent('link dir/deep link.py'));
