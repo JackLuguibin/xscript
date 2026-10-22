@@ -379,12 +379,13 @@
         let data = null; try { data = await r.json(); } catch (e) { /* not JSON */ }
         if (!r.ok) throw new Error(r.status === 503 || /no_channel/.test(data && data.error || "") ? "读不到节点：请在手机上开启 XScript 的无障碍服务（或授予 Root）后再试" : "读取节点失败（HTTP " + r.status + (data && data.error ? "：" + data.error : "") + "）");
         if (token !== st.token) return;
-        const prev = st.selected && st.selected.path;
+        // keep the same control selected, not whatever now sits at its old path (a scrolled list shifts every row)
+        const prev = st.selected && recentEntry(st.selected);
         st.tree = {width: Number(data.width) || 0, height: Number(data.height) || 0, roots: Array.isArray(data.roots) ? data.roots : [], mode: mode()};
         st.selected = null;
-        if (prev) { const walk = l => { for (const n of l) { if (n.path === prev) return n; const f = walk(n.children || []); if (f) return f; } return null; }; st.selected = walk(st.tree.roots); }
+        if (prev) st.selected = findRecent(st.tree.roots, prev);
         renderTree(); renderDetail();
-        info(count(st.tree.roots) + " 个节点 · " + st.tree.width + "×" + st.tree.height + " · 点截图或树选中节点");
+        info(count(st.tree.roots) + " 个节点 · " + st.tree.width + "×" + st.tree.height + " · " + (prev && !st.selected ? "之前选中的「" + prev.label + "」不在当前界面上" : "点截图或树选中节点"));
         shot(token);
       } catch (e) { if (token === st.token) { info(e.message, true); st.tree = null; st.selected = null; renderTree(); renderDetail(); } }
       finally { if (token === st.token) $("node-take").disabled = false; }

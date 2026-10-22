@@ -212,6 +212,34 @@ test('Web IDE 节点 dock reads the UI tree and generates node code', {skip: CHR
       await b.eval(() => document.querySelector('#node-tree .node-row[data-path="1/0/1"]').click());
     });
 
+    await t.test('重新获取 keeps the same control selected even when the rows shifted, and says when it is gone', async () => {
+      await b.eval(() => document.querySelector('#node-tree .node-row[data-path="1/0/3"]').click());
+      // the phone's list shifted: a new 注册 button now sits at 1/0/3 and 登录 moved to 1/0/5
+      await b.eval(() => {
+        const real = window.fetch;
+        window.__shift = 'move';
+        window.fetch = (url, init) => !String(url).startsWith('/ui-tree') || !window.__shift ? real(url, init) : real(url, init).then(r => r.json()).then(d => {
+          const form = d.roots.find(n => n.path === '1').children[0];
+          const login = form.children.find(n => n.path === '1/0/3');
+          if (window.__shift === 'move') form.children.splice(3, 0, Object.assign({}, login, {path: '1/0/3', text: '注册'})), login.path = '1/0/5';
+          else form.children = form.children.filter(n => n !== login);
+          return new Response(JSON.stringify(d), {status: 200, headers: {'Content-Type': 'application/json'}});
+        });
+      });
+      const retake = async () => { await b.eval(() => document.getElementById('node-take').click()); await b.waitFor(() => !document.getElementById('node-take').disabled && /个节点/.test(document.getElementById('node-info').textContent)); return b.eval(view); };
+      let v = await retake();
+      assert.equal(v.selected, '1/0/5', 'still 登录, not 注册 at its old path'); assert.match(v.code, /text\('登录'\)/);
+      assert.match(v.info, /点截图或树选中节点$/);
+      await b.eval(() => { window.__shift = 'gone'; });
+      v = await retake();
+      assert.equal(v.selected, ''); assert.equal(v.code, '');
+      assert.match(v.info, /之前选中的「登录」不在当前界面上$/);
+      await b.eval(() => { window.__shift = null; });
+      await retake();
+      await b.eval(() => document.querySelector('#node-tree .node-row[data-path="1/0/3"]').click());
+      assert.equal((await b.eval(view)).selected, '1/0/3');
+    });
+
     await t.test('filter keeps matches and their parents; 完整树 adds layout-only nodes', async () => {
       await b.eval(() => { const f = document.getElementById('node-filter'); f.value = 'edittext'; f.dispatchEvent(new Event('input')); });
       assert.deepEqual((await b.eval(view)).rows, ['1', '1/0', '1/0/1']);
