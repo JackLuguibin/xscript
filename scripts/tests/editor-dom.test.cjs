@@ -1237,6 +1237,17 @@ test('Web IDE explorer, editor and create/delete flows in a real browser', {skip
       assert.deepEqual(await b.eval(() => [...document.querySelectorAll('#line-numbers span')].map(s => s.textContent.trim())), ['1', '2', '3', '4']);
       assert.equal(await b.eval(() => document.getElementById('cursor').textContent), '行 2，列 1');
     });
+
+    await t.test('?project=…&file=… opens that file (the phone editor links here for files too big to edit on the phone)', async () => {
+      await api('PUT', '/projects/dom/files', {files: [{path: 'link dir/deep link.py', content: 'LINKED = 1\n'}]});
+      await b.goto((process.env.XS_PAGE_URL ? process.env.XS_PAGE_URL.replace(/\/$/, '') : base) + '/tools/ui/editor.html?project=dom&file=' + encodeURIComponent('link dir/deep link.py'));
+      await b.waitFor(() => document.getElementById('editor').value === 'LINKED = 1\n' && !document.getElementById('editor').disabled);
+      assert.equal((await S()).tabs.find(x => x.selected).text.includes('deep link.py'), true);
+      // an unknown file falls back to the entry file
+      await b.goto((process.env.XS_PAGE_URL ? process.env.XS_PAGE_URL.replace(/\/$/, '') : base) + '/tools/ui/editor.html?project=dom&file=nope.py');
+      await b.waitFor(() => !document.getElementById('editor').disabled && document.getElementById('editor').value !== 'LINKED = 1\n');
+      assert.equal((await S()).tabs.find(x => x.selected).text.includes('__init__.py'), true);
+    });
   } finally {
     if (browser) await browser.close();
     if (device && base) await fetch(base + '/projects/dom', {method: 'DELETE'}).catch(() => {});

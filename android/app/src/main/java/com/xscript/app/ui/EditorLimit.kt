@@ -17,4 +17,14 @@ object EditorLimit {
 
     /** The first [PREVIEW_LINES] lines, each capped so one huge line cannot defeat the limit. */
     fun preview(text: String): String = text.lineSequence().take(PREVIEW_LINES).joinToString("\n") { if (it.length > 500) it.take(500) + " …" else it }
+
+    /**
+     * The Web IDE opened on [path] of [project] (the editor reads ?project= and ?file=), on the phone's address [ip]
+     * ("127.0.0.1" without Wi-Fi: reachable from the computer after `adb forward`). An unpaired browser is sent to the
+     * pairing page first and comes back here.
+     */
+    fun webIdeUrl(ip: String, port: Int, project: String, path: String): String {
+        fun q(s: String) = java.net.URLEncoder.encode(s, "UTF-8").replace("+", "%20")
+        return "http://${ip.ifEmpty { "127.0.0.1" }}:$port/tools/ui/editor.html?project=${q(project)}&file=${q(path)}"
+    }
 }
