@@ -2,7 +2,7 @@
  * reads /ui-tree and /screen, picking a node in the tree or on the screenshot shows its attributes and box, the code
  * follows the chosen kind, 插入到光标 writes it at the caret with the import added once, filter / folding / 完整树 work,
  * the 截图 and 节点 docks replace each other, and a missing accessibility channel is explained.
- * XS_NODES_SHOT=docs/images/ide-nodes.png also saves the documentation screenshot, and ide-nodes-fragile.png (and -run, -a11y, ide-run-a11y, ide-run-overlay, ide-run-next) beside it
+ * XS_NODES_SHOT=docs/images/ide-nodes.png also saves the documentation screenshot, and ide-nodes-fragile.png (and -run, -a11y, ide-run-a11y, ide-run-overlay, ide-run-next, ide-run-again) beside it
  * (a node only its path can pin, with the warning comment) and ide-nodes-run.png (在手机上运行 after 插入).
  * Skipped when no local Chrome is found ($CHROME or ~/.cache/puppeteer). */
 const {test} = require('node:test');
@@ -370,7 +370,7 @@ test('Web IDE 节点 dock reads the UI tree and generates node code', {skip: CHR
       }
       await b.eval(() => document.getElementById('run-a11y').click());
       await b.waitFor(() => /开启 XScript 后再运行/.test(document.getElementById('message').textContent));
-      assert.deepEqual(await b.eval(() => [window.__runA11y.code, document.getElementById('run-a11y').hidden]), ['from xscript.android import permission\n_result = permission.request(permission.ACCESSIBILITY_SERVICE, 1)', true]);
+      assert.deepEqual(await b.eval(() => [window.__runA11y.code, document.getElementById('run-a11y').textContent]), ['from xscript.android import permission\n_result = permission.request(permission.ACCESSIBILITY_SERVICE, 1)', '再运行一次']);
       // only the overlay missing: the button names that page and opens it; screen capture asks the phone instead
       await b.eval(() => {
         const real = window.fetch; window.__runFix = [];
@@ -395,7 +395,7 @@ test('Web IDE 节点 dock reads the UI tree and generates node code', {skip: CHR
       await b.eval(() => document.getElementById('run-a11y').click());
       await b.waitFor(() => /截图授权/.test(document.getElementById('message').textContent));
       assert.deepEqual(await b.eval(() => window.__runFix), [['/eval', 'from xscript.android import permission\n_result = permission.request(permission.OVERLAY, 1)'], ['/capture/request', null]]);
-      assert.equal(await b.eval(() => document.getElementById('run-a11y').hidden), true);
+      assert.equal(await b.eval(() => document.getElementById('run-a11y').textContent), '再运行一次');
       // two missing: after the first fix the button offers the next one (下一项), then goes away
       await b.eval(() => { window.__runFix = []; window.__missing = [{label: '通知使用权', why: '监听通知', where: 'a.py:4'}, {label: '文件访问权限', why: '读写 /sdcard 里的文件', where: 'a.py:5'}]; document.getElementById('run').click(); });
       await b.waitFor(() => document.getElementById('run-a11y').textContent === '打开手机通知使用权设置' && !document.getElementById('run-a11y').hidden);
@@ -410,7 +410,19 @@ test('Web IDE 节点 dock reads the UI tree and generates node code', {skip: CHR
         await b.cmd('Emulation.clearDeviceMetricsOverride', {});
       }
       await b.eval(() => document.getElementById('run-a11y').click());
-      await b.waitFor(() => /文件访问设置，允许 XScript 后再运行。$/.test(document.getElementById('message').textContent));
+      await b.waitFor(() => /文件访问设置，允许 XScript 后再运行。/.test(document.getElementById('message').textContent));
+      // the last fix done: the button runs the project again, and the new run's reply sets it up afresh
+      assert.deepEqual(await b.eval(() => [document.getElementById('run-a11y').hidden, document.getElementById('run-a11y').textContent]), [false, '再运行一次']);
+      assert.match(await b.eval(() => document.getElementById('message').textContent), /开启后点「再运行一次」$/);
+      if (process.env.XS_NODES_SHOT) {
+        await b.cmd('Emulation.setDeviceMetricsOverride', {width: 1280, height: 860, deviceScaleFactor: 2, mobile: false});
+        await new Promise(r => setTimeout(r, 300));
+        const shot = await b.cmd('Page.captureScreenshot', {format: 'png'});
+        fs.writeFileSync(path.resolve(__dirname, '../..', process.env.XS_NODES_SHOT.replace(/ide-nodes\.png$/, 'ide-run-again.png')), Buffer.from(shot.data, 'base64'));
+        await b.cmd('Emulation.clearDeviceMetricsOverride', {});
+      }
+      await b.eval(() => { window.__missing = []; document.getElementById('run-a11y').click(); });
+      await b.waitFor(() => /^已请求运行 nodes$/.test(document.getElementById('message').textContent));
       assert.equal(await b.eval(() => document.getElementById('run-a11y').hidden), true);
       assert.deepEqual(await b.eval(() => window.__runFix.map(c => c[1].match(/permission\.(\w+), 1/)[1])), ['NOTIFICATION_LISTENER', 'MANAGE_EXTERNAL_STORAGE']);
     });

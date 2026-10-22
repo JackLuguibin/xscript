@@ -23,6 +23,8 @@ cd ide/vscode-extension && npm ci && npm run package     # 生成 xscript-vscode
 
 ![缺好几项时，点完一项后的通知说明还剩几项，并给出「Next: Open File Access Settings on Phone」，逐项点下去即可](../../docs/images/vscode-missing-next.png)
 
+![点完最后一项后，通知换成「Run Again」：在手机上开好权限后点它，先停掉还在跑的项目再重新运行](../../docs/images/vscode-missing-again.png)
+
 ![一键调试：在断点处停下，左侧是变量、调用栈和断点，底部是调试控制台](../../docs/images/vscode-debug.png)
 
 ![逐项检查连接：手机上的 XScript 没打开，停在「XScript app answers」，Output 里列出每一步，通知给出修法和「修改地址 / 仍然保存 / 排查文档」](../../docs/images/vscode-connect.png)

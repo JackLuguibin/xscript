@@ -522,12 +522,30 @@ async function startRun(name: string): Promise<void> {
   }
   output.show(true);
   output.appendLine("[xscript] running " + name);
-  void warnMissing(r);
+  void warnMissing(r, name);
   await startFollowing(since);
 }
 
-/** The run reply lists permissions the code uses but the phone lacks: warn, and offer the one-tap fixes one after another (Next). */
-async function warnMissing(reply: Record<string, unknown>): Promise<void> {
+/** Stops whatever runs on the device before a re-run (waits up to 5 s for it to end); false when that failed. */
+async function stopForRerun(name: string): Promise<boolean> {
+  const st = await guard("status", () => client.status());
+  if (!st) return false;
+  if (st.running) {
+    const busy = String(st.project || name);
+    output.appendLine("[xscript] stopping " + busy + " before the re-run");
+    if (!(await guard("stop", () => client.stop(busy)))) return false;
+    for (let i = 0; i < 20; i++) {
+      const now = await client.status(3000).catch(() => st);
+      if (!now.running) break;
+      await new Promise((r) => setTimeout(r, 250));
+    }
+  }
+  return true;
+}
+
+/** The run reply lists permissions the code uses but the phone lacks: warn, offer the one-tap fixes one after another (Next),
+ * and after the last one offer to run `name` again. */
+async function warnMissing(reply: Record<string, unknown>, name: string): Promise<void> {
   const lang = langOf(vscode.env.language);
   const warning = missingWarning(missingPerms(reply), lang);
   if (!warning) return;
@@ -540,8 +558,12 @@ async function warnMissing(reply: Record<string, unknown>): Promise<void> {
     if (text === undefined) return;
     fixes = fixes.slice(1);
     const done = fixDone(text, fixes, lang);
-    button = done.next ?? undefined;
-    pick = await vscode.window.showInformationMessage(done.text, ...(button ? [button] : []));
+    button = done.next;
+    pick = await vscode.window.showInformationMessage(done.text, button);
+    if (done.again) {
+      if (pick === button && (await stopForRerun(name))) await startRun(name);
+      return;
+    }
   }
 }
 
@@ -688,18 +710,7 @@ const commands: Record<string, (...args: any[]) => unknown> = {
     if (!root) return;
     const name = path.basename(root);
     // Like AScript: running again stops the current run first, then syncs and starts.
-    const st = await guard("status", () => client.status());
-    if (!st) return;
-    if (st.running) {
-      const busy = String(st.project || name);
-      output.appendLine("[xscript] stopping " + busy + " before the re-run");
-      if (!(await guard("stop", () => client.stop(busy)))) return;
-      for (let i = 0; i < 20; i++) {
-        const now = await client.status(3000).catch(() => st);
-        if (!now.running) break;
-        await new Promise((r) => setTimeout(r, 250));
-      }
-    }
+    if (!(await stopForRerun(name))) return;
     if (!(await upload(root, false))) return;
     await startRun(name);
   },

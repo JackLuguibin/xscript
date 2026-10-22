@@ -106,26 +106,36 @@ exports.run = async function run() {
       await sleep(500);
     }
 
-    for (const name of ["missing", "missing-notif", "missing-next"].filter((n) => names.includes(n))) {
+    for (const name of ["missing", "missing-notif", "missing-next", "missing-again"].filter((n) => names.includes(n))) {
       // a module using a permission the phone lacks (throw-away perm.py, deleted afterwards): after 运行 the warning offers
-      // the one-tap fix. "missing": clicks with accessibility off; "missing-notif": listens to notifications without notification access; "missing-next": also reads /sdcard, the first fix is pressed and the follow-up offers Next
+      // the one-tap fix. "missing": clicks with accessibility off; "missing-notif": listens to notifications without notification access; "missing-next": also reads /sdcard, the first fix is pressed and the follow-up offers Next; "missing-again": Next pressed too, Run Again offered and then pressed
       const demo = path.join(root, "perm.py");
       fs.writeFileSync(demo, name === "missing" ? "from xscript.android import node\n\nnode.Selector().text(\"签到\").exists(timeout=0)\n"
         : name === "missing-notif" ? "from xscript import event\n\nevent.on(\"notification\", print)\n"
         : "from xscript import event\n\nevent.on(\"notification\", print)\nprint(open(\"/sdcard/Download/x.txt\").read())\n");
+      const press = async () => {
+        await cmd("notifications.focusToasts");
+        await cmd("notification.acceptPrimaryAction");
+        await sleep(3000);
+      };
       await vscode.commands.executeCommand("xscript.run", vscode.Uri.file(file));
       await sleep(4000);
       await cmd("workbench.action.focusActiveEditorGroup");
       await sleep(800);
-      if (name === "missing-next") {
-        // press the warning's button (first fix): the follow-up says how many are left and offers Next
-        await cmd("notifications.focusToasts");
-        await cmd("notification.acceptPrimaryAction");
-        await sleep(3000);
+      if (name === "missing-next" || name === "missing-again") {
+        // press the warning's button (first fix): the follow-up says how many are left and offers Next;
+        // "missing-again" also presses Next, so the last follow-up offers Run Again
+        await press();
+        if (name === "missing-again") await press();
         await cmd("workbench.action.focusActiveEditorGroup");
         await sleep(800);
       }
       await shot(name);
+      if (name === "missing-again") {
+        // Run Again starts the project on the phone a second time (the device log shows it)
+        await press();
+        await sleep(3000);
+      }
       await cmd("notifications.clearAll");
       await vscode.commands.executeCommand("xscript.stop", vscode.Uri.file(file));
       fs.rmSync(demo, { force: true });
