@@ -3,7 +3,7 @@ import { parse } from "../src/flow/dsl";
 import { blame, mapGraph } from "../src/flow/map";
 import { SAMPLE_FLOW } from "../src/flow/sample";
 import { builtinSpecs } from "../src/flow/specs";
-import { buildRun, rememberRun } from "../src/flow/runs";
+import { buildRun, rememberRun, runLine } from "../src/flow/runs";
 import { emptyLogCursor, flowEdges, followLogs, pictureOf, readTrace, RUN_KEEP_MS, runKept, seqGap } from "../src/flow/trace";
 
 const mark = "\x1fXF";
@@ -101,6 +101,9 @@ describe("trace playback", () => {
     expect(run.error_node).toBe("tap");
     expect(run.nodes.map((node) => node.node)).toEqual(["warm", "tap"]);
     expect(run.nodes[0]).toMatchObject({ seq: 1, enter_ms: 10, summary: "True" });
+    const word = (status: string) => (status === "error" ? "出错" : "完成");
+    expect(runLine(run, word)).toBe("daily 出错 warm → tap · tap：missing");
+    expect(runLine({ ...run, status: "success", error_node: "" }, word)).toBe("daily 完成 warm → tap");
     expect(rememberRun([run], { ...run, id: 8 }).map((item) => item.id)).toEqual([8, 7]);
     expect(rememberRun(Array.from({ length: 20 }, (_, index) => ({ ...run, id: index })), { ...run, id: 99 })).toHaveLength(20);
   });
