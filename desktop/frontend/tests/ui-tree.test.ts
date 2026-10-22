@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { flattenTree, hitTest, nodeXPath, pyStr, rectPercent, selectorCode, xpathStr, type UiNode } from "../src/ui-tree";
+import { flattenTree, hitTest, nodeXPath, pyStr, rectPercent, selectorChain, selectorCode, xpathStr, type UiNode } from "../src/ui-tree";
 
 const child: UiNode = {
   path: "0/0/1",
@@ -39,5 +39,30 @@ describe("ui tree", () => {
     expect(rectPercent(child.rect!, { w: 0, h: 0 })).toBeNull();
     const flat = flattenTree([parent], 1);
     expect(flat.some((row) => row.truncated)).toBe(true);
+  });
+});
+
+describe("selectors stay unique when a resource id is shared", () => {
+  // Settings-style list: every title shares android:id/title; two rows even share their text.
+  const row = (path: string, text: string): UiNode => ({ path, id: "android:id/title", text, type: "android.widget.TextView" });
+  const roots: UiNode[] = [{ path: "0", type: "android.widget.FrameLayout", children: [
+    row("0/0", "Network & internet"), row("0/1", "Apps"), row("0/2", "Battery"), row("0/3", "Battery"),
+    { path: "0/4", id: "android:id/icon", desc: "Wi-Fi" }, { path: "0/5", id: "android:id/icon", desc: "Bluetooth" },
+    { path: "0/6", id: "com.demo:id/ok", text: "OK", clickable: true },
+  ] }];
+  const at = (p: string) => roots[0].children!.find((n) => n.path === p)!;
+
+  it("adds text, desc, then path until only the picked node matches", () => {
+    expect(selectorChain(at("0/1"), "node", roots)).toBe("node.Selector().id('android:id/title').text('Apps')");
+    expect(selectorChain(at("0/3"), "node", roots)).toBe("node.Selector().id('android:id/title').text('Battery').path('0/3')");
+    expect(selectorChain(at("0/5"), "node", roots)).toBe("node.Selector().id('android:id/icon').desc('Bluetooth')");
+    expect(selectorChain(at("0/6"), "node", roots)).toBe("node.Selector().id('com.demo:id/ok').clickable()");
+    expect(selectorCode(at("0/1"))).toBe("from xscript.android import node\nnode.Selector().id('android:id/title').find(timeout=5)");
+  });
+
+  it("builds the matching XPath", () => {
+    expect(nodeXPath(at("0/1"), roots)).toBe('//*[@resource-id="android:id/title"][@text="Apps"]');
+    expect(nodeXPath(at("0/3"), roots)).toBe('//*[@resource-id="android:id/title"][@text="Battery"][@path="0/3"]');
+    expect(nodeXPath(at("0/6"), roots)).toBe('//*[@resource-id="com.demo:id/ok"]');
   });
 });
