@@ -157,6 +157,11 @@ test('a resource id shared by several nodes gets text / desc / path added until 
   assert.equal(xp('0/1'), '//*[@resource-id="android:id/title"][@text="Apps"]');
   assert.equal(xp('0/3'), '//*[@resource-id="android:id/title"][@text="Battery"][@path="0/3"]');
   assert.equal(xp('0/6'), '//*[@resource-id="com.demo:id/ok"]');
+  const CLOCKS = [node('0', 'android.widget.FrameLayout', [0, 0, 1080, 130], [
+    node('0/0', 'android.widget.TextView', [50, 1, 136, 128], [], {id: 'com.android.systemui:id/clock', text: '1:57', desc: '1:57 AM'}),
+    node('0/1', 'android.widget.TextView', [500, 1, 600, 128], [], {id: 'com.android.systemui:id/clock', text: '1:57', desc: '1:57 AM'}),
+  ])];
+  assert.equal(N.selectorChain(atIn(CLOCKS, '0/1'), 'node', 0, CLOCKS), "node.Selector().id('com.android.systemui:id/clock').path('0/1')", 'clock text is never used');
   const cases = [];
   for (const p of ['0/0', '0/1', '0/2', '0/3', '0/4', '0/5', '0/6']) for (const kind of ['find', 'xpath', 'click'])
     cases.push({p, kind, code: N.fullText(N.snippet(atIn(LIST, p), kind, 1, LIST))});

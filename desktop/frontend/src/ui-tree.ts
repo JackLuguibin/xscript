@@ -93,10 +93,15 @@ export function xpathStr(value: string): string {
 
 type Field = "id" | "text" | "desc" | "type" | "path";
 
+/** Clocks and timers rewrite their own text every second or minute, so a selector on it stops matching. */
+export function volatileText(node: Pick<UiNode, "id" | "type">): boolean {
+  return /:id\/clock$/.test(node.id ?? "") || /(^|\.)(TextClock|Chronometer)$/.test(node.type ?? "");
+}
+
 /** Fields the Selector / XPath filters on, in the order they are tried. A field is added only while the earlier ones
  *  still match other nodes of `roots` (every row of a settings list shares one resource id, for example), so the code
  *  finds the picked node rather than the first look-alike. Without `roots` the first field is enough; when none is
- *  unique the node's path pins it. Same rule as the Web IDE node tool (android/app/src/main/assets/tools/editor-nodes.js). */
+ *  unique the node's path pins it. Text and desc of a clock (volatileText) are never used. Same rule as the Web IDE node tool (android/app/src/main/assets/tools/editor-nodes.js). */
 export function selectorFields(node: UiNode, roots?: UiNode[]): Field[] {
   const all: UiNode[] = [];
   const walk = (n: UiNode) => { all.push(n); (n.children ?? []).forEach(walk); };
@@ -105,7 +110,7 @@ export function selectorFields(node: UiNode, roots?: UiNode[]): Field[] {
     all.filter((x) => fields.every((f) => (x[f] ?? "") === (node[f] ?? "")) && (!node.clickable || x.clickable)).length;
   const fields: Field[] = [];
   for (const f of ["id", "text", "desc"] as const) {
-    if (!node[f]) continue;
+    if (!node[f] || (f !== "id" && volatileText(node))) continue;
     fields.push(f);
     if (!roots || same(fields) <= 1) return fields;
   }

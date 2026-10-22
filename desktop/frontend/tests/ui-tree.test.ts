@@ -50,6 +50,11 @@ describe("ui tree", () => {
     expect(nodeXPath(listAt("0/1"), listRoots)).toBe('//*[@resource-id="android:id/title"][@text="Apps"]');
     expect(nodeXPath(listAt("0/3"), listRoots)).toBe('//*[@resource-id="android:id/title"][@text="Battery"][@path="0/3"]');
     expect(nodeXPath(listAt("0/6"), listRoots)).toBe('//*[@resource-id="com.demo:id/ok"]');
+    // A clock's text changes every minute: never filter on it, pin a shared clock id with the path instead.
+    const clock = (path: string): UiNode => ({ path, id: "com.android.systemui:id/clock", text: "1:57", desc: "1:57 AM", type: "android.widget.TextView" });
+    const clocks: UiNode[] = [{ path: "0", children: [clock("0/0"), clock("0/1")] }];
+    expect(selectorChain(clocks[0].children![1], "node", clocks)).toBe("node.Selector().id('com.android.systemui:id/clock').path('0/1')");
+    expect(selectorChain({ path: "0/2", text: "00:12", type: "android.widget.Chronometer" }, "node", clocks)).toBe("node.Selector().type('android.widget.Chronometer').path('0/2')");
   });
 
   it("maps a rect onto the frame as percentages and flattens with a cap", () => {

@@ -1,6 +1,6 @@
 // Hand-off from other pages to the flow canvas (design §11.1: "drop a control onto the canvas").
 // The screen page queues a picked control; the shell switches to the flow page, which takes the queue.
-import { selectorChain, type UiNode } from "../ui-tree";
+import { selectorChain, volatileText, type UiNode } from "../ui-tree";
 
 export type CanvasPick = Pick<UiNode, "id" | "text" | "desc" | "type" | "path" | "clickable"> & {
   /** Worked out against the screen's tree when the control is sent (the tree itself is not queued). */
@@ -31,7 +31,7 @@ const listeners = new Set<() => void>();
 export function sendToCanvas(pick: CanvasPick, roots?: UiNode[]): void {
   const { id, text, desc, type, path, clickable } = pick;
   const where = roots
-    ? { textUnique: !!text && sameText(roots, text) === 1, chain: selectorChain(pick, "", roots).slice(".Selector()".length) }
+    ? { textUnique: !!text && !volatileText(pick) && sameText(roots, text) === 1, chain: selectorChain(pick, "", roots).slice(".Selector()".length) }
     : pick.where;
   pending.push({ id, text, desc, type, path, clickable, ...(where ? { where } : {}) });
   for (const listener of [...listeners]) listener();
