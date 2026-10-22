@@ -57,7 +57,12 @@ test('run saves every dirty file of the selected project before starting', async
   assert.equal(EditorModel.fixDone('已打开。',0),'已打开。 开启后点「再运行一次」');
   for(const f of Object.values(EditorModel.PERM_FIX)) assert.ok(f.button&&f.opened&&f.where);
   // same table as protocol/permission-fix.json (shared with VS Code and PyCharm)
-  const shared=JSON.parse(require('node:fs').readFileSync(require('node:path').resolve(__dirname,'../../protocol/permission-fix.json'),'utf8')).permissions;
+  const table=JSON.parse(require('node:fs').readFileSync(require('node:path').resolve(__dirname,'../../protocol/permission-fix.json'),'utf8'));
+  const shared=table.permissions;
+  // Run Again after the last fix: same hint as VS Code and PyCharm, and the button editor.js shows
+  assert.equal(EditorModel.fixDone('已打开。',0),'已打开。 '+table.runAgain.zh.hint);
+  assert.ok(table.runAgain.zh.hint.includes('「'+table.runAgain.zh.button+'」'));
+  assert.match(require('node:fs').readFileSync(require('node:path').resolve(__dirname,'../../android/app/src/main/assets/tools/editor.js'),'utf8'),new RegExp('textContent = "'+table.runAgain.zh.button+'"'));
   assert.deepEqual(Object.keys(EditorModel.PERM_FIX).sort(),shared.map(e=>e.label).sort());
   for(const e of shared){
     const f=EditorModel.PERM_FIX[e.label];

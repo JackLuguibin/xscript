@@ -1,5 +1,5 @@
 {
-  "_comment": "One-tap fixes for permissions a run reports as missing (POST /projects/<name>/run -> missing[].label, from PermissionNeeds.Kind). permission: the xscript.android.permission constant; /eval runs `from xscript.android import permission\\n_result = permission.request(permission.<permission>, 1)` (\"1\": already granted). captureRequest: POST /capture/request instead. Clients keep their own copy (Web IDE editor-model.js, VS Code missingPerms.ts, PyCharm MissingPerms.kt + bundles); each one's tests compare it with this file, and the Android unit tests compare the labels with PermissionNeeds.Kind.",
+  "_comment": "One-tap fixes for permissions a run reports as missing (POST /projects/<name>/run -> missing[].label, from PermissionNeeds.Kind). permission: the xscript.android.permission constant; /eval runs `from xscript.android import permission\\n_result = permission.request(permission.<permission>, 1)` (\"1\": already granted). captureRequest: POST /capture/request instead. Clients keep their own copy (Web IDE editor-model.js, VS Code missingPerms.ts, PyCharm MissingPerms.kt + bundles); each one's tests compare it (and runAgain) with this file, and the Android unit tests compare the labels with PermissionNeeds.Kind.",
   "permissions": [
     {
       "id": "a11y",
@@ -96,5 +96,10 @@
         "where": "Settings → Apps → Special app access → All files access"
       }
     }
-  ]
+  ],
+  "runAgain": {
+    "_comment": "After the last fix: the button that runs the project again and the hint appended to the last fix's message (zh hint without the final 。; VS Code and PyCharm add it).",
+    "zh": {"button": "再运行一次", "hint": "开启后点「再运行一次」"},
+    "en": {"button": "Run Again", "hint": "Click Run Again when ready."}
+  }
 }

@@ -82,7 +82,14 @@ class MissingPermsTest {
         }
         assertTrue(A11Y_CODE.contains("permission.ACCESSIBILITY_SERVICE"))
         // same table as protocol/permission-fix.json (shared with the Web IDE and VS Code)
-        val shared = JsonParser.parseString(java.io.File("../../protocol/permission-fix.json").readText()).asJsonObject.getAsJsonArray("permissions")
+        val table = JsonParser.parseString(java.io.File("../../protocol/permission-fix.json").readText()).asJsonObject
+        // Run Again after the last fix: same button and hint as the Web IDE and VS Code
+        val again = table.getAsJsonObject("runAgain")
+        assertEquals("x " + again.getAsJsonObject("zh").get("hint").asString + "。" to again.getAsJsonObject("zh").get("button").asString,
+            fixDone("x", emptyList(), bundle("XScriptBundle_zh_CN.properties")))
+        assertEquals("x " + again.getAsJsonObject("en").get("hint").asString to again.getAsJsonObject("en").get("button").asString,
+            fixDone("x", emptyList(), bundle("XScriptBundle.properties")))
+        val shared = table.getAsJsonArray("permissions")
         assertEquals(5, shared.size())
         for (e in shared) assertEquals(e.asJsonObject.get("label").asString, e.asJsonObject.getAsJsonObject("zh").get("name").asString)
         for (e in shared.map { it.asJsonObject }) {

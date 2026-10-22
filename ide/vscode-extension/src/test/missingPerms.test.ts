@@ -40,7 +40,11 @@ test("per-permission one-tap fix: the first missing permission with a fix, same 
     }
   }
   // same table as protocol/permission-fix.json (shared with the Web IDE and PyCharm); opened / on carry the "XScript" prefix
-  const shared = JSON.parse(fs.readFileSync(path.resolve(__dirname, "../../../../protocol/permission-fix.json"), "utf8")).permissions as
+  const table = JSON.parse(fs.readFileSync(path.resolve(__dirname, "../../../../protocol/permission-fix.json"), "utf8"));
+  // Run Again after the last fix: same button and hint as the Web IDE and PyCharm
+  assert.deepEqual(fixDone("x", [], "zh"), { text: "x " + table.runAgain.zh.hint + "。", next: table.runAgain.zh.button, again: true });
+  assert.deepEqual(fixDone("x", [], "en"), { text: "x " + table.runAgain.en.hint, next: table.runAgain.en.button, again: true });
+  const shared = table.permissions as
     { label: string; permission?: string; captureRequest?: boolean; zh: Record<string, string>; en: Record<string, string> }[];
   assert.equal(shared.length, 5);
   for (const e of shared) assert.equal(e.zh.name, e.label);
