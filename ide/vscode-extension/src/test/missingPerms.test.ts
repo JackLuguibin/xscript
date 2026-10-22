@@ -1,19 +1,41 @@
 import { test } from "node:test";
 import * as assert from "node:assert/strict";
-import { A11Y_CODE, missingPerms, missingText, missingWarning } from "../missingPerms";
+import { A11Y_CODE, missingPerms, missingText, missingWarning, permFix } from "../missingPerms";
 
 test("run reply: missing permissions become a warning, with the accessibility fix only when it is missing", () => {
   assert.deepEqual(missingPerms({ ok: true }), []);
   assert.deepEqual(missingPerms(undefined), []);
   assert.deepEqual(missingPerms({ missing: [{ label: "无障碍", why: "x", where: "__init__.py:4" }, null, { where: "a" }] }), [{ label: "无障碍", where: "__init__.py:4" }]);
   assert.equal(missingWarning([], "zh"), null);
-  const list = [{ label: "无障碍", where: "__init__.py:4" }, { label: "悬浮窗权限", where: "" }];
-  assert.deepEqual(missingWarning(list, "zh"), {
-    text: "XScript：手机上还缺 无障碍（__init__.py:4）、悬浮窗权限，相关操作会失败（脚本已启动）。请在手机上的小程序详情页开启。",
-    a11y: true,
-  });
-  assert.equal(missingWarning(list, "en")?.text, "XScript: the phone is missing Accessibility (__init__.py:4), Overlay; those calls will fail (the script started). Grant it on the project page in the phone app.");
-  assert.equal(missingWarning([{ label: "悬浮窗权限", where: "" }], "zh")?.a11y, false);
+  const list = [{ label: "悬浮窗权限", where: "" }, { label: "无障碍", where: "__init__.py:4" }];
+  const zh = missingWarning(list, "zh");
+  assert.equal(zh?.text, "XScript：手机上还缺 悬浮窗权限、无障碍（__init__.py:4），相关操作会失败（脚本已启动）。请在手机上的小程序详情页开启。");
+  assert.equal(zh?.a11y, true);
+  assert.equal(zh?.fix?.label, "无障碍");
+  assert.equal(zh?.fix?.button, "打开手机无障碍设置");
+  assert.equal(zh?.fix?.code, A11Y_CODE);
+  assert.equal(missingWarning(list, "en")?.text, "XScript: the phone is missing Overlay, Accessibility (__init__.py:4); those calls will fail (the script started). Grant it on the project page in the phone app.");
+  assert.equal(missingWarning(list, "en")?.fix?.button, "Open Accessibility Settings on Phone");
   assert.equal(A11Y_CODE, "from xscript.android import permission\n_result = permission.request(permission.ACCESSIBILITY_SERVICE, 1)");
-  assert.equal(missingText("zh").open, "打开手机无障碍设置");
+});
+
+test("per-permission one-tap fix: the first missing permission with a fix, same codes as the Web IDE", () => {
+  const overlay = missingWarning([{ label: "未知", where: "" }, { label: "悬浮窗权限", where: "a.py:2" }], "zh");
+  assert.equal(overlay?.a11y, false);
+  assert.deepEqual([overlay?.fix?.label, overlay?.fix?.button, overlay?.fix?.code],
+    ["悬浮窗权限", "打开手机悬浮窗设置", "from xscript.android import permission\n_result = permission.request(permission.OVERLAY, 1)"]);
+  assert.match(permFix("通知使用权", "en")?.code ?? "", /permission\.NOTIFICATION_LISTENER, 1\)$/);
+  assert.equal(permFix("通知使用权", "en")?.button, "Open Notification Access on Phone");
+  assert.match(permFix("文件访问权限", "zh")?.code ?? "", /permission\.MANAGE_EXTERNAL_STORAGE, 1\)$/);
+  const cap = permFix("图色权限（截图）", "en");
+  assert.deepEqual([cap?.capture, cap?.code, cap?.button], [true, undefined, "Grant Screen Capture on Phone"]);
+  assert.equal(permFix("未知", "zh"), null);
+  assert.equal(missingWarning([{ label: "未知", where: "" }], "zh")?.fix, null);
+  for (const label of ["无障碍", "悬浮窗权限", "通知使用权", "文件访问权限", "图色权限（截图）"]) {
+    for (const lang of ["zh", "en"] as const) {
+      const f = permFix(label, lang);
+      assert.ok(f && f.button && f.opened && f.where, label + " " + lang);
+    }
+  }
+  assert.equal(missingText("zh").failed("timeout", "设置 → 无障碍"), "XScript：打开失败（timeout），请在手机的 设置 → 无障碍 里开启 XScript。");
 });
