@@ -109,7 +109,7 @@
 #line-numbers .diag-line { color:var(--bad, #d32f2f); text-decoration:underline wavy; text-decoration-thickness:1px; text-underline-offset:3px; }
 .ide-status { align-items:center; }
 .ide-status-left, .ide-status-right { display:flex; align-items:center; gap:14px; min-width:0; }
-.ide-status-left { flex:1; } .ide-status-left #message { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.ide-status-left { flex:1; display:flex; align-items:center; gap:8px; min-width:0; } #run-a11y { flex:none; padding:2px 8px; } .ide-status-left #message { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
 .ide-status-right { flex-shrink:0; }
 .ide-status .problems { height:auto; padding:0 4px; border:0; background:none; font-size:11px; color:var(--muted); max-width:46vw; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
 .ide-status .problems.has-problems { color:var(--bad, #d32f2f); }

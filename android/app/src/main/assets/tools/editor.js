@@ -11,7 +11,7 @@
   const selectedDir = () => selected && selected.type === "dir" ? selected.path : "";
   // 删除文件 acts on the file selected in the tree (keyboard selection may differ from the open file).
   const selectedFile = () => selected ? (selected.type === "file" ? selected.path : "") : current ? current.path : "";
-  const message = (text, error = false) => { el("message").textContent = text; el("message").classList.toggle("error", error); };
+  const message = (text, error = false) => { el("message").textContent = text; el("message").classList.toggle("error", error); el("run-a11y").hidden = true; };
   const debuggerClient = new XScriptDebugger((...args) => XS.api(...args), {
     state: text => { el("debug-state").textContent = text; renderDebug(); },
     warning: text => message(text, true),
@@ -532,7 +532,13 @@
     button.onclick = () => debuggerClient.control(button.dataset.debug).catch(e => message(e.message, true));
   });
   el("debug-disconnect").onclick = async () => { await debuggerClient.close(); el("debug-state").textContent = "已断开，任务仍可运行"; renderDebug(); };
-  el("run").onclick = () => operation(async () => { await debuggerClient.close(); const m = EditorModel.runMessage(model.project, await model.run()); message(m.text, m.warn); poll(); });
+  el("run").onclick = () => operation(async () => { await debuggerClient.close(); const m = EditorModel.runMessage(model.project, await model.run()); message(m.text, m.warn); el("run-a11y").hidden = !m.a11y; poll(); });
+  // one tap from the run warning: open the phone's accessibility settings (same /eval as the 节点 panel)
+  el("run-a11y").onclick = () => operation(async () => {
+    const r = await XS.api("POST", "/eval", {code: EditorNodes.A11Y_CODE, timeout_ms: 5000});
+    if (!r || !r.ok) throw new Error("打开失败：" + ((r && r.error) || "?") + "，请在手机的 设置 → 无障碍 里开启 XScript");
+    message(String(r.result) === "1" ? "无障碍服务已开启，可以再运行一次" : "已在手机上打开无障碍设置：开启 XScript 后再运行");
+  });
   el("stop").onclick = () => operation(async () => { await model.stop(); await debuggerClient.close(); el("debug-state").textContent = "已停止"; message("已请求停止当前任务"); poll(); });
   el("delete-file").onclick = () => {
     if (selectedDir()) {

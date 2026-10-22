@@ -352,6 +352,25 @@ test('Web IDE 节点 dock reads the UI tree and generates node code', {skip: CHR
       await b.waitFor(() => /已在手机上打开无障碍设置/.test(document.getElementById('node-info').textContent));
       const a = await b.eval(() => ({code: window.__a11ySent.code, error: document.getElementById('node-info').classList.contains('error')}));
       assert.deepEqual(a, {code: 'from xscript.android import permission\n_result = permission.request(permission.ACCESSIBILITY_SERVICE, 1)', error: false});
+      // 运行 whose reply lists accessibility as missing: the status line warns and offers the same one-tap fix
+      await b.eval(() => {
+        const real = window.fetch; window.__runA11y = null;
+        window.fetch = (url, opts) => /\/projects\/[^/]+\/run$/.test(String(url)) ? Promise.resolve(new Response(JSON.stringify({ok: true, running: true, missing: [{label: '无障碍', why: '点击、滑动、输入、读取控件', where: '__init__.py:4'}]}), {headers: {'Content-Type': 'application/json'}}))
+          : String(url) === '/eval' ? (window.__runA11y = JSON.parse(opts.body), Promise.resolve(new Response(JSON.stringify({ok: true, result: '0'}), {headers: {'Content-Type': 'application/json'}}))) : real(url, opts);
+        document.getElementById('run').click();
+      });
+      await b.waitFor(() => /手机上还缺：无障碍/.test(document.getElementById('message').textContent));
+      assert.deepEqual(await b.eval(() => [document.getElementById('message').classList.contains('error'), document.getElementById('run-a11y').hidden]), [true, false]);
+      if (process.env.XS_NODES_SHOT) {
+        await b.cmd('Emulation.setDeviceMetricsOverride', {width: 1280, height: 860, deviceScaleFactor: 2, mobile: false});
+        await new Promise(r => setTimeout(r, 300));
+        const shot = await b.cmd('Page.captureScreenshot', {format: 'png'});
+        fs.writeFileSync(path.resolve(__dirname, '../..', process.env.XS_NODES_SHOT.replace(/ide-nodes\.png$/, 'ide-run-a11y.png')), Buffer.from(shot.data, 'base64'));
+        await b.cmd('Emulation.clearDeviceMetricsOverride', {});
+      }
+      await b.eval(() => document.getElementById('run-a11y').click());
+      await b.waitFor(() => /开启 XScript 后再运行/.test(document.getElementById('message').textContent));
+      assert.deepEqual(await b.eval(() => [window.__runA11y.code, document.getElementById('run-a11y').hidden]), ['from xscript.android import permission\n_result = permission.request(permission.ACCESSIBILITY_SERVICE, 1)', true]);
     });
 
     assert.deepEqual(b.errors, []);
