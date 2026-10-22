@@ -282,7 +282,13 @@ jobs:
       # Release builds run R8; build one unsigned here so shrinking problems show up before a tag does.
       - name: Build the release APK (R8, unsigned)
         if: matrix.part == 'release'
-        run: XSCRIPT_GRADLE_TASK=:app:assembleRelease bash android/build.sh --console=plain
+        # -Dorg.gradle.caching.debug: every build cache key input, kept in an artifact (not the console, the lines are
+        # too long for the job log) so a cache miss of the pip install below can be compared across runs.
+        run: |
+          mkdir -p /tmp/cache-keys
+          set -o pipefail
+          XSCRIPT_GRADLE_TASK=:app:assembleRelease bash android/build.sh --console=plain -Dorg.gradle.caching.debug=true 2>&1 \
+            | tee /tmp/cache-keys/universal.log | grep -v '^Appending '
       - name: Release APK is 16 KB ready
         if: matrix.part == 'release'
         run: python scripts/check_16kb.py android/app/build/outputs/apk/release/app-release-unsigned.apk
@@ -290,7 +296,9 @@ jobs:
       - name: Build the arm64-v8a release APK and check its ABIs
         if: matrix.part == 'release'
         run: |
-          XSCRIPT_GRADLE_TASK=:app:assembleRelease bash android/build.sh -Pxscript.abis=arm64-v8a --console=plain
+          set -o pipefail
+          XSCRIPT_GRADLE_TASK=:app:assembleRelease bash android/build.sh -Pxscript.abis=arm64-v8a --console=plain -Dorg.gradle.caching.debug=true 2>&1 \
+            | tee /tmp/cache-keys/arm64.log | grep -v '^Appending '
           apk=android/app/build/outputs/apk/release/app-release-unsigned.apk
           python scripts/check_16kb.py "$apk"
           python - "$apk" <<'PY'
@@ -306,6 +314,15 @@ jobs:
           assert not stored, stored[:5]
           print("arm64-v8a only:", len(names), "entries")
           PY
+      # Why the arm64 pip install misses the build cache on CI (it hits locally): compare these between two runs.
+      - name: Build cache key inputs of the release builds
+        if: always() && matrix.part == 'release'
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: release-cache-keys
+          path: /tmp/cache-keys/
+          retention-days: 7
+          if-no-files-found: ignore
 
   desktop-frontend:
     name: desktop frontend (type-check, unit tests + coverage, build)
