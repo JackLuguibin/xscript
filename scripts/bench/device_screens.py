@@ -93,6 +93,16 @@ def top_is(activity):
     return ("ACTIVITY %s/com.xscript.app.ui.%s" % (PKG, activity)) in adb("shell", "dumpsys", "activity", "top")
 
 
+def wait_top(activity, timeout=20):
+    """The CI emulator renders in software, so a screen can take several seconds to come up."""
+    end = time.time() + timeout
+    while time.time() < end:
+        if top_is(activity):
+            return True
+        time.sleep(1)
+    return False
+
+
 def bench_projects():
     for i in range(N_PROJ):
         files = [{"path": "__init__.py", "content": "print('hi')\n"}] + \
@@ -104,7 +114,9 @@ def bench_projects():
             home()
             adb("logcat", "-c")
             tap_text("小程序列表")
-            time.sleep(3)
+            if not wait_top("ProjectsActivity"):
+                raise SystemExit("bench: 小程序列表 did not open")
+            time.sleep(1)
             log = adb("logcat", "-d", "-s", "ActivityTaskManager")
             m = re.search(r"Displayed %s/com\.xscript\.app\.ui\.ProjectsActivity[^+]*\+(?:(\d+)s)?(\d+)ms" % re.escape(PKG), log)
             if m:
@@ -137,8 +149,7 @@ def bench_log():
     try:
         home()
         tap_text("日志")
-        time.sleep(2)
-        if not top_is("LogActivity"):
+        if not wait_top("LogActivity"):
             raise SystemExit("bench: 运行日志 did not open")
         api("POST", "/projects/%s/run" % LOG_PROJECT)
         time.sleep(30)  # past the log's line cap, so trimming is part of what is measured

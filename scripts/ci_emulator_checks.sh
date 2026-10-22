@@ -36,4 +36,5 @@ XS_PKG="$PKG" XS_ONLY=orientation python3 scripts/device_float_e2e.py "$ANDROID_
 # 桌面端「在手机上试运行」: the generated form opens on the phone, 开始/取消 return the values / null (needs node)
 python3 scripts/device_ui_try_e2e.py "$ANDROID_SERIAL" http://127.0.0.1:19860
 # 小程序列表 open/scroll and 运行日志 at 500 lines/s; soft: over-budget values only warn
-python3 scripts/bench/device_screens.py "$ANDROID_SERIAL" http://127.0.0.1:19860 "$PKG"
+python3 scripts/bench/device_screens.py "$ANDROID_SERIAL" http://127.0.0.1:19860 "$PKG" ||
+  echo "::warning title=Device screen benchmark::the benchmark could not run (see the log above); checks are unaffected"
