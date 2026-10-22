@@ -168,7 +168,7 @@
   function tryCode(n, kind = "find", mode = 0, roots = null) {
     if (kind === "tap") return null;
     const sel = kind === "xpath" ? "node.Selector(" + (mode ? "1, " : "") + "xpath=" + pyStr(nodeXPath(n, roots)) + ")" : selectorChain(n, "node", mode, roots);
-    return NODE_IMPORT + "\n_hits = " + sel + ".find_all(timeout=0, limit=20)\n_result = [[h.path, h.left, h.top, h.right, h.bottom] for h in _hits]";
+    return NODE_IMPORT + "\n_hits = " + sel + ".find_all(timeout=0, limit=20)\n_result = [[h.path, h.left, h.top, h.right, h.bottom, h.id, h.text, h.desc, h.type] for h in _hits]";
   }
 
   /** The inserted snippet as a POST /eval body that really runs on the phone (find-and-click clicks, 点击中心坐标 taps)
@@ -206,10 +206,14 @@
   function tryVerdict(result, n) {
     let list = [];
     try { list = JSON.parse(result || "[]"); } catch (e) { list = []; }
-    const hits = (Array.isArray(list) ? list : []).map(h => ({path: String(h[0]), rect: {l: h[1], t: h[2], r: h[3], b: h[4]}}));
+    // the picked node itself: the same id / text / desc / type (it may have moved since the tree was read); the path only for nodes without them
+    const me = h => h.vals && (n.id || n.text || n.desc) ? h.vals.join("\u0000") === [n.id || "", n.text || "", n.desc || "", n.type || ""].join("\u0000") : h.path === n.path;
+    const hits = (Array.isArray(list) ? list : []).map(h => ({path: String(h[0]), rect: {l: h[1], t: h[2], r: h[3], b: h[4]}, vals: h.length > 5 ? h.slice(5, 9).map(v => v || "") : null}));
+    for (const h of hits) { h.self = !!me(h); delete h.vals; }
     if (!hits.length) return {ok: false, hits, text: "试一下：没找到。界面可能变了，点「重新获取」再试"};
     const many = hits.length >= 20 ? "20 个及以上" : hits.length + " 个";
-    if (hits[0].path !== n.path) return {ok: false, hits, text: "试一下：找到 " + many + "，第一个不是选中的节点（路径 " + hits[0].path + "）"};
+    if (!hits[0].self) return {ok: false, hits, text: "试一下：找到 " + many + "，第一个不是选中的节点（路径 " + hits[0].path + "）"};
+    if (hits[0].path !== n.path) return {ok: true, hits, text: "试一下：找到 " + many + "，" + (hits.length > 1 ? "第一个" : "") + "是选中的节点，但它移动了（现在路径 " + hits[0].path + "），可点「重新获取」"};
     return {ok: true, hits, text: hits.length === 1 ? "试一下：找到 1 个，就是选中的节点" : "试一下：找到 " + many + "，第一个是选中的节点（.find 用第一个）"};
   }
 
@@ -335,6 +339,8 @@
       clearTry();
       const token = st.tryToken, out = $("node-try-result");
       $("node-try").disabled = true; out.textContent = "试一下：在手机上查找…";
+      // a screenshot taken now, so the boxes are drawn over what the phone shows at try time, not when the tree was read
+      const fresh = fetch("/screen?t=" + Date.now(), {cache: "no-store", headers: {"X-XScript-Client": "tools"}}).then(r => r.ok ? r.blob() : null).catch(() => null);
       try {
         const r = await fetch("/eval", {method: "POST", cache: "no-store", headers: {"Content-Type": "application/json", "X-XScript-Client": "tools"}, body: JSON.stringify({code, timeout_ms: 5000})});
         if (r.status === 401) { location.href = "/pair?next=" + encodeURIComponent(location.pathname + location.search); return; }
@@ -342,10 +348,16 @@
         if (token !== st.tryToken) return;
         if (!r.ok || !data || !data.ok) throw new Error("试一下失败：" + ((data && (data.error || "").trim().split("\n").pop()) || "HTTP " + r.status));
         const v = tryVerdict(data.result, n);
-        out.textContent = v.text; out.classList.add(v.ok ? "ok" : "error");
+        const blob = await fresh; if (token !== st.tryToken) return;
+        if (blob) {
+          if (st.shotUrl) URL.revokeObjectURL(st.shotUrl);
+          st.shotUrl = URL.createObjectURL(blob); $("node-shot").src = st.shotUrl; $("node-shot").hidden = false; $("node-shot-note").hidden = true;
+          $("node-box").hidden = true;                   // the tree-time box may be stale; the try's own boxes are current
+        }
+        out.textContent = v.text + (blob ? " · 截图已刷新" : ""); out.classList.add(v.ok ? "ok" : "error");
         if (st.tree && !$("node-shot").hidden) for (const h of v.hits) {
           const css = boxStyle(h.rect, st.tree.width, st.tree.height); if (!css) continue;
-          const b = make("div", "node-hit" + (h.path === n.path ? " self" : "")); b.title = h.path; Object.assign(b.style, css); $("node-hits").append(b);
+          const b = make("div", "node-hit" + (h.self ? " self" : "")); b.title = h.path; Object.assign(b.style, css); $("node-hits").append(b);
         }
       } catch (e) { if (token === st.tryToken) { out.textContent = e.message; out.classList.add("error"); } }
       finally { if (token === st.tryToken) $("node-try").disabled = false; }
