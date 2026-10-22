@@ -176,6 +176,44 @@ test('a resource id shared by several nodes gets text / desc / path added until 
   }
 });
 
+test('试一下 code lists every match on the phone without acting, and the verdict reads it', () => {
+  const at = p => atIn(LIST, p);
+  assert.equal(N.tryCode(at('0/3'), 'tap'), null);
+  const cases = [];
+  for (const p of ['0/1', '0/3', '0/6']) for (const kind of ['find', 'click', 'exists', 'xpath']) cases.push({p, kind, code: N.tryCode(at(p), kind, 0, LIST)});
+  for (const c of cases) assert.ok(!/\.click\(\)|\.input\(|\.scroll\(/.test(c.code), c.code);
+  cases.push({p: '0/3', kind: 'id-only', code: N.tryCode(at('0/3'), 'find')});   // without the tree: the id alone, every row matches
+  const py = `
+import json, sys
+from xscript.android import node as node_mod
+roots = json.loads(sys.argv[1]); cases = json.loads(sys.argv[2]); out = []
+node_mod.dump = lambda mode=0: {"roots": roots}
+node_mod.Node.click = lambda self: (_ for _ in ()).throw(AssertionError("clicked"))
+for c in cases:
+    env = {}
+    exec(c["code"], env)
+    out.append(env["_result"])
+print(json.dumps(out))
+`;
+  const r = spawnSync(process.env.PYTHON || 'python3', ['-c', py, JSON.stringify(LIST), JSON.stringify(cases)],
+    {env: Object.assign({}, process.env, {PYTHONPATH: path.resolve(__dirname, '../../android/python-runtime')}), encoding: 'utf8'});
+  assert.equal(r.status, 0, r.stderr);
+  const out = JSON.parse(r.stdout);
+  cases.forEach((c, i) => {
+    if (c.kind === 'id-only') {
+      assert.deepEqual(out[i].map(h => h[0]), ['0/0', '0/1', '0/2', '0/3']);
+      assert.equal(N.tryVerdict(JSON.stringify(out[i]), at('0/3')).text, '试一下：找到 4 个，第一个不是选中的节点（路径 0/0）');
+    } else {
+      assert.deepEqual(out[i].map(h => h[0]), [c.p], c.kind + ' ' + c.p);
+      assert.deepEqual(N.tryVerdict(JSON.stringify(out[i]), at(c.p)), {ok: true, hits: [{path: c.p, rect: at(c.p).rect ? {l: at(c.p).rect.l, t: at(c.p).rect.t, r: at(c.p).rect.r, b: at(c.p).rect.b} : {l: 0, t: 0, r: 0, b: 0}}], text: '试一下：找到 1 个，就是选中的节点'});
+    }
+  });
+  assert.equal(N.tryVerdict('[]', at('0/1')).ok, false);
+  assert.equal(N.tryVerdict('not json', at('0/1')).text, '试一下：没找到。界面可能变了，点「重新获取」再试');
+  const twenty = JSON.stringify(Array.from({length: 20}, () => ['0/1', 0, 0, 1, 1]));
+  assert.equal(N.tryVerdict(twenty, at('0/1')).text, '试一下：找到 20 个及以上，第一个是选中的节点（.find 用第一个）');
+});
+
 test('generated code finds the picked node with the real python-runtime Selector / XPath', () => {
   const cases = [];
   for (const p of ['0/0/0', '0/0/1', '0/0/2', '0/0/3', '0/0/4']) for (const kind of ['find', 'xpath', 'click', 'exists', 'tap']) cases.push({p, kind, code: N.fullText(N.snippet(at(p), kind, 1))});

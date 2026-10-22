@@ -51,12 +51,12 @@
   <section id="node-panel" class="ide-shot ide-nodes" aria-label="节点工具" hidden>
    <div class="ide-heading"><strong>节点</strong><button id="node-take" type="button" title="重新读取手机当前界面的节点和截图">重新获取</button><label class="node-full" title="包含没有文字、不可点击的布局节点"><input type="checkbox" id="node-full"> 完整树</label><input id="node-filter" type="search" placeholder="筛选：文字 / id / 类名" aria-label="筛选节点" autocomplete="off" spellcheck="false"><span id="node-info" class="shot-info" role="status" aria-live="polite"></span><span class="spacer"></span><button id="node-close" type="button" aria-label="关闭节点面板">关闭</button></div>
    <div class="node-body">
-    <div class="node-screen"><div class="node-frame"><img id="node-shot" alt="手机截图，点击选中该处的节点" hidden><div id="node-box" class="node-box" hidden></div></div><p id="node-shot-note" class="node-empty" hidden>没有截图（手机未授权屏幕截取），可在右侧树里选节点</p></div>
+    <div class="node-screen"><div class="node-frame"><img id="node-shot" alt="手机截图，点击选中该处的节点" hidden><div id="node-box" class="node-box" hidden></div><div id="node-hits"></div></div><p id="node-shot-note" class="node-empty" hidden>没有截图（手机未授权屏幕截取），可在右侧树里选节点</p></div>
     <div id="node-tree" class="node-tree" role="tree" aria-label="节点树"></div>
     <div class="node-detail"><dl id="node-attrs" class="node-attrs"></dl>
      <div class="node-code-row"><label for="node-kind">生成</label><select id="node-kind"></select></div>
      <textarea id="node-code" readonly rows="3" aria-label="生成的代码" spellcheck="false"></textarea>
-     <div class="node-actions"><button id="node-copy" type="button" disabled>复制</button><button id="node-insert" type="button" class="primary" disabled title="插入到编辑器光标处，缺少的 import 加到文件开头（树里按 Enter 也可以）">插入到光标</button></div>
+     <div class="node-actions"><span id="node-try-result" class="node-try-result" role="status" aria-live="polite"></span><button id="node-try" type="button" disabled title="在手机上按这段代码的条件查找一次（不会点击），截图上框出找到的节点">试一下</button><button id="node-copy" type="button" disabled>复制</button><button id="node-insert" type="button" class="primary" disabled title="插入到编辑器光标处，缺少的 import 加到文件开头（树里按 Enter 也可以）">插入到光标</button></div>
     </div>
    </div>
   </section>

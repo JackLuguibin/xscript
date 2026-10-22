@@ -147,6 +147,25 @@
   }
   const fullText = s => s.imports.join("\n") + "\n" + s.code;
 
+  /** Snippet for POST /eval that runs the node's selector on the phone without acting on anything: every match (at most
+   *  20) as [path, l, t, r, b]. null for 点击中心坐标, which has nothing to look up. */
+  function tryCode(n, kind = "find", mode = 0, roots = null) {
+    if (kind === "tap") return null;
+    const sel = kind === "xpath" ? "node.Selector(" + (mode ? "1, " : "") + "xpath=" + pyStr(nodeXPath(n, roots)) + ")" : selectorChain(n, "node", mode, roots);
+    return NODE_IMPORT + "\n_hits = " + sel + ".find_all(timeout=0, limit=20)\n_result = [[h.path, h.left, h.top, h.right, h.bottom] for h in _hits]";
+  }
+
+  /** What a try found, for the picked node `n`: {text, ok, hits: [{path, rect}]}. `result` is /eval's JSON text. */
+  function tryVerdict(result, n) {
+    let list = [];
+    try { list = JSON.parse(result || "[]"); } catch (e) { list = []; }
+    const hits = (Array.isArray(list) ? list : []).map(h => ({path: String(h[0]), rect: {l: h[1], t: h[2], r: h[3], b: h[4]}}));
+    if (!hits.length) return {ok: false, hits, text: "试一下：没找到。界面可能变了，点「重新获取」再试"};
+    const many = hits.length >= 20 ? "20 个及以上" : hits.length + " 个";
+    if (hits[0].path !== n.path) return {ok: false, hits, text: "试一下：找到 " + many + "，第一个不是选中的节点（路径 " + hits[0].path + "）"};
+    return {ok: true, hits, text: hits.length === 1 ? "试一下：找到 1 个，就是选中的节点" : "试一下：找到 " + many + "，第一个是选中的节点（.find 用第一个）"};
+  }
+
   /** Where to add a missing import line: null when `text` already has it, else {at, text} (after the leading import block). */
   function importEdit(text, line) {
     const lines = String(text).split("\n");
@@ -184,14 +203,14 @@
     return {left: r.l / w * 100 + "%", top: r.t / h * 100 + "%", width: (r.r - r.l) / w * 100 + "%", height: (r.b - r.t) / h * 100 + "%"};
   }
 
-  const EditorNodes = {hitTest, ancestry, rows, count, label, pyStr, xpathStr, selectorChain, nodeXPath, center, KINDS, snippet, fullText, fragile, FRAGILE, importEdit, attrs, boxStyle, shortType};
+  const EditorNodes = {hitTest, ancestry, rows, count, label, pyStr, xpathStr, selectorChain, nodeXPath, center, KINDS, snippet, fullText, tryCode, tryVerdict, fragile, FRAGILE, importEdit, attrs, boxStyle, shortType};
 
   // ---- browser dock ----
   // ctx: {message(text, error), insertCode(code, imports) -> bool, onOpen()}
   function initNodes(ctx) {
     const $ = id => document.getElementById(id);
     const make = (tag, cls, text) => { const n = document.createElement(tag); if (cls) n.className = cls; if (text !== undefined) n.textContent = text; return n; };
-    const st = {tree: null, selected: null, collapsed: new Set(), shotUrl: "", token: 0};
+    const st = {tree: null, selected: null, collapsed: new Set(), shotUrl: "", token: 0, tryToken: 0};
     const info = (text, error = false) => { $("node-info").textContent = text; $("node-info").classList.toggle("error", error); };
     const mode = () => ($("node-full").checked ? 1 : 0);
     for (const k of KINDS) { const o = make("option", "", k.label); o.value = k.id; $("node-kind").append(o); }
@@ -205,6 +224,8 @@
       const s = current();
       $("node-code").value = s ? fullText(s) : "";
       $("node-copy").disabled = $("node-insert").disabled = !s;
+      $("node-try").disabled = !n || !tryCode(n, $("node-kind").value, mode(), st.tree && st.tree.roots);
+      clearTry();
       const box = $("node-box"), css = n && st.tree && boxStyle(n.rect, st.tree.width, st.tree.height);
       box.hidden = !css || $("node-shot").hidden;
       if (css) Object.assign(box.style, css);
@@ -235,6 +256,34 @@
       renderTree(); renderDetail();
       const row = $("node-tree").querySelector('[aria-selected="true"]');
       if (row && (reveal || focus)) { row.scrollIntoView({block: "nearest"}); if (focus) row.focus(); }
+    }
+
+    function clearTry() {
+      st.tryToken += 1;
+      $("node-try-result").textContent = ""; $("node-try-result").classList.remove("error", "ok");
+      $("node-hits").replaceChildren();
+    }
+    /** Run the selector on the phone (POST /eval, find_all only: nothing is clicked) and box what it finds. */
+    async function tryIt() {
+      const n = st.selected, code = n && tryCode(n, $("node-kind").value, mode(), st.tree && st.tree.roots);
+      if (!code) return;
+      clearTry();
+      const token = st.tryToken, out = $("node-try-result");
+      $("node-try").disabled = true; out.textContent = "试一下：在手机上查找…";
+      try {
+        const r = await fetch("/eval", {method: "POST", cache: "no-store", headers: {"Content-Type": "application/json", "X-XScript-Client": "tools"}, body: JSON.stringify({code, timeout_ms: 5000})});
+        if (r.status === 401) { location.href = "/pair?next=" + encodeURIComponent(location.pathname + location.search); return; }
+        let data = null; try { data = await r.json(); } catch (e) { /* not JSON */ }
+        if (token !== st.tryToken) return;
+        if (!r.ok || !data || !data.ok) throw new Error("试一下失败：" + ((data && (data.error || "").trim().split("\n").pop()) || "HTTP " + r.status));
+        const v = tryVerdict(data.result, n);
+        out.textContent = v.text; out.classList.add(v.ok ? "ok" : "error");
+        if (st.tree && !$("node-shot").hidden) for (const h of v.hits) {
+          const css = boxStyle(h.rect, st.tree.width, st.tree.height); if (!css) continue;
+          const b = make("div", "node-hit" + (h.path === n.path ? " self" : "")); b.title = h.path; Object.assign(b.style, css); $("node-hits").append(b);
+        }
+      } catch (e) { if (token === st.tryToken) { out.textContent = e.message; out.classList.add("error"); } }
+      finally { if (token === st.tryToken) $("node-try").disabled = false; }
     }
 
     async function take() {
@@ -279,6 +328,7 @@
     $("node-toggle").addEventListener("click", () => setOpen($("node-panel").hidden));
     $("node-close").addEventListener("click", () => setOpen(false));
     $("node-take").addEventListener("click", take);
+    $("node-try").addEventListener("click", tryIt);
     $("node-full").addEventListener("change", take);
     $("node-filter").addEventListener("input", renderTree);
     $("node-kind").addEventListener("change", () => { try { localStorage.setItem("xs-node-kind", $("node-kind").value); } catch (e) { /* storage off */ } renderDetail(); });

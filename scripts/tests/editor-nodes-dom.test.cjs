@@ -78,6 +78,44 @@ test('Web IDE 节点 dock reads the UI tree and generates node code', {skip: CHR
       assert.equal(await b.eval(() => document.activeElement.dataset.path), '1/0/3');
     });
 
+    await t.test('试一下 runs the selector on the phone (find_all, nothing clicked) and boxes what it finds', async () => {
+      // the mock's /eval never executes code: answer it here and keep what was sent
+      await b.eval(() => {
+        window.__evalSent = []; window.__evalReply = {ok: true, result: '[["1/0/3", 80, 980, 1000, 1110]]', error: ''};
+        const real = window.fetch;
+        window.fetch = (url, init) => String(url).startsWith('/eval')
+          ? (window.__evalSent.push(JSON.parse(init.body)), Promise.resolve(new Response(JSON.stringify(window.__evalReply), {status: 200, headers: {'Content-Type': 'application/json'}})))
+          : real(url, init);
+      });
+      const tryNow = async () => {
+        await b.eval(() => document.getElementById('node-try').click());
+        await b.waitFor(() => !/在手机上查找/.test(document.getElementById('node-try-result').textContent) && document.getElementById('node-try-result').textContent);
+        return b.eval(() => ({text: document.getElementById('node-try-result').textContent, cls: document.getElementById('node-try-result').className,
+          hits: [...document.querySelectorAll('#node-hits .node-hit')].map(h => h.className + ' ' + h.title), sent: window.__evalSent.slice(-1)[0]}));
+      };
+      let v = await tryNow();
+      assert.equal(v.text, '试一下：找到 1 个，就是选中的节点'); assert.match(v.cls, /\bok\b/);
+      assert.deepEqual(v.hits, ['node-hit self 1/0/3']);
+      assert.equal(v.sent.code, "from xscript.android import node\n_hits = node.Selector().text('登录').clickable().find_all(timeout=0, limit=20)\n_result = [[h.path, h.left, h.top, h.right, h.bottom] for h in _hits]");
+      assert.equal(v.sent.timeout_ms, 5000);
+      await b.eval(() => { window.__evalReply = {ok: true, result: '[["1/0/2", 80, 800, 1000, 900], ["1/0/3", 80, 980, 1000, 1110]]', error: ''}; });
+      v = await tryNow();
+      assert.equal(v.text, '试一下：找到 2 个，第一个不是选中的节点（路径 1/0/2）'); assert.match(v.cls, /\berror\b/);
+      assert.deepEqual(v.hits, ['node-hit 1/0/2', 'node-hit self 1/0/3']);
+      await b.eval(() => { window.__evalReply = {ok: true, result: '[]', error: ''}; });
+      v = await tryNow();
+      assert.equal(v.text, '试一下：没找到。界面可能变了，点「重新获取」再试'); assert.deepEqual(v.hits, []);
+      await b.eval(() => { window.__evalReply = {ok: false, result: '', error: 'Traceback (most recent call last):\nNameError: boom\n'}; });
+      v = await tryNow();
+      assert.equal(v.text, '试一下失败：NameError: boom');
+      // a new pick clears the result; 点击中心坐标 has nothing to look up
+      await b.eval(() => document.querySelector('#node-tree .node-row[data-path="1/0/1"]').click());
+      assert.equal(await b.eval(() => document.getElementById('node-try-result').textContent), '');
+      await b.eval(() => { const s = document.getElementById('node-kind'); s.value = 'tap'; s.dispatchEvent(new Event('change')); });
+      assert.equal(await b.eval(() => document.getElementById('node-try').disabled), true);
+      await b.eval(() => { const s = document.getElementById('node-kind'); s.value = 'find'; s.dispatchEvent(new Event('change')); document.querySelector('#node-tree .node-row[data-path="1/0/3"]').click(); });
+    });
+
     await t.test('the kind picker changes the code and is remembered', async () => {
       const pick = kind => b.eval(k => { const s = document.getElementById('node-kind'); s.value = k; s.dispatchEvent(new Event('change')); return document.getElementById('node-code').value; }, kind);
       assert.deepEqual(await b.eval(() => [...document.querySelectorAll('#node-kind option')].map(o => o.textContent)), ['查找节点', '查找并点击', '等待出现', 'XPath 查找', '点击中心坐标']);
@@ -168,6 +206,9 @@ test('Web IDE 节点 dock reads the UI tree and generates node code', {skip: CHR
       await b.waitFor(() => !document.querySelector('#node-tree .node-row[data-path="1/0/4"]') && document.querySelectorAll('#node-tree .node-row').length === 7);
       await b.eval(() => { document.querySelector('#node-tree .node-row[data-path="1/0/3"]').click(); });
       await paint();
+      // 试一下 on the picked 登录 button (the /eval stub from the 试一下 test answers)
+      await b.eval(() => { window.__evalReply = {ok: true, result: '[["1/0/3", 80, 980, 1000, 1110]]', error: ''}; document.getElementById('node-try').click(); });
+      await b.waitFor(() => /就是选中的节点/.test(document.getElementById('node-try-result').textContent));
       await save(process.env.XS_NODES_SHOT);
     });
 
