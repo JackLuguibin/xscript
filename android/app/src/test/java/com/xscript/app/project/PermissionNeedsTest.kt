@@ -10,6 +10,9 @@ class PermissionNeedsTest {
     @Test
     fun printsOnlyNeedsNothing() {
         assertEquals(emptyList<Kind>(), kinds("__init__.py" to "print('hi')\nimport time\n"))
+        // the run reply's missing[].label is Kind.label: the IDEs' one-tap fixes (protocol/permission-fix.json) cover every kind
+        val shared = Regex("\"label\": \"([^\"]+)\"").findAll(java.io.File("../../protocol/permission-fix.json").readText()).map { it.groupValues[1] }.toSet()
+        assertEquals(Kind.entries.map { it.label }.toSet(), shared)
     }
 
     @Test

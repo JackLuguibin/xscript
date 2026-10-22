@@ -68,5 +68,21 @@ class MissingPermsTest {
             assertTrue(m("missing.oldApp", emptyArray()).isNotBlank())
         }
         assertTrue(A11Y_CODE.contains("permission.ACCESSIBILITY_SERVICE"))
+        // same table as protocol/permission-fix.json (shared with the Web IDE and VS Code)
+        val shared = JsonParser.parseString(java.io.File("../../protocol/permission-fix.json").readText()).asJsonObject.getAsJsonArray("permissions")
+        assertEquals(5, shared.size())
+        for (e in shared.map { it.asJsonObject }) {
+            val label = e.get("label").asString
+            for ((lang, name) in listOf("en" to "XScriptBundle.properties", "zh" to "XScriptBundle_zh_CN.properties")) {
+                val t = e.getAsJsonObject(lang)
+                val f = permFix(label, bundle(name))!!
+                assertEquals("$label $lang", listOf("button", "opened", "on", "where").map { t.get(it).asString }, listOf(f.button, f.opened, f.on, f.where))
+                assertTrue("$label name $lang", missingWarning(listOf(MissingPerm(label, "")), bundle(name))!!.text.contains(t.get("name").asString))
+            }
+            val f = permFix(label, fake)!!
+            val key = e.get("permission")?.asString
+            if (key != null) assertEquals("from xscript.android import permission\n_result = permission.request(permission.$key, 1)", f.code)
+            else assertTrue(e.get("captureRequest").asBoolean && f.capture)
+        }
     }
 }

@@ -420,12 +420,13 @@
      * (`_result` "1": already granted), or `capture` asks the phone for the screen-capture grant (POST /capture/request). */
     static get PERM_FIX() {
       const req = key => "from xscript.android import permission\n_result = permission.request(permission." + key + ", 1)";
+      // same table as protocol/permission-fix.json (scripts/tests/editor.test.cjs compares them)
       return {
-        "无障碍": {button: "打开手机无障碍设置", code: req("ACCESSIBILITY_SERVICE"), opened: "已在手机上打开无障碍设置：开启 XScript 后再运行", on: "无障碍服务已开启，可以再运行一次", where: "设置 → 无障碍"},
-        "悬浮窗权限": {button: "打开手机悬浮窗设置", code: req("OVERLAY"), opened: "已在手机上打开悬浮窗设置：允许 XScript 后再运行", on: "悬浮窗权限已开启，可以再运行一次", where: "设置 → 应用 → XScript → 显示在其他应用的上层"},
-        "通知使用权": {button: "打开手机通知使用权设置", code: req("NOTIFICATION_LISTENER"), opened: "已在手机上打开通知使用权设置：允许 XScript 后再运行", on: "通知使用权已开启，可以再运行一次", where: "设置 → 通知 → 设备和应用通知"},
-        "文件访问权限": {button: "打开手机文件访问设置", code: req("MANAGE_EXTERNAL_STORAGE"), opened: "已在手机上打开文件访问设置：允许 XScript 后再运行", on: "文件访问权限已开启，可以再运行一次", where: "设置 → 应用 → 特殊应用权限 → 所有文件访问权限"},
-        "图色权限（截图）": {button: "在手机上授权截图", capture: true, opened: "已在手机上弹出截图授权：点「立即开始」后再运行", on: "", where: "手机上的 XScript → 图色权限"},
+        "无障碍": {button: "打开手机无障碍设置", code: req("ACCESSIBILITY_SERVICE"), opened: "已在手机上打开无障碍设置，开启 XScript 后再运行。", on: "无障碍服务已开启，可以再运行一次。", where: "设置 → 无障碍"},
+        "图色权限（截图）": {button: "在手机上授权截图", capture: true, opened: "已在手机上弹出截图授权，点「立即开始」后再运行。", on: "截图权限已可用，可以再运行一次。", where: "手机上的 XScript → 图色权限"},
+        "悬浮窗权限": {button: "打开手机悬浮窗设置", code: req("OVERLAY"), opened: "已在手机上打开悬浮窗设置，允许 XScript 后再运行。", on: "悬浮窗权限已开启，可以再运行一次。", where: "设置 → 应用 → XScript → 显示在其他应用的上层"},
+        "通知使用权": {button: "打开手机通知使用权设置", code: req("NOTIFICATION_LISTENER"), opened: "已在手机上打开通知使用权设置，允许 XScript 后再运行。", on: "通知使用权已开启，可以再运行一次。", where: "设置 → 通知 → 设备和应用通知"},
+        "文件访问权限": {button: "打开手机文件访问设置", code: req("MANAGE_EXTERNAL_STORAGE"), opened: "已在手机上打开文件访问设置，允许 XScript 后再运行。", on: "文件访问权限已开启，可以再运行一次。", where: "设置 → 应用 → 特殊应用权限 → 所有文件访问权限"},
       };
     }
   }

@@ -1,0 +1,100 @@
+{
+  "_comment": "One-tap fixes for permissions a run reports as missing (POST /projects/<name>/run -> missing[].label, from PermissionNeeds.Kind). permission: the xscript.android.permission constant; /eval runs `from xscript.android import permission\\n_result = permission.request(permission.<permission>, 1)` (\"1\": already granted). captureRequest: POST /capture/request instead. Clients keep their own copy (Web IDE editor-model.js, VS Code missingPerms.ts, PyCharm MissingPerms.kt + bundles); each one's tests compare it with this file, and the Android unit tests compare the labels with PermissionNeeds.Kind.",
+  "permissions": [
+    {
+      "id": "a11y",
+      "label": "无障碍",
+      "permission": "ACCESSIBILITY_SERVICE",
+      "zh": {
+        "name": "无障碍",
+        "button": "打开手机无障碍设置",
+        "opened": "已在手机上打开无障碍设置，开启 XScript 后再运行。",
+        "on": "无障碍服务已开启，可以再运行一次。",
+        "where": "设置 → 无障碍"
+      },
+      "en": {
+        "name": "Accessibility",
+        "button": "Open Accessibility Settings on Phone",
+        "opened": "Accessibility settings are open on the phone. Turn on XScript there, then run again.",
+        "on": "The accessibility service is on now; run again.",
+        "where": "Settings → Accessibility"
+      }
+    },
+    {
+      "id": "capture",
+      "label": "图色权限（截图）",
+      "captureRequest": true,
+      "zh": {
+        "name": "图色权限（截图）",
+        "button": "在手机上授权截图",
+        "opened": "已在手机上弹出截图授权，点「立即开始」后再运行。",
+        "on": "截图权限已可用，可以再运行一次。",
+        "where": "手机上的 XScript → 图色权限"
+      },
+      "en": {
+        "name": "Screen capture",
+        "button": "Grant Screen Capture on Phone",
+        "opened": "The screen-capture prompt is up on the phone. Tap Start now, then run again.",
+        "on": "Screen capture is available now; run again.",
+        "where": "XScript app on the phone → Screen capture"
+      }
+    },
+    {
+      "id": "overlay",
+      "label": "悬浮窗权限",
+      "permission": "OVERLAY",
+      "zh": {
+        "name": "悬浮窗权限",
+        "button": "打开手机悬浮窗设置",
+        "opened": "已在手机上打开悬浮窗设置，允许 XScript 后再运行。",
+        "on": "悬浮窗权限已开启，可以再运行一次。",
+        "where": "设置 → 应用 → XScript → 显示在其他应用的上层"
+      },
+      "en": {
+        "name": "Overlay",
+        "button": "Open Overlay Settings on Phone",
+        "opened": "Overlay settings are open on the phone. Allow XScript there, then run again.",
+        "on": "The overlay permission is on now; run again.",
+        "where": "Settings → Apps → XScript → Display over other apps"
+      }
+    },
+    {
+      "id": "notification",
+      "label": "通知使用权",
+      "permission": "NOTIFICATION_LISTENER",
+      "zh": {
+        "name": "通知使用权",
+        "button": "打开手机通知使用权设置",
+        "opened": "已在手机上打开通知使用权设置，允许 XScript 后再运行。",
+        "on": "通知使用权已开启，可以再运行一次。",
+        "where": "设置 → 通知 → 设备和应用通知"
+      },
+      "en": {
+        "name": "Notification access",
+        "button": "Open Notification Access on Phone",
+        "opened": "Notification access settings are open on the phone. Allow XScript there, then run again.",
+        "on": "Notification access is on now; run again.",
+        "where": "Settings → Notifications → Device & app notifications"
+      }
+    },
+    {
+      "id": "files",
+      "label": "文件访问权限",
+      "permission": "MANAGE_EXTERNAL_STORAGE",
+      "zh": {
+        "name": "文件访问权限",
+        "button": "打开手机文件访问设置",
+        "opened": "已在手机上打开文件访问设置，允许 XScript 后再运行。",
+        "on": "文件访问权限已开启，可以再运行一次。",
+        "where": "设置 → 应用 → 特殊应用权限 → 所有文件访问权限"
+      },
+      "en": {
+        "name": "File access",
+        "button": "Open File Access Settings on Phone",
+        "opened": "File access settings are open on the phone. Allow XScript there, then run again.",
+        "on": "File access is on now; run again.",
+        "where": "Settings → Apps → Special app access → All files access"
+      }
+    }
+  ]
+}
