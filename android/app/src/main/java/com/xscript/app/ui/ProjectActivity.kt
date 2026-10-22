@@ -51,6 +51,7 @@ class ProjectActivity : AppCompatActivity() {
     /** 「一键开启全部」 in progress: the next step is offered when the user comes back from system settings. */
     private var guide: PermissionGuide? = null
     private var guideDialog: androidx.appcompat.app.AlertDialog? = null
+    private var runAsked = false
     private val isOk = { k: PermissionNeeds.Kind -> PermissionStatus.ok(this, k) }
 
     private val capturePermission = registerForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
@@ -177,14 +178,16 @@ class ProjectActivity : AppCompatActivity() {
     private fun scanNeeds() {
         val dir = store.dir(name)
         thread(name = "xscript-perm-scan") {
-            val sources = LinkedHashMap<String, String>()
-            dir.walkTopDown()
-                .onEnter { it.name != "__pycache__" && !it.name.startsWith(".") }
-                .filter { it.isFile && it.name.endsWith(".py") && it.length() <= 512 * 1024 }
-                .take(300)
-                .forEach { f -> sources[f.relativeTo(dir).path] = runCatching { f.readText() }.getOrDefault("") }
-            needs = PermissionNeeds.scan(sources)
-            runOnUiThread { if (!isFinishing) renderPermissions() }
+            needs = scanDir(dir)
+            runOnUiThread {
+                if (isFinishing) return@runOnUiThread
+                renderPermissions()
+                // opened by 运行 on the home screen because something is missing: ask right away (去开启 / 仍然运行)
+                if (intent.getBooleanExtra(EXTRA_RUN, false) && !runAsked) {
+                    runAsked = true
+                    toggle()
+                }
+            }
         }
     }
 
@@ -530,6 +533,19 @@ class ProjectActivity : AppCompatActivity() {
 
     companion object {
         const val EXTRA_NAME = "name"
+        /** Ask to run once the permission scan is done (the home screen's 运行 found something missing). */
+        const val EXTRA_RUN = "run"
+
+        /** What the project's .py files use. Reads files: call it off the main thread. */
+        fun scanDir(dir: java.io.File): List<PermissionNeeds.Need> {
+            val sources = LinkedHashMap<String, String>()
+            dir.walkTopDown()
+                .onEnter { it.name != "__pycache__" && !it.name.startsWith(".") }
+                .filter { it.isFile && it.name.endsWith(".py") && it.length() <= 512 * 1024 }
+                .take(300)
+                .forEach { f -> sources[f.relativeTo(dir).path] = runCatching { f.readText() }.getOrDefault("") }
+            return PermissionNeeds.scan(sources)
+        }
         private const val STATE_GUIDE = "permission_guide"
         val EDITABLE = setOf("py", "txt", "md", "json", "yaml", "yml", "html", "js", "css", "as", "ini", "cfg", "toml", "csv")
         private val NEXT_FORMAT = DateTimeFormatter.ofPattern("MM-dd HH:mm")

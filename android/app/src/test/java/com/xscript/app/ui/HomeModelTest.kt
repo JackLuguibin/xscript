@@ -15,6 +15,8 @@ class HomeModelTest {
         assertEquals(null, HomeModel.a11yBanner(on = false, listed = false, root = true))
         assertTrue(HomeModel.a11yBanner(on = false, listed = false, root = null)!!.startsWith("无障碍服务未开启"))
         assertTrue(HomeModel.a11yBanner(on = false, listed = true, root = false)!!.contains("关掉再打开"))
+        assertEquals(HomeModel.HomeRun.RUN, HomeModel.runFromHome(0))
+        assertEquals(HomeModel.HomeRun.ASK, HomeModel.runFromHome(2))
     }
 
     @Test

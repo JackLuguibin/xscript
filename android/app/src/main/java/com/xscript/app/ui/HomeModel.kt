@@ -37,6 +37,11 @@ object HomeModel {
         else -> "无障碍服务未开启，找控件、点击等自动化用不了"
     }
 
+    /** 运行 on the home screen: run right away, or open the project page to fix [missing] permissions first. */
+    enum class HomeRun { RUN, ASK }
+
+    fun runFromHome(missing: Int): HomeRun = if (missing > 0) HomeRun.ASK else HomeRun.RUN
+
     /** Trailing text of the permissions section header. */
     fun permissionSummary(granted: Int, total: Int): String =
         if (granted >= total) "全部已开启" else "已开启 $granted/$total"
