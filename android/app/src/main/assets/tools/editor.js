@@ -774,9 +774,28 @@
       box.scrollTop = Math.max(0, (m.line - 6) * 21); syncScroll(); cursor();
     }});
   EditorPanels.initShot({api: (...args) => XS.api(...args), model, message, refreshFiles: () => refreshFiles().then(render),
+    onOpen: () => nodes.close(),
     insertAtCaret(text) {
       const box = el("editor"); if (box.disabled || !current) return message("先打开一个文件", true);
       box.focus(); box.setRangeText(text, box.selectionStart, box.selectionEnd, "end"); box.dispatchEvent(new Event("input"));
+    }});
+  // 节点 dock (editor-nodes.js): generated code goes in at the caret, missing imports at the top of the file.
+  const nodes = EditorNodes.initNodes({message,
+    onOpen: () => { if (!el("shot-panel").hidden) el("shot-close").click(); },
+    insertCode(code, imports) {
+      const box = el("editor");
+      if (box.disabled || !current || current.binary) { message("先打开一个 .py 文件", true); return false; }
+      box.focus();
+      const start = box.selectionStart, end = box.selectionEnd, lineStart = box.value.lastIndexOf("\n", start - 1) + 1;
+      const indent = /^[ \t]*/.exec(box.value.slice(lineStart, start))[0];
+      const blank = box.value.slice(lineStart, start).trim() === "";
+      box.setRangeText(code.split("\n").join("\n" + (blank ? indent : "")), start, end, "end");
+      for (const line of imports.slice().reverse()) {
+        const edit = EditorNodes.importEdit(box.value, line);
+        if (edit) box.setRangeText(edit.text, edit.at, edit.at, "preserve");
+      }
+      box.dispatchEvent(new Event("input"));
+      return true;
     }});
   window.addEventListener("keydown", e => {
     if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "s") { e.preventDefault(); if (!el("save").disabled) el("save").click(); }

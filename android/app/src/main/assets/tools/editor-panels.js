@@ -167,7 +167,7 @@
   }
 
   // ---- screenshot dock ----
-  // ctx: {api, model, message, refreshFiles(), insertAtCaret(text)}
+  // ctx: {api, model, message, refreshFiles(), insertAtCaret(text), onOpen()}
   function initShot(ctx) {
     let blob = null, point = null;
     const canvas = $("shot-canvas"), g = canvas.getContext("2d", {willReadFrequently: true});
@@ -215,6 +215,7 @@
     }
     $("shot-toggle").addEventListener("click", () => {
       const open = $("shot-panel").hidden; $("shot-panel").hidden = !open; $("shot-toggle").setAttribute("aria-pressed", String(open));
+      if (open && ctx.onOpen) ctx.onOpen();       // one dock at a time (节点 closes)
       if (open && !blob) take();
     });
     $("shot-close").addEventListener("click", () => { $("shot-panel").hidden = true; $("shot-toggle").setAttribute("aria-pressed", "false"); });
