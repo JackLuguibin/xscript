@@ -80,6 +80,20 @@ export function stepSnippet(
   return { ok: true, code, timeoutMs: STEP_TIMEOUT_MS, where: needsDevice(code) ? "device" : "local" };
 }
 
+/**
+ * The failed step of a recorded run that can be tried again on its own: a simple node (not control flow) still in the
+ * graph whose inputs are literals, defaults or cached upstream values. Null when there is none.
+ */
+export function retryStep(
+  run: { status: string; error_node: string },
+  graph: FlowGraph,
+  specs: Map<string, NodeSpec>,
+  cache?: Record<string, string>,
+): string | null {
+  if (run.status !== "error" || !run.error_node) return null;
+  return stepSnippet(graph, run.error_node, specs, cache).ok ? run.error_node : null;
+}
+
 function cachedInput(from: string, cache?: Record<string, string>): string | number | boolean | null | undefined {
   if (!cache) return undefined;
   const dot = from.indexOf(".");

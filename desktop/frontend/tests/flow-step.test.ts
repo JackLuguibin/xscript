@@ -2,7 +2,7 @@ import { execFileSync } from "node:child_process";
 import { describe, expect, it } from "vitest";
 import { parse } from "../src/flow/dsl";
 import { SAMPLE_FLOW } from "../src/flow/sample";
-import { literalPreview, rememberRuns, STEP_TIMEOUT_MS, stepSnippet } from "../src/flow/step";
+import { literalPreview, rememberRuns, retryStep, STEP_TIMEOUT_MS, stepSnippet } from "../src/flow/step";
 import { builtinSpecs } from "../src/flow/specs";
 
 function pyValue(code: string): string {
@@ -54,6 +54,12 @@ describe("single node step run", () => {
     expect(stepSnippet(sign, "start", specs)).toEqual({ ok: false, reason: "refused" });
     const bare = parse(["flow bare  # xflow 1", "on start:", "  sum: add()", ""].join("\n"));
     expect(stepSnippet(bare, "sum", specs)).toEqual({ ok: false, reason: "missing", pin: "a" });
+    // a failed history row offers the step again only for a simple node that can run on its own
+    expect(retryStep({ status: "error", error_node: "sum" }, graph, specs)).toBe("sum");
+    expect(retryStep({ status: "success", error_node: "" }, graph, specs)).toBeNull();
+    expect(retryStep({ status: "error", error_node: "ok" }, sign, specs)).toBeNull();
+    expect(retryStep({ status: "error", error_node: "gone" }, graph, specs)).toBeNull();
+    expect(retryStep({ status: "error", error_node: "sum" }, bare, specs)).toBeNull();
   });
 
   it("reruns a downstream node from a cached upstream value", () => {

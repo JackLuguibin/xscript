@@ -22,7 +22,7 @@ import { builtinSpecs, menuSpecs, nodeBadge } from "../flow/specs";
 import { isTextEntry } from "../shortcuts";
 import { emptyLogCursor, flowEdges, followLogs, LOG_POLL_MS, pictureOf, readTrace, RUN_KEEP_MS, runKept, seqGap, type LogCursor, type NodeRun } from "../flow/trace";
 import { buildRun, readRuns, rememberRun, runLine, writeRuns, type FlowRun } from "../flow/runs";
-import { literalPreview, rememberRuns, stepSnippet } from "../flow/step";
+import { literalPreview, rememberRuns, retryStep, stepSnippet } from "../flow/step";
 import { deployPlan, pushPlan } from "../flow/deploy";
 import { errorLine } from "../errors";
 import { drive, traceText, type FlowDebug } from "../flow/session";
@@ -1544,8 +1544,9 @@ export function FlowPage({ initialLayout }: { initialLayout?: FlowLayout } = {})
     setNote("");
   };
 
-  const runStep = () => {
-    const id = picked.find((item) => graph.nodes.some((node) => node.id === item));
+  // `only`: a failed step from the run history; otherwise the selected node
+  const runStep = (only?: string) => {
+    const id = only ?? picked.find((item) => graph.nodes.some((node) => node.id === item));
     if (!id) return;
     const outcome = stepSnippet(graph, id, specs, cache);
     if (!outcome.ok) {
@@ -2209,7 +2210,7 @@ export function FlowPage({ initialLayout }: { initialLayout?: FlowLayout } = {})
           <Button variant="toolbarDanger" type="button" onClick={() => dropPicked(picked)} disabled={picked.length < 1}>
             {t.flow.remove}
           </Button>
-          <Button variant="toolbar" type="button" onClick={runStep} disabled={!chosen}>
+          <Button variant="toolbar" type="button" onClick={() => runStep()} disabled={!chosen}>
             {t.flow.step}
           </Button>
           <span className="flow-tool-gap" aria-hidden="true" />
@@ -2536,13 +2537,29 @@ export function FlowPage({ initialLayout }: { initialLayout?: FlowLayout } = {})
                 ))}
               </ol>
               <ol aria-label={t.flow.history}>
-                {runs.map((run) => (
-                  <li key={run.id}>
-                    <Button type="button" onClick={() => locate(run.error_node || run.nodes[0]?.node || "")}>
-                      {runLine(run, runWord)}
-                    </Button>
-                  </li>
-                ))}
+                {runs.map((run) => {
+                  // a failed simple step can be tried again on its own (same as 试跑 on that node)
+                  const retry = retryStep(run, graph, specs, cache);
+                  return (
+                    <li key={run.id}>
+                      <Button type="button" onClick={() => locate(run.error_node || run.nodes[0]?.node || "")}>
+                        {runLine(run, runWord)}
+                      </Button>
+                      {retry ? (
+                        <Button
+                          type="button"
+                          aria-label={t.flow.step + " " + retry}
+                          onClick={() => {
+                            locate(retry);
+                            runStep(retry);
+                          }}
+                        >
+                          {t.flow.step}
+                        </Button>
+                      ) : null}
+                    </li>
+                  );
+                })}
               </ol>
             </div>
           ) : null}
