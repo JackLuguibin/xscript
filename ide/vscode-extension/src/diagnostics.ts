@@ -53,6 +53,13 @@ export function registerDiagnostics(context: vscode.ExtensionContext, output: vs
     vscode.workspace.onDidSaveTextDocument(all),
     vscode.workspace.onDidChangeTextDocument((e) => later(e.document)),
     vscode.workspace.onDidCloseTextDocument((doc) => { collection.delete(doc.uri); fixes.delete(doc.uri.toString()); }),
+    // target of the "跳到第 N 行的定义" quick fix (internal, not in the command palette)
+    vscode.commands.registerCommand("xscript.revealAt", async (uri: vscode.Uri, line: number, col: number) => {
+      const ed = await vscode.window.showTextDocument(uri);
+      const pos = new vscode.Position(line - 1, col);
+      ed.selection = new vscode.Selection(pos, pos);
+      ed.revealRange(new vscode.Range(pos, pos), vscode.TextEditorRevealType.InCenterIfOutsideViewport);
+    }),
     vscode.languages.registerCodeActionsProvider({ language: "python", scheme: "file" }, {
       provideCodeActions(doc, _range, ctx) {
         const known = fixes.get(doc.uri.toString()) || [];
@@ -62,9 +69,11 @@ export function registerDiagnostics(context: vscode.ExtensionContext, output: vs
           const k = known.find((x) => x.range.isEqual(d.range) && x.message === d.message);
           for (const f of k?.fixes || []) {
             const a = new vscode.CodeAction(f.title, vscode.CodeActionKind.QuickFix);
-            const start = new vscode.Position(f.line - 1, f.col);
-            a.edit = new vscode.WorkspaceEdit();
-            a.edit.replace(doc.uri, new vscode.Range(start, start.translate(0, f.length)), f.text);
+            if (f.edits) {
+              a.edit = new vscode.WorkspaceEdit();
+              for (const e of f.edits) a.edit.replace(doc.uri, new vscode.Range(doc.positionAt(e.from), doc.positionAt(e.to)), e.text);
+            }
+            if (f.jump) a.command = { title: f.title, command: "xscript.revealAt", arguments: [doc.uri, f.jump.line, f.jump.col] };
             a.diagnostics = [d];
             a.isPreferred = !!f.preferred;
             actions.push(a);

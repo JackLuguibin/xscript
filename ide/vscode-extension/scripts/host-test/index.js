@@ -55,7 +55,7 @@ exports.run = async function run() {
           let diags = [];
           for (let i = 0; i < 20 && diags.length < 2; i++) { await sleep(300); diags = vscode.languages.getDiagnostics(uri).filter((d) => d.source === "XScript"); }
           const msgs = diags.map((d) => d.message);
-          check(msgs.includes("未定义的名字 totl（是不是 total？Ctrl/Cmd+. 改正）") && msgs.includes("未使用的 import os"), "Problems show the basic checks (undefined name, unused import)", msgs.join(" | "));
+          check(msgs.includes("未定义的名字 totl（是不是 total？Ctrl/Cmd+. 改正）") && msgs.includes("未使用的 import os（Ctrl/Cmd+. 删除）"), "Problems show the basic checks (undefined name, unused import)", msgs.join(" | "));
           // Ctrl/Cmd+.: the "是不是 total" quick fix renames totl in place
           const typo = diags.find((d) => d.message.startsWith("未定义的名字 totl"));
           const actions = typo ? await vscode.commands.executeCommand("vscode.executeCodeActionProvider", uri, typo.range, "quickfix") : [];
@@ -63,6 +63,13 @@ exports.run = async function run() {
           if (rename && rename.edit) await vscode.workspace.applyEdit(rename.edit);
           const doc = vscode.workspace.textDocuments.find((d) => d.uri.fsPath === uri.fsPath);
           check(!!rename && !!rename.isPreferred && doc && doc.lineAt(2).text === "print(total)", "Quick fix renames a misspelled name", (actions || []).map((a) => a.title).join(" | ") + " / " + (doc && doc.lineAt(2).text));
+          // ... and the unused import's quick fix deletes its line (diagnostics refresh 400 ms after the edit)
+          let unused;
+          for (let i = 0; i < 20 && !unused; i++) { await sleep(300); unused = vscode.languages.getDiagnostics(uri).find((d) => d.source === "XScript" && d.message.startsWith("未使用的 import os")); }
+          const drops = unused ? await vscode.commands.executeCommand("vscode.executeCodeActionProvider", uri, unused.range, "quickfix") : [];
+          const drop = (drops || []).find((a) => a.title === "删除未使用的 import os");
+          if (drop && drop.edit) await vscode.workspace.applyEdit(drop.edit);
+          check(!!drop && doc.lineAt(0).text === "total = 1", "Quick fix deletes an unused import", (drops || []).map((a) => a.title).join(" | ") + " / " + doc.lineAt(0).text);
           await vscode.commands.executeCommand("workbench.action.files.revert");
           await vscode.commands.executeCommand("workbench.action.closeActiveEditor");
         } finally {
