@@ -2,7 +2,8 @@
  * reads /ui-tree and /screen, picking a node in the tree or on the screenshot shows its attributes and box, the code
  * follows the chosen kind, 插入到光标 writes it at the caret with the import added once, filter / folding / 完整树 work,
  * the 截图 and 节点 docks replace each other, and a missing accessibility channel is explained.
- * XS_NODES_SHOT=docs/images/ide-nodes.png also saves the documentation screenshot.
+ * XS_NODES_SHOT=docs/images/ide-nodes.png also saves the documentation screenshot, and ide-nodes-fragile.png beside it
+ * (a node only its path can pin, with the warning comment).
  * Skipped when no local Chrome is found ($CHROME or ~/.cache/puppeteer). */
 const {test} = require('node:test');
 const assert = require('node:assert/strict');
@@ -135,29 +136,39 @@ test('Web IDE 节点 dock reads the UI tree and generates node code', {skip: CHR
       await b.eval(() => document.querySelector('#node-tree .node-row[data-path="1/0/4"]').click());
       const v = await b.eval(view);
       assert.match(v.info, /^8 个节点/);
-      assert.match(v.code, /node\.Selector\(1\)\.type\('android\.view\.View'\)\.path\('1\/0\/4'\)\.exists/);
+      assert.match(v.code, /\n# 没有唯一的 id、文字或描述，只能靠路径定位：界面变了可能找不到\nif node\.Selector\(1\)\.type\('android\.view\.View'\)\.path\('1\/0\/4'\)\.exists/);
     });
 
     if (process.env.XS_NODES_SHOT) await t.test('documentation screenshot', async () => {
+      const paint = async () => {
+        // the mock's /screen is a 24×48 gradient: paint the mock login screen from the tree rects instead
+        await b.eval(() => new Promise(resolve => {
+          const c = document.createElement('canvas'); c.width = 540; c.height = 1200; const g = c.getContext('2d'); g.scale(0.5, 0.5);
+          g.fillStyle = '#f6f7fb'; g.fillRect(0, 0, 1080, 2400); g.fillStyle = '#3b6fe0'; g.fillRect(0, 0, 1080, 90);
+          g.fillStyle = '#5b8def'; g.beginPath(); g.arc(540, 400, 100, 0, Math.PI * 2); g.fill();
+          g.fillStyle = '#fff'; g.strokeStyle = '#c9cfdb'; g.lineWidth = 4; g.fillRect(80, 640, 920, 120); g.strokeRect(80, 640, 920, 120);
+          g.font = '44px sans-serif'; g.fillStyle = '#9aa1ad'; g.fillText('请输入账号', 110, 715);
+          g.fillStyle = '#444'; g.fillText('他说"你好"，\'欢迎\'', 80, 845);
+          g.fillStyle = '#3b6fe0'; g.fillRect(80, 980, 920, 130); g.fillStyle = '#fff'; g.font = 'bold 52px sans-serif'; g.fillText('登录', 488, 1063);
+          const img = document.getElementById('node-shot'); img.onload = resolve; img.src = c.toDataURL('image/png');
+        }));
+      };
+      const save = async file => {
+        await b.cmd('Emulation.setDeviceMetricsOverride', {width: 1280, height: 860, deviceScaleFactor: 2, mobile: false});
+        await new Promise(r => setTimeout(r, 300));
+        const shot = await b.cmd('Page.captureScreenshot', {format: 'png'});
+        fs.writeFileSync(path.resolve(__dirname, '../..', file), Buffer.from(shot.data, 'base64'));
+        await b.cmd('Emulation.clearDeviceMetricsOverride', {});
+      };
+      // full tree, the layout-only View (no id / text / desc) picked by the previous test: the code warns about the path
+      await b.eval(() => { const s = document.getElementById('node-kind'); s.value = 'click'; s.dispatchEvent(new Event('change')); });
+      await paint();
+      await save(process.env.XS_NODES_SHOT.replace(/\.png$/, '-fragile.png'));
       await b.eval(() => { const c = document.getElementById('node-full'); c.checked = false; c.dispatchEvent(new Event('change')); });
       await b.waitFor(() => !document.querySelector('#node-tree .node-row[data-path="1/0/4"]') && document.querySelectorAll('#node-tree .node-row').length === 7);
-      await b.eval(() => { const s = document.getElementById('node-kind'); s.value = 'click'; s.dispatchEvent(new Event('change')); document.querySelector('#node-tree .node-row[data-path="1/0/3"]').click(); });
-      // the mock's /screen is a 24×48 gradient: paint the mock login screen from the tree rects instead
-      await b.eval(() => new Promise(resolve => {
-        const c = document.createElement('canvas'); c.width = 540; c.height = 1200; const g = c.getContext('2d'); g.scale(0.5, 0.5);
-        g.fillStyle = '#f6f7fb'; g.fillRect(0, 0, 1080, 2400); g.fillStyle = '#3b6fe0'; g.fillRect(0, 0, 1080, 90);
-        g.fillStyle = '#5b8def'; g.beginPath(); g.arc(540, 400, 100, 0, Math.PI * 2); g.fill();
-        g.fillStyle = '#fff'; g.strokeStyle = '#c9cfdb'; g.lineWidth = 4; g.fillRect(80, 640, 920, 120); g.strokeRect(80, 640, 920, 120);
-        g.font = '44px sans-serif'; g.fillStyle = '#9aa1ad'; g.fillText('请输入账号', 110, 715);
-        g.fillStyle = '#444'; g.fillText('他说"你好"，\'欢迎\'', 80, 845);
-        g.fillStyle = '#3b6fe0'; g.fillRect(80, 980, 920, 130); g.fillStyle = '#fff'; g.font = 'bold 52px sans-serif'; g.fillText('登录', 488, 1063);
-        const img = document.getElementById('node-shot'); img.onload = resolve; img.src = c.toDataURL('image/png');
-      }));
-      await b.cmd('Emulation.setDeviceMetricsOverride', {width: 1280, height: 860, deviceScaleFactor: 2, mobile: false});
-      await new Promise(r => setTimeout(r, 300));
-      const shot = await b.cmd('Page.captureScreenshot', {format: 'png'});
-      fs.writeFileSync(path.resolve(__dirname, '../..', process.env.XS_NODES_SHOT), Buffer.from(shot.data, 'base64'));
-      await b.cmd('Emulation.clearDeviceMetricsOverride', {});
+      await b.eval(() => { document.querySelector('#node-tree .node-row[data-path="1/0/3"]').click(); });
+      await paint();
+      await save(process.env.XS_NODES_SHOT);
     });
 
     await t.test('the 截图 and 节点 docks replace each other', async () => {
