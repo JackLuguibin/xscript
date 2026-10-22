@@ -89,12 +89,16 @@ export function missingWarning(list: MissingPerm[], lang: Lang): { text: string;
   return { text: TEXT[lang].warn(names), a11y, fix: fixes[0] ?? null, fixes };
 }
 
-/** After one fix: its result plus how many are left, and the button for the next one (null when none is left). */
-export function fixDone(text: string, rest: PermFix[], lang: Lang): { text: string; next: string | null } {
-  if (!rest.length) return { text, next: null };
+/** After one fix: its result plus how many are left and the Next button, or, after the last one, the Run Again button (`again`). */
+export function fixDone(text: string, rest: PermFix[], lang: Lang): { text: string; next: string; again: boolean } {
+  if (!rest.length) {
+    return lang === "zh"
+      ? { text: text + " 开启后点「再运行一次」。", next: "再运行一次", again: true }
+      : { text: text + " Click Run Again when ready.", next: "Run Again", again: true };
+  }
   return lang === "zh"
-    ? { text: text + " 还有 " + rest.length + " 项，点「下一项」继续。", next: "下一项：" + rest[0].button }
-    : { text: text + " " + rest.length + " more to go: click Next.", next: "Next: " + rest[0].button };
+    ? { text: text + " 还有 " + rest.length + " 项，点「下一项」继续。", next: "下一项：" + rest[0].button, again: false }
+    : { text: text + " " + rest.length + " more to go: click Next.", next: "Next: " + rest[0].button, again: false };
 }
 
 export function missingText(lang: Lang) {
