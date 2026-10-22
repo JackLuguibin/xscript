@@ -409,11 +409,18 @@
     /** Status line after 运行: the reply's `missing` lists permissions the code uses but the phone has not granted. */
     static runMessage(project, reply) {
       const missing = reply && Array.isArray(reply.missing) ? reply.missing : [];
-      if (!missing.length) return {text: "已请求运行 " + project, warn: false, a11y: false, fix: null};
+      if (!missing.length) return {text: "已请求运行 " + project, warn: false, a11y: false, fix: null, fixes: []};
       const a11y = missing.some(m => m.label === "无障碍");
-      const first = a11y ? "无障碍" : (missing.find(m => EditorModel.PERM_FIX[m.label]) || {}).label;
+      // every missing permission that has a one-tap fix, accessibility first; the button offers them one after another
+      const labels = [...new Set((a11y ? ["无障碍"] : []).concat(missing.map(m => m.label)))].filter(l => EditorModel.PERM_FIX[l]);
+      const fixes = labels.map(l => Object.assign({label: l}, EditorModel.PERM_FIX[l]));
       return {text: "已请求运行 " + project + " · 手机上还缺：" + missing.map(m => m.label + (m.where ? "（" + m.where + "）" : "")).join("、") + "，相关操作会失败，请在手机上的小程序详情页开启", warn: true, a11y,
-        fix: first ? Object.assign({label: first}, EditorModel.PERM_FIX[first]) : null};
+        fix: fixes[0] || null, fixes};
+    }
+
+    /** Status line after one fix: its result, plus how many fixes are left for the 下一项 button. */
+    static fixDone(text, left) {
+      return left > 0 ? text + " 还有 " + left + " 项，点「下一项」继续" : text;
     }
 
     /** One-tap fix per missing permission (labels from PermissionNeeds.Kind): /eval `code` opens the phone's settings page
