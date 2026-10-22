@@ -178,7 +178,7 @@ class XScriptService(private val project: Project) : Disposable {
     /** Starts `name`; the device's "already running" refusal becomes a localized message naming what still runs. */
     private fun startOrExplain(client: DeviceClient, name: String) {
         try {
-            warnMissing(client, missingPerms(client.start(name)))
+            warnMissing(client, name, missingPerms(client.start(name)))
         } catch (e: AlreadyRunningException) {
             throw IllegalStateException(XScriptBundle.message("run.alreadyRunning", e.running.ifEmpty { "?" }), e)
         }
@@ -447,22 +447,24 @@ class XScriptService(private val project: Project) : Disposable {
     }
 
     /** After a run: the permissions the phone still lacks (console + warning), with one-tap fixes offered one after another (Next). */
-    private fun warnMissing(client: DeviceClient, list: List<MissingPerm>) {
+    private fun warnMissing(client: DeviceClient, name: String, list: List<MissingPerm>) {
         val w = missingWarning(list) { k, a -> XScriptBundle.message(k, *a) } ?: return
         print(w.text + "\n", ConsoleViewContentType.ERROR_OUTPUT)
-        offerFix(client, w.text, NotificationType.WARNING, w.fixes, w.fixes.firstOrNull()?.button)
+        offerFix(client, name, w.text, NotificationType.WARNING, w.fixes, w.fixes.firstOrNull()?.button)
     }
 
-    /** Notification `text`; when `fixes` is not empty its button (`button`) runs the first fix and then offers the rest. */
-    private fun offerFix(client: DeviceClient, text: String, type: NotificationType, fixes: List<PermFix>, button: String?) {
+    /** Notification `text`; when `fixes` is not empty its button (`button`) runs the first fix and then offers the rest; once none is left, the button runs project `name` again. */
+    private fun offerFix(client: DeviceClient, name: String, text: String, type: NotificationType, fixes: List<PermFix>, button: String?) {
         val n = NotificationGroupManager.getInstance().getNotificationGroup("XScript").createNotification(text, type)
         val fix = fixes.firstOrNull()
-        if (fix != null && button != null) {
+        if (fix == null && button != null) {
+            n.addAction(NotificationAction.createSimpleExpiring(button) { runOnDevice(name) })
+        } else if (fix != null && button != null) {
             n.addAction(NotificationAction.createSimpleExpiring(button) {
                 ApplicationManager.getApplication().executeOnPooledThread {
                     val done = applyFix(client, fix) ?: return@executeOnPooledThread
                     val (next, nextButton) = fixDone(done, fixes.drop(1)) { k, a -> XScriptBundle.message(k, *a) }
-                    offerFix(client, next, NotificationType.INFORMATION, fixes.drop(1), nextButton)
+                    offerFix(client, name, next, NotificationType.INFORMATION, fixes.drop(1), nextButton)
                 }
             })
         }
