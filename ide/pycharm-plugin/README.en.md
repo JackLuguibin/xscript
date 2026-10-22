@@ -6,6 +6,8 @@ It talks to the device HTTP API (`protocol/openapi.yaml`, default port 9860). On
 
 ![After a run the XScript tool window at the bottom shows the log live; the status bar shows "XScript: Running daily_signin"](../../docs/images/pycharm-run.png)
 
+![After a run on a phone without accessibility: the log and a notification name what is missing and where it is used; "Open Accessibility Settings on Phone" opens them on the phone](../../docs/images/pycharm-missing.png)
+
 ![Settings → Tools → XScript: device address, pairing code, Run Selection timeout, upload deletes and basic checks](../../docs/images/pycharm-settings.png)
 
 ![Basic checks: warnings starting with XScript: in the Problems view: an async function called without await, the keyword wiat (did you mean wait?) and the misspelled totl (did you mean total?)](../../docs/images/pycharm-checks.png)

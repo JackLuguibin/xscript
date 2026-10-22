@@ -178,7 +178,7 @@ class XScriptService(private val project: Project) : Disposable {
     /** Starts `name`; the device's "already running" refusal becomes a localized message naming what still runs. */
     private fun startOrExplain(client: DeviceClient, name: String) {
         try {
-            client.start(name)
+            warnMissing(client, missingPerms(client.start(name)))
         } catch (e: AlreadyRunningException) {
             throw IllegalStateException(XScriptBundle.message("run.alreadyRunning", e.running.ifEmpty { "?" }), e)
         }
@@ -444,6 +444,30 @@ class XScriptService(private val project: Project) : Disposable {
                 print(XScriptBundle.message("log.followStopped", e.message ?: e.toString()) + "\n", ConsoleViewContentType.ERROR_OUTPUT)
             }
         }
+    }
+
+    /** After a run: the permissions the phone still lacks (console + warning), with a one-tap button that opens accessibility settings. */
+    private fun warnMissing(client: DeviceClient, list: List<MissingPerm>) {
+        val (text, a11y) = missingWarning(list) { k, a -> XScriptBundle.message(k, *a) } ?: return
+        print(text + "\n", ConsoleViewContentType.ERROR_OUTPUT)
+        val n = NotificationGroupManager.getInstance().getNotificationGroup("XScript").createNotification(text, NotificationType.WARNING)
+        if (a11y) {
+            n.addAction(NotificationAction.createSimpleExpiring(XScriptBundle.message("missing.open")) {
+                ApplicationManager.getApplication().executeOnPooledThread {
+                    try {
+                        val r = client.eval(A11Y_CODE, 5000)
+                        when {
+                            !r.ok -> notify(XScriptBundle.message("missing.failed", r.error.ifEmpty { "?" }), NotificationType.ERROR)
+                            r.result == "1" -> notify(XScriptBundle.message("missing.on"), NotificationType.INFORMATION)
+                            else -> notify(XScriptBundle.message("missing.opened"), NotificationType.INFORMATION)
+                        }
+                    } catch (e: Exception) {
+                        notify(XScriptBundle.message("missing.failed", e.message ?: e.toString()), NotificationType.ERROR)
+                    }
+                }
+            })
+        }
+        n.notify(project)
     }
 
     /** Error notification with one action button (e.g. retry). */
