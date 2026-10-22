@@ -254,7 +254,10 @@
     return {left: r.l / w * 100 + "%", top: r.t / h * 100 + "%", width: (r.r - r.l) / w * 100 + "%", height: (r.b - r.t) / h * 100 + "%"};
   }
 
-  const EditorNodes = {hitTest, ancestry, rows, count, label, pyStr, xpathStr, selectorChain, nodeXPath, center, KINDS, snippet, fullText, runCode, recentEntry, pushRecent, findRecent, tryCode, tryVerdict, fragile, FRAGILE, stableAlternative, importEdit, attrs, boxStyle, shortType};
+  // opens the phone's accessibility settings (nonblocking; Python runs without the accessibility channel)
+  const A11Y_CODE = "from xscript.android import permission\n_result = permission.request(permission.ACCESSIBILITY_SERVICE, 1)";
+
+  const EditorNodes = {A11Y_CODE, hitTest, ancestry, rows, count, label, pyStr, xpathStr, selectorChain, nodeXPath, center, KINDS, snippet, fullText, runCode, recentEntry, pushRecent, findRecent, tryCode, tryVerdict, fragile, FRAGILE, stableAlternative, importEdit, attrs, boxStyle, shortType};
 
   // ---- browser dock ----
   // ctx: {message(text, error), insertCode(code, imports) -> bool, onOpen()}
@@ -389,7 +392,9 @@
         const r = await fetch("/ui-tree?mode=" + mode() + "&t=" + Date.now(), {cache: "no-store", headers: {"X-XScript-Client": "tools"}});
         if (r.status === 401) { location.href = "/pair?next=" + encodeURIComponent(location.pathname + location.search); return; }
         let data = null; try { data = await r.json(); } catch (e) { /* not JSON */ }
-        if (!r.ok) throw new Error(r.status === 503 || /no_channel/.test(data && data.error || "") ? "读不到节点：请在手机上开启 XScript 的无障碍服务（或授予 Root）后再试" : "读取节点失败（HTTP " + r.status + (data && data.error ? "：" + data.error : "") + "）");
+        const noChannel = !r.ok && (r.status === 503 || /no_channel/.test(data && data.error || ""));
+        if (token === st.token) $("node-a11y").hidden = !noChannel;
+        if (!r.ok) throw new Error(noChannel || /no_channel/.test(data && data.error || "") ? "读不到节点：请在手机上开启 XScript 的无障碍服务（或授予 Root）后再试" : "读取节点失败（HTTP " + r.status + (data && data.error ? "：" + data.error : "") + "）");
         if (token !== st.token) return;
         // keep the same control selected, not whatever now sits at its old path (a scrolled list shifts every row)
         const prev = st.selected && recentEntry(st.selected);
@@ -399,7 +404,7 @@
         renderTree(); renderDetail();
         info(count(st.tree.roots) + " 个节点 · " + st.tree.width + "×" + st.tree.height + " · " + (prev && !st.selected ? "之前选中的「" + prev.label + "」不在当前界面上" : "点截图或树选中节点"));
         shot(token);
-      } catch (e) { if (token === st.token) { info(e.message, true); st.tree = null; st.selected = null; renderTree(); renderDetail(); } }
+      } catch (e) { if (token === st.token) { info(e.message, true); st.tree = null; st.selected = null; renderTree(); renderDetail(); $("node-shot").hidden = true; $("node-box").hidden = true; $("node-hits").replaceChildren(); } } // an old screenshot would not match the phone any more
       finally { if (token === st.token) $("node-take").disabled = false; }
     }
     async function shot(token) {
@@ -425,6 +430,17 @@
     $("node-toggle").addEventListener("click", () => setOpen($("node-panel").hidden));
     $("node-close").addEventListener("click", () => setOpen(false));
     $("node-take").addEventListener("click", take);
+    $("node-a11y").addEventListener("click", async () => {
+      $("node-a11y").disabled = true; info("正在手机上打开无障碍设置…");
+      try {
+        const r = await fetch("/eval", {method: "POST", cache: "no-store", headers: {"Content-Type": "application/json", "X-XScript-Client": "tools"}, body: JSON.stringify({code: A11Y_CODE, timeout_ms: 5000})});
+        if (r.status === 401) { location.href = "/pair?next=" + encodeURIComponent(location.pathname + location.search); return; }
+        let data = null; try { data = await r.json(); } catch (e) { /* not JSON */ }
+        if (!r.ok || !data || !data.ok) throw new Error("打开失败：" + ((data && (data.error || "").trim().split("\n").pop()) || "HTTP " + r.status) + "，请在手机的 设置 → 无障碍 里开启 XScript");
+        info(String(data.result) === "1" ? "无障碍服务已开启，点「重新获取」" : "已在手机上打开无障碍设置：找到 XScript 并开启，然后点「重新获取」");
+      } catch (e) { info(e.message, true); }
+      finally { $("node-a11y").disabled = false; }
+    });
     $("node-try").addEventListener("click", tryIt);
     $("node-alt-use").addEventListener("click", () => { if (st.alt) { remember(st.alt); select(st.alt, {reveal: true, focus: true}); } });
     $("node-recent").addEventListener("change", () => {
