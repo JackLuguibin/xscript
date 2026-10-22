@@ -31,12 +31,19 @@ class ProjectStore(val root: File) {
         val arr = JSONArray()
         for (name in list()) {
             val dir = dir(name)
+            // One walk for both the newest mtime and the file count (was two full walks per project).
+            var newest = 0L
+            var count = 0
+            dir.walkTopDown().onEnter { it.name != "__pycache__" }.filter { it.isFile }.forEach {
+                count++
+                newest = maxOf(newest, it.lastModified())
+            }
             arr.put(
                 JSONObject()
                     .put("name", name)
-                    .put("modified", lastModified(dir))
+                    .put("modified", if (count > 0) newest else dir.lastModified())
                     .put("flavor", flavor(dir))
-                    .put("files", countFiles(dir)),
+                    .put("files", count),
             )
         }
         return arr
@@ -379,9 +386,6 @@ class ProjectStore(val root: File) {
         val top = tops.first()
         return if (paths.any { it == "$top/__init__.py" || it == "$top/__init__.pyc" }) "$top/" else ""
     }
-
-    private fun lastModified(dir: File): Long =
-        dir.walkTopDown().onEnter { it.name != "__pycache__" }.filter { it.isFile }.maxOfOrNull { it.lastModified() } ?: dir.lastModified()
 
     private fun countFiles(dir: File): Int =
         dir.walkTopDown().onEnter { it.name != "__pycache__" }.count { it.isFile }
