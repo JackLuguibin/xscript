@@ -190,6 +190,10 @@ jobs:
           export CHROME="$(command -v google-chrome || command -v chromium-browser || command -v chromium)"
           echo "Chrome: $CHROME"
           node --test scripts/tests/*.test.cjs
+      - name: Typing benchmark (soft budget, warns only)
+        run: |
+          export CHROME="$(command -v google-chrome || command -v chromium-browser || command -v chromium)"
+          node scripts/bench/webide_typing.cjs --check
 
   vscode-extension:
     name: VS Code extension (unit tests + vsix)
