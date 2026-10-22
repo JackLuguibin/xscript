@@ -64,8 +64,11 @@ class DeviceHttpServer(
                 remote = remote,
                 contentType = headers["content-type"].orEmpty(),
                 authed = authed,
+                ifNoneMatch = headers["if-none-match"],
             )
             val reply = router.handle(req)
+            // Unchanged page asset: no body (and a non-text type, so the server does not gzip an empty 304).
+            if (reply.status == 304) return newFixedLengthResponse(Response.Status.NOT_MODIFIED, "application/octet-stream", "").apply { cache(reply.etag) }
             val status = Response.Status.lookup(reply.status) ?: Response.Status.INTERNAL_ERROR
             val file = reply.file
             if (file != null) {
@@ -75,10 +78,17 @@ class DeviceHttpServer(
                 if (reply.deleteFile) file.delete()
                 return newFixedLengthResponse(status, reply.mime, stream, size)
             }
-            return newFixedLengthResponse(status, reply.mime, reply.body.inputStream(), reply.body.size.toLong())
+            return newFixedLengthResponse(status, reply.mime, reply.body.inputStream(), reply.body.size.toLong()).apply { cache(reply.etag) }
         } finally {
             body.release()
         }
+    }
+
+    /** Page assets: the browser keeps them but asks every time (If-None-Match), so an updated app is never stale. */
+    private fun Response.cache(etag: String?) {
+        if (etag == null) return
+        addHeader("ETag", etag)
+        addHeader("Cache-Control", "no-cache")
     }
 
     /** Small bodies stay in memory; larger ones are spooled to a temp file and streamed. */

@@ -38,6 +38,8 @@ class ApiRouter(private val context: Context) {
         val body: ByteArray,
         val file: File? = null,
         val deleteFile: Boolean = false,
+        /** Validator for a static page asset: the HTTP server sends it as ETag (revalidated on every load). */
+        val etag: String? = null,
     ) {
         /** Whole payload in memory, for transports that cannot stream (cloud relay). */
         fun bytes(): ByteArray {
@@ -89,6 +91,8 @@ class ApiRouter(private val context: Context) {
         val contentType: String? = null,
         /** False only for an unpaired LAN request to a public route (see [HttpGuard.isPublic]). */
         val authed: Boolean = true,
+        /** The HTTP If-None-Match header (static assets answer 304 when it matches), null elsewhere. */
+        val ifNoneMatch: String? = null,
     ) {
         fun json(): JSONObject {
             if (body.isEmpty) return JSONObject()
