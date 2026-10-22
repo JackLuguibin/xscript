@@ -78,12 +78,17 @@
    *  ones still match other nodes of `roots` (e.g. every row of a list shares one resource id), so the code finds
    *  the picked node rather than the first look-alike. Without `roots` (or a unique match) the first field is enough;
    *  when none of them is unique the node's path pins it. */
+  /** Clocks and timers rewrite their own text, so a selector on it stops matching; their text/desc are skipped. */
+  function volatileText(n) {
+    return /:id\/clock$/.test(n.id || "") || /(^|\.)(TextClock|Chronometer)$/.test(n.type || "");
+  }
+
   function selectorFields(n, roots) {
     const all = []; const walk = x => { all.push(x); for (const k of x.children || []) walk(k); }; for (const r of roots || []) walk(r);
     const same = fields => all.filter(x => fields.every(f => x[f] === n[f]) && (!n.clickable || x.clickable)).length;
     const fields = [];
     for (const f of ["id", "text", "desc"]) {
-      if (!n[f]) continue;
+      if (!n[f] || (f !== "id" && volatileText(n))) continue;
       fields.push(f);
       if (!roots || same(fields) <= 1) return fields;
     }

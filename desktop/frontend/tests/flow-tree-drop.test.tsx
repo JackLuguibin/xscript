@@ -188,5 +188,9 @@ describe("screen page → flow page", () => {
     await screen.findByText("已放到流程画布");
     // the screen page sends the tree too, so the canvas knows how to find exactly this control
     expect(takeCanvasPicks()).toEqual([{ ...SEARCH, where: { textUnique: true, chain: ".id('com.android.settings:id/search').clickable()" } }]);
+    // a clock's text is never "unique": it will have changed by the time the flow runs
+    const clock = { path: "0/0", id: "com.android.systemui:id/clock", text: "1:57", type: "android.widget.TextView" };
+    sendToCanvas(clock, [clock]);
+    expect(takeCanvasPicks()[0].where).toEqual({ textUnique: false, chain: ".id('com.android.systemui:id/clock')" });
   });
 });
