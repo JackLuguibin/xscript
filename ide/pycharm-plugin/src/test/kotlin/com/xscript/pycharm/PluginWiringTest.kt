@@ -151,4 +151,10 @@ class PluginWiringTest : BasePlatformTestCase() {
         assertTrue(StubsStartupActivity.looksLikeXScript(ws))
         ws.toFile().deleteRecursively()
     }
+
+    fun testBasicChecksAnnotatorIsRegistered() {
+        val ep = com.intellij.openapi.extensions.ExtensionPointName<com.intellij.lang.LanguageExtensionPoint<*>>("com.intellij.externalAnnotator")
+        assertTrue(ep.extensionList.any { it.implementationClass == XScriptLintAnnotator::class.java.name && it.language == "Python" })
+        assertTrue("on by default", XScriptSettings.State().lint)
+    }
 }
