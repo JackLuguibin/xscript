@@ -234,8 +234,24 @@ class MainActivity : AppCompatActivity() {
             startActivity(Intent(this, ProjectsActivity::class.java))
             return
         }
-        ScriptService.run(this, last)
-        UiKit.toast(this, "启动 $last")
+        // missing permissions: open the project page, which lists them and asks 去开启 / 仍然运行
+        val dir = ProjectStore(this).dir(last)
+        kotlin.concurrent.thread(name = "xscript-home-run") {
+            val missing = com.xscript.app.ui.ProjectActivity.scanDir(dir).count {
+                !com.xscript.app.permission.PermissionStatus.ok(this, it.kind)
+            }
+            runOnUiThread {
+                if (isFinishing) return@runOnUiThread
+                if (HomeModel.runFromHome(missing) == HomeModel.HomeRun.ASK) {
+                    startActivity(Intent(this, com.xscript.app.ui.ProjectActivity::class.java)
+                        .putExtra(com.xscript.app.ui.ProjectActivity.EXTRA_NAME, last)
+                        .putExtra(com.xscript.app.ui.ProjectActivity.EXTRA_RUN, true))
+                } else {
+                    ScriptService.run(this, last)
+                    UiKit.toast(this, "启动 $last")
+                }
+            }
+        }
     }
 
     private var endpoint: HomeModel.Endpoint? = null
