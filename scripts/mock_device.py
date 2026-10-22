@@ -149,6 +149,27 @@ def _vision(req):
 TEXT_EXT = {"py", "txt", "md", "json", "yaml", "yml", "html", "htm", "js", "css", "ini", "cfg", "csv", "xml", "toml"}
 
 # The device serves the web tools from the APK assets; the mock reads the same files.
+COMBO_NAME = re.compile(r"^[A-Za-z0-9_.-]+\.js$")
+
+
+def combo_parts(names):
+    """Same rules as the device's ToolsRouter.combo: plain .js names in /tools/ui, each once, at most 40."""
+    if not names or len(names) > 40 or len(set(names)) != len(names):
+        return None
+    for n in names:
+        if not COMBO_NAME.match(n) or n.startswith(".") or not os.path.isfile(os.path.join(ASSETS, n)):
+            return None
+    return names
+
+
+def combo_bytes(names):
+    out = []
+    for n in names:
+        with open(os.path.join(ASSETS, n), "rb") as f:
+            out.append(b"/* ---- " + n.encode() + b" ---- */\n" + f.read())
+    return b"\n;\n".join(out) + b"\n"
+
+
 ASSET_TAG = '"xs-mock-%x"' % int(time.time() * 1000)
 ASSETS = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "android", "app", "src", "main", "assets", "tools")
 WEBSITE_ALIASES = {"/website/src/screen.html": "color.html", "/website/src/label.html": "label.html", "/website/src/editor.html": "editor.html"}
@@ -316,20 +337,21 @@ class Handler(BaseHTTPRequestHandler):
         self.end_headers()
         self.wfile.write(raw)
 
-    def _asset(self, rel):
-        if not _safe_rel(rel):
+    def _asset(self, rel, raw=None):
+        if raw is None and not _safe_rel(rel):
             self._json(400, {"error": "invalid path"})
             return
         path = os.path.join(ASSETS, rel)
-        if not os.path.isfile(path):
+        if raw is None and not os.path.isfile(path):
             self._json(404, {"error": "missing asset %s" % rel})
             return
         # Like the device (ToolsRouter.asset): one validator per install (here: per mock start), revalidated each load.
         if self.headers.get("If-None-Match") and any(t.strip() in ("*", ASSET_TAG, "W/" + ASSET_TAG) for t in self.headers["If-None-Match"].split(",")):
             self.send_response(304); self.send_header("ETag", ASSET_TAG); self.send_header("Cache-Control", "no-cache"); self.end_headers()
             return
-        with open(path, "rb") as f:
-            raw = f.read()
+        if raw is None:
+            with open(path, "rb") as f:
+                raw = f.read()
         self.send_response(200)
         self.send_header("Content-Type", MIME.get(rel.rsplit(".", 1)[-1], "application/octet-stream"))
         self.send_header("Content-Length", str(len(raw)))
@@ -561,6 +583,14 @@ class Handler(BaseHTTPRequestHandler):
         if parsed.path.startswith("/schedules/"):
             s = STATE["schedules"].get(unquote(parsed.path[len("/schedules/"):]))
             self._json(200 if s else 404, s or {"error": "missing schedule"})
+            return
+        if parsed.path == "/tools/ui/combo.js":
+            names = (parse_qs(parsed.query).get("f") or [""])[0].split(",")
+            parts = combo_parts(names)
+            if parts is None:
+                self._json(400, {"error": "invalid combo"})
+            else:
+                self._asset("combo.js", raw=combo_bytes(parts))
             return
         asset = WEBSITE_ALIASES.get(parsed.path)
         if asset or parsed.path in ("/tools", "/tools/") or parsed.path.startswith("/tools/ui/"):
