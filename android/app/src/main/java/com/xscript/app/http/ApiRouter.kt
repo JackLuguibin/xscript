@@ -298,6 +298,14 @@ class ApiRouter(private val context: Context) {
         val refusal = ScriptService.run(context, name, debug = debug)
         if (refusal != null) return Reply.json(JSONObject().put("error", refusal), 403)
         val result = JSONObject().put("ok", true).put("running", true).put("project", name)
+        // what the code uses but the phone has not granted (same scan as the project page); the run still starts
+        val missing = runCatching {
+            com.xscript.app.ui.ProjectActivity.scanDir(store.dir(name))
+                .filter { !com.xscript.app.permission.PermissionStatus.ok(context, it.kind) }
+        }.getOrDefault(emptyList())
+        if (missing.isNotEmpty()) result.put("missing", org.json.JSONArray(missing.map {
+            JSONObject().put("label", it.kind.label).put("why", it.kind.why).put("where", it.where)
+        }))
         if (debug) result.put("debug", JSONObject().put("port", 5678)
             .put("remote_root", store.dir(name).absolutePath))
         return Reply.json(result)

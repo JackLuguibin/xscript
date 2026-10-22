@@ -594,7 +594,9 @@ paths:
       summary: Start the project in the :script process
       responses:
         "200":
-          description: Started
+          description: >-
+            Started. `missing` (only when non-empty) lists permissions the project's code uses but the phone has not
+            granted, as on the project page: [{label, why, where}]. The run starts anyway.
         "404":
           description: Missing project or entry file
         "409":

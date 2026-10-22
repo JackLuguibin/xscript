@@ -406,6 +406,12 @@
       return this.api("POST", this.projectUrl(project) + (mode === "debug" ? "/debug" : "/run"), {});
     }
     async stop() { return this.api("POST", this.projectUrl() + "/stop", {}); }
+    /** Status line after 运行: the reply's `missing` lists permissions the code uses but the phone has not granted. */
+    static runMessage(project, reply) {
+      const missing = reply && Array.isArray(reply.missing) ? reply.missing : [];
+      if (!missing.length) return {text: "已请求运行 " + project, warn: false};
+      return {text: "已请求运行 " + project + " · 手机上还缺：" + missing.map(m => m.label + (m.where ? "（" + m.where + "）" : "")).join("、") + "，相关操作会失败，请在手机上的小程序详情页开启", warn: true};
+    }
   }
   if (typeof module !== "undefined" && module.exports) module.exports = { EditorModel };
   else root.EditorModel = EditorModel;
