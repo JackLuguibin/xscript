@@ -279,6 +279,18 @@ test('Web IDE explorer, editor and create/delete flows in a real browser', {skip
       assert.ok(await b.eval(() => { const li = document.querySelector('#complete li[aria-selected=true]'); return document.getElementById('editor').getAttribute('aria-activedescendant') === li.id; }), 'aria-activedescendant');
       const geo = await b.eval(() => { const p = document.getElementById('complete').getBoundingClientRect(), h = document.querySelector('.ide-code').getBoundingClientRect(); return {inside: p.left >= h.left - 1 && p.right <= h.right + 1 && p.top >= h.top - 1 && p.bottom <= h.bottom + 1, docShown: !!document.querySelector('#complete .cdoc').textContent}; });
       assert.ok(geo.inside, 'popup stays inside the editor area'); assert.ok(geo.docShown, 'signature/doc line shown');
+      // the popup sits at the word's column (measured off-page): after a tab and wide CJK text too
+      await setup('from xscript.android import action\nif 1:\n\ts = "中文"; ');
+      await b.insertText('action.cl');
+      await b.waitFor(() => !document.getElementById('complete').hidden && document.getElementById('complete').style.left !== '');
+      const col = await b.eval(() => { const e = document.getElementById('editor'), cs = getComputedStyle(e), sp = document.createElement('span');
+        sp.style.cssText = 'position:absolute;visibility:hidden;white-space:pre;tab-size:4;letter-spacing:0;font-variant-ligatures:none';
+        sp.style.font = cs.fontWeight + ' ' + cs.fontSize + ' ' + cs.fontFamily; sp.textContent = '\ts = "中文"; action.'; document.body.append(sp);
+        const w = sp.getBoundingClientRect().width; sp.remove(); return {want: 12 + w - e.scrollLeft, got: parseFloat(document.getElementById('complete').style.left)}; });
+      assert.ok(Math.abs(col.want - col.got) <= 1, JSON.stringify(col));
+      await setup('from xscript.android import action\n');
+      await b.insertText('action.cl');
+      await b.waitFor(() => !document.getElementById('complete').hidden);
       await b.key('ArrowDown', 'ArrowDown', 40);
       assert.equal((await popup()).selected, 1);
       await b.key('ArrowUp', 'ArrowUp', 38);
