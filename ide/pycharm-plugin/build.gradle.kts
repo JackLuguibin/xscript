@@ -115,5 +115,7 @@ tasks.runIde {
 tasks.test {
     // scripts/mock_device.py lives at the repo root; the client tests start it when python3 is available.
     systemProperty("xscript.repo", rootDir.resolve("../..").canonicalPath)
+    // MissingPermsTest compares the bundles with the shared table: a change there must rerun the tests
+    inputs.file("../../protocol/permission-fix.json").withPathSensitivity(PathSensitivity.RELATIVE)
     testLogging { events("failed"); exceptionFormat = org.gradle.api.tasks.testing.logging.TestExceptionFormat.FULL }
 }

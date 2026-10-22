@@ -276,6 +276,8 @@ tasks.withType<Test>().configureEach {
     inputs.file("build.gradle.kts").withPathSensitivity(PathSensitivity.RELATIVE)
     inputs.file("python-prune.txt").withPathSensitivity(PathSensitivity.RELATIVE)
     inputs.dir("../python-runtime").withPathSensitivity(PathSensitivity.RELATIVE)
+    // PermissionNeedsTest compares Kind labels with the IDEs' shared one-tap table
+    inputs.file("../../protocol/permission-fix.json").withPathSensitivity(PathSensitivity.RELATIVE)
     // ResourceFiltersTest lists res/values-*, R8KeepRulesTest scans the Kotlin sources: with the build cache on, a
     // change there must not replay an old result.
     inputs.dir("src/main/res").withPathSensitivity(PathSensitivity.RELATIVE)
