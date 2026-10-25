@@ -10,7 +10,7 @@ description = "XScript 管理后台: 云控, 卡密授权, APK 打包 (FastAPI +
 requires-python = ">=3.10"  # same floor as the device (Chaquopy 3.10) and the MCP server; 代码保护 needs a 3.10 interpreter (see protect.py)
 # Pinned to the versions verified in this repo.
 dependencies = [
-    "fastapi==0.143.2",
+    "fastapi==0.159.1",
     "uvicorn==0.54.0",
     # websockets 17 and sqlalchemy 2.1 need Python 3.11; 3.10 gets the newest releases that support it.
     "websockets==17.1; python_version >= '3.11'",
