@@ -845,6 +845,16 @@
       box.dispatchEvent(new Event("input"));
       return true;
     }});
+  // Direct entry from the tools home / IDE extension. Hash changes also work on an already open editor.
+  const openNodeTool = () => {
+    if (location.hash !== "#nodes") { nodes.close(); return; }
+    const full = el("node-full"), changed = !full.checked;
+    full.checked = true;
+    nodes.open();
+    if (changed && nodes.state().tree) void nodes.take();
+  };
+  window.addEventListener("hashchange", openNodeTool);
+  openNodeTool();
   window.addEventListener("keydown", e => {
     if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "s") { e.preventDefault(); if (!el("save").disabled) el("save").click(); }
     if (e.key === "F6") { e.preventDefault(); el(e.shiftKey ? "stop" : "run").click(); }

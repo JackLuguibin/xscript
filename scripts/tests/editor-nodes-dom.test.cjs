@@ -427,6 +427,16 @@ test('Web IDE 节点 dock reads the UI tree and generates node code', {skip: CHR
       assert.deepEqual(await b.eval(() => window.__runFix.map(c => c[1].match(/permission\.(\w+), 1/)[1])), ['NOTIFICATION_LISTENER', 'MANAGE_EXTERNAL_STORAGE']);
     });
 
+    await t.test('tools home exposes nodes alongside color and label, and opens the full tree directly', async () => {
+      await b.goto(base + '/tools/');
+      await b.waitFor(() => !!document.querySelector('#cards a[href="/tools/ui/editor.html#nodes"]'));
+      assert.equal(await b.eval(() => document.querySelectorAll('#cards .card').length), 5);
+      await b.goto(base + '/tools/ui/editor.html#nodes');
+      await b.waitFor(() => !document.getElementById('node-panel').hidden && document.querySelectorAll('#node-tree .node-row').length > 0);
+      assert.equal(await b.eval(() => document.getElementById('node-full').checked), true);
+      assert.ok((await b.eval(view)).rows.includes('1/0/4'));
+    });
+
     assert.deepEqual(b.errors, []);
   } finally {
     if (browser) await browser.close();
