@@ -188,10 +188,21 @@ describe("screen page → flow page", () => {
     fireEvent.click(screen.getByRole("button", { name: "放到流程画布" }));
     await screen.findByText("已放到流程画布");
     // the screen page sends the tree too, so the canvas knows how to find exactly this control
-    expect(takeCanvasPicks()).toEqual([{ ...SEARCH, where: { textUnique: true, chain: ".id('com.android.settings:id/search').clickable()", why: "# id 'com.android.settings:id/search' 在界面上只有这一个可点击的控件" } }]);
+    expect(takeCanvasPicks()).toEqual([{ ...SEARCH, where: { mode: 1, textUnique: true, chain: ".id('com.android.settings:id/search').clickable()", why: "# id 'com.android.settings:id/search' 在界面上只有这一个可点击的控件" } }]);
     // a clock's text is never "unique": it will have changed by the time the flow runs
     const clock = { path: "0/0", id: "com.android.systemui:id/clock", text: "1:57", type: "android.widget.TextView" };
     sendToCanvas(clock, [clock]);
     expect(takeCanvasPicks()[0].where).toEqual({ textUnique: false, chain: ".id('com.android.systemui:id/clock')", why: "# id 'com.android.systemui:id/clock' 在界面上只有这一个控件" });
   });
+});
+
+it("keeps filtered-window mode when a picked node is sent to a runnable flow", () => {
+  const roots = [{ path: "1/0", text: "登录", id: "app:id/login" }];
+  sendToCanvas(roots[0], roots, 3);
+  const [pick] = takeCanvasPicks();
+  const graph = dropTreeNode(parse("flow test  # xflow 1\non start:\n"), pick, specs).graph;
+  const find = graph.nodes.find((node) => node.id === "find");
+  // A text-only shortcut would search system windows again and could pick a different match.
+  expect(find?.type).toBe("code.python");
+  expect(String(find?.config?.source)).toContain("xs_node.Selector(mode=3).id('app:id/login')");
 });

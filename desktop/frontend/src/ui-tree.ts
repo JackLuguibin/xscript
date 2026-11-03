@@ -20,6 +20,8 @@ export interface UiNode {
 
 export interface UiTree {
   mode?: number;
+  source?: string;
+  error?: string;
   width?: number;
   height?: number;
   roots?: UiNode[];
@@ -53,17 +55,19 @@ export function hitTest(roots: readonly UiNode[], x: number, y: number): UiNode 
   return best.node;
 }
 
-export function flattenTree(roots: readonly UiNode[], limit = 400): Array<{ node: UiNode; depth: number; truncated: boolean }> {
+export function flattenTree(roots: readonly UiNode[], limit = Infinity): Array<{ node: UiNode; depth: number; truncated: boolean }> {
   const out: Array<{ node: UiNode; depth: number; truncated: boolean }> = [];
-  const walk = (nodes: readonly UiNode[], depth: number) => {
-    for (const node of nodes) {
-      if (out.length >= limit) return;
-      out.push({ node, depth, truncated: false });
-      walk(node.children ?? [], depth + 1);
+  const stack = [...roots].reverse().map((node) => ({ node, depth: 0 }));
+  while (stack.length) {
+    if (out.length >= limit) {
+      out.push({ node: {}, depth: 0, truncated: true });
+      break;
     }
-  };
-  walk(roots, 0);
-  if (out.length >= limit) out.push({ node: {}, depth: 0, truncated: true });
+    const row = stack.pop()!;
+    out.push({ ...row, truncated: false });
+    const children = row.node.children ?? [];
+    for (let i = children.length - 1; i >= 0; i -= 1) stack.push({ node: children[i], depth: row.depth + 1 });
+  }
   return out;
 }
 
@@ -179,20 +183,20 @@ export function stableAlternative(node: UiNode, roots?: UiNode[]): { node: UiNod
 }
 
 /** A Selector() chain: resource id, text, content-desc as needed to be unique in `roots`, else class + path. */
-export function selectorCode(node: UiNode, roots?: UiNode[]): string {
+export function selectorCode(node: UiNode, roots?: UiNode[], mode = 0): string {
   const alt = stableAlternative(node, roots);
   const note = selectorFragile(node, roots)
     ? FRAGILE_NOTE + (alt ? `# 更稳的选择：${alt.rel}「${nodeLabel(alt.node).replace(/\s+/g, " ")}」\n` : "")
     : "";
-  return `from xscript.android import node\n${note}${selectorChain(node, "node", roots)}.find(timeout=5)`;
+  return `from xscript.android import node\n${note}${selectorChain(node, "node", roots, mode)}.find(timeout=5)`;
 }
 
 /** `<module>.Selector()…` without the find, so callers pick the module alias and timeout. */
-export function selectorChain(node: UiNode, module: string, roots?: UiNode[]): string {
+export function selectorChain(node: UiNode, module: string, roots?: UiNode[], mode = 0): string {
   const calls = selectorFields(node, roots).map((f) => `.${f}(${pyStr(node[f] ?? "")})`);
   if (node.clickable) calls.push(".clickable()");
   const chain = calls.length ? calls.join("") : `.path(${pyStr(node.path || "0")})`;
-  return `${module}.Selector()${chain}`;
+  return `${module}.Selector(${mode ? `mode=${mode}` : ""})${chain}`;
 }
 
 /** One XPath that points at this node: resource-id, text, content-desc as needed to be unique in `roots`, else path. */

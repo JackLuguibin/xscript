@@ -76,3 +76,16 @@ describe("ui tree", () => {
   });
 });
 
+
+it("keeps every node in large trees and only marks real truncation", () => {
+  const nodes = Array.from({ length: 650 }, (_, i) => ({ path: `0/${i}`, text: `node ${i}` }));
+  expect(flattenTree(nodes)).toHaveLength(650);
+  expect(flattenTree(nodes).at(-1)?.node.text).toBe("node 649");
+  expect(flattenTree(nodes, 650).some((row) => row.truncated)).toBe(false);
+  expect(flattenTree(nodes, 400).at(-1)?.truncated).toBe(true);
+});
+
+it("generates selectors using the same full-tree / system-window mode as inspection", () => {
+  const layout = { path: "1/0", type: "android.view.View" };
+  expect(selectorCode(layout, [layout], 3)).toContain("node.Selector(mode=3).type('android.view.View').path('1/0')");
+});

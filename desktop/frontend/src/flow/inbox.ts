@@ -7,6 +7,7 @@ export type CanvasPick = Pick<UiNode, "id" | "text" | "desc" | "type" | "path" |
   where?: {
     /** The text alone finds this control: no other node on the screen has the same text. */
     textUnique: boolean;
+    mode?: number;
     /** Selector calls after `Selector()` that find only this control, e.g. `.id('android:id/title').text('Apps')`. */
     chain: string;
     /** Python comment saying why the chain has these calls (see selectorWhy); old queued picks lack it. */
@@ -30,10 +31,10 @@ const listeners = new Set<() => void>();
 
 /** Queue a control for the flow canvas. `roots` (the screen's tree) lets the canvas pick a selector that finds this
  *  control rather than the first one sharing its text or resource id. */
-export function sendToCanvas(pick: CanvasPick, roots?: UiNode[]): void {
+export function sendToCanvas(pick: CanvasPick, roots?: UiNode[], mode = 0): void {
   const { id, text, desc, type, path, clickable } = pick;
   const where = roots
-    ? { textUnique: !!text && !volatileText(pick) && sameText(roots, text) === 1, chain: selectorChain(pick, "", roots).slice(".Selector()".length), why: selectorWhy(pick, roots) }
+    ? { ...(mode ? { mode } : {}), textUnique: !!text && !volatileText(pick) && sameText(roots, text) === 1, chain: selectorChain(pick, "", roots).slice(".Selector()".length), why: selectorWhy(pick, roots) }
     : pick.where;
   pending.push({ id, text, desc, type, path, clickable, ...(where ? { where } : {}) });
   for (const listener of [...listeners]) listener();

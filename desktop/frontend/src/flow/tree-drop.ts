@@ -56,14 +56,14 @@ export function dropTreeNode(graph: FlowGraph, pick: UiNode & Pick<CanvasPick, "
   let hit: string;
   let found: string;
   // Picks without `where` (queued without a tree) keep the old rule: any text goes to node.find.
-  const byText = !!text && (pick.where ? pick.where.textUnique : true);
+  const byText = !!text && (pick.where ? pick.where.textUnique && ((pick.where.mode ?? 0) & 2) === 0 : true);
   if (byText) {
     nodes.push({ id: find, type: "node.find", inputs: { text, timeout: 5 } });
     hit = find + ".node";
     found = find + ".found";
   } else {
     const why = pick.where?.why ? [pick.where.why] : [];
-    const source = ["from xscript.android import node as xs_node", ...why, "hit = " + (pick.where ? "xs_node.Selector()" + pick.where.chain : selectorChain(pick, "xs_node")) + ".find(timeout=5)", "found = hit is not None"].join("\n");
+    const source = ["from xscript.android import node as xs_node", ...why, "hit = " + (pick.where ? `xs_node.Selector(${pick.where.mode ? `mode=${pick.where.mode}` : ""})` + pick.where.chain : selectorChain(pick, "xs_node")) + ".find(timeout=5)", "found = hit is not None"].join("\n");
     nodes.push({ id: find, type: "code.python", config: { source, outPins: "hit:node?, found:bool" } });
     hit = find + ".hit";
     found = find + ".found";

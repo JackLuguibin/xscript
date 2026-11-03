@@ -63,6 +63,8 @@ object AccessibilityEngine {
             .put("roots", JSONArray())
             .put("error", "accessibility_off")
         val size = com.xscript.app.util.DisplaySize.real(svc)
+        // A refresh should not reuse an old hierarchy after the target app changes screens.
+        if (Build.VERSION.SDK_INT >= 33) svc.clearCache()
         val roots = NodeDumper.collectRoots(svc, mode, svc.packageName)
         return try {
             NodeDumper.dump(roots, mode, size.x, size.y)
