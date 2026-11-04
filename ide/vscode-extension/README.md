@@ -45,7 +45,9 @@ cd ide/vscode-extension && npm ci && npm run package     # 生成 xscript-vscode
 6. **编辑同步忽略规则**：`.vscode/.syncignore`（和 AScript 同一个位置），gitignore 风格（`*.log`、`dist/`、`/build/`、`!keep.log`）。以 `.` 开头的文件和目录、`__pycache__`、`.pyc`、虚拟环境始终不上传。
 7. **基本检查**：XScript 工程里的 `.py` 文件，边打边检查，和网页 IDE 是同一套规则（未定义的名字及「是不是 …」、属性不存在、调用参数不对、import 拼错、async / await 用错、重复定义），以警告列在「问题」面板并画波浪线；未使用的 import / 变量和执行不到的代码变暗。提示里写「Ctrl/Cmd+. …」的都可以一键修复：「是不是 …」的拼写（包括关键字参数名、确定无误的类型转换）直接改正，没定义但工程里别的模块有的名字加上 `from 模块 import 名字`（放在文件开头的文档字符串和 import 之后；有几个模块时每个一项）；还可以删除未使用的 import / 变量和执行不到的代码、补上缺少的参数、跳到被覆盖的重复定义。设置 `xscript.lint` 设为 `false` 可关闭。
 
-## 命令（命令面板里的名字有中文版，跟随 VS Code 显示语言）
+插件侧栏、输入框、状态提示和开发工具入口默认使用中文，无需先切换 VS Code / Cursor 的显示语言。侧栏「节点工具」直接打开节点面板；开发工具首页也提供与图色、标注同级的节点入口（需要同步更新手机 App）。
+
+## 命令（侧栏、操作提示默认使用中文）
 
 | 命令 | 默认快捷键 | 说明 |
 | --- | --- | --- |
@@ -108,7 +110,7 @@ if values:
 | `调试当前工程 (Android)`，**F6**，调试类型 `ascript`（attach） | `调试当前工程`，**Alt+F6**，调试类型 `xscript`（launch：上传、启动、连接）；F6 仍是运行 | ◐ 功能对齐，快捷键保留原来的 F6 = 运行 |
 | 工具：控件检索、图色助手、UI 生成器、Yolo 标注 / 训练 / 检测（打开网页） | `Developer Tools` 打开手机上的 `/tools/`（图色、标注、投屏）；没有 UI 生成器和云端训练 | ◐ |
 | 工具：ADB 终端、投屏（下载 scrcpy） | `ADB 终端`（用系统 adb）；`投屏` 打开手机自带的网页投屏。不下载 scrcpy | ✅ / ◐ |
-| 命令标题是中文 | `package.nls.zh-cn.json`，中文显示语言下是中文标题 | ✅ |
+| 命令标题是中文 | 默认中文标题，无需切换编辑器语言 | ✅ |
 | 工程识别：`build.as` | `build.as` 或 `__init__.py` | ✅ |
 | 设置：`ascript.pythonPath`（Windows 本地运行用） | 没有对应项：XScript 脚本只在手机上运行。另有 `xscript.adbPath`、`xscript.scanLan` 等 | ⛔ 不适用 |
 | `在 Windows 本地运行`、`选择工程类型`（Windows / Android / iOS）、iOS 设备、`安装 ascript 库`（桌面 pip） | 不做：XScript 只有 Android；桌面补全用扩展自带存根（`启用 API 自动补全`） | ⛔ |

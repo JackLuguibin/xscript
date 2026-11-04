@@ -2,28 +2,47 @@
 
 供 Cursor、Trae 等支持 MCP 的编辑器使用的 stdio MCP 服务器。它连接 App 中显示的端口上的 XScript 设备 HTTP API（默认 9860；AScript 使用 9096）。同时兼容 mcp 1.x（`FastMCP`）和 2.x（`MCPServer`）。
 
-```bash
-# 在仓库根目录执行
-python3.12 -m venv .venv && .venv/bin/pip install -e ide/mcp-server
-export XSCRIPT_DEVICE=127.0.0.1:9860
-.venv/bin/python -m xscript_mcp
+## Windows / PowerShell：安装后添加 MCP
+
+先安装 Python **3.10 或更高版本**（包含 Windows Python 启动器 `py`）。在任意目录的 PowerShell 执行这一条命令，不需要克隆仓库，也不需要先安装 Git：
+
+```powershell
+py -3 -m pip install --user "https://github.com/JackLuguibin/xscript/archive/refs/heads/main.zip#subdirectory=ide/mcp-server"
 ```
 
-Cursor 配置：
+成功后，在 Trae「设置 → MCP → 手动添加」或 Cursor 的 MCP 配置里填入：
 
 ```json
 {
   "mcpServers": {
     "xscript": {
-      "command": "/absolute/path/to/.venv/bin/python",
-      "args": ["-m", "xscript_mcp"],
-      "env": { "XSCRIPT_DEVICE": "127.0.0.1:9860" }
+      "command": "py",
+      "args": ["-3", "-m", "xscript_mcp"],
+      "env": {
+        "XSCRIPT_DEVICE": "127.0.0.1:9860",
+        "XSCRIPT_TOKEN": "手机显示的配对码"
+      }
     }
   }
 }
 ```
 
-Trae 配置：在 Trae 的「设置 → MCP」里手动添加 MCP Server，填入上面同样的 JSON（`command` 必须是不含空格的完整路径，见 [Trae 官方文档：添加 MCP Server](https://docs.trae.cn/ide_add-mcp-servers)）；也可以开启项目级 MCP，把同样内容写进项目根目录的 `.trae/mcp.json`。其他支持 stdio MCP 的客户端同理。
+将 `XSCRIPT_DEVICE` 改为手机首页显示的开发者地址（例如 `192.168.1.20:9860`，不带 `http://`），`XSCRIPT_TOKEN` 改为手机的配对码。`127.0.0.1:9860` 仅适用于已执行 `adb forward tcp:9860 tcp:9860` 的 USB 连接。关闭配对的设备可省略 `XSCRIPT_TOKEN`。
+
+如果 Trae 找不到 `py`，用 `py -3 -c "import sys; print(sys.executable)"` 查到 Python 完整路径，将其填入 `command`，并从 `args` 中移除 `-3`；JSON 中路径反斜杠要写成 `\\`。安装命令和 MCP 必须使用同一个 Python。添加后重启 MCP Server，再调用 `get_device_status` 检查连接。可先用 `py -3 -c "import xscript_mcp; print(xscript_mcp.__file__)"` 确认安装位置。
+
+MCP 客户端负责启动 stdio 服务，无需在终端另开一个服务器。Windows PowerShell 5.1 不支持 `&&`，也不支持 `export` 或 `.venv/bin/python`，请直接使用上面的 Windows 配置。
+
+## macOS / Linux（从源码安装）
+
+在仓库根目录执行：
+
+```bash
+python3 -m venv .venv
+.venv/bin/python -m pip install -e ide/mcp-server
+```
+
+MCP JSON 同上，将 `command` 改为 `.venv/bin/python` 的绝对路径，`args` 改为 `["-m", "xscript_mcp"]`。设备地址与配对码同样放在 `env` 中。
 
 工具：
 

@@ -55,7 +55,7 @@ export function registerDebugger(
     vscode.debug.registerDebugConfigurationProvider(DEBUG_TYPE, {
       resolveDebugConfiguration(folder, config) {
         const c = { ...config } as vscode.DebugConfiguration;
-        c.type = DEBUG_TYPE; c.request = c.request || "launch"; c.name = c.name || "XScript: Debug on device";
+        c.type = DEBUG_TYPE; c.request = c.request || "launch"; c.name = c.name || "XScript：在设备上调试";
         if (!c.projectRoot) {
           const doc = vscode.window.activeTextEditor?.document;
           const start = doc?.uri.scheme === "file" ? doc.uri.fsPath : folder?.uri.fsPath;

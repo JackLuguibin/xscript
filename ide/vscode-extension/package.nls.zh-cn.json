@@ -24,7 +24,7 @@
   "xscript.command.logs": "跟踪运行日志",
   "xscript.command.eval": "在设备上运行选中代码",
   "xscript.command.screenshot": "截图",
-  "xscript.command.openTools": "打开开发者工具（图色 / 标注 / 投屏）",
+  "xscript.command.openTools": "打开开发工具（图色 / 节点 / 标注 / 投屏）",
   "xscript.command.openScreen": "投屏",
   "xscript.command.adbTerminal": "ADB 终端",
   "xscript.command.configureStubs": "启用 API 自动补全",
@@ -43,5 +43,6 @@
   "xscript.config.scanLan": "扫描设备时同时扫描局域网（私有网段 /24），而不只是 ADB。",
   "xscript.command.newUiForm": "新建界面（UI 设计器）",
   "xscript.uiDesigner.displayName": "XScript UI 设计器",
-  "xscript.command.pair": "配对设备（输入配对码）"
+  "xscript.command.pair": "配对设备（输入配对码）",
+  "xscript.command.openNodes": "节点工具"
 }

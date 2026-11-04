@@ -36,7 +36,7 @@ class Provider implements vscode.CustomTextEditorProvider {
       try {
         spec = text.trim() ? parseSpec(text) : newSpec();
       } catch (e) {
-        error = "Invalid JSON: " + (e as Error).message + " (fix it in the text editor: Reopen Editor With… → Text Editor)";
+        error = "JSON 格式错误：" + (e as Error).message + "（请右键选择「重新打开编辑器的方式 → 文本编辑器」修正）";
       }
       const msg = spec ? { type: "spec", spec, errors: validateSpec(spec), preview: renderHtml(spec) } : { type: "error", error };
       const key = JSON.stringify(msg);
@@ -78,11 +78,11 @@ export async function newUiForm(arg?: { root?: string; name?: string }): Promise
     const folder = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
     root = (active?.scheme === "file" ? findProjectRoot(active.fsPath, folder) : undefined) ?? (folder ? findProjectRoot(folder) ?? folder : undefined);
   }
-  if (!root) return void vscode.window.showErrorMessage("XScript: open a project folder first");
+  if (!root) return void vscode.window.showErrorMessage("XScript：请先打开工程文件夹");
   const name = arg?.name ?? (await vscode.window.showInputBox({
-    prompt: "Form name (res/ui/<name>.ui.json; the script imports ui_<name>)",
+    prompt: "表单名称（保存为 res/ui/<名称>.ui.json，脚本中导入 ui_<名称>）",
     value: "settings",
-    validateInput: (v) => (formName(v + ".ui.json") ? undefined : "Use letters, digits and underscores, starting with a letter or underscore"),
+    validateInput: (v) => (formName(v + ".ui.json") ? undefined : "只能使用字母、数字和下划线，且以字母或下划线开头"),
   }));
   if (!name) return undefined;
   const file = path.join(root, "res", "ui", name + ".ui.json");

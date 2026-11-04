@@ -6,7 +6,7 @@
   const designer = XSUiDesigner.mount(document.getElementById("app"), {
     kinds: document.body.getAttribute("data-kinds").split(","),
     post: (m) => vscode.postMessage(m),
-    lang: "en",
+    lang: "zh",
   });
   window.addEventListener("message", (e) => designer.receive(e.data));
   vscode.postMessage({ type: "ready" });

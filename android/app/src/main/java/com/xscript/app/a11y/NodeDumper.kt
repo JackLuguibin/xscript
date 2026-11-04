@@ -20,37 +20,52 @@ object NodeDumper {
     const val MODE_FULL = 1
     const val MODE_NO_SYSTEM = 2
 
-    data class Root(val node: AccessibilityNodeInfo, val windowType: Int)
+    data class Root(val node: AccessibilityNodeInfo, val windowType: Int, val pathIndex: Int = -1)
 
     fun collectRoots(svc: AccessibilityService, mode: Int, ownPackage: String): List<Root> {
         val list = mutableListOf<Root>()
+        fun add(root: AccessibilityNodeInfo, type: Int) {
+            val ownOverlay = root.packageName?.toString() == ownPackage && type != AccessibilityWindowInfo.TYPE_APPLICATION
+            if (ownOverlay) root.recycleCompat()
+            else list.add(Root(root, type, list.size))
+        }
         try {
             svc.windows?.forEach { window ->
-                val root = window.root ?: return@forEach
-                val pkg = root.packageName?.toString().orEmpty()
-                val type = window.type
-                val ownOverlay = pkg == ownPackage && type != AccessibilityWindowInfo.TYPE_APPLICATION
-                val system = type == AccessibilityWindowInfo.TYPE_SYSTEM ||
-                    type == AccessibilityWindowInfo.TYPE_INPUT_METHOD ||
-                    pkg == "com.android.systemui"
-                if (ownOverlay || (mode and MODE_NO_SYSTEM != 0 && system)) {
-                    root.recycleCompat()
-                } else {
-                    list.add(Root(root, type))
-                }
+                // An unavailable window must not prevent the remaining windows from being read.
+                val root = try { window.root } catch (_: Exception) { null }
+                if (root != null) add(root, window.type)
             }
         } catch (_: Exception) {
         }
-        if (list.isEmpty()) {
-            svc.rootInActiveWindow?.let { list.add(Root(it, AccessibilityWindowInfo.TYPE_APPLICATION)) }
+        // Some ROMs omit the active window from getWindows(), even when other windows are present.
+        val active = try { svc.rootInActiveWindow } catch (_: Exception) { null }
+        if (active != null) {
+            if (list.any { it.node.windowId == active.windowId }) active.recycleCompat()
+            else add(active, AccessibilityWindowInfo.TYPE_APPLICATION)
         }
-        return list
+        // Assign paths BEFORE filtering, so a path obtained with MODE_NO_SYSTEM still addresses
+        // the same root when nodeAction() collects all windows in MODE_FULL.
+        return list.filter { root ->
+            val system = root.windowType == AccessibilityWindowInfo.TYPE_SYSTEM ||
+                root.windowType == AccessibilityWindowInfo.TYPE_INPUT_METHOD ||
+                root.node.packageName?.toString() == "com.android.systemui"
+            val keep = mode and MODE_NO_SYSTEM == 0 || !system
+            if (!keep) root.node.recycleCompat()
+            keep
+        }
+    }
+
+    /** Map exported root indices back to the collected list; -1 marks legacy positional roots. */
+    internal fun resolveRootIndex(indices: List<Int>, requested: Int): Int {
+        if (requested < 0) return -1
+        return indices.indexOfFirst { it == requested }.takeIf { it >= 0 }
+            ?: requested.takeIf { it in indices.indices && indices[it] < 0 } ?: -1
     }
 
     fun dump(roots: List<Root>, mode: Int, width: Int, height: Int): JSONObject {
         val arr = JSONArray()
         roots.forEachIndexed { index, root ->
-            dumpNode(root.node, "$index", "", 0, mode)?.let { arr.put(it) }
+            dumpNode(root.node, "${root.pathIndex.takeIf { it >= 0 } ?: index}", "", 0, mode)?.let { arr.put(it) }
         }
         return JSONObject()
             .put("mode", mode)
@@ -63,7 +78,7 @@ object NodeDumper {
     fun findByPath(roots: List<Root>, path: String): AccessibilityNodeInfo? {
         val parts = path.split('/')
         val rootIndex = parts.firstOrNull()?.toIntOrNull() ?: return null
-        val root = roots.getOrNull(rootIndex)?.node ?: return null
+        val root = roots.getOrNull(resolveRootIndex(roots.map { it.pathIndex }, rootIndex))?.node ?: return null
         var current: AccessibilityNodeInfo = AccessibilityNodeInfo.obtain(root)
         for (i in 1 until parts.size) {
             val idx = parts[i].toIntOrNull() ?: return null.also { current.recycleCompat() }

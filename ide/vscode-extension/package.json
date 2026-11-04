@@ -182,6 +182,12 @@
         "category": "XScript"
       },
       {
+        "command": "xscript.openNodes",
+        "title": "%xscript.command.openNodes%",
+        "category": "XScript",
+        "icon": "$(list-tree)"
+      },
+      {
         "command": "xscript.openScreen",
         "title": "%xscript.command.openScreen%",
         "category": "XScript"

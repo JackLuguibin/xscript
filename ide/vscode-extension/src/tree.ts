@@ -33,16 +33,17 @@ export class Node extends vscode.TreeItem {
 }
 
 const TOOLS: { id: string; label: string; icon: string; command: string; tip: string }[] = [
-  { id: "newProject", label: "New Project", icon: "new-folder", command: "xscript.newProject", tip: "Create a project from a template" },
-  { id: "scan", label: "Scan Devices", icon: "search", command: "xscript.scanDevices", tip: "Find devices over ADB (USB / emulator) and the local network" },
-  { id: "add", label: "Add Device", icon: "add", command: "xscript.addDevice", tip: "Add a device by its 开发者地址" },
-  { id: "tools", label: "Developer Tools (图色 / 标注)", icon: "tools", command: "xscript.openTools", tip: "Open the device's web tools in the browser" },
-  { id: "screen", label: "Screen Mirror (投屏)", icon: "device-camera-video", command: "xscript.openScreen", tip: "Open the device's screen mirror page" },
-  { id: "shot", label: "Screenshot", icon: "device-camera", command: "xscript.screenshot", tip: "Open a screenshot of the current device" },
-  { id: "adb", label: "ADB Terminal", icon: "terminal", command: "xscript.adbTerminal", tip: "adb shell on the current USB / emulator device" },
-  { id: "sync", label: "Sync Project…", icon: "sync", command: "xscript.syncManage", tip: "Push the current project to, or pull one from, the device" },
-  { id: "ignore", label: "Edit Sync Ignore Rules", icon: "exclude", command: "xscript.editSyncIgnore", tip: ".vscode/.syncignore" },
-  { id: "stubs", label: "Enable API Autocomplete", icon: "symbol-method", command: "xscript.configureStubs", tip: "Add the bundled xscript / ascript stubs to python.analysis.extraPaths" },
+  { id: "newProject", label: "新建工程", icon: "new-folder", command: "xscript.newProject", tip: "从模板创建工程" },
+  { id: "scan", label: "扫描设备", icon: "search", command: "xscript.scanDevices", tip: "通过 ADB（USB / 模拟器）和局域网查找设备" },
+  { id: "add", label: "添加设备", icon: "add", command: "xscript.addDevice", tip: "按手机显示的开发者地址添加设备" },
+  { id: "tools", label: "开发工具（图色 / 节点 / 标注）", icon: "tools", command: "xscript.openTools", tip: "在浏览器中打开设备开发工具" },
+  { id: "nodes", label: "节点工具", icon: "list-tree", command: "xscript.openNodes", tip: "读取完整节点树，查看属性并生成选择器" },
+  { id: "screen", label: "投屏", icon: "device-camera-video", command: "xscript.openScreen", tip: "打开设备的投屏页面" },
+  { id: "shot", label: "截图", icon: "device-camera", command: "xscript.screenshot", tip: "打开当前设备的截图" },
+  { id: "adb", label: "ADB 终端", icon: "terminal", command: "xscript.adbTerminal", tip: "打开当前 USB 设备或模拟器的 adb shell" },
+  { id: "sync", label: "同步工程…", icon: "sync", command: "xscript.syncManage", tip: "将当前工程推送到设备，或从设备拉取工程" },
+  { id: "ignore", label: "编辑同步忽略规则", icon: "exclude", command: "xscript.editSyncIgnore", tip: ".vscode/.syncignore" },
+  { id: "stubs", label: "启用 API 自动补全", icon: "symbol-method", command: "xscript.configureStubs", tip: "将内置 xscript / ascript 类型文件加入 python.analysis.extraPaths" },
 ];
 
 export class XScriptTree implements vscode.TreeDataProvider<Node> {
@@ -63,9 +64,9 @@ export class XScriptTree implements vscode.TreeDataProvider<Node> {
     const E = vscode.TreeItemCollapsibleState;
     if (!parent) {
       const groups = [
-        ["devices", "Devices", "device-mobile"],
-        ["projects", "Projects on device", "folder-library"],
-        ["tools", "Tools", "tools"],
+        ["devices", "设备", "device-mobile"],
+        ["projects", "设备上的工程", "folder-library"],
+        ["tools", "工具", "tools"],
       ] as const;
       return groups.map(([id, label, icon]) => {
         const n = new Node("group", label, E.Expanded);
@@ -103,12 +104,12 @@ export class XScriptTree implements vscode.TreeDataProvider<Node> {
       const n = new Node("device", d.name, vscode.TreeItemCollapsibleState.None, d);
       n.id = "device:" + d.address;
       const isCur = d.address === cur;
-      n.description = d.address + (st.online ? (st.running ? "  ▶ " + (st.project ?? "running") : "") : "  (offline)") + (isCur ? "  ✓ in use" : "");
-      n.tooltip = d.name + " — " + d.address + (st.model ? "\n" + st.model : "") + (isCur ? "\nThe device commands run against" : "\nClick to use this device");
+      n.description = d.address + (st.online ? (st.running ? "  ▶ " + (st.project ?? "运行中") : "") : "  （离线）") + (isCur ? "  ✓ 当前使用" : "");
+      n.tooltip = d.name + " — " + d.address + (st.model ? "\n" + st.model : "") + (isCur ? "\n当前命令操作此设备" : "\n点击使用此设备");
       n.contextValue = !st.online ? "xscript.device.offline" : st.running ? "xscript.device.running" : "xscript.device.idle";
       n.iconPath = new vscode.ThemeIcon(st.online ? (isCur ? "device-mobile" : "circle-large-outline") : "debug-disconnect",
         st.online && st.running ? new vscode.ThemeColor("charts.green") : undefined);
-      n.command = { command: "xscript.useDevice", title: "Use this device", arguments: [n] };
+      n.command = { command: "xscript.useDevice", title: "使用此设备", arguments: [n] };
       return n;
     });
   }
@@ -117,7 +118,7 @@ export class XScriptTree implements vscode.TreeDataProvider<Node> {
     const cur = normalizeAddress(this.host.currentAddress());
     try {
       const names = await this.host.listProjects(cur);
-      if (!names.length) return [info("No projects on this device yet")];
+      if (!names.length) return [info("设备上还没有工程")];
       return names.map((name) => {
         const n = new Node("project", name, vscode.TreeItemCollapsibleState.None, undefined, name);
         n.id = "project:" + name;
@@ -127,7 +128,7 @@ export class XScriptTree implements vscode.TreeDataProvider<Node> {
         return n;
       });
     } catch {
-      return [info("Device " + cur + " is not reachable")];
+      return [info("设备 " + cur + " 无法连接")];
     }
   }
 }

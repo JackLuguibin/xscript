@@ -750,6 +750,7 @@ XS.TOOLS = [
   { id: "color", name: "图色工具", icon: "palette", href: "/tools/ui/color.html", desc: "找色 · 比色 · 找图 · 文字识别" },
   { id: "label", name: "标注工具", icon: "tag", href: "/tools/ui/label.html", desc: "YOLO 数据集标注与导出" },
   { id: "mirror", name: "投屏", icon: "phone", href: "/tools/ui/mirror.html", desc: "实时画面与远程操控" },
+  { id: "nodes", name: "节点工具", icon: "list", href: "/tools/ui/editor.html#nodes", desc: "完整节点树 · 属性筛选 · 选择器代码" },
 ];
 XS.IS_MAC = /Mac|iPhone|iPad/.test(navigator.platform || navigator.userAgent);
 
@@ -805,7 +806,7 @@ XS.appbar = {
   init() {
     const bar = document.querySelector("header.xs-appbar");
     if (!bar) return;
-    const page = bar.dataset.page;
+    let page = bar.dataset.page === "editor" && location.hash === "#nodes" ? "nodes" : bar.dataset.page;
     const tabs = XS.TOOLS.map((t, i) =>
       '<a class="xa-tab" href="' + t.href + '"' + (t.id === page ? ' aria-current="page"' : "") +
       ' title="' + XS.esc(t.name + " · " + t.desc + "（" + XS.navKey(i + 1) + "）") + '">' +
@@ -817,6 +818,15 @@ XS.appbar = {
       '<span class="spacer"></span>' +
       '<button type="button" class="xa-dev" id="xa-dev" aria-haspopup="menu"><span class="dot"></span><span class="t">连接中…</span></button>' +
       '<button class="icon-btn" type="button" data-theme-toggle></button>';
+
+    window.addEventListener("hashchange", () => {
+      if (bar.dataset.page !== "editor") return;
+      page = location.hash === "#nodes" ? "nodes" : "editor";
+      bar.querySelectorAll(".xa-tab").forEach((tab, i) => {
+        if (XS.TOOLS[i].id === page) tab.setAttribute("aria-current", "page");
+        else tab.removeAttribute("aria-current");
+      });
+    });
 
     // Leave through XS.go so pages can save first; modified clicks keep their browser meaning.
     bar.addEventListener("click", (e) => {

@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useServices } from "../app-context";
 import type { Device } from "../api";
 import { t } from "../strings";
@@ -6,6 +6,7 @@ import { ErrorBanner } from "./ErrorBanner";
 import { useToast } from "./Toast";
 import { flattenTree, hitTest, nodeLabel, nodeXPath, rectPercent, selectorCode, type UiNode, type UiRect, type UiTree } from "../ui-tree";
 import { Button } from "./ui/button";
+import { Input } from "./ui/input";
 import { Textarea } from "./ui/textarea";
 import { sendToCanvas } from "../flow/inbox";
 
@@ -32,6 +33,12 @@ export function ScreenTools({
   toast?: (text: string) => void;
 }) {
   const { api, inShell } = useServices();
+  const [fullTree, setFullTree] = useState(true);
+  const [noSystem, setNoSystem] = useState(false);
+  const [query, setQuery] = useState("");
+  const [visibleRows, setVisibleRows] = useState(400);
+  const request = useRef(0);
+  const treeMode = (fullTree ? 1 : 0) | (noSystem ? 2 : 0);
   const [tree, setTree] = useState<UiTree | null>(null);
   const [selected, setSelected] = useState<UiNode | null>(null);
   const [miss, setMiss] = useState(false);
@@ -43,6 +50,8 @@ export function ScreenTools({
   const devId = device.id;
 
   useEffect(() => {
+    request.current += 1;
+    setQuery("");
     setTree(null);
     setSelected(null);
     setMiss(false);
@@ -58,6 +67,8 @@ export function ScreenTools({
     setTree(data);
     const screen = { w: data.width || 0, h: data.height || 0 };
     if (!point) {
+      setSelected(null);
+      setMiss(false);
       onHit(null, screen);
       return;
     }
@@ -69,9 +80,34 @@ export function ScreenTools({
 
   const refresh = async (point?: { x: number; y: number }) => {
     setError(null);
-    const data = (await api.uiTree(devId, 0)) as UiTree;
-    applyTree(data, point);
+    const token = ++request.current;
+    setSelected(null);
+    onHit(null, null);
+    try {
+      const data = (await api.uiTree(devId, treeMode)) as UiTree;
+      if (token !== request.current) return;
+      if (data.error) throw new Error(t.inspect.readError(data.error));
+      setVisibleRows(400);
+      applyTree({ ...data, mode: treeMode }, point);
+    } catch (e) {
+      if (token !== request.current) return;
+      setTree(null);
+      setMiss(false);
+      setError(e);
+    }
   };
+
+  useEffect(() => {
+    request.current += 1;
+    setTree(null);
+    setSelected(null);
+    setMiss(false);
+    onHit(null, null);
+    if (mode === "inspect" || tree) void refresh();
+    return () => { request.current += 1; };
+    // A mode / device switch invalidates every pending read, including manual refreshes.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [devId, mode, treeMode]);
 
   useEffect(() => {
     if (!picked) return;
@@ -98,9 +134,12 @@ export function ScreenTools({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [picked?.n, mode, devId]);
 
-  const code = selected ? selectorCode(selected, tree?.roots) : "";
+  const code = selected ? selectorCode(selected, tree?.roots, tree?.mode) : "";
   const xpath = selected ? nodeXPath(selected, tree?.roots) : "";
-  const rows = tree ? flattenTree(tree.roots ?? []) : [];
+  const allRows = tree ? flattenTree(tree.roots ?? []) : [];
+  const search = query.trim().toLocaleLowerCase();
+  const matches = search ? allRows.filter(({ node }) => [node.text, node.desc, node.id, node.type, node.path].some((v) => v?.toLocaleLowerCase().includes(search))) : allRows;
+  const rows = matches.slice(0, visibleRows);
 
   const copy = async (text: string) => {
     setError(null);
@@ -177,6 +216,14 @@ export function ScreenTools({
       </div>
       <div className="panel tight">
         <h2>{t.inspect.tree}</h2>
+        <div className="row wrap">
+          <label><input type="checkbox" checked={fullTree} onChange={(e) => setFullTree(e.target.checked)} />{t.inspect.fullTree}</label>
+          <label><input type="checkbox" checked={noSystem} onChange={(e) => setNoSystem(e.target.checked)} />{t.inspect.noSystem}</label>
+        </div>
+        <Input type="search" aria-label={t.inspect.search} placeholder={t.inspect.search} value={query} onChange={(e) => { setQuery(e.target.value); setVisibleRows(400); }} />
+        {tree && <p className="hint" role="status">{t.inspect.count(matches.length, allRows.length)}</p>}
+        {tree && allRows.length === 0 && <p className="muted">{t.inspect.noNodes}</p>}
+        {tree && allRows.length > 0 && matches.length === 0 && <p className="muted">{t.inspect.noMatch}</p>}
         {!tree && <p className="muted">{t.inspect.empty}</p>}
         {miss && !selected && <p className="muted">{t.inspect.noHit}</p>}
         {rows.length > 0 && (
@@ -206,15 +253,22 @@ export function ScreenTools({
             )}
           </div>
         )}
+        {matches.length > visibleRows && <Button size="sm" type="button" onClick={() => setVisibleRows((n) => n + 400)}>{t.inspect.showMore(matches.length - visibleRows)}</Button>}
         {selected && (
           <>
+            <h3>{t.inspect.attributes}</h3>
+            <dl className="grid gap-sp-1 text-sm">
+              {Object.entries(selected).filter(([key]) => key !== "children").map(([key, value]) => (
+                <div key={key} className="grid grid-cols-[6rem_minmax(0,1fr)] gap-sp-2"><dt className="text-muted">{key}</dt><dd className="m-0 break-all">{typeof value === "object" ? JSON.stringify(value) : String(value)}</dd></div>
+              ))}
+            </dl>
             <Textarea className="code-snip" aria-label={t.inspect.code} readOnly value={code} rows={3} />
             <p className="hint">{t.inspect.codeHint}</p>
             <div className="row wrap">
-              <Button size="sm" variant="primary" type="button" onClick={() => { sendToCanvas(selected, tree?.roots); toast(t.inspect.sentToCanvas); }}>
+              <Button size="sm" variant="primary" type="button" onClick={() => { sendToCanvas(selected, tree?.roots, tree?.mode); toast(t.inspect.sentToCanvas); }}>
                 {t.inspect.toCanvas}
               </Button>
-              <Button size="sm" type="button" onClick={() => void copy(selectorCode(selected, tree?.roots))}>
+              <Button size="sm" type="button" onClick={() => void copy(selectorCode(selected, tree?.roots, tree?.mode))}>
                 {t.inspect.copySelector}
               </Button>
               <Button size="sm" type="button" onClick={() => void copy(xpath)}>

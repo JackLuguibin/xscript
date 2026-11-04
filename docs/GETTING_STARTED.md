@@ -63,6 +63,8 @@ adb shell am start -n $PKG/com.xscript.app.LauncherActivity
 
 ## 电脑端设置
 
+**Windows / PowerShell 用户：**请使用 [MCP 服务说明中的单条安装命令与配置](../ide/mcp-server/README.md#windows--powershell安装后添加-mcp)，无需克隆仓库。下面的虚拟环境路径和命令仅适用于 macOS / Linux。
+
 ```bash
 python3.12 -m venv .venv && .venv/bin/pip install -e ide/mcp-server -e ide/python-stubs
 ```
