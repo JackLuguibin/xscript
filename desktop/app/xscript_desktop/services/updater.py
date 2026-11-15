@@ -14,6 +14,7 @@ DEFAULT_FEED unless XSCRIPT_UPDATE_FEED is set. Only https, or http to this mach
 """
 from __future__ import annotations
 
+import asyncio
 import base64
 import binascii
 import hashlib
@@ -442,6 +443,7 @@ class UpdateService:
         self.progress = (0, 0)
         self.file: Path | None = None
         self._task = None
+        self._check_task = None
 
     def _default_client(self) -> httpx.AsyncClient:
         # A loopback test feed must not go through a configured HTTP(S)_PROXY (it would answer 502); a real feed keeps
@@ -471,6 +473,18 @@ class UpdateService:
         self.state, self.error = "error", {"kind": e.kind, "message": str(e)}
 
     async def check(self) -> dict[str, Any]:
+        # The startup badge and native update command may check at the same time.
+        # Share the request so a late check cannot overwrite a downloaded update.
+        if self._check_task is None:
+            self._check_task = asyncio.create_task(self._check())
+        task = self._check_task
+        try:
+            return await asyncio.shield(task)
+        finally:
+            if task.done() and self._check_task is task:
+                self._check_task = None
+
+    async def _check(self) -> dict[str, Any]:
         if self.state in ("downloading", "installing"):
             return self.status()
         self.state, self.error, self.update, self.file = "checking", None, None, None
