@@ -82,7 +82,9 @@ class FindColorsFastTest(unittest.TestCase):
         self.assertTrue((im == before).all())
 
     def test_many_hits_is_much_faster_than_the_reference(self):
-        im = np.full((600, 400, 3), 240, np.uint8)
+        # Tens of thousands of candidates and >500 accepted points still expose the old quadratic filter.
+        # A full phone-sized reference adds tens of seconds without exercising another branch.
+        im = np.full((240, 160, 3), 240, np.uint8)
         im[::7, ::5] = 10
         colors = "0,0,#f0f0f0|2,0,#f0f0f0"
         t0 = time.perf_counter()
@@ -92,6 +94,7 @@ class FindColorsFastTest(unittest.TestCase):
         got = [tuple(p) for p in img.find_colors(colors, None, 0.9, 5, 2, 0, im)]
         t_new = time.perf_counter() - t0
         self.assertEqual(got, ref)
+        self.assertGreater(len(ref), 500, "keep the performance fixture dense enough to expose quadratic filtering")
         self.assertLess(t_new * 3, t_ref, "new %.1f ms vs reference %.1f ms" % (t_new * 1e3, t_ref * 1e3))
 
 

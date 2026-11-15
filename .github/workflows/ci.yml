@@ -171,8 +171,8 @@ jobs:
         # phone-pins
         run: python -m pip install numpy==1.23.3 opencv-python-headless==4.5.4.60 pillow==11.0.0 pyyaml==6.0.3 requests==2.33.1 packaging==24.2 onnxruntime==1.22.1 coverage==7.10.7
       - name: Runtime tests with a coverage floor (see android/python-runtime/.coveragerc)
-        # test_find_colors_fast is ~37 s of pure-Python pixel loops that the tracer slows ~4x; it runs untraced (the
-        # coverage it would add is already there), keeping this job as fast as it was without coverage.
+        # The sort/filter reference and speed-ratio assertion in test_find_colors_fast run untraced: tracing distorts
+        # the timing comparison. The implementation's coverage is already exercised by the other image tests.
         run: |
           export PYTHONPATH=android/python-runtime:android/python-runtime/tests
           traced=$(cd android/python-runtime/tests && ls test_*.py | sed 's/\.py$//' | grep -vx test_find_colors_fast)
@@ -392,7 +392,8 @@ jobs:
         run: cd desktop/app && python -m xscript_desktop --selftest
 
   # The same desktop client on Windows: Python tests (no coverage floor; that is enforced on Ubuntu), the frontend
-  # build and the shell self-test. Path handling, subprocess and Qt differences show up here first.
+  # build and the shell self-test. Use the runner's preinstalled Python 3.12; Linux still verifies the 3.10 floor,
+  # and release.yml builds/self-tests the Windows installer with 3.10. Avoid reinstalling the interpreter per run.
   desktop-windows:
     name: desktop client on Windows (tests, frontend build, --selftest)
     runs-on: windows-latest
@@ -417,7 +418,7 @@ jobs:
           cache-dependency-path: desktop/frontend/package-lock.json
       - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
         with:
-          python-version: "3.10"
+          python-version: "3.12"
           cache: pip
           cache-dependency-path: desktop/app/pyproject.toml
       - name: Build the frontend into the Python package
