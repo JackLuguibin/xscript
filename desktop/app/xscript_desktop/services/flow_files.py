@@ -14,7 +14,7 @@ def write_document(path: str, content: str) -> None:
     target = Path(path)
     fd, temporary = tempfile.mkstemp(dir=target.parent, prefix='.xscript-flow-')
     try:
-        with os.fdopen(fd, 'w', encoding='utf-8') as stream:
+        with os.fdopen(fd, 'w', encoding='utf-8', newline='') as stream:
             stream.write(content)
         os.replace(temporary, target)
     finally:
