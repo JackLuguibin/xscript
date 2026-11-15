@@ -564,3 +564,34 @@ def test_default_client_bypasses_proxies_only_for_a_loopback_feed(tmp_path):
     bad = U.UpdateService("0.4.0", lambda: tmp_path, env={"XSCRIPT_UPDATE_FEED": "http://evil.example/f"}, install=None)
     assert local.client_factory()._trust_env is False
     assert remote.client_factory()._trust_env is True and bad.client_factory()._trust_env is True
+
+
+async def test_concurrent_checks_share_request(tmp_path, key, monkeypatch):
+    import asyncio
+    ktext, pub = key
+    data, sig, payload = make_feed(tmp_path, ktext)
+    env = {"XSCRIPT_UPDATE_PUBKEY": base64.b64encode(pub).decode(), "XSCRIPT_UPDATE_FEED": FEED}
+    files = {"desktop-update.json": data, "desktop-update.json.sig": sig, DMG: payload}
+    monkeypatch.setattr(U, "platform_key", lambda *a: "macos-arm64")
+    service = _service(tmp_path, files, env=env)
+    started, release = asyncio.Event(), asyncio.Event()
+    original = U.check
+    calls = 0
+
+    async def delayed(*args, **kwargs):
+        nonlocal calls
+        calls += 1
+        started.set()
+        await release.wait()
+        return await original(*args, **kwargs)
+
+    monkeypatch.setattr(U, "check", delayed)
+    first = asyncio.create_task(service.check())
+    await started.wait()
+    second = asyncio.create_task(service.check())
+    await asyncio.sleep(0)
+    release.set()
+    results = await asyncio.gather(first, second)
+    assert calls == 1
+    assert all(result["state"] == "available" for result in results)
+    assert (await service.download())["state"] == "ready"
