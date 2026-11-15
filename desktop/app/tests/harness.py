@@ -76,6 +76,12 @@ class Shell:
         """Wait until the (synchronous) JS expression is truthy."""
         qtbot.waitUntil(lambda: bool(self._eval(qtbot, "!!(%s)" % expr, timeout)), timeout=timeout)
 
+    def wait_device_state(self, qtbot, device_id: str, state: str, timeout: int = 8000) -> None:
+        """Wait for this device's badge, rather than the inventory's aggregate status label."""
+        selector = '[aria-label="device %s"] .badge' % device_id
+        self.wait_js(qtbot, "document.querySelector(%s)?.textContent.trim() === %s" %
+                     (json.dumps(selector), json.dumps(state)), timeout=timeout)
+
     # ---- DOM helpers (the app is a React page: drive it like a user) -------------------------------------------------------------------
 
     def click(self, qtbot, name: str, timeout: int = 8000) -> None:

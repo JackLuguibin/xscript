@@ -17,7 +17,7 @@ def test_e2e_m01_mirror_fits_window_and_wheel_rightclick_keyboard(shell, qtbot):
     sh = shell
     mock = __import__("mock_device")
     sh.click(qtbot, "连接 emulator-5554")
-    sh.wait_text(qtbot, "在线")
+    sh.wait_device_state(qtbot, "adb:emulator-5554", "在线")
     click_js(sh, qtbot, btn_starting("屏幕"))
     img = "document.querySelector('img[alt=\"设备屏幕\"]')"
     # Read the geometry in one evaluation, from a fully decoded frame. The page streams frames by swapping the <img> src,
