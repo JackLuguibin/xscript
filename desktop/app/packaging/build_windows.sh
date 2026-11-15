@@ -19,7 +19,7 @@ PT=$APP_DIR/build/platform-tools
 PTW=$(cygpath -w "$PT")  # Windows path: MSYS would not convert "SRC;DEST"
 "$BPY" -m PyInstaller --noconfirm --clean --windowed \
   --name XScript --icon "$APP_DIR/build/XScript.ico" \
-  --paths "$APP_DIR" --collect-submodules xscript_desktop --collect-data xscript_desktop \
+  --paths "$APP_DIR" --collect-submodules xscript_desktop --collect-data xscript_desktop --collect-submodules xscript_server --collect-data xscript_server \
   --add-binary "$PTW\\adb.exe;platform-tools" --add-binary "$PTW\\AdbWinApi.dll;platform-tools" \
   --add-binary "$PTW\\AdbWinUsbApi.dll;platform-tools" --add-data "$PTW\\NOTICE.txt;platform-tools" \
   --add-data "$PTW\\source.properties;platform-tools" \

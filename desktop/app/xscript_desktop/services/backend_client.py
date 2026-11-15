@@ -498,7 +498,7 @@ async def rollback_flow(c: BackendClient, *, script_id: int, version_id: int, gr
 
 # ---- P4.6 thumbnails, web console links, APK pack jobs -------------------------------------------------------------
 MAX_APK = 300 * 1024 * 1024
-CONSOLE_PAGES = ("account", "cards", "users", "resellers", "settings")
+CONSOLE_PAGES = ("overview", "devices", "wall", "tasks", "device-keys", "cards", "resellers", "app-ops", "scripts", "ai", "pack", "users", "audit", "settings", "account")
 
 
 async def thumb(c: BackendClient, dev_id: str, max_side: int = 480) -> tuple[bytes, str]:
@@ -545,7 +545,7 @@ async def overview(c: BackendClient) -> dict[str, Any]:
 def console_links(origin: str) -> list[dict[str, str]]:
     """Deep links into the web console. They open in the system browser, which has its own console session: the
     desktop's API token never leaves the keyring and is never put into a URL or a web view."""
-    return [{"page": p, "url": "%s/%s" % (origin, p)} for p in CONSOLE_PAGES]
+    return [{"page": p, "url": "%s/%s" % (origin, "" if p == "overview" else p)} for p in CONSOLE_PAGES]
 
 
 def pack_job_view(j: dict[str, Any]) -> dict[str, Any]:

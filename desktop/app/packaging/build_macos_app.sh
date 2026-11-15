@@ -15,7 +15,7 @@ PT=$APP_DIR/build/platform-tools
 .venv-build/bin/pyinstaller --noconfirm --clean --windowed \
   --name XScript --icon "$APP_DIR/build/XScript.icns" \
   --osx-bundle-identifier com.xscript.desktop \
-  --paths "$APP_DIR" --collect-submodules xscript_desktop --collect-data xscript_desktop \
+  --paths "$APP_DIR" --collect-submodules xscript_desktop --collect-data xscript_desktop --collect-submodules xscript_server --collect-data xscript_server \
   --add-binary "$PT/adb:platform-tools" --add-data "$PT/NOTICE.txt:platform-tools" \
   --add-data "$PT/source.properties:platform-tools" \
   --distpath dist --workpath build/pyinstaller --specpath build \

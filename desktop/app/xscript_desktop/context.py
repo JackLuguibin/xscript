@@ -105,6 +105,8 @@ class AppContext:
         self.debug_sessions: dict[str, DebugSession] = {}
         self.debug_options: dict[str, Any] = {}  # tests shorten the poll intervals
         self.pick_directory: Callable[[str], Awaitable[str | None]] | None = None
+        self.embed_console: Callable[[str], Awaitable[None]] | None = None
+        self.embed_tools: Callable[[str, int, str, str], Awaitable[None]] | None = None
         self.open_tools: Callable[[str, int, str, str], Awaitable[None]] | None = None
         self.save_file: Callable[[], Awaitable[str | None]] | None = None
         self.open_file: Callable[..., Awaitable[str | None]] | None = None
@@ -130,6 +132,7 @@ class AppContext:
             set=lambda k, v: self.store.aexec(self.store._set_setting, k, v),
             delete=lambda k: self.store.aexec(self.store._delete_setting, k)))
         # Desktop auto-update (P5.4). Downloads go to <data dir>/updates (a temp folder without a data dir).
+        self._local_admin = None
         self._data_dir = data_dir
         self.updates = UpdateService(__version__, self._update_dir)
         # set by the Qt shell: quit the app from any thread (the update helper finishes once this process is gone)
@@ -195,11 +198,11 @@ class AppContext:
 
     # ---- binary data for xsapp://shot/... (called from the scheme handler through the asyncio loop) -------------------------------
 
-    async def screen(self, device_id: str, max_side: int | None = 480, quality: int = 60) -> tuple[bytes, str]:
+    async def screen(self, device_id: str, max_side: int | None = 480, quality: int = 60, fmt: str = "jpg") -> tuple[bytes, str]:
         rec = self.devices.get(device_id)
         assert rec.client is not None
         try:
-            return await rec.client.screen("jpg", quality, max_side)
+            return await rec.client.screen(fmt, quality, max_side)
         except DeviceError as e:
             raise e
 
@@ -434,6 +437,8 @@ class AppContext:
                 except Exception:  # pragma: no cover - best effort at exit
                     pass
             self.debug_sessions.clear()
+            if self._local_admin is not None:
+                await self._local_admin.close()
             await self.devices.shutdown()
             self.store.close()
 
@@ -749,6 +754,11 @@ class AppContext:
         async def project_delete_file(params: dict[str, Any]) -> dict[str, Any]:
             return await self._client(params).delete_file(param(params, "project", str), _rel_path(params),
                                                           param(params, "recursive", bool, default=False))
+
+        @d.method("project.createDir")
+        @_map_errors
+        async def project_create_dir(params: dict[str, Any]) -> dict[str, Any]:
+            return await self._client(params).create_directory(param(params, "project", str), _rel_path(params))
 
         @d.method("project.move")
         @_map_errors
@@ -1199,6 +1209,65 @@ class AppContext:
             self.flow_document_paths[handle] = path
             return {"handle": handle, "name": Path(path).name, "content": content, "layout": layout}
 
+        async def local_admin():
+            if self._local_admin is None:
+                from .services.local_admin import LocalAdmin
+                self._local_admin = LocalAdmin((self._data_dir or self._update_dir()) / "administration")
+            return self._local_admin
+
+        @d.method("admin.catalog")
+        @_map_errors
+        async def admin_catalog(params: dict[str, Any]) -> Any:
+            return await (await local_admin()).catalog()
+
+        @d.method("admin.execute")
+        @_map_errors
+        async def admin_execute(params: dict[str, Any]) -> Any:
+            service = await local_admin()
+            await service.start()
+            operation = param(params, "operation", str)
+            spec = service.operations.get(operation)
+            if spec is None:
+                raise RpcError("rpc.bad_params", "Unknown local administration operation")
+            body = params.get("body") or {}
+            parameters = params.get("parameters") or {}
+            if not isinstance(body, dict) or not isinstance(parameters, dict):
+                raise RpcError("rpc.bad_params", "Invalid operation fields")
+            files = {}
+            for name, field in spec["body"].get("properties", {}).items():
+                if field.get("format") == "binary":
+                    if self.open_file is None:
+                        raise RpcError("app.no_dialog", "Open dialog unavailable")
+                    path = await self.open_file("选择文件 / Choose file", "", "")
+                    if not path:
+                        if name in spec["body"].get("required", []):
+                            return {"cancelled": True}
+                        continue
+                    def read_file(path=path):
+                        with Path(path).open("rb") as stream:
+                            data = stream.read(64 * 1024 * 1024 + 1)
+                        if len(data) > 64 * 1024 * 1024:
+                            raise ValueError("File exceeds 64 MiB")
+                        return data
+                    files[name] = (Path(path).name, await asyncio.to_thread(read_file), "application/octet-stream")
+            response = await service.execute(operation, parameters, body, files)
+            if not response.content:
+                return {"ok": True}
+            mime = response.headers.get("content-type", "")
+            if "application/json" in mime:
+                return response.json()
+            if self.save_file is None:
+                raise RpcError("app.no_dialog", "Save dialog unavailable")
+            from email.message import Message
+            disposition = Message()
+            disposition["content-disposition"] = response.headers.get("content-disposition", "")
+            filename = Path(disposition.get_filename() or "export").name
+            path = await self.save_file("保存文件 / Save file", filename, "")
+            if not path:
+                return {"cancelled": True}
+            await asyncio.to_thread(Path(path).write_bytes, response.content)
+            return {"saved": True, "path": path}
+
         @d.method("cloud.manage")
         @_map_errors
         async def cloud_manage(params: dict[str, Any]) -> Any:
@@ -1269,6 +1338,10 @@ class AppContext:
             origin = await self.cloud.origin()
             if not origin:
                 raise BackendError("backend.not_configured", "还没有连接后台")
+            if param(params, "embed", bool, default=False):
+                if self.embed_console is None:
+                    raise RpcError("app.unavailable", "Embedded console unavailable in this host")
+                await self.embed_console(origin)
             return {"links": backend_client.console_links(origin)}
 
         @d.method("cloud.packJobs")
@@ -1336,12 +1409,14 @@ class AppContext:
                 url = tool_url(rec.target.host, rec.target.port, page)
             except ValueError as e:
                 raise RpcError("rpc.bad_params", str(e)) from e
-            if self.open_tools is None:
-                raise RpcError("app.unavailable", "no tool window in this mode")
+            embed = param(params, "embed", bool, default=False)
+            opener = self.embed_tools if embed else self.open_tools
+            if opener is None:
+                raise RpcError("app.unavailable", "no embedded tools in this mode" if embed else "no tool window in this mode")
             # The tool window is its own browser profile: pass the pairing code once through /pair, which sets the
             # device's SameSite cookie and redirects to the page. The plain URL is what goes back to the page.
             load = paired_url(url, rec.client.token)
-            await self.open_tools(rec.target.host, rec.target.port, load, TITLES.get(page, "XScript"))
+            await opener(rec.target.host, rec.target.port, load, TITLES.get(page, "XScript"))
             return {"url": url, "page": page, "warning": rec.warning}
 
         @d.method("device.uiTree")

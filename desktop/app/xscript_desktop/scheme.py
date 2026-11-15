@@ -150,6 +150,10 @@ class XsAppHandler(QWebEngineUrlSchemeHandler):
         except ValueError:
             max_side = 480
         max_side = max(64, min(max_side, 2400))
+        try:
+            quality = max(10, min(100, int((query.get("quality") or ["60"])[0])))
+        except ValueError:
+            quality = 60
 
         if not device_id or "/" in device_id or "\\" in device_id:
             job.fail(QWebEngineUrlRequestJob.Error.UrlNotFound)
@@ -158,7 +162,10 @@ class XsAppHandler(QWebEngineUrlSchemeHandler):
         async def fetch() -> tuple[bytes, str]:
             if cloud:
                 return await self._ctx.cloud_thumb(device_id, max_side)
-            return await self._ctx.screen(device_id, max_side)
+            if query.get("format") == ["png"]:
+                native = query.get("max") == ["native"]
+                return await self._ctx.screen(device_id, None if native else max_side, 100, fmt="png")
+            return await self._ctx.screen(device_id, max_side, quality)
 
         fut = self._runtime.submit(fetch())
 
