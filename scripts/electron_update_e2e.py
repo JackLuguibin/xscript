@@ -93,7 +93,8 @@ def main():
                     break
                 time.sleep(0.5)
             else:
-                raise RuntimeError('New Electron app did not relaunch: ' + (temp / 'update.log').read_text() + '\n' + (profile / 'updates/update-helper.log').read_text())
+                helper_log = profile / 'updates/update-helper.log'
+                raise RuntimeError('New Electron app did not relaunch: ' + (temp / 'update.log').read_text() + '\n' + (helper_log.read_text() if helper_log.exists() else 'Update helper did not start'))
             started = json.loads(receipt.read_text())
             os.kill(started['pid'], signal.SIGTERM)
             time.sleep(1)

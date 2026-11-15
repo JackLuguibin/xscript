@@ -52,6 +52,7 @@ def test_e2e_d01_gutter_breakpoint_pause_variables_step_stop(shell, qtbot):
       return true;
     })()""")
     assert clicked
+    click_js(sh, qtbot, "[...document.querySelectorAll('.workbench-tools button')].find(b => b.textContent.trim() === '调试')")
     sh.wait_text(qtbot, "● __init__.py:3", timeout=8000)
     sh.wait_js(qtbot, "document.querySelector('.monaco-host .bp-glyph') !== null", timeout=5000)
 
