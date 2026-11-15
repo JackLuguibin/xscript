@@ -60,7 +60,12 @@ def main():
             for v in (version, newer):
                 out = temp / ('build-' + v)
                 run(['npx', 'electron-builder', '--dir', '--publish', 'never', '-c.directories.output=' + str(out), '-c.extraMetadata.version=' + v], cwd=ELECTRON)
-                apps.append(out / 'mac-arm64/XScript.app')
+                bundle = out / 'mac-arm64/XScript.app'
+                # electron-builder skips signing in PR environments. These disposable
+                # rehearsal bundles use ad-hoc signing, without release credentials.
+                run(['codesign', '--force', '--deep', '--sign', '-', '--preserve-metadata=entitlements,requirements,flags', bundle])
+                run(['codesign', '--verify', '--deep', '--strict', bundle])
+                apps.append(bundle)
             install_dir = temp / 'Applications'
             install_dir.mkdir()
             installed = install_dir / 'XScript.app'
