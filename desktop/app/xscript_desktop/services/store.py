@@ -650,9 +650,8 @@ def _check_identity(device_id: str, transport: str, address: str) -> None:
         raise StoreError("db.bad_params", "设备标识不合法")
     if device_id != "%s:%s" % (transport, address):
         raise StoreError("db.bad_params", "设备 id 必须是 %s:<地址>" % transport)
-    # the forward port is reallocated on every connect; storing it would reconnect to a dead port (design §14.5)
-    if transport == "adb" and re.fullmatch(r"(127\.0\.0\.1|localhost|\[::1\]):\d+", address):
-        raise StoreError("db.bad_params", "adb 地址必须是序列号，不能是本地转发端口")
+    # TCP-connected emulators use host:port as their actual ADB serial (e.g. MuMu).
+    # The caller stores rec.serial, never rec.target.address (the allocated HTTP forward).
 
 
 def _quick_ok(path: Path) -> bool:

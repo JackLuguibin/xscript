@@ -159,9 +159,6 @@ def test_check_and_unique_constraints_and_relay_transport(tmp_path):
             store.exec_sql("INSERT INTO devices (id, transport, address, created_at) VALUES ('adb:emulator-1b','adb','emulator-1',1)")
         with pytest.raises(sqlite3.IntegrityError):
             store.exec_sql("INSERT INTO devices (id, transport, address, auto_connect, created_at) VALUES ('lan:h:9','lan','h:9',2,1)")
-        with pytest.raises(StoreError) as err:
-            store.remember("adb:127.0.0.1:41000", "adb", "127.0.0.1:41000", "", "", 1)
-        assert err.value.code == "db.bad_params"
     finally:
         store.close()
 
@@ -211,25 +208,26 @@ def test_update_preserves_identity_and_rejects_bad_text(tmp_path):
         store.close()
 
 
-async def test_connect_saves_the_serial_and_disconnect_keeps_an_offline_card(mock_device, tmp_path):
+@pytest.mark.parametrize("serial", ["emulator-5554", "127.0.0.1:16384", "localhost:16384"])
+async def test_connect_saves_the_serial_and_disconnect_keeps_an_offline_card(mock_device, tmp_path, serial):
     """Connecting writes the row; disconnect closes the forward but the card stays. A failed connect writes nothing."""
-    fake = FakeAdb([("emulator-5554", "device", mock_device), ("R5", "unauthorized", mock_device)])
+    fake = FakeAdb([(serial, "device", mock_device), ("R5", "unauthorized", mock_device)])
     ctx = _ctx(fake, tmp_path)
     try:
         refused = await rpc(ctx, "device.connect", transport="adb", serial="R5")
         assert refused["error"]["code"] == "adb.not_ready" and ctx.store.list_devices() == []
-        con = await rpc(ctx, "device.connect", transport="adb", serial="emulator-5554")
+        con = await rpc(ctx, "device.connect", transport="adb", serial=serial)
         assert con["ok"] and con["result"]["saved"] is True and con["result"]["forwardPort"] == 41000
-        assert ctx.store.get("adb:emulator-5554").address == "emulator-5554"
-        assert "41000" not in ctx.store.dump_devices() and "127.0.0.1" not in ctx.store.dump_devices()
-        renamed = await rpc(ctx, "device.update", id="adb:emulator-5554", name="实验室", group="甲", autoConnect=False)
+        assert ctx.store.get("adb:" + serial).address == serial
+        assert "41000" not in ctx.store.dump_devices()
+        renamed = await rpc(ctx, "device.update", id="adb:" + serial, name="实验室", group="甲", autoConnect=False)
         assert renamed["result"]["name"] == "实验室" and renamed["result"]["group"] == "甲"
-        gone = await rpc(ctx, "device.disconnect", id="adb:emulator-5554")
+        gone = await rpc(ctx, "device.disconnect", id="adb:" + serial)
         assert gone["result"]["removed"] is True and gone["result"]["device"]["state"] == "offline"
         assert fake.forwards == {} and ctx.devices.list() == []
         listed = (await rpc(ctx, "device.list"))["result"]["devices"]
         assert listed[0]["state"] == "offline" and listed[0]["name"] == "实验室" and listed[0]["forwardPort"] == 0
-        assert (await rpc(ctx, "device.forget", id="adb:emulator-5554"))["result"]["forgotten"] is True
+        assert (await rpc(ctx, "device.forget", id="adb:" + serial))["result"]["forgotten"] is True
         assert (await rpc(ctx, "device.list"))["result"]["devices"] == []
     finally:
         await ctx.shutdown()
