@@ -1,11 +1,11 @@
 #!/usr/bin/env python3
-"""Which heavy CI jobs a pull request needs, from the files it changes.
+"""Which CI jobs a change needs, from the files it changes.
 
-usage: scripts/ci_changes.py <base-sha> <head-sha>   -> prints `android=`, `desktop=`, `postgres=`, `runtime=` and `python=true|false`
-       scripts/ci_changes.py --all                   -> everything true (push to main, release, manual runs)
+usage: scripts/ci_changes.py <base-sha> <head-sha>   -> prints one `<area>=true|false` per job area
+       scripts/ci_changes.py --all                   -> everything true (scheduled, release and manual full runs)
 
-A job is skipped only when *every* changed file is in an area listed below as unable to affect it. Anything else, a
-new top-level folder, scripts/, the workflow itself, or a git error, runs the job. Pushes to main always run all jobs.
+A job is skipped only when every changed file is known not to affect it. Unknown roots, shared scripts/workflows,
+and git errors fail open. Node test-only changes run the Web IDE job. PRs and main pushes use the same rules; full runs remain available.
 """
 
 from __future__ import annotations
@@ -36,7 +36,25 @@ PYTHON_UNAFFECTED = ("desktop/app/", "desktop/frontend/", "android/app/src/main/
                      "android/app/src/test/", "android/app/src/androidTest/", "android/gradle/", "backend/web/",
                      "ide/vscode-extension/", "ide/pycharm-plugin/", "docs/", "deploy/")
 
-ALL = ("android", "desktop", "postgres", "runtime", "python")
+ALL = ("android", "desktop", "postgres", "runtime", "python", "web_ide", "vscode", "pycharm", "console")
+KNOWN_AREAS = ("android/", "desktop/", "ide/", "backend/", "docs/", "deploy/", "website/")
+WEB_TOOLS = "android/app/src/main/assets/tools/"
+# Include each job's inputs outside its own directory: both IDE plugins bundle Web IDE code and stubs.
+JOB_INPUTS = {
+    "web_ide": (WEB_TOOLS, "website/", "android/python-runtime/", "ide/python-stubs/", "protocol/"),
+    "vscode": ("ide/vscode-extension/", "ide/python-stubs/", WEB_TOOLS, "protocol/",
+               "ide/pycharm-plugin/src/main/resources/templates.json"),
+    "pycharm": ("ide/pycharm-plugin/", "ide/python-stubs/", WEB_TOOLS, "protocol/"),
+    "console": ("backend/web/", "protocol/"),
+}
+
+
+def _job_needs(path: str, inputs: tuple[str, ...]) -> bool:
+    if path.startswith(inputs):
+        return True
+    # New roots and shared scripts/workflows fail open, rather than silently losing coverage.
+    return path not in ROOT_DOCS and not path.startswith(KNOWN_AREAS)
+
 
 
 def _unaffected(path: str, prefixes: tuple[str, ...], needed: tuple[str, ...] = ()) -> bool:
@@ -50,18 +68,26 @@ def _unaffected(path: str, prefixes: tuple[str, ...], needed: tuple[str, ...] = 
 def decide(files: list[str]) -> dict[str, bool]:
     if not files:  # nothing to compare (or an empty diff): be safe
         return {k: True for k in ALL}
-    return {
+    result = {
         "android": not all(_unaffected(f, ANDROID_UNAFFECTED) for f in files),
         "desktop": not all(_unaffected(f, DESKTOP_UNAFFECTED, DESKTOP_NEEDED_INSIDE) for f in files),
         "postgres": not all(_unaffected(f, POSTGRES_UNAFFECTED) for f in files),
         "runtime": not all(_unaffected(f, RUNTIME_UNAFFECTED) for f in files),
         "python": not all(_unaffected(f, PYTHON_UNAFFECTED) for f in files),
     }
+    result.update({job: any(_job_needs(f, inputs) for f in files) for job, inputs in JOB_INPUTS.items()})
+    # Web IDE parser/symbol tests use git ls-files '*.py' as a regression corpus.
+    result["web_ide"] |= any(f.endswith(".py") for f in files)
+    # Node test-only changes cannot alter an APK, desktop client or IDE plugin; they run in web-ide.
+    node_tests_only = all(f.startswith("scripts/tests/") and f.endswith(".test.cjs") for f in files)
+    if node_tests_only:
+        return {k: k == "web_ide" for k in ALL}
+    return result
 
 
 def changed_files(base: str, head: str) -> list[str]:
     # -z: raw paths (no quoting of the Chinese file names under docs/), NUL separated
-    out = subprocess.run(["git", "diff", "--name-only", "-z", base, head], capture_output=True, check=True).stdout
+    out = subprocess.run(["git", "diff", "--name-only", "--no-renames", "-z", base, head], capture_output=True, check=True).stdout
     return [p for p in out.decode("utf-8", "surrogateescape").split("\0") if p]
 
 

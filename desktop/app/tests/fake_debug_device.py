@@ -111,9 +111,10 @@ class FakeDebugDevice:
                     outer.connected = False
                     self._send(200, {"ok": True})
 
+        # A short shutdown poll avoids paying socketserver's default 0.5 s for every test.
         self._httpd = _Server(("127.0.0.1", 0), H)
         self._httpd.daemon_threads = True
-        threading.Thread(target=self._httpd.serve_forever, daemon=True).start()
+        threading.Thread(target=self._httpd.serve_forever, kwargs={"poll_interval": 0.02}, daemon=True).start()
 
     def reset(self) -> None:
         self.running = False

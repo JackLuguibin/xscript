@@ -9,6 +9,9 @@ on:
     branches: [main]
   pull_request:
     branches: [main]
+  # Weekly safety net for changes outside the path map; release and manual runs are also full.
+  schedule:
+    - cron: "41 3 * * 1"
   workflow_call:
   # manual run (Actions tab or `gh workflow run ci.yml --ref main`), e.g. when a push event was lost; runs everything
   workflow_dispatch:
@@ -16,19 +19,16 @@ on:
 permissions:
   contents: read
 
-# A PR's runs share one group, so a new push cancels its superseded run. Every other run (push to main, manual,
-# release) gets a group of its own (the run id), so none is ever cancelled or replaced while queued: in a shared
-# group GitHub keeps only the newest pending run and cancels the older one even without cancel-in-progress.
+# Superseded PR/main runs yield to the latest commit. Manual and release verification keep independent groups.
 concurrency:
-  group: ci-${{ github.workflow }}-${{ github.event_name == 'pull_request' && github.ref || github.run_id }}
-  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+  group: ci-${{ github.workflow }}-${{ (github.event_name == 'pull_request' || (github.event_name == 'push' && github.ref == 'refs/heads/main')) && github.ref || github.run_id }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' || (github.event_name == 'push' && github.ref == 'refs/heads/main') }}
 
 env:
   NO_PROXY: 127.0.0.1,localhost
 
 jobs:
-  # Pull requests skip the heavy Android / desktop jobs when no changed file can affect them (scripts/ci_changes.py
-  # lists the areas). Pushes to main, release runs (workflow_call) and anything unexpected run everything.
+  # PRs and main pushes select affected jobs. Scheduled, manual and tagged release runs check everything.
   changes:
     name: changed areas
     runs-on: ubuntu-24.04
@@ -39,11 +39,15 @@ jobs:
       postgres: ${{ steps.areas.outputs.postgres }}
       runtime: ${{ steps.areas.outputs.runtime }}
       python: ${{ steps.areas.outputs.python }}
+      web_ide: ${{ steps.areas.outputs.web_ide }}
+      vscode: ${{ steps.areas.outputs.vscode }}
+      pycharm: ${{ steps.areas.outputs.pycharm }}
+      console: ${{ steps.areas.outputs.console }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
-          fetch-depth: 2  # a pull_request checkout is the test merge commit: parent 1 is the base branch
+          fetch-depth: 2  # fetch the event base explicitly below for multi-commit pushes
       - name: Self-test of the rules, the device scripts' pairing helper and the phone pins
         run: python3 -m unittest scripts/tests/test_ci_changes.py scripts/tests/test_devauth.py scripts/tests/test_phone_pins.py scripts/tests/test_device_scripts.py scripts/tests/test_versions.py scripts/tests/test_gen_api_catalog.py scripts/tests/test_python_syntax.py scripts/tests/test_mock_eval.py scripts/tests/test_flake_rate.py scripts/tests/test_check_docs.py scripts/tests/test_check_repo_files.py scripts/tests/test_docs_link_issue.py
       - name: No symlinks, dependency or build output, big files in the repo
@@ -53,10 +57,14 @@ jobs:
       - id: areas
         name: Decide
         env:
-          EVENT: ${{ github.event_name }}
+          FILTERED: ${{ github.event_name == 'pull_request' || (github.event_name == 'push' && github.ref == 'refs/heads/main') }}
+          BASE_SHA: ${{ github.event.pull_request.base.sha || github.event.before }}
         run: |
-          if [ "$EVENT" = pull_request ]; then
-            python3 scripts/ci_changes.py HEAD^1 HEAD >> "$GITHUB_OUTPUT"
+          if [ "$FILTERED" = true ]; then
+            # `before` can be older than the shallow checkout (multi-commit pushes). If unavailable,
+            # ci_changes.py fails open and enables all jobs. Never diff HEAD^: that can miss earlier commits.
+            git cat-file -e "${BASE_SHA}^{commit}" 2>/dev/null || git fetch --no-tags --depth=1 origin "$BASE_SHA" || true
+            python3 scripts/ci_changes.py "$BASE_SHA" HEAD >> "$GITHUB_OUTPUT"
           else
             python3 scripts/ci_changes.py --all >> "$GITHUB_OUTPUT"
           fi
@@ -176,6 +184,8 @@ jobs:
 
   web-ide:
     name: Web IDE (node + headless Chrome)
+    needs: changes
+    if: needs.changes.outputs.web_ide == 'true'
     runs-on: ubuntu-24.04
     timeout-minutes: 20
     steps:
@@ -197,6 +207,8 @@ jobs:
 
   vscode-extension:
     name: VS Code extension (unit tests + vsix)
+    needs: changes
+    if: needs.changes.outputs.vscode == 'true'
     runs-on: ubuntu-24.04
     timeout-minutes: 15
     steps:
@@ -223,6 +235,8 @@ jobs:
 
   console:
     name: backend web console (type-check + build)
+    needs: changes
+    if: needs.changes.outputs.console == 'true'
     runs-on: ubuntu-24.04
     timeout-minutes: 15
     steps:
@@ -371,7 +385,7 @@ jobs:
       - name: Python tests + coverage, 4 workers (e2e, subprocess CLI, security, perf budgets; visual/device tests skip without baselines/devices)
         run: |
           python -m pip install -e "desktop/app[test]"
-          cd desktop/app && python -m pytest -q -n 4 --cov --cov-report=term-missing --cov-fail-under=85
+          cd desktop/app && python -m pytest -q -n 4 --dist worksteal --durations=15 --cov --cov-report=term-missing --cov-fail-under=85
       - name: Test matrix in docs/桌面端-测试方案.md is generated from the tests (no drift)
         run: python desktop/app/tools/gen_test_matrix.py --check
       - name: Shell self-test (loads the built frontend, one QWebChannel round trip)
@@ -414,12 +428,14 @@ jobs:
       - name: Python tests, 4 workers
         run: |
           python -m pip install -e "desktop/app[test]"
-          cd desktop/app && python -m pytest -q -n 4
+          cd desktop/app && python -m pytest -q -n 4 --dist worksteal --durations=15
       - name: Shell self-test (loads the built frontend, one QWebChannel round trip)
         run: cd desktop/app && python -m xscript_desktop --selftest
 
   pycharm-plugin:
     name: PyCharm plugin (Kotlin tests, buildPlugin, verifyPlugin)
+    needs: changes
+    if: needs.changes.outputs.pycharm == 'true'
     runs-on: ubuntu-24.04
     timeout-minutes: 30
     steps:

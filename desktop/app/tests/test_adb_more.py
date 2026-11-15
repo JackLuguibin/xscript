@@ -3,6 +3,7 @@ never uninstall / clear data / shell / install from the desktop app in P0)."""
 from __future__ import annotations
 
 import inspect
+import signal
 import stat
 import sys
 from pathlib import Path
@@ -42,11 +43,22 @@ async def test_real_subprocess_empty_stderr_falls_back_to_exit_code(tmp_path):
     assert "exited with 3" in e.value.message
 
 
-async def test_real_subprocess_timeout_kills_the_child(tmp_path):
-    a = make_adb(tmp_path, "sleep 30")
+async def test_real_subprocess_timeout_kills_the_child(tmp_path, monkeypatch):
+    # Replace the shell: otherwise its sleeping grandchild keeps stdout/stderr open for 30 s after the shell dies.
+    a = make_adb(tmp_path, "exec sleep 30")
+    children = []
+    spawn = adb_mod.asyncio.create_subprocess_exec
+
+    async def start(*args, **kwargs):
+        child = await spawn(*args, **kwargs)
+        children.append(child)
+        return child
+
+    monkeypatch.setattr(adb_mod.asyncio, "create_subprocess_exec", start)
     with pytest.raises(AdbError) as e:
         await AdbService(str(a))._run(["devices"], timeout=0.3)
     assert e.value.code == "adb.timeout"
+    assert len(children) == 1 and children[0].returncode == -signal.SIGKILL
 
 
 async def test_spawn_failure_is_adb_spawn(tmp_path):

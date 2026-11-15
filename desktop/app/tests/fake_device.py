@@ -120,9 +120,10 @@ class FakeDevice:
                 else:
                     self._send(200, "image/png", outer.png)
 
+        # A short shutdown poll avoids paying socketserver's default 0.5 s for every test.
         self._httpd = _Server(("127.0.0.1", 0), H)
         self._httpd.daemon_threads = True
-        self._thread = threading.Thread(target=self._httpd.serve_forever, daemon=True)
+        self._thread = threading.Thread(target=self._httpd.serve_forever, kwargs={"poll_interval": 0.02}, daemon=True)
         self._thread.start()
 
     @property

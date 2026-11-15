@@ -1101,7 +1101,8 @@ def serve(host="127.0.0.1", port=0, token=None):
     httpd.stream_lock = threading.Lock()
     httpd.stream_viewers = 0
     httpd.pair_token = token
-    thread = threading.Thread(target=httpd.serve_forever, daemon=True)
+    # Test fixtures frequently stop this server; the default 0.5 s poll dominates teardown time.
+    thread = threading.Thread(target=httpd.serve_forever, kwargs={"poll_interval": 0.02}, daemon=True)
     thread.start()
     return httpd
 

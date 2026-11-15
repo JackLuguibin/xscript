@@ -38,7 +38,8 @@ class Decide(unittest.TestCase):
 
     def test_pycharm_plugin_only_skips_heavy_jobs(self):
         d = ci.decide(["ide/pycharm-plugin/build.gradle.kts", "ide/pycharm-plugin/src/main/kotlin/A.kt"])
-        self.assertEqual(d, {"android": False, "desktop": False, "postgres": False, "runtime": False, "python": False})
+        self.assertEqual({k: d[k] for k in ("android", "desktop", "postgres", "runtime", "python")},
+                         {"android": False, "desktop": False, "postgres": False, "runtime": False, "python": False})
 
     def test_python_runtime_runs_desktop_too(self):
         self.assertEqual(heavy(["android/python-runtime/xscript/android/action.py"]), {"android": True, "desktop": True})
@@ -113,12 +114,46 @@ class RuntimeAndPython(unittest.TestCase):
         self.assertEqual(self.pick([]), {"runtime": True, "python": True})
 
 
+class ClientAreas(unittest.TestCase):
+    def enabled(self, files):
+        return {job for job in ci.JOB_INPUTS if ci.decide(files)[job]}
+
+    def test_each_client_owns_its_changes(self):
+        for path, area in [("desktop/frontend/src/App.tsx", None), ("backend/web/package-lock.json", "console"),
+                           ("ide/vscode-extension/src/client.ts", "vscode"),
+                           ("ide/pycharm-plugin/build.gradle.kts", "pycharm")]:
+            self.assertEqual(self.enabled([path]), {area} if area else set(), path)
+
+    def test_shared_tools_and_stubs_reach_all_consumers(self):
+        for path in [ci.WEB_TOOLS + "editor-parse.js", "ide/python-stubs/xscript/action.pyi"]:
+            self.assertEqual(self.enabled([path]), {"web_ide", "vscode", "pycharm"})
+        self.assertEqual(self.enabled(["android/python-runtime/xscript/action.py"]), {"web_ide"})
+
+    def test_template_sync_checker_reads_pycharm_resources(self):
+        self.assertEqual(self.enabled(["ide/pycharm-plugin/src/main/resources/templates.json"]), {"vscode", "pycharm"})
+
+    def test_docs_and_server_do_not_build_clients(self):
+        self.assertEqual(self.enabled(["README.md", "docs/部署.md"]), set())
+        self.assertEqual(self.enabled(["backend/xscript_server/db.py"]), {"web_ide"})
+
+    def test_unknown_shared_inputs_fail_open(self):
+        for path in ["scripts/mock_device.py", ".github/workflows/ci.yml", "new-root/file", "protocol/permission-fix.json"]:
+            self.assertTrue(all(ci.decide([path]).values()), path)
+        self.assertTrue(all(ci.decide([]).values()))
+
+    def test_node_test_only_runs_web_ide_and_mixed_changes_are_not_lost(self):
+        path = "scripts/tests/editor-http.test.cjs"
+        self.assertEqual({k for k, v in ci.decide([path]).items() if v}, {"web_ide"})
+        self.assertTrue(ci.decide([path, "android/app/src/main/java/A.kt"])["android"])
+
+
+
 class Cli(unittest.TestCase):
     def run_cli(self, *args: str) -> str:
         return subprocess.run([sys.executable, str(REPO / "scripts" / "ci_changes.py"), *args], capture_output=True, text=True, check=True, cwd=REPO).stdout
 
     def test_all(self):
-        self.assertEqual(self.run_cli("--all"), "android=true\ndesktop=true\npostgres=true\nruntime=true\npython=true\n")
+        self.assertEqual(self.run_cli("--all"), "".join(k + "=true\n" for k in ci.ALL))
 
     def test_reads_a_real_diff_with_a_chinese_path(self):
         import os
@@ -141,11 +176,36 @@ class Cli(unittest.TestCase):
             git("commit", "-qm", "docs")
             out = subprocess.run([sys.executable, str(REPO / "scripts" / "ci_changes.py"), base, "HEAD"], cwd=d,
                                  capture_output=True, text=True, check=True)
-            self.assertEqual(out.stdout, "android=false\ndesktop=true\npostgres=false\nruntime=false\npython=false\n")
+            self.assertEqual(out.stdout, "android=false\ndesktop=true\npostgres=false\nruntime=false\npython=false\nweb_ide=false\nvscode=false\npycharm=false\nconsole=false\n")
             self.assertIn("docs/桌面端-测试方案.md", out.stderr)
 
+    def test_rename_keeps_deleted_area_in_scope(self):
+        import os
+        import tempfile
+        with tempfile.TemporaryDirectory() as d:
+            env = {**os.environ, "GIT_AUTHOR_NAME": "t", "GIT_AUTHOR_EMAIL": "t@t",
+                   "GIT_COMMITTER_NAME": "t", "GIT_COMMITTER_EMAIL": "t@t"}
+            def git(*args):
+                return subprocess.run(["git", *args], cwd=d, env=env, capture_output=True, text=True, check=True).stdout.strip()
+            git("init", "-q")
+            old = Path(d, "backend", "old.py")
+            old.parent.mkdir()
+            old.write_text("x = 1")
+            git("add", ".")
+            git("commit", "-qm", "base")
+            base = git("rev-parse", "HEAD")
+            Path(d, "docs").mkdir()
+            old.rename(Path(d, "docs", "new.py"))
+            git("add", "-A")
+            git("commit", "-qm", "move")
+            out = subprocess.run([sys.executable, str(REPO / "scripts/ci_changes.py"), base, "HEAD"],
+                                 cwd=d, capture_output=True, text=True, check=True)
+            self.assertIn("backend/old.py", out.stderr)
+            self.assertIn("docs/new.py", out.stderr)
+            self.assertIn("postgres=true", out.stdout)
+
     def test_a_bad_revision_runs_everything(self):
-        self.assertEqual(self.run_cli("0" * 40, "HEAD"), "android=true\ndesktop=true\npostgres=true\nruntime=true\npython=true\n")
+        self.assertEqual(self.run_cli("0" * 40, "HEAD"), "".join(k + "=true\n" for k in ci.ALL))
 
 
 if __name__ == "__main__":
