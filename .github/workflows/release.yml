@@ -54,7 +54,7 @@ jobs:
   desktop:
     name: desktop dmg (macOS arm64)
     if: ${{ !inputs.perf_apk }}
-    runs-on: macos-14
+    runs-on: macos-15
     timeout-minutes: 45
     permissions:
       contents: read
