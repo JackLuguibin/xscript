@@ -165,5 +165,5 @@ def test_v_cloud_management(vis, qtbot, theme):
     vis.run_async(vis.ctx.cloud.connect(ORIGIN, "xsk_admin"))
     vis.click(qtbot, "云控")
     vis.click(qtbot, "概览")
-    vis.wait_text(qtbot, "最近 24 小时")
+    vis.wait_text(qtbot, "24 小时内活跃")
     verify("cloud-management-" + theme, vis, qtbot)
