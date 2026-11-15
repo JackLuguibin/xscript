@@ -6,11 +6,11 @@
   color-scheme: light;
 
   /* colour — surfaces */
-  --bg: #f4f6f9;
+  --bg: #f7f8fa;
   --surface: #ffffff;
   --surface-2: #eef1f6;
-  --sidebar: #ffffff;
-  --border: #d8dde6;          /* decorative dividers */
+  --sidebar: #f9fafb;
+  --border: #e2e5eb;          /* decorative dividers */
   --border-strong: #7b8597;   /* component boundaries (inputs, buttons): ≥ 3:1 on surface (WCAG 1.4.11) */
 
   /* colour — text */
@@ -21,7 +21,7 @@
   /* colour — brand and status (each fg is meant for text on its own *-bg) */
   --primary: #1d4ed8;
   --primary-hover: #1e40af;
-  --primary-soft: #e3ecff;
+  --primary-soft: #eaf0ff;
   --success-fg: #14532d;
   --success-bg: #dcfce7;
   --success-dot: #16a34a;

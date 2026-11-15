@@ -1,0 +1,75 @@
+{
+  "name": "xscript-desktop-electron",
+  "productName": "XScript",
+  "version": "0.6.1",
+  "private": true,
+  "description": "XScript Electron desktop client",
+  "author": "XScript",
+  "license": "MIT",
+  "main": "main.cjs",
+  "scripts": {
+    "dev": "node scripts/dev.cjs",
+    "start": "electron .",
+    "build": "npm --prefix ../frontend run build",
+    "build:sidecar": "node scripts/build-sidecar.cjs",
+    "pack": "npm run build && npm run build:sidecar && npm run build:runtime && electron-builder --dir",
+    "dist": "npm run build && npm run build:sidecar && npm run build:runtime && electron-builder",
+    "test": "node --test tests/*.test.cjs",
+    "smoke": "electron . --smoke",
+    "build:runtime": "node -e \"require('electron')\""
+  },
+  "devDependencies": {
+    "electron": "45.3.2",
+    "electron-builder": "26.18.0"
+  },
+  "build": {
+    "appId": "com.xscript.desktop",
+    "asar": true,
+    "directories": {
+      "output": "dist"
+    },
+    "files": [
+      "*.cjs",
+      "package.json"
+    ],
+    "extraResources": [
+      {
+        "from": "../app/xscript_desktop/resources/app",
+        "to": "frontend"
+      },
+      {
+        "from": "sidecar-dist",
+        "to": "sidecar"
+      },
+      {
+        "from": "sidecar-build/update-keys.json",
+        "to": "update-keys.json"
+      }
+    ],
+    "mac": {
+      "target": [
+        "dmg"
+      ],
+      "category": "public.app-category.developer-tools",
+      "artifactName": "xscript-desktop-v${version}-macos-${arch}.${ext}",
+      "identity": "-"
+    },
+    "win": {
+      "target": [
+        "nsis"
+      ],
+      "artifactName": "xscript-desktop-v${version}-windows-${arch}-setup.${ext}"
+    },
+    "linux": {
+      "target": [
+        "AppImage"
+      ],
+      "category": "Development"
+    },
+    "icon": "assets/icon.png",
+    "electronDist": "node_modules/electron/dist",
+    "nsis": {
+      "runAfterFinish": false
+    }
+  }
+}

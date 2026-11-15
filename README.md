@@ -21,7 +21,7 @@ XScript 将设备端 Python 运行时、自动化 API、浏览器开发工具和
 - **工程与运行管理**：工程导入导出、运行时安装 Python 依赖、开机运行、定时任务、异常重启控制，以及链接启动（`xscript://`，兼容 AScript 的 `ascript://run?local=…`）。
 - **自托管管理后台**：设备分组、批量任务、远程操作、屏幕墙、日志、告警、账号角色和操作审计；概览页有每日激活、在线设备、新设备和到期的趋势图；「AI 写脚本」在后台描述任务，用自己配置的 OpenAI 兼容模型生成小程序代码，保存为版本后下发到设备测试。数据默认存在 SQLite 文件里，设备多时可改用 PostgreSQL（可选）。
 - **桌面端云控**：桌面客户端的「云控」页用 API 令牌连接管理后台，批量运行、看实时画面和日志、编辑定时任务、把流程部署到分组并回滚，按后台角色灰显（[说明](desktop/README.md#p4-云控已实现)）。
-- **桌面端安装与更新**：macOS dmg 和 Windows 安装包，设置里检查、下载并安装签名的新版本，导出脱敏的诊断包（[说明](desktop/README.md#p5-安装包与更新已实现)）。
+- **桌面端安装与诊断**：Electron + React + Python 服务，提供 macOS dmg 和 Windows 安装包、开发热更新和脱敏诊断包；Electron 版本支持配置签名公钥后的自动更新（[说明](desktop/README.md#p5-安装包与更新已实现)）。
 - **应用分发**：脚本版本发布与回滚、独立 APK 打包（默认在后台本机打包，也可以交给单独的打包机，在后台添加和查看打包机状态）、签名更新和激活码授权管理。
 
 视觉 AI 客户端支持显式配置自有推理服务；项目不包含视觉大模型服务。YOLO 模型由使用者提供，具体模型与第三方依赖的授权见[第三方声明](THIRD_PARTY_NOTICES.md)。
@@ -69,7 +69,7 @@ XScript 将设备端 Python 运行时、自动化 API、浏览器开发工具和
 
 不想自己构建时，直接用发布好的安装包，只需要一台 Android 8.0+ 手机或模拟器和一台电脑。
 
-**1. 安装 App**：从 [GitHub Release v0.6.0](https://github.com/JackLuguibin/xscript/releases/tag/v0.6.0) 下载 `xscript-v0.6.0-release.apk`，`adb install` 或拷到手机上点开安装。v0.2.1–v0.2.3 正式版可直接覆盖升级；装过 Debug 版的设备要先卸载（会清除应用数据）。
+**1. 安装 App**：从 [GitHub Release v0.6.1](https://github.com/JackLuguibin/xscript/releases/tag/v0.6.1) 下载 `xscript-v0.6.1-release.apk`，`adb install` 或拷到手机上点开安装。v0.2.1–v0.2.3 正式版可直接覆盖升级；装过 Debug 版的设备要先卸载（会清除应用数据）。
 
 **2. 授权**：首次打开先允许 **通知**（否则开发服务不会启动），再按需开启 **辅助权限管理**（无障碍，点击和控件操作要用）、**悬浮窗权限**、**图色权限**（截图）。
 

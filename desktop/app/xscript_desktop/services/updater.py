@@ -375,6 +375,36 @@ start "" {cq(str(install_dir).rstrip(chr(92)) + chr(92) + "XScript.exe")} {relau
 """
 
 
+def nsis_install_script(setup: Path, install_dir: Path, pid: int, args: list[str], log: Path) -> str:
+    # NSIS /D must be last and unquoted; all paths originate in the native shell.
+    # Escape cmd metacharacters and percent expansion before writing a batch file.
+    def esc(value: Path | str) -> str:
+        text = str(value)
+        if any(c in text for c in ('\r', '\n', '"')):
+            raise UpdateError("unsupported installer path", "install")
+        return text.replace('%', '%%')
+    setup_s, directory = esc(setup), esc(install_dir)
+    for char in '^&|<>()':
+        directory = directory.replace(char, '^' + char)
+    exe = esc(install_dir / "XScript.exe")
+    relaunch = " ".join('"' + esc(arg) + '"' for arg in args)
+    return f'''@echo off
+chcp 65001 >nul
+setlocal DisableDelayedExpansion
+set n=0
+:wait
+tasklist /FI "PID eq {pid}" 2>nul | find " {pid} " >nul || goto install
+set /a n+=1
+if %n% gtr 240 (echo XScript is still running; update not applied & exit /b 1)
+ping -n 2 127.0.0.1 >nul
+goto wait
+:install
+start "" /wait "{setup_s}" /S /D={directory}
+if errorlevel 1 (echo setup failed & exit /b 1)
+start "" "{exe}" {relaunch}
+'''
+
+
 def launch_helper(script: Path, log: Path, plat: str | None = None, popen: Callable | None = None):
     import subprocess
 
@@ -397,7 +427,8 @@ class UpdateService:
 
     def __init__(self, current: str, work_dir: Callable[[], Path], *, client_factory: Callable[[], httpx.AsyncClient] | None = None,
                  env: dict | None = None, install: Path | None | bool = False, argv: list[str] | None = None,
-                 plat: str | None = None) -> None:
+                 plat: str | None = None, installer: str = "inno") -> None:
+        self.installer = installer
         self.current = current
         self.work_dir = work_dir
         self.client_factory = client_factory or self._default_client
@@ -490,7 +521,7 @@ class UpdateService:
                 script.write_text(macos_swap_script(self.install_path, staged, pid, args))
             elif self.plat == "win32":
                 script = work / "apply-update.cmd"
-                script.write_text(windows_install_script(self.file, self.install_path, pid, args, work / "setup.log"),
+                script.write_text((nsis_install_script if self.installer == "nsis" else windows_install_script)(self.file, self.install_path, pid, args, work / "setup.log"),
                                   encoding="utf-8")
             else:
                 raise UpdateError("no installer for %s" % self.plat, "platform")

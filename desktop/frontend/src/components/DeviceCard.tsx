@@ -1,3 +1,4 @@
+import { mediaUrl } from "../bridge/electron";
 import { useEffect, useId, useState } from "react";
 import type { Device } from "../api";
 import { describeCode, errorLine } from "../errors";
@@ -133,7 +134,7 @@ export function DeviceCard({
   const [shotTick, setShotTick] = useState(0);
   const [shot, setShot] = useState<ShotState>("idle");
   // Screenshots come over the custom scheme (xsapp://app/_shot/...), not through the JSON bridge (design §3.1).
-  const shotUrl = shotTick ? `/_shot/${encodeURIComponent(device.id)}.jpg?max=${shotMax()}&t=${shotTick}` : "";
+  const shotUrl = shotTick ? mediaUrl(`/_shot/${encodeURIComponent(device.id)}.jpg?max=${shotMax()}&t=${shotTick}`) : "";
   const ratio = i.width && i.height ? `${i.width} / ${i.height}` : "9 / 19.5";
   const tone = device.state === "online" ? "ok" : device.state === "connecting" || device.state === "unpaired" ? "warn" : "bad";
   const title = device.name || i.name || i.model || device.id;
@@ -167,7 +168,7 @@ export function DeviceCard({
   const showDisconnect = device.state !== "offline" || device.forwardPort > 0 || Boolean(device.error) || !device.saved;
 
   return (
-    <article className={`card device-card${current ? " current" : ""}`} aria-label={`device ${device.id}`} aria-current={current ? "true" : undefined}>
+    <article className={`card device-card${current ? " current" : ""}${open ? " expanded" : ""}`} aria-label={`device ${device.id}`} aria-current={current ? "true" : undefined}>
       <header className="card-head">
         <span className="avatar" aria-hidden="true">
           <IconPhone size={22} />
@@ -257,7 +258,7 @@ export function DeviceCard({
               <Row k={t.info.cloud} v={i.cloud} />
             </dl>
             <div className="shot" aria-busy={shot === "loading"}>
-              <Button variant="bare" className={shot === "idle" ? "primary" : ""} onClick={requestShot} disabled={shot === "loading"}>
+              <Button variant={shot === "idle" ? "primary" : "default"} onClick={requestShot} disabled={shot === "loading"}>
                 {shot === "loading" ? <Spinner /> : <IconCamera size={16} />}
                 {t.takeShot}
               </Button>

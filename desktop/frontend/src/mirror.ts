@@ -1,3 +1,4 @@
+import { mediaUrl } from "./bridge/electron";
 // Pure helpers for the mirror: element pixels → device pixels, and click-vs-swipe classification.
 
 export interface Size {
@@ -31,7 +32,7 @@ export function streamScale(displayPx: number, screenPx: number): number {
 
 /** Cache-busted latest-frame URL. The shell ignores `seq` and returns whatever JPEG it has now. */
 export function frameUrl(deviceId: string, seq: number, nonce: number): string {
-  return `/_frame/${encodeURIComponent(deviceId)}?seq=${seq}&n=${nonce}`;
+  return mediaUrl(`/_frame/${encodeURIComponent(deviceId)}?seq=${seq}&n=${nonce}`);
 }
 
 export const TAP_SLOP_PX = 8; // element pixels: a smaller move is still a click

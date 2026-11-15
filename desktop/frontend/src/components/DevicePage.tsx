@@ -272,7 +272,7 @@ export function DevicePage({
   const pct = scan && scan.total ? Math.round((scan.done / scan.total) * 100) : 0;
 
   return (
-    <div className="page">
+    <div className="page devices-page">
       {dbNotice === "db.newer" && (
         <Alert tone="warn" role="status">
           <IconAlert size={16} />

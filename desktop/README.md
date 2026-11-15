@@ -1,3 +1,37 @@
+# Electron 开发入口
+
+桌面端现在使用 **Electron + React + Python sidecar**。Electron 主进程负责窗口、原生对话框、剪贴板和 Python 生命周期；React 经隔离 preload 的类型化 Transport 使用已有 RPC。Python 不监听本地网络端口。
+
+首次安装（在仓库根目录）：
+
+```bash
+python3 -m venv desktop/app/.venv
+desktop/app/.venv/bin/python -m pip install -e 'desktop/app[electron-build]'
+npm --prefix desktop/frontend ci
+npm --prefix desktop/electron ci
+```
+
+Windows 将 Python 路径换成 `desktop/app/.venv/Scripts/python.exe`。
+
+```bash
+npm --prefix desktop/electron run dev   # 同时启动 Vite、Electron、Python，自动打开 DevTools
+npm --prefix desktop/electron run build # 构建前端
+npm --prefix desktop/electron start     # 使用构建产物启动
+npm --prefix desktop/electron run smoke # React → preload → Electron → Python 的真实启动检查
+npm --prefix desktop/electron run pack  # 构建可运行目录（包含 Python 服务和 ADB）
+npm --prefix desktop/electron run dist  # 当前平台安装包，输出 desktop/electron/dist/
+```
+
+修改 React/CSS 自动热更新；修改 Electron/preload/Python 后重启 `dev`。View → Toggle Developer Tools 打开开发者工具；主进程和 Python 的日志输出到启动终端。`XSCRIPT_PYTHON` 可指定 Python 解释器，`XSCRIPT_DATA_DIR` 可指定隔离的数据目录。已有 Vite 占用 5173 时应先停止，再运行 `dev`。
+
+调试主进程可使用 `npx --prefix desktop/electron electron --inspect=9229 desktop/electron`，然后在 VS Code 中附加 Node 调试器。
+
+macOS 继续使用 `~/Library/Application Support/XScript`，复用已有设备和设置。退出时检查未保存修改，关闭设备流并释放 ADB forward。工具页面在无 preload 的隔离窗口打开。打包版无需系统 Python。
+
+Electron 包尚未配置正式签名/公证；Windows/Linux 打包配置需在对应系统验证。Electron 更新使用 Ed25519 签名清单和 SHA-256 校验，macOS 原子替换应用并重启，Windows 使用 NSIS 静默升级。未嵌入受信任公钥的构建会禁用自动更新。下方 Qt 开发、打包、截图和历史验证说明仅适用于保留的旧外壳（需安装 `.[qt]`）；正式发布流程已改用 Electron。
+
+---
+
 # XScript 桌面端（Windows 为目标平台）
 
 设计文档：[`docs/桌面端设计.md`](../docs/桌面端设计.md)。本目录实现其 §12.1 路线图：**P0**（验证与脚手架）已完成，**P1**（壳 + 设备 + 工程）大部分已实现，**P2**（流程编辑器）部分已实现，**P4**（云控与管理）已实现（见下面「P4 云控」），**P5**（安装包、自动更新、诊断包）已实现（见下面「P5 安装包与更新」），P3 见下面的「没做」。
@@ -236,3 +270,20 @@ e2e 用例要先 `npm run build`（否则自动跳过）。视觉回归的基线
 - **局域网**：手机关闭了配对（或 App 版本较旧）时，非回环地址会显示警告；优先用 ADB。
 - 页面 → Python 的所有请求都走桥；截图这种二进制走 `xsapp://app/_shot/<设备id>.jpg`，不走 JSON。
 - 本阶段**不会**对设备做 `adb install` / `uninstall` / `pm clear`（`AdbService` 里没有这些封装）。
+
+
+## Electron 自动更新发布配置
+
+Electron 复用 `desktop-update.json` 和 `.sig`，与现有 GitHub Releases 地址兼容。安装前检查未保存编辑、重新校验文件哈希；macOS 还检查应用签名、Bundle ID 和版本。更新助手等待 Electron 主进程退出后再替换应用，保留数据目录。开发源码模式允许检查和下载，但不自动覆盖源码目录。
+
+首次配置：使用 `desktop/app/packaging/make_update_feed.py --new-key keys/desktop-update.key` 生成发布密钥（先创建忽略的 `keys/` 目录）。将文件内容保存到 GitHub Secret `DESKTOP_UPDATE_KEY`，将命令打印的公钥保存到仓库 Variable `DESKTOP_UPDATE_PUBLIC_KEYS`。公钥轮换时可用逗号分隔多个公钥。私钥不得提交到仓库。发布构建把公钥嵌入应用，发布步骤校验签名与内置公钥匹配；用户从这种构建开始才具备受信任的自动更新能力。
+
+本地打包时通过 `XSCRIPT_UPDATE_PUBKEY` 指定公钥。`XSCRIPT_UPDATE_FEED` 可指定 HTTPS 更新源或本机 HTTP 测试源。设置 → 关于与更新中检查、下载、确认安装；启动时按已有偏好每天检查一次。`--update-now` 用于自动化升级验证，`--data-dir PATH` 可隔离数据。
+
+macOS 真实升级演练（临时密钥、临时安装目录，不修改 `/Applications`）：
+
+```bash
+desktop/app/.venv/bin/python scripts/electron_update_e2e.py
+```
+
+演练构建两个版本、启动本地签名更新源、下载并替换旧应用，检查新版重新启动、签名完整性和完整前端/Python 握手。Windows NSIS 参数已有测试，安装重启仍需 Windows 真机验证。macOS 正式签名、公证与 Gatekeeper 分发验证仍需发布证书。

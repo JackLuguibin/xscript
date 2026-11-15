@@ -1,3 +1,4 @@
+import { mediaUrl } from "./bridge/electron";
 import type { RpcClient } from "./bridge/client";
 
 export interface AdbDevice {
@@ -491,5 +492,5 @@ export interface CloudPackJob {
 
 /** xsapp:// URL of a cloud device's screenshot (fetched by Python over the backend relay). */
 export function cloudThumbUrl(deviceId: string, tick: number): string {
-  return `/_cloudshot/${encodeURIComponent(deviceId)}.jpg?max=320&t=${tick}`;
+  return mediaUrl(`/_cloudshot/${encodeURIComponent(deviceId)}.jpg?max=320&t=${tick}`);
 }

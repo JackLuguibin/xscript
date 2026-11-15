@@ -1,3 +1,4 @@
+import { mediaUrl } from "./bridge/electron";
 import type { Device } from "./api";
 
 /** Relative point on a thumbnail, then the same fraction of each device's own screen. */
@@ -29,5 +30,5 @@ export function onlineSelected(devices: readonly Device[], selected: ReadonlySet
 
 /** Single-shot thumbnail. Not `/_frame/` and not a mirror stream (design §14.4: two viewer slots). */
 export function thumbUrl(deviceId: string, tick: number): string {
-  return `/_shot/${encodeURIComponent(deviceId)}.jpg?max=480&t=${tick}`;
+  return mediaUrl(`/_shot/${encodeURIComponent(deviceId)}.jpg?max=480&t=${tick}`);
 }

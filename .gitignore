@@ -48,3 +48,7 @@ ascript_analysis/*.venv-build/
 .coverage.*
 htmlcov/
 coverage.xml
+
+# Electron Python sidecar build output
+desktop/electron/sidecar-dist/
+desktop/electron/sidecar-build/

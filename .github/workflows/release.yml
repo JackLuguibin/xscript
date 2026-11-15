@@ -28,7 +28,7 @@ on:
   push:
     tags: ["v[0-9]+.[0-9]+.[0-9]+"]
   pull_request:
-    paths: [".github/workflows/release.yml", "desktop/app/packaging/**"]
+    paths: [".github/workflows/release.yml", "desktop/app/packaging/**", "desktop/electron/**"]
   workflow_dispatch:
     inputs:
       perf_apk:
@@ -71,20 +71,23 @@ jobs:
         run: |
           V="$(sed -n 's/^version = "\(.*\)"/\1/p' desktop/app/pyproject.toml)"
           [ "v$V" = "$GITHUB_REF_NAME" ] || { echo "::error::desktop/app/pyproject.toml version $V does not match $GITHUB_REF_NAME"; exit 1; }
-      - name: Build XScript.app (re-sealed ad-hoc signature, verified)
+      - name: Build Electron app and Python sidecar
+        env:
+          XSCRIPT_UPDATE_PUBKEY: ${{ vars.DESKTOP_UPDATE_PUBLIC_KEYS }}
         run: |
+          uv venv -p 3.10 desktop/app/.venv
+          uv pip install -p desktop/app/.venv/bin/python -e 'desktop/app[electron-build]'
           (cd desktop/frontend && npm ci)
-          bash desktop/app/packaging/build_macos_app.sh
-      - name: Self-test the bundle
-        run: desktop/app/dist/XScript.app/Contents/MacOS/XScript --selftest
-      - name: Build the dmg and verify the signature inside it
-        run: bash desktop/app/packaging/build_macos_dmg.sh
-      - name: The dmg opens (copy the app out, --selftest directly and through LaunchServices)
-        run: bash desktop/app/packaging/check_macos_dmg.sh desktop/app/dist/xscript-desktop-v*-macos-arm64.dmg
+          (cd desktop/electron && npm ci && npm test && npm run dist)
+      - name: Smoke-test the packaged Electron app
+        run: desktop/electron/dist/mac-arm64/XScript.app/Contents/MacOS/XScript --smoke
+      - name: Rehearse signed Electron update and relaunch in a temporary install
+        if: github.event_name != 'push'
+        run: desktop/app/.venv/bin/python scripts/electron_update_e2e.py
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: desktop-dmg
-          path: desktop/app/dist/*.dmg
+          path: desktop/electron/dist/*.dmg
           if-no-files-found: error
           retention-days: 14
 
@@ -116,16 +119,20 @@ jobs:
         run: |
           V="$(sed -n 's/^version = "\(.*\)"/\1/p' desktop/app/pyproject.toml)"
           [ "v$V" = "$GITHUB_REF_NAME" ] || { echo "::error::desktop/app/pyproject.toml version $V does not match $GITHUB_REF_NAME"; exit 1; }
-      - name: Build XScript (PyInstaller onedir) and the Inno Setup installer (not code-signed)
+      - name: Build Electron installer and Python sidecar
+        env:
+          XSCRIPT_UPDATE_PUBKEY: ${{ vars.DESKTOP_UPDATE_PUBLIC_KEYS }}
         run: |
+          python -m venv desktop/app/.venv
+          desktop/app/.venv/Scripts/python.exe -m pip install -e 'desktop/app[electron-build]'
           (cd desktop/frontend && npm ci)
-          bash desktop/app/packaging/build_windows.sh
-      - name: Install silently into a temp folder, --selftest the installed exe, uninstall
-        run: bash desktop/app/packaging/check_windows_install.sh desktop/app/dist/xscript-desktop-v*-windows-x64-setup.exe
+          (cd desktop/electron && npm ci && npm test && npm run dist)
+      - name: Smoke-test the packaged Electron app
+        run: desktop/electron/dist/win-unpacked/XScript.exe --smoke
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: desktop-windows-setup
-          path: desktop/app/dist/*-setup.exe
+          path: desktop/electron/dist/*-setup.exe
           if-no-files-found: error
           retention-days: 14
 
@@ -370,9 +377,10 @@ jobs:
       - name: Desktop update feed (only with the update key in Secrets and its public key in the client)
         env:
           UK: ${{ secrets.DESKTOP_UPDATE_KEY }}
+          XSCRIPT_UPDATE_PUBKEY: ${{ vars.DESKTOP_UPDATE_PUBLIC_KEYS }}
         run: |
-          if [ -z "$UK" ] || grep -q '^UPDATE_PUBLIC_KEYS: tuple\[str, \.\.\.\] = ()' desktop/app/xscript_desktop/services/updater.py; then
-            echo "::notice::no desktop update feed: DESKTOP_UPDATE_KEY secret or the client's UPDATE_PUBLIC_KEYS is not set up"
+          if [ -z "$UK" ] || [ -z "$XSCRIPT_UPDATE_PUBKEY" ]; then
+            echo "::notice::no desktop update feed: DESKTOP_UPDATE_KEY secret or DESKTOP_UPDATE_PUBLIC_KEYS variable is not set up"
             exit 0
           fi
           python -m pip install -q httpx "cryptography>=42"
@@ -382,6 +390,13 @@ jobs:
             dist/release/xscript-desktop-${TAG}-*-setup.exe --version "${TAG#v}" --key "$RUNNER_TEMP/update.key" \
             --base-url "https://github.com/${GITHUB_REPOSITORY}/releases/download/${TAG}"
           rm -f "$RUNNER_TEMP/update.key"
+          PYTHONPATH=desktop/app python - <<'PYVERIFY'
+          from pathlib import Path
+          from xscript_desktop.services.updater import trusted_keys, verify_signature
+          root = Path("dist/release")
+          verify_signature((root / "desktop-update.json").read_bytes(),
+                           (root / "desktop-update.json.sig").read_bytes(), trusted_keys())
+          PYVERIFY
 
       - name: Re-verify the files that will be published
         working-directory: dist/release

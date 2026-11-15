@@ -350,6 +350,18 @@ jobs:
           npm run test:coverage
           npm run build
 
+      - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
+        with:
+          python-version: "3.10"
+      - name: Electron IPC policy and real shell smoke test
+        run: |
+          python -m venv desktop/app/.venv
+          desktop/app/.venv/bin/python -m pip install -e desktop/app
+          cd desktop/electron
+          npm ci
+          npm test
+          xvfb-run -a npm run smoke
+
   # Split from the frontend job so the two run side by side. The Python tests load the built frontend in QtWebEngine,
   # so this job builds it again (npm ci + vite, ~10 s) instead of waiting for the other job's artifact.
   desktop-python:

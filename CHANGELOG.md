@@ -4,6 +4,13 @@
 
 ## 未发布
 
+## v0.6.1（2026-11-15）
+
+- 桌面端改用 Electron + React + Python 服务，支持 Vite 热更新、DevTools 调试，保留设备管理、投屏、工程和流程功能。
+- 桌面端优化导航、设备卡片和详情布局，统一间距与操作层级。
+- Electron 自动更新接入签名清单、下载校验、未保存内容保护和安装重启；macOS 完成真实跨版本升级验证。Windows NSIS 安装升级仍待实机验证；macOS 当前为临时签名，尚未公证。
+- 更新签名公钥从本版开始嵌入，旧版未配置公钥的客户端需先手动安装本版。
+
 - **桌面端自带 adb**：macOS dmg 和 Windows 安装包里带上 Google 官方 Android SDK Platform-Tools 的 `adb`（37.0.1），不用再单独安装 platform-tools；设置里指定的 adb 路径和 `XSCRIPT_ADB` 仍然优先，内置的找不到时照旧用 Android SDK / `PATH` 里的（#213）。
 
 ## v0.6.0（2026-10-22）

@@ -40,6 +40,7 @@ pycharm_version() { sed -n 's/^pluginVersion=//p' "$PYCHARM_PROPS"; }
 DESKTOP_PY=desktop/app/pyproject.toml                 # desktop app: same version (release.yml checks it against the tag)
 DESKTOP_INIT=desktop/app/xscript_desktop/__init__.py
 DESKTOP_FE=desktop/frontend
+DESKTOP_ELECTRON=desktop/electron
 desktop_version() { sed -n 's/^version = "\(.*\)"/\1/p' "$DESKTOP_PY"; }
 ext_version() { python3 -c 'import json,sys; print(json.load(open(sys.argv[1]))["version"])' "$EXT/package.json"; }
 sha256() { if command -v sha256sum >/dev/null 2>&1; then sha256sum "$@"; else shasum -a 256 "$@"; fi; }
@@ -92,6 +93,8 @@ check)
   if [ "$A" != "$R" ]; then
     echo "release: runtime __version__ $R ($RUNTIME_INIT) != App versionName $A" >&2; exit 1
   fi
+  EV="$(python3 -c 'import json; print(json.load(open("desktop/electron/package.json"))["version"])')"
+  [ "$A" = "$EV" ] || { echo "release: Electron version $EV != App versionName $A" >&2; exit 1; }
   echo "release versions agree: $A"
   ;;
 prepare)
@@ -114,6 +117,7 @@ PY
   sed -i.bak 's/^version = "[^"]*"/version = "'"$V"'"/' "$DESKTOP_PY" && rm -f "$DESKTOP_PY.bak"
   sed -i.bak 's/^__version__ = "[^"]*"/__version__ = "'"$V"'"/' "$DESKTOP_INIT" && rm -f "$DESKTOP_INIT.bak"
   (cd "$DESKTOP_FE" && npm version "$V" --no-git-tag-version --allow-same-version >/dev/null)
+  (cd "$DESKTOP_ELECTRON" && npm version "$V" --no-git-tag-version --allow-same-version >/dev/null)
   python3 - "$V" <<'PY'
 import datetime, os, re, sys
 v = sys.argv[1]
