@@ -33,6 +33,7 @@ export interface FlowBundle {
   createdAt: string;
   /** Desktop version that made it, when known. */
   app?: string;
+  nodeTypes?: string[];
   files: BundleFile[];
 }
 
@@ -79,6 +80,8 @@ export function packBundle(plan: { project: string; files: readonly DeployFile[]
   const files = plan.files.map((file) => ({ path: file.path, content: file.content, size: encoder.encode(file.content).length, fnv1a: fnv1a32(file.content) }));
   const bundle: FlowBundle = { format: BUNDLE_FORMAT, version: BUNDLE_VERSION, project: plan.project, createdAt: meta.createdAt, files };
   if (meta.app) bundle.app = meta.app;
+  const source = plan.files.find(file => file.path === `flows/${plan.project}.xflow`);
+  if (source) bundle.nodeTypes = [...new Set(parse(source.content).nodes.map(node => node.type))].sort();
   return bundle;
 }
 
@@ -106,6 +109,7 @@ export function readBundle(text: string): BundleRead {
   if (typeof project !== "string" || !PROJECT_NAME.test(project)) return fail("name", String(project));
   if (typeof raw.createdAt !== "string") return fail("format", "createdAt");
   if (raw.app !== undefined && typeof raw.app !== "string") return fail("format", "app");
+  if (raw.nodeTypes !== undefined && (!Array.isArray(raw.nodeTypes) || raw.nodeTypes.some(type => typeof type !== "string"))) return fail("format", "nodeTypes");
   if (!Array.isArray(raw.files)) return fail("files", typeof raw.files);
 
   const paths = bundlePaths(project);
@@ -159,5 +163,6 @@ export function readBundle(text: string): BundleRead {
 
   const bundle: FlowBundle = { format: BUNDLE_FORMAT, version: BUNDLE_VERSION, project, createdAt: raw.createdAt, files };
   if (typeof raw.app === "string") bundle.app = raw.app;
+  if (Array.isArray(raw.nodeTypes)) bundle.nodeTypes = raw.nodeTypes as string[];
   return { ok: true, bundle, plan: { project, files: files.map(({ path, content }) => ({ path, content })), map }, graph, layout };
 }

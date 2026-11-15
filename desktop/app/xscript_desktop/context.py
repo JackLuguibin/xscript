@@ -107,6 +107,8 @@ class AppContext:
         self.pick_directory: Callable[[str], Awaitable[str | None]] | None = None
         self.open_tools: Callable[[str, int, str, str], Awaitable[None]] | None = None
         self.save_file: Callable[[], Awaitable[str | None]] | None = None
+        self.open_file: Callable[..., Awaitable[str | None]] | None = None
+        self.flow_document_paths: dict[str, str] = {}
         self.copy_text: Callable[[str], Awaitable[None]] | None = None
         self.adb = adb or AdbService()
         db_path = data_dir / "desktop.db" if data_dir else None
@@ -1139,6 +1141,122 @@ class AppContext:
         async def update_install(params: dict[str, Any]) -> dict[str, Any]:
             """Only after the user confirmed in the UI: the app quits and restarts as the new version."""
             return await self.install_update()
+
+        @d.method("flow.saveDocument")
+        async def flow_save_document(params: dict[str, Any]) -> dict[str, Any]:
+            from .services.flow_files import write_document
+            import re
+            import uuid
+            name = param(params, "name", str)
+            if not re.fullmatch(r"[A-Za-z_][A-Za-z0-9_]*\.(xflow|xflowpkg)", name):
+                raise RpcError("rpc.bad_params", "Invalid flow document name")
+            content = param(params, "content", str)
+            handle = param(params, "handle", str, default="")
+            path = self.flow_document_paths.get(handle)
+            if not path:
+                if self.save_file is None:
+                    raise RpcError("app.no_dialog", "Save dialog unavailable")
+                path = await self.save_file("保存流程 / Save flow", name, "Flow (*.xflow *.xflowpkg)")
+            if not path:
+                return {"cancelled": True}
+            try:
+                layout = params.get("layout")
+                layout_text = None
+                if layout is not None and name.endswith(".xflow"):
+                    if not isinstance(layout, dict) or layout.get("xflowLayout") != 1 or not isinstance(layout.get("nodes"), dict):
+                        raise ValueError("Invalid flow layout")
+                    layout_text = json.dumps(layout)
+                    if len(layout_text.encode("utf-8")) > 3 * 1024 * 1024:
+                        raise ValueError("Flow layout exceeds 3 MiB")
+                await asyncio.to_thread(write_document, path, content)
+                if layout_text is not None:
+                    await asyncio.to_thread(write_document, path + ".layout.json", layout_text)
+            except (ValueError, OSError) as error:
+                raise RpcError("flow.file", str(error)) from None
+            handle = handle or uuid.uuid4().hex
+            self.flow_document_paths[handle] = path
+            return {"handle": handle, "name": Path(path).name}
+
+        @d.method("flow.openDocument")
+        async def flow_open_document(params: dict[str, Any]) -> dict[str, Any]:
+            from .services.flow_files import read_document
+            import uuid
+            if self.open_file is None:
+                raise RpcError("app.no_dialog", "Open dialog unavailable")
+            path = await self.open_file("打开流程 / Open flow", "", "Flow (*.xflow *.xflowpkg)")
+            if not path:
+                return {"cancelled": True}
+            try:
+                content = await asyncio.to_thread(read_document, path)
+                layout = None
+                if path.endswith(".xflow") and Path(path + ".layout.json").exists():
+                    layout = json.loads(await asyncio.to_thread(read_document, path + ".layout.json"))
+                    if not isinstance(layout, dict) or layout.get("xflowLayout") != 1 or not isinstance(layout.get("nodes"), dict):
+                        raise ValueError("Invalid flow layout")
+            except (ValueError, OSError) as error:
+                raise RpcError("flow.file", str(error)) from None
+            handle = uuid.uuid4().hex
+            self.flow_document_paths[handle] = path
+            return {"handle": handle, "name": Path(path).name, "content": content, "layout": layout}
+
+        @d.method("cloud.manage")
+        @_map_errors
+        async def cloud_manage(params: dict[str, Any]) -> Any:
+            from .services import cloud_management
+            return await cloud_management.request(await self.cloud.client(), param(params, "resource", str),
+                param(params, "action", str, default="list"), item=params.get("item", ""),
+                child=params.get("child", ""), body=params.get("body"), query=params.get("query"))
+
+        @d.method("cloud.upload")
+        @_map_errors
+        async def cloud_upload(params: dict[str, Any]) -> Any:
+            client = await self.cloud.client()
+            kind = param(params, "kind", str)
+            if kind not in {"version", "pack"}:
+                raise RpcError("rpc.bad_params", "Invalid upload kind")
+            if not backend_client.account(await client.me())["canOperate"]:
+                raise BackendError("backend.forbidden", "Insufficient role", status=403)
+            if self.open_file is None:
+                raise RpcError("app.no_dialog", "Open dialog unavailable")
+            path = await self.open_file("选择工程 ZIP / Choose project ZIP", "", "ZIP (*.zip)")
+            if not path:
+                return {"cancelled": True}
+            def read_zip():
+                with Path(path).open("rb") as stream:
+                    data = stream.read(32 * 1024 * 1024 + 1)
+                if len(data) > 32 * 1024 * 1024:
+                    raise RpcError("rpc.bad_params", "Project exceeds 32 MiB")
+                return data
+            data = await asyncio.to_thread(read_zip)
+            if kind == "version":
+                sid = param(params, "scriptId", int)
+                if sid <= 0: raise RpcError("rpc.bad_params", "Invalid script")
+                return await client.request("POST", f"/scripts/{sid}/versions", files={"file": ("project.zip", data, "application/zip")},
+                    data={"version": param(params, "version", str, default=""), "notes": param(params, "notes", str, default="")})
+            files = {"project": ("project.zip", data, "application/zip")}
+            if params.get("chooseIcon"):
+                icon = await self.open_file("选择图标 / Choose icon", "", "Image (*.png *.jpg *.jpeg *.webp)")
+                if not icon: return {"cancelled": True}
+                def read_icon():
+                    with Path(icon).open("rb") as stream: return stream.read(5 * 1024 * 1024 + 1)
+                image = await asyncio.to_thread(read_icon)
+                if len(image) > 5 * 1024 * 1024: raise RpcError("rpc.bad_params", "Icon exceeds 5 MiB")
+                files["icon"] = (Path(icon).name, image, "application/octet-stream")
+            return await client.request("POST", "/pack/jobs", files=files,
+                data={"options": json.dumps(params.get("options", {}))})
+
+        @d.method("cloud.exportLogs")
+        @_map_errors
+        async def cloud_export_logs(params: dict[str, Any]) -> dict[str, Any]:
+            from .services.cloud_management import identifier
+            client = await self.cloud.client()
+            item = identifier(param(params, "id", str))
+            if self.save_file is None: raise RpcError("app.no_dialog", "Save dialog unavailable")
+            path = await self.save_file("导出日志 / Export logs", "device-logs.txt", "Text (*.txt)")
+            if not path: return {"cancelled": True}
+            data, _ = await client.request("GET", f"/devices/{item}/logs/export", raw=True)
+            await asyncio.to_thread(Path(path).write_bytes, data)
+            return {"saved": True}
 
         @d.method("cloud.overview")
         @_map_errors

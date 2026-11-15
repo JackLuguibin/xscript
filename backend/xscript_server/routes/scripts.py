@@ -15,13 +15,13 @@ import time
 from typing import Any
 
 from fastapi import APIRouter, Depends, File, Form, HTTPException, Request, UploadFile
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, RedirectResponse
 from pydantic import BaseModel, Field, field_validator
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 from starlette.concurrency import run_in_threadpool
 
-from .. import licensing
+from .. import licensing, update_storage
 from .. import scripts as store
 from ..deps import Principal, admin, apk_limit, ctx, db_session, operator, pub_limit, record, viewer
 from ..models import Script, ScriptVersion
@@ -407,8 +407,15 @@ def get_bundle(channel: str, code: int, request: Request, s: Session = Depends(d
     # Only the current version is served: unpublished code stays private.
     if sc is None or v is None or v.id != sc.current_version_id:
         raise HTTPException(404, "not found")
-    path, _, _ = store.bundle(ctx(request).config, sc.id, v.id, sc.protect)
+    config = ctx(request).config
+    path, digest, _ = store.bundle(config, sc.id, v.id, sc.protect)
+    try:
+        url = update_storage.download_url(config.update_storage, path, digest)
+    except update_storage.StorageError as e:
+        raise HTTPException(503, str(e)) from None
     v.downloads += 1
     s.commit()
+    if url:
+        return RedirectResponse(url, status_code=302, headers={"Cache-Control": "no-store"})
     return FileResponse(path, media_type="application/zip", filename="%s-%d.zip" % (sc.project_name, code),
                         headers={"Cache-Control": "no-store"})

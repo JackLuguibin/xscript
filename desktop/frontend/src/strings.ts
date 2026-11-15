@@ -791,7 +791,7 @@ const zh = {
     },
     console: {
       hint: "后台网页在系统浏览器里打开，用你在网页上的登录；桌面端的 API 令牌只留在系统凭据库，不会放进网址或网页。",
-      pages: { devices: "设备", wall: "设备墙", tasks: "定时任务", scripts: "小程序", pack: "打包", audit: "审计日志" } as Record<string, string>,
+      pages: { account: "账号与安全", cards: "卡密管理", users: "用户管理", resellers: "代理管理", settings: "系统设置", devices: "设备", wall: "设备墙", tasks: "定时任务", scripts: "小程序", pack: "打包", audit: "审计日志" } as Record<string, string>,
       open: "在浏览器打开",
     },
     pack: {
@@ -1679,7 +1679,7 @@ const en: Strings = {
     },
     console: {
       hint: "The web console opens in your system browser with its own sign-in; the desktop's API token stays in the OS credential store and never goes into a URL or a web page.",
-      pages: { devices: "Devices", wall: "Device wall", tasks: "Scheduled tasks", scripts: "Apps", pack: "Packaging", audit: "Audit log" } as Record<string, string>,
+      pages: { account: "Account and security", cards: "License management", users: "Users", resellers: "Resellers", settings: "System settings", devices: "Devices", wall: "Device wall", tasks: "Scheduled tasks", scripts: "Apps", pack: "Packaging", audit: "Audit log" } as Record<string, string>,
       open: "Open in browser",
     },
     pack: {

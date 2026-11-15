@@ -365,7 +365,12 @@ export function createApi(rpc: RpcClient) {
       rpc.call<CloudDeployResult>("cloud.flowDeploy", { ...d }, { timeoutMs: 180_000 }),
     cloudFlowRollback: (scriptId: number, versionId: number, group: string, run = true) =>
       rpc.call<CloudDeployResult>("cloud.flowRollback", { scriptId, versionId, group, run }, { timeoutMs: 180_000 }),
+    flowSaveDocument: (name: string, content: string, handle = "", layout?: import("./flow/layout").FlowLayout) => rpc.call<{cancelled?: boolean; handle: string; name: string}>("flow.saveDocument", {name, content, handle, layout}, {timeoutMs: 600_000}),
+    flowOpenDocument: () => rpc.call<{cancelled?: boolean; handle: string; name: string; content: string; layout?: import("./flow/layout").FlowLayout}>("flow.openDocument", {}, {timeoutMs: 600_000}),
     cloudOverview: () => rpc.call<CloudOverview>("cloud.overview", {}, { timeoutMs: 20_000 }),
+    cloudManage: (resource: string, action = "list", options: {item?: string | number; child?: string | number; body?: Record<string, unknown>; query?: Record<string, unknown>} = {}) => rpc.call<unknown>("cloud.manage", {resource, action, ...options}, {timeoutMs: 120_000}),
+    cloudUpload: (kind: "version" | "pack", options: Record<string, unknown>) => rpc.call<{cancelled?: boolean}>("cloud.upload", {kind, ...options}, {timeoutMs: 600_000}),
+    cloudExportLogs: (id: string) => rpc.call<{cancelled?: boolean; saved?: boolean}>("cloud.exportLogs", {id}, {timeoutMs: 600_000}),
     cloudConsole: () => rpc.call<{ links: Array<{ page: string; url: string }> }>("cloud.console"),
     cloudPackJobs: (page = 1) => rpc.call<{ available: boolean; reason: string; items: CloudPackJob[]; total: number }>("cloud.packJobs", { page }, { timeoutMs: 20_000 }),
     cloudPackLog: (id: number, offset = 0) => rpc.call<{ text: string; next: number }>("cloud.packLog", { id, offset }, { timeoutMs: 20_000 }),

@@ -66,6 +66,7 @@ export function createDemoTransport(): MemoryTransport {
     return dbg;
   };
   let configuredAdb: string | null = null;
+  let flowDocument: Record<string, unknown> | null = null;
   let autoReconnect = true;
   const secrets = new Map<string, string>();
   const transport = new MemoryTransport(
@@ -310,6 +311,8 @@ export function createDemoTransport(): MemoryTransport {
       ...updateDemoHandlers(),
       "app.copyText": () => ({ ok: true }),
       "app.setUnsaved": (p) => ({ unsaved: p.unsaved === true }),
+      "flow.saveDocument": (p) => {flowDocument = {...p, handle: "demo-flow"}; return {handle: "demo-flow", name: p.name};},
+      "flow.openDocument": () => flowDocument || {cancelled: true},
       "tools.open": (p) => {
         const page = String(p.page || "home");
         const path = { home: "/tools/", color: "/tools/ui/color.html", label: "/tools/ui/label.html", mirror: "/tools/ui/mirror.html" }[page];

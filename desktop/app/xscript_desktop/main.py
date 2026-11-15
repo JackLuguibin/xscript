@@ -109,7 +109,7 @@ def main(argv: list[str] | None = None) -> int:
             win.resize(max(320, w), max(240, h))
         except ValueError:
             print("ignoring bad --size %r (expected WxH)" % args.size, file=sys.stderr)
-    from .dialogs import DirectoryPicker, FileSaver, TextClipboard
+    from .dialogs import DirectoryPicker, FileSaver, FileOpener, TextClipboard
     from .services.secrets import KeyringBackend
     from .tools_view import ToolHost
 
@@ -117,6 +117,8 @@ def main(argv: list[str] | None = None) -> int:
     ctx.pick_directory = picker.pick
     saver = FileSaver(win)
     ctx.save_file = saver.save
+    opener = FileOpener(win)
+    ctx.open_file = opener.save
     clip = TextClipboard(win)
     ctx.copy_text = clip.write
     tools = ToolHost(win)

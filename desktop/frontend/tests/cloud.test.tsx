@@ -305,8 +305,8 @@ describe("CloudPage screens, packaging and web console (P4.6)", () => {
   it("links into the web console without a token", async () => {
     await openTab("xsk_admin", "alice", "admin", t.cloud.tabs.console);
     await screen.findAllByRole("link");
-    const link = screen.getAllByRole("link").find((a) => a.textContent?.startsWith(t.cloud.console.pages.pack)) as HTMLAnchorElement;
-    expect(link.getAttribute("href")).toBe("https://cloud.example.com/pack");
+    const link = screen.getAllByRole("link").find((a) => a.textContent?.startsWith(t.cloud.console.pages.account)) as HTMLAnchorElement;
+    expect(link.getAttribute("href")).toBe("https://cloud.example.com/account");
     expect(link.getAttribute("target")).toBeNull(); // the shell refuses new windows; a plain link goes to the system browser
     for (const a of screen.getAllByRole("link")) expect(a.getAttribute("href")).not.toMatch(/xsk_|token/);
   });

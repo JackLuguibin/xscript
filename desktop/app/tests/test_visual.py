@@ -150,3 +150,20 @@ def test_v_flow_page(vis, qtbot, theme, width):
     assert vis.js(qtbot, "document.documentElement.scrollWidth <= document.documentElement.clientWidth + 1") is True
     assert vis.js(qtbot, "document.querySelector('.react-flow__minimap') !== null") is True
     verify("flow-%d-%s" % (width, theme), vis, qtbot)
+
+
+@pytest.mark.parametrize("theme", ["light", "dark"])
+def test_v_cloud_management(vis, qtbot, theme):
+    """Native script management on the real shell, using a credential-free backend fixture."""
+    from .fake_backend import FakeBackend, ORIGIN
+    prepare(vis, qtbot, theme, size=(1280, 800))
+    backend = FakeBackend()
+    backend.routes = [route for route in backend.routes if route[1].pattern != "^/api/scripts$"]
+    backend.route("GET", r"/scripts", "viewer", lambda *_: {"items": [
+        {"id": 1, "name": "签到助手", "project_name": "daily_signin", "description": "跨设备流程", "protect": False}]})
+    vis.ctx.cloud.transport = backend.transport()
+    vis.run_async(vis.ctx.cloud.connect(ORIGIN, "xsk_admin"))
+    vis.click(qtbot, "云控")
+    vis.click(qtbot, "后台管理")
+    vis.wait_text(qtbot, "签到助手")
+    verify("cloud-management-" + theme, vis, qtbot)

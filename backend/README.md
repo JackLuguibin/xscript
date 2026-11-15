@@ -167,3 +167,26 @@ PYTHONPATH=backend .venv/bin/python -m unittest discover -s backend/tests
 - 请备份数据目录。不要把它提交到 git（`.gitignore` 已覆盖 `xscript-data/`、`keys/`、`*.pem`）。
 
 已验证：`tests/` 中的测试套件，以及在演示服务器上用浏览器走查控制台。此处未验证：通过服务器执行真实的 Gradle 打包任务（测试使用的是桩打包脚本），以及部署在真实 TLS 代理之后的情况。
+
+### OSS / COS 热更新存储
+
+默认 `XSCRIPT_UPDATE_STORAGE=local`，继续由服务端返回更新 zip。可安装
+`pip install '.[object-storage]'`，使用阿里云 OSS（`oss`）或腾讯云 COS（`cos`）私有桶：
+
+| 环境变量 | 含义 |
+| --- | --- |
+| `XSCRIPT_UPDATE_STORAGE` | `local` / `oss` / `cos` |
+| `XSCRIPT_UPDATE_BUCKET` | 桶名（COS 包含 APPID 后缀） |
+| `XSCRIPT_UPDATE_REGION` | 区域，例如 OSS 的 `cn-hangzhou`、COS 的 `ap-guangzhou` |
+| `XSCRIPT_UPDATE_ENDPOINT` | OSS 的 HTTPS endpoint，例如 `https://oss-cn-hangzhou.aliyuncs.com`；COS 留空 |
+| `XSCRIPT_UPDATE_ACCESS_KEY` | OSS AccessKey ID / COS SecretId |
+| `XSCRIPT_UPDATE_SECRET_KEY` | OSS AccessKey Secret / COS SecretKey |
+| `XSCRIPT_UPDATE_TOKEN` | 可选，临时凭证的 security token |
+| `XSCRIPT_UPDATE_PREFIX` | 对象路径前缀，默认 `xscript/updates` |
+| `XSCRIPT_UPDATE_URL_SECONDS` | 下载签名有效期，默认 300 秒，允许 60–3600 秒 |
+
+凭证只配置在服务端。已发布包按 SHA-256 存放，下载接口上传后以 302 返回短期 HTTPS
+签名地址；源码和签名清单仍在服务端，设备继续验证清单签名和 zip 的 SHA-256。
+桶应保持私有；服务端凭证需要该前缀下的读对象、查询元数据和写对象权限。
+取消发布后服务端不再签发链接，已经签发的链接在有效期结束前仍可访问。
+对象存储故障返回 503，可重新请求下载接口取得新链接。

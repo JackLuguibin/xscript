@@ -498,7 +498,7 @@ async def rollback_flow(c: BackendClient, *, script_id: int, version_id: int, gr
 
 # ---- P4.6 thumbnails, web console links, APK pack jobs -------------------------------------------------------------
 MAX_APK = 300 * 1024 * 1024
-CONSOLE_PAGES = ("devices", "wall", "tasks", "scripts", "pack", "audit")
+CONSOLE_PAGES = ("account", "cards", "users", "resellers", "settings")
 
 
 async def thumb(c: BackendClient, dev_id: str, max_side: int = 480) -> tuple[bytes, str]:

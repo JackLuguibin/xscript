@@ -78,6 +78,29 @@ test('Web IDE 节点 dock reads the UI tree and generates node code', {skip: CHR
       assert.equal(await b.eval(() => document.activeElement.dataset.path), '1/0/3');
     });
 
+    await t.test('custom regex changes both the generated snippet and the online query', async () => {
+      await b.eval(() => {
+        document.getElementById('node-custom').click();
+        const pattern = document.getElementById('node-pattern');
+        pattern.value = '登录|注册'; pattern.dispatchEvent(new Event('input'));
+        document.getElementById('node-regex').click();
+        const real = window.fetch;
+        window.__customFetch = real;
+        window.fetch = (url, init) => String(url).startsWith('/eval')
+          ? (window.__customCode = JSON.parse(init.body).code, Promise.resolve(new Response(JSON.stringify({ok: true, result: '[["other",0,0,10,10]]'}), {status: 200})))
+          : real(url, init);
+      });
+      assert.match((await b.eval(view)).code, /\.regex\(\)\.text\('登录\|注册'\)/);
+      await b.eval(() => document.getElementById('node-try').click());
+      await b.waitFor(() => document.getElementById('node-try-result').textContent.includes('自定义条件找到'));
+      assert.match(await b.eval(() => window.__customCode), /\.regex\(\)\.text\('登录\|注册'\)/);
+      assert.equal(await b.eval(() => document.getElementById('node-try-result').classList.contains('ok')), true);
+      await b.eval(() => {
+        window.fetch = window.__customFetch;
+        document.getElementById('node-custom').click();
+      });
+    });
+
     await t.test('试一下 runs the selector on the phone (find_all, nothing clicked) and boxes what it finds', async () => {
       // the mock's /eval never executes code: answer it here and keep what was sent
       await b.eval(() => {

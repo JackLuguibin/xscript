@@ -711,3 +711,14 @@ pre.logs.debug-console { min-height: 4rem; max-height: 10rem; }
 @media (forced-colors: active) {
   .monaco-host .err-flash-line, .monaco-host .dbg-current-line { outline: 2px solid Highlight; outline-offset: -2px; }
 }
+
+.flow-workspace { display: flex; flex-direction: column; gap: var(--sp-2); min-height: 0; flex: 1; }
+.flow-workspace > .panel { flex: none; max-height: 35vh; overflow: auto; }
+.flow-workspace > .flow-page { flex: 1; min-height: 20rem; }
+.cloud-management table { width: 100%; border-collapse: collapse; }
+.cloud-management th, .cloud-management td { padding: .5rem; border-bottom: 1px solid var(--border); text-align: start; max-width: 22rem; }
+.cloud-management dl { display: grid; gap: .4rem; }
+.cloud-management dl > div { display: grid; grid-template-columns: minmax(8rem, 1fr) 3fr; gap: 1rem; }
+.cloud-management dd { margin: 0; }
+.cloud-management .toolbar .ui-input { width: auto; min-width: 10rem; flex: 1; }
+.cloud-management td > button { margin: .15rem; }

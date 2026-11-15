@@ -318,3 +318,35 @@ print(json.dumps(out))
     if (o.kind === 'tap') assert.deepEqual(o.log, [[c.x, c.y]], 'tap ' + o.p);
   }
 });
+
+test('custom exact and regex queries execute with the real Selector and XPath', () => {
+  const cases = [];
+  for (const field of ['text', 'id', 'desc', 'type', 'path']) {
+    const n = at(field === 'desc' ? '0/0/0' : field === 'id' ? '0/0/1' : '0/0/3');
+    for (const regex of [false, true]) for (const kind of ['find', 'xpath']) {
+      const value = regex ? '^' + n[field].replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + '$' : n[field];
+      cases.push({p: n.path, code: N.fullText(N.snippet(n, kind, 1, ROOTS, {field, value, regex}))});
+    }
+  }
+  const py = `
+import json, sys
+from xscript.android import node
+node.dump = lambda mode=0: {"roots": json.loads(sys.argv[1])}
+for case in json.loads(sys.argv[2]):
+    env = {}
+    exec(case["code"], env)
+    assert env["hit"].path == case["p"], case
+`;
+  const r = spawnSync(process.env.PYTHON || 'python3', ['-c', py, JSON.stringify(ROOTS), JSON.stringify(cases)],
+    {env: {...process.env, PYTHONPATH: path.resolve(__dirname, '../../android/python-runtime')}, encoding: 'utf8'});
+  assert.equal(r.status, 0, r.stderr);
+});
+
+test('custom matching may intentionally find nodes other than the picked one', () => {
+  const reply = JSON.stringify([['0/other', 0, 0, 10, 10]]);
+  assert.equal(N.tryVerdict(reply, at('0/0/3')).ok, false);
+  const verdict = N.tryVerdict(reply, at('0/0/3'), true);
+  assert.equal(verdict.ok, true);
+  assert.match(verdict.text, /自定义条件找到 1 个/);
+  assert.equal(N.tryVerdict('[]', at('0/0/3'), true).ok, false);
+});
