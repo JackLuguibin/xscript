@@ -2,6 +2,8 @@
 from __future__ import annotations
 
 import json
+import re
+from typing import Any
 
 import httpx
 import pytest
@@ -339,6 +341,32 @@ async def test_cloud_thumbnail_needs_operator(ctx):
     with pytest.raises(BackendError) as e:
         await ctx.cloud_thumb("dev-a1")
     assert e.value.code == "backend.forbidden"
+
+
+async def test_overview_is_cut_down_to_the_numbers(ctx, fb):
+    r, _ = await rpc(ctx, "cloud.overview")
+    assert r["error"]["code"] == "backend.not_configured"
+    await connected(ctx, "xsk_view")  # viewer is enough, as on the web console
+    r, raw = await rpc(ctx, "cloud.overview")
+    assert r["result"] == {
+        "devices": {"online": 2, "running": 1, "total": 3, "active24h": 2}, "tasks": {"total": 1, "enabled": 1},
+        "pack": {"queued": 1, "running": 0}, "scripts": {"total": 3, "published": 2}, "alerts24h": 4, "crashes24h": 1,
+        "lastBackup": {"time": 1760990000, "ok": True}}
+    # events, crash details, card stats and backup file names stay on the backend; the token never comes back
+    assert "10.0.0.5" not in raw and "CaptureError" not in raw and "b.db" not in raw and "xsk_" not in raw
+
+
+async def test_overview_tolerates_missing_or_odd_fields(ctx, fb):
+    await connected(ctx, "xsk_admin")
+    answer: list[Any] = [{"devices": {"online": "5", "total": -1, "running": True}, "tasks": None, "last_backup": None, "crashes": "x"}]
+    fb.routes.insert(0, ("GET", re.compile("^/api/overview$"), "viewer", lambda req, user, m: answer[0]))
+    r, _ = await rpc(ctx, "cloud.overview")
+    assert r["result"]["devices"] == {"online": 0, "running": 0, "total": 0, "active24h": 0}
+    assert r["result"]["tasks"] == {"total": 0, "enabled": 0} and r["result"]["lastBackup"] is None
+    assert r["result"]["crashes24h"] == 0 and r["result"]["alerts24h"] == 0
+    answer[0] = ["not", "an", "overview"]
+    r, _ = await rpc(ctx, "cloud.overview")
+    assert r["error"]["code"] == "backend.bad_response"
 
 
 async def test_console_links_carry_no_token(ctx):

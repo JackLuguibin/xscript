@@ -365,6 +365,7 @@ export function createApi(rpc: RpcClient) {
       rpc.call<CloudDeployResult>("cloud.flowDeploy", { ...d }, { timeoutMs: 180_000 }),
     cloudFlowRollback: (scriptId: number, versionId: number, group: string, run = true) =>
       rpc.call<CloudDeployResult>("cloud.flowRollback", { scriptId, versionId, group, run }, { timeoutMs: 180_000 }),
+    cloudOverview: () => rpc.call<CloudOverview>("cloud.overview", {}, { timeoutMs: 20_000 }),
     cloudConsole: () => rpc.call<{ links: Array<{ page: string; url: string }> }>("cloud.console"),
     cloudPackJobs: (page = 1) => rpc.call<{ available: boolean; reason: string; items: CloudPackJob[]; total: number }>("cloud.packJobs", { page }, { timeoutMs: 20_000 }),
     cloudPackLog: (id: number, offset = 0) => rpc.call<{ text: string; next: number }>("cloud.packLog", { id, offset }, { timeoutMs: 20_000 }),
@@ -435,6 +436,16 @@ export interface CloudCrash { project: string; exit: string; time: number | null
 export interface CloudDeviceFilter { q?: string; group?: string; app?: string; online?: boolean; crashed?: boolean; page?: number; pageSize?: number }
 export interface CloudDevicePage { items: CloudDevice[]; total: number; page: number; pageSize: number }
 export interface CloudGroup { name: string; total: number; online: number }
+/** GET /api/overview cut down to counts (#219 M.1). */
+export interface CloudOverview {
+  devices: { online: number; running: number; total: number; active24h: number };
+  tasks: { total: number; enabled: number };
+  pack: { queued: number; running: number };
+  scripts: { total: number; published: number };
+  alerts24h: number;
+  crashes24h: number;
+  lastBackup: { time: number; ok: boolean } | null;
+}
 export interface CloudBatchRow { id: string; ok: boolean; offline: boolean; msg: string }
 export interface CloudBatchResult { rows: CloudBatchRow[]; ok: number; total: number }
 export type CloudLogStream = "" | "stdout" | "stderr" | "system";

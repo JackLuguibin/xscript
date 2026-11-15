@@ -613,6 +613,11 @@ pre.logs.debug-console { min-height: 4rem; max-height: 10rem; }
 .cloud-form { display: grid; grid-template-columns: repeat(auto-fill, minmax(12rem, 1fr)); gap: var(--sp-2) var(--sp-3); align-items: end; }
 .cloud-form .stack { display: flex; flex-direction: column; gap: var(--sp-1); }
 .cloud-wall .wall-card img { cursor: default; aspect-ratio: 9 / 19.5; object-fit: contain; }
+.cloud-stats { display: grid; grid-template-columns: repeat(auto-fill, minmax(14rem, 1fr)); gap: var(--sp-3); }
+.cloud-stat { display: flex; flex-direction: column; align-items: flex-start; gap: var(--sp-1); }
+.cloud-stat p { margin: 0; }
+.cloud-stat .muted { font-size: var(--fs-sm); }
+.cloud-stat-value { font-size: var(--fs-xl); font-weight: 650; line-height: 1.2; font-variant-numeric: tabular-nums; }
 .cloud-links { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(auto-fill, minmax(14rem, 1fr)); gap: var(--sp-2); }
 .cloud-links a { display: flex; flex-direction: column; gap: var(--sp-1); padding: var(--sp-3); border: 1px solid var(--border); border-radius: var(--r-sm); background: var(--surface); color: var(--text); text-decoration: none; }
 .cloud-links a:hover, .cloud-links a:focus-visible { border-color: var(--primary); }

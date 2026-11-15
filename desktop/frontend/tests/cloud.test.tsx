@@ -311,3 +311,39 @@ describe("CloudPage screens, packaging and web console (P4.6)", () => {
     for (const a of screen.getAllByRole("link")) expect(a.getAttribute("href")).not.toMatch(/xsk_|token/);
   });
 });
+
+describe("CloudPage 概览 (#219 M.1)", () => {
+  it("needs a connection, then shows the backend's counts to every role", async () => {
+    const { transport } = mount();
+    fireEvent.click(await screen.findByRole("tab", { name: t.cloud.tabs.overview }));
+    expect(screen.getByText(t.cloud.dev.needConnect)).toBeTruthy();
+    fireEvent.click(screen.getByRole("tab", { name: t.cloud.tabs.connect }));
+    await connect("http://localhost:8000", "xsk_view_demo");
+    await screen.findByText(t.cloud.roleHint.viewer);
+    fireEvent.click(screen.getByRole("tab", { name: t.cloud.tabs.overview }));
+    const devices = await screen.findByRole("region", { name: t.cloud.overview.devices });
+    // demo backend: 12 phones, every 5th offline (10 online), running = online && i % 3 == 0 (0, 3, 6; 9 is offline)
+    expect(devices.textContent).toContain(t.cloud.overview.online(10, 12));
+    expect(devices.textContent).toContain(t.cloud.overview.running(3));
+    expect(screen.getByRole("region", { name: t.cloud.overview.tasks }).textContent).toContain(t.cloud.overview.tasksLine(1, 2));
+    expect(screen.getByRole("region", { name: t.cloud.overview.pack }).textContent).toContain(t.cloud.overview.packLine(1, 0));
+    expect(screen.getByRole("region", { name: t.cloud.overview.scripts }).textContent).toContain(t.cloud.overview.scriptsLine(3, 4));
+    const health = screen.getByRole("region", { name: t.cloud.overview.health });
+    expect(health.textContent).toContain(t.cloud.overview.alerts(2));
+    expect(health.textContent).toContain(t.cloud.overview.crashes(1));
+    expect(screen.getByRole("region", { name: t.cloud.overview.backup }).textContent).not.toContain(t.cloud.overview.backupNone);
+    expect(transport.sent.filter((m) => m.method === "cloud.overview")).toHaveLength(1);
+    fireEvent.click(screen.getByRole("button", { name: t.cloud.refresh }));
+    await waitFor(() => expect(transport.sent.filter((m) => m.method === "cloud.overview")).toHaveLength(2));
+  });
+
+  it("jumps to the matching section", async () => {
+    mount();
+    await connect("http://localhost:8000", "xsk_op_demo");
+    await screen.findByText(t.cloud.signedIn("olga", t.cloud.roles.operator));
+    fireEvent.click(screen.getByRole("tab", { name: t.cloud.tabs.overview }));
+    const tasks = await screen.findByRole("region", { name: t.cloud.overview.tasks });
+    fireEvent.click(tasks.querySelector("button")!);
+    await waitFor(() => expect(screen.getByRole("tab", { name: t.cloud.tabs.tasks }).getAttribute("aria-selected")).toBe("true"));
+  });
+});

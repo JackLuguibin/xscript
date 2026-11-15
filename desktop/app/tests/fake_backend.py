@@ -81,6 +81,13 @@ class FakeBackend:
         self.route("GET", r"/pack/jobs/(?P<id>\d+)/apk", "viewer",
                    lambda req, user, m: httpx.Response(200, content=b"PK\x03\x04apk", headers={"content-type": "application/vnd.android.package-archive"})
                    if m["id"] == "7" else httpx.Response(404, json={"detail": "没有 APK"}))
+        self.route("GET", r"/overview", "viewer", lambda req, user, m: {
+            "devices": {"online": sum(d["online"] for d in self.devices), "running": sum(d["running"] for d in self.devices),
+                        "total": len(self.devices), "active_24h": 2},
+            "cards": {"total": 40, "active": 12}, "tasks": {"total": len(self.tasks), "enabled": 1},
+            "pack": {"queued": 1, "running": 0}, "events": [{"type": "online", "device": "dev-a1", "remote": "10.0.0.5"}],
+            "crashes": [{"device": "dev-b2", "project": "daily", "error": "CaptureError"}],
+            "scripts": {"total": 3, "published": 2}, "alerts_24h": 4, "last_backup": {"time": 1760990000, "name": "b.db", "ok": True}})
         self.route("GET", r"/auth/me", "viewer", lambda req, user, m: {"id": 1, "username": user[0], "role": user[1], "disabled": False})
 
     def _devices(self, req: httpx.Request, user: Any, m: Any) -> dict[str, Any]:
