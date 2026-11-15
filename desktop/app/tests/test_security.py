@@ -105,6 +105,10 @@ def test_built_bundle_contains_no_remote_origins():
         "https://tailwindcss.com",
         # React Flow: the attribution link, the Pro link and the error-doc link in its dev warnings (text, never fetched).
         "https://reactflow.dev", "https://pro.reactflow.dev", "https://reactflow.dev/error#001",
+        # @xyflow 12.12 adds an attribution query and a trailing slash in warning text.
+        # Its error001 helper interpolates the library name (react/svelte); Vite minifies it to e.
+        "https://reactflow.dev?utm_source=attribution", "https://reactflow.dev/",
+        "https://${e}flow.dev/error#001",
         # Our "can't connect" checklist, linked from connection error banners (clicked -> system browser, never fetched).
         "https://github.com/JackLuguibin/xscript/blob/main/docs/TROUBLESHOOTING.md",
     }
