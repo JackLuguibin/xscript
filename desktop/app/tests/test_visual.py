@@ -64,7 +64,7 @@ def connect_and_shoot(sh, qtbot):
 
 
 def settle(sh, qtbot):
-    sh._eval(qtbot, "document.activeElement && document.activeElement.blur(); 0")
+    sh._eval(qtbot, "document.activeElement && document.activeElement.blur(); document.querySelectorAll('.overlay-panel').forEach(e => e.scrollTop = 0); 0")
     qtbot.wait(600)  # card-in / fade transitions
 
 
