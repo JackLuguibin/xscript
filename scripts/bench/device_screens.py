@@ -90,7 +90,9 @@ def gfx():
 
 
 def top_is(activity):
-    return ("ACTIVITY %s/com.xscript.app.ui.%s" % (PKG, activity)) in adb("shell", "dumpsys", "activity", "top")
+    # Android abbreviates class names when they share the applicationId prefix.
+    component = r"ACTIVITY %s/(?:com\.xscript\.app)?\.ui\.%s(?:\s|$)" % (re.escape(PKG), re.escape(activity))
+    return re.search(component, adb("shell", "dumpsys", "activity", "top")) is not None
 
 
 def wait_top(activity, timeout=20):
@@ -151,6 +153,7 @@ def bench_log():
         tap_text("日志")
         if not wait_top("LogActivity"):
             raise SystemExit("bench: 运行日志 did not open")
+        devauth.wait_idle(BASE)
         api("POST", "/projects/%s/run" % LOG_PROJECT)
         time.sleep(30)  # past the log's line cap, so trimming is part of what is measured
         gfx_reset()

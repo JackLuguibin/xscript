@@ -8,6 +8,19 @@ PY = sorted(SCRIPTS.glob("*.py"))
 
 
 class DeviceScriptsTest(unittest.TestCase):
+    def test_screen_bench_recognizes_android_activity_names(self):
+        import ast
+        src = ast.parse((SCRIPTS / "bench/device_screens.py").read_text())
+        func = next(n for n in src.body if isinstance(n, ast.FunctionDef) and n.name == "top_is")
+        ns = {"re": re}
+        exec(compile(ast.Module(body=[func], type_ignores=[]), "device_screens.py", "exec"), ns)
+        for pkg, component in [("com.xscript.app", ".ui.ProjectsActivity"),
+                               ("com.xscript.app", "com.xscript.app.ui.ProjectsActivity"),
+                               ("com.xscript.app.perf", "com.xscript.app.ui.ProjectsActivity")]:
+            ns.update(PKG=pkg, adb=lambda *args, p=pkg, c=component: "  ACTIVITY " + p + "/" + c + " abc pid=1")
+            self.assertTrue(ns["top_is"]("ProjectsActivity"))
+            self.assertFalse(ns["top_is"]("LogActivity"))
+
     def test_no_bare_stop_endpoint(self):
         # the device API stops a run at POST /projects/{name}/stop; a bare /stop is a 404
         bad = [f"{p.name}:{i}" for p in PY for i, line in enumerate(p.read_text(encoding="utf-8").splitlines(), 1)
