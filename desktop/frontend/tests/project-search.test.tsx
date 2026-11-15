@@ -21,6 +21,7 @@ async function setup() {
   );
   fireEvent.click(await screen.findByRole("button", { name: /^demo/ }));
   await screen.findByRole("button", { name: /^__init__\.py/ });
+  fireEvent.click(screen.getByText("在工程中搜索", { selector: "summary" }));
   return { transport };
 }
 

@@ -33,7 +33,7 @@ def click_js(sh, qtbot, selector_js: str) -> None:
 
 
 def btn_starting(text: str) -> str:
-    return "[...document.querySelectorAll('button')].find(b => !b.disabled && b.textContent.trim().startsWith(%s))" % json.dumps(text)
+    return "[...document.querySelectorAll('button')].find(b => !b.disabled && (b.getAttribute('aria-label') === %s || b.textContent.trim().startsWith(%s)))" % (json.dumps(text), json.dumps(text))
 
 
 def test_e2e_p01_monaco_edit_save_run_logs_stop(shell, qtbot):

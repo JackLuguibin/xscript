@@ -12,6 +12,7 @@ const status = {
 
 export function createDemoTransport(): MemoryTransport {
   const devices = new Map<string, Device>();
+  const directories = new Map<string, Set<string>>();
   const projects = new Map<string, Map<string, string>>([["demo", new Map([["__init__.py", "print('hello from demo')\n"]])]]);
   const logs: Array<{ seq: number; ts: number; stream: string; line: string }> = [];
   let running = "";
@@ -160,7 +161,9 @@ export function createDemoTransport(): MemoryTransport {
       },
       "project.files": (p) => {
         const m = proj(p);
-        return { project: p.project, files: [...m.entries()].sort().map(([path, c]) => ({ path, size: c.length })), dirs: [] };
+        const dirs = new Set(directories.get(String(p.project)) ?? []);
+        for (const path of m.keys()) path.split("/").slice(0, -1).forEach((_, i, parts) => dirs.add(parts.slice(0, i + 1).join("/")));
+        return { project: p.project, files: [...m.entries()].sort().map(([path, c]) => ({ path, size: c.length })), dirs: [...dirs] };
       },
       "project.runs": (p) => {
         proj(p);
@@ -207,11 +210,23 @@ export function createDemoTransport(): MemoryTransport {
         if (p.recursive) {
           const m = proj(p);
           const inside = [...m.keys()].filter((k) => k.startsWith(String(p.path) + "/"));
-          if (!inside.length && !m.delete(String(p.path))) throw { code: "device.http", message: "missing file" };
+          const dirs = directories.get(String(p.project));
+          const removedDirectory = dirs?.has(String(p.path));
+          if (dirs) for (const dir of [...dirs]) if (dir === p.path || dir.startsWith(String(p.path) + "/")) dirs.delete(dir);
+          if (!inside.length && !removedDirectory && !m.delete(String(p.path))) throw { code: "device.http", message: "missing file" };
           inside.forEach((k) => m.delete(k));
           return { ok: true, deleted: inside.length || 1 };
         }
         if (!proj(p).delete(String(p.path))) throw { code: "device.http", message: "missing file" };
+        return { ok: true };
+      },
+      "project.createDir": (p) => {
+        const m = proj(p); const path = String(p.path);
+        if (!path || path.startsWith("/") || path.split("/").some((part) => part === ".." || !part)) throw { code: "rpc.bad_params", message: "invalid directory path" };
+        const dirs = directories.get(String(p.project)) ?? new Set<string>();
+        if (m.has(path) || dirs.has(path) || [...m.keys()].some((file) => file.startsWith(path + "/"))) throw { code: "device.http", message: "路径已存在: " + path };
+        path.split("/").forEach((_, i, parts) => dirs.add(parts.slice(0, i + 1).join("/")));
+        directories.set(String(p.project), dirs);
         return { ok: true };
       },
       "project.move": (p) => {

@@ -176,6 +176,7 @@ interface Props {
 /** Toolbar + call stack + variables (+ evaluate) + debug console. */
 export function DebugPanel({ devId, project, session, breakpoints, breakpointOptions = {}, onEditBreakpoint, busy, onStart, onStep, onStop, onRemoveBreakpoint, onOpenLocation, onError }: Props) {
   const { api } = useServices();
+  const [view, setView] = useState<"debugger" | "console">("debugger");
   const { state, output, active } = session;
   const stopped = state.state === "stopped";
   const [frameId, setFrameId] = useState<number | null>(null);
@@ -226,7 +227,7 @@ export function DebugPanel({ devId, project, session, breakpoints, breakpointOpt
   useEffect(() => {
     const el = outRef.current;
     if (el) el.scrollTop = el.scrollHeight;
-  }, [output]);
+  }, [output, view]);
 
   useEffect(() => {
     if (!stopped || frameId === null || watches.length === 0) {
@@ -282,32 +283,36 @@ export function DebugPanel({ devId, project, session, breakpoints, breakpointOpt
 
   return (
     <section className="debug-panel" aria-labelledby="h-debug">
-      <div className="section-head row debug-toolbar">
-        <h2 id="h-debug">{t.debug.title}</h2>
+      <div className="section-head row debug-toolbar" title={t.debug.keys}>
+        <h2 id="h-debug" className="sr-only">{t.debug.title}</h2>
         <Badge tone={tone as "ok"}>{t.debug.state[state.state] ?? state.state}</Badge>
-        {stopped && state.path && state.line ? <span className="muted mono">{t.debug.pausedAt(state.path, state.line)}</span> : null}
+        {stopped && state.path && state.line ? <span className="debug-location muted mono" title={t.debug.pausedAt(state.path, state.line)}>{t.debug.pausedAt(state.path, state.line)}</span> : null}
         <span className="grow" />
+        <div className="debug-actions">
         {!active && (
-          <Button variant="primary" onClick={onStart} disabled={!project || busy}>
+          <Button variant="primary" title="F5" onClick={onStart} disabled={!project || busy}>
             {busy ? <Spinner /> : t.debug.start}
           </Button>
         )}
         {active && (
           <>
             {stopped ? (
-              <Button variant="primary" onClick={() => onStep("continue")}>{t.debug.cont}</Button>
+              <Button variant="primary" title="F5" onClick={() => onStep("continue")}>{t.debug.cont}</Button>
             ) : (
               <Button onClick={() => onStep("pause")} disabled={state.state !== "running"}>{t.debug.pause}</Button>
             )}
-            <Button onClick={() => onStep("next")} disabled={!stopped}>{t.debug.next}</Button>
-            <Button onClick={() => onStep("stepIn")} disabled={!stopped}>{t.debug.stepIn}</Button>
-            <Button onClick={() => onStep("stepOut")} disabled={!stopped}>{t.debug.stepOut}</Button>
+            <Button title="F10" onClick={() => onStep("next")} disabled={!stopped}>{t.debug.next}</Button>
+            <Button title="F11" onClick={() => onStep("stepIn")} disabled={!stopped}>{t.debug.stepIn}</Button>
+            <Button title="Shift + F11" onClick={() => onStep("stepOut")} disabled={!stopped}>{t.debug.stepOut}</Button>
             <Button onClick={() => onStop(false)}>{t.debug.detach}</Button>
-            <Button variant="danger" onClick={() => onStop(true)}>{t.debug.stop}</Button>
+            <Button variant="danger" title="Shift + F5" onClick={() => onStop(true)}>{t.debug.stop}</Button>
           </>
         )}
+        </div>
       </div>
-      <p className="muted">{t.debug.keys}</p>
+      <div className="debug-view-tabs" role="tablist" aria-label={t.debug.title}>
+        {(["debugger", "console"] as const).map((tab) => <Button key={tab} role="tab" id={`debug-view-${tab}`} aria-selected={view === tab} aria-controls={`debug-content-${tab}`} variant="ghost" size="sm" onClick={() => setView(tab)}>{tab === "debugger" ? t.debug.debugger : t.debug.console}</Button>)}
+      </div>
       {state.state === "ended" && (state.error || state.reason) && (
         <p className={state.error ? "banner error" : "muted"} role="status">
           {state.error || state.reason}
@@ -319,8 +324,9 @@ export function DebugPanel({ devId, project, session, breakpoints, breakpointOpt
         </Alert>
       )}
 
-      <div className="debug-grid">
-        <div>
+      <div className={"debug-grid debug-view-" + view}>
+        <div className="debug-inspection-panes" id="debug-content-debugger" role="tabpanel" aria-labelledby="debug-view-debugger" hidden={view !== "debugger"}>
+        <div className="debug-column debug-locations">
           <h3 className="sub-head">{t.debug.stack}</h3>
           {state.frames.length === 0 ? (
             <p className="muted">{t.debug.noStack}</p>
@@ -386,7 +392,25 @@ export function DebugPanel({ devId, project, session, breakpoints, breakpointOpt
             </ul>
           )}
         </div>
-        <div>
+        <div className="debug-column debug-inspector">
+          <h3 className="sub-head">{t.debug.vars}</h3>
+          {scopes.length === 0 ? (
+            <p className="muted">{t.debug.noVars}</p>
+          ) : (
+            scopes.map((s, i) => (
+              <div key={s.name} className="scope">
+                <div className="row">
+                  <strong>{s.name}</strong>
+                  {!s.vars && s.ref > 0 && (
+                    <Button variant="ghost" size="sm" aria-label={t.debug.expand(s.name)} onClick={() => void loadScope(i)}>
+                      ▸
+                    </Button>
+                  )}
+                </div>
+                {s.vars && <VarTree devId={devId} vars={s.vars} depth={0} />}
+              </div>
+            ))
+          )}
           <h3 className="sub-head">{t.debug.watch}</h3>
           <form
             className="row"
@@ -420,25 +444,18 @@ export function DebugPanel({ devId, project, session, breakpoints, breakpointOpt
               })}
             </ul>
           )}
-          <h3 className="sub-head">{t.debug.vars}</h3>
-          {scopes.length === 0 ? (
-            <p className="muted">{t.debug.noVars}</p>
-          ) : (
-            scopes.map((s, i) => (
-              <div key={s.name} className="scope">
-                <div className="row">
-                  <strong>{s.name}</strong>
-                  {!s.vars && s.ref > 0 && (
-                    <Button variant="ghost" size="sm" aria-label={t.debug.expand(s.name)} onClick={() => void loadScope(i)}>
-                      ▸
-                    </Button>
-                  )}
-                </div>
-                {s.vars && <VarTree devId={devId} vars={s.vars} depth={0} />}
-              </div>
-            ))
-          )}
-          <form
+
+        </div>
+        </div>
+        <div className="debug-column debug-repl" id="debug-content-console" role="tabpanel" aria-labelledby="debug-view-console" hidden={view !== "console"}>
+      <h3 className="sub-head">{t.debug.console}</h3>
+      <pre className="logs debug-console" ref={outRef} aria-label={t.debug.console}>
+        {output.map((o) => (
+          <span key={o.n} className={o.category === "stderr" ? "err" : ""}>
+            {o.text}
+          </span>
+        ))}
+      </pre>          <form
             className="row"
             style={{ marginTop: "var(--sp-2)" }}
             onSubmit={(e) => {
@@ -460,14 +477,6 @@ export function DebugPanel({ devId, project, session, breakpoints, breakpointOpt
           )}
         </div>
       </div>
-      <h3 className="sub-head">{t.debug.console}</h3>
-      <pre className="logs debug-console" ref={outRef} aria-label={t.debug.console}>
-        {output.map((o) => (
-          <span key={o.n} className={o.category === "stderr" ? "err" : ""}>
-            {o.text}
-          </span>
-        ))}
-      </pre>
     </section>
   );
 }

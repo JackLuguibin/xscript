@@ -134,6 +134,7 @@ describe("RecentRuns", () => {
       </ServicesContext.Provider>,
     );
     fireEvent.click(await screen.findByRole("button", { name: /^demo/ }));
+    fireEvent.click(await screen.findByText("最近运行", { selector: "summary" }));
     fireEvent.click(await screen.findByRole("button", { name: "日志" }, { timeout: 3000 }));
     fireEvent.click(await screen.findByRole("button", { name: "跳到出错行 lib/calc.py:2" }));
     const editor = (await screen.findByRole("textbox", { name: "编辑器" }, { timeout: 3000 })) as HTMLTextAreaElement;

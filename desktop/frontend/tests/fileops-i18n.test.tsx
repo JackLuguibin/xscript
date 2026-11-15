@@ -24,7 +24,12 @@ async function projects() {
   return { transport, api };
 }
 
-const fileNames = () => within(screen.getByRole("list", { name: "文件" })).getAllByRole("button").map((b) => b.textContent ?? "").filter((x) => / B$/.test(x));
+function fileMenu(action: string, path = "demo") {
+  fireEvent.contextMenu(screen.getByRole("treeitem", { name: path }));
+  fireEvent.click(screen.getByRole("menuitem", { name: action }));
+}
+
+const fileNames = () => within(screen.getByRole("tree", { name: "工程列表" })).getAllByRole("button").map((b) => b.getAttribute("aria-label") ?? "").filter((x) => / B$/.test(x));
 
 afterEach(() => {
   vi.restoreAllMocks();
@@ -33,15 +38,47 @@ afterEach(() => {
 });
 
 describe("file new / rename / delete", () => {
+  it("creates an empty directory and a file inside it through the context menu", async () => {
+    const { transport } = await projects();
+    expect(screen.queryByRole("button", { name: "新建文件" })).toBeNull();
+    fileMenu("新建目录");
+    const path = screen.getByRole("textbox", { name: /目录路径/ });
+    fireEvent.change(path, { target: { value: "src/empty" } });
+    fireEvent.submit(path.closest("form")!);
+    await screen.findByRole("treeitem", { name: "src/empty/" });
+    expect(transport.sent.find((m) => m.method === "project.createDir")?.params).toMatchObject({ path: "src/empty" });
+    fileMenu("新建文件", "src/empty/");
+    const file = screen.getByRole("textbox", { name: /新文件路径/ }) as HTMLInputElement;
+    expect(file.value).toBe("src/empty/");
+    fireEvent.change(file, { target: { value: "src/empty/main.py" } });
+    fireEvent.submit(file.closest("form")!);
+    await screen.findByRole("treeitem", { name: "src/empty/main.py" });
+  });
+
+  it("restores an empty directory after deleting it from the context menu", async () => {
+    await projects();
+    fileMenu("新建目录");
+    const path = screen.getByRole("textbox", { name: /目录路径/ });
+    fireEvent.change(path, { target: { value: "empty" } });
+    fireEvent.submit(path.closest("form")!);
+    await screen.findByRole("treeitem", { name: "empty/" });
+    fileMenu("删除", "empty/");
+    fireEvent.click(within(await screen.findByRole("alertdialog")).getByRole("button", { name: "删除" }));
+    await waitFor(() => expect(screen.queryByRole("treeitem", { name: "empty/" })).toBeNull());
+    fireEvent.click(screen.getByRole("button", { name: "撤销" }));
+    await screen.findByRole("treeitem", { name: "empty/" });
+  });
+
   it("the entry point cannot be renamed or deleted", async () => {
     await projects();
-    expect((screen.getByRole("button", { name: "重命名 __init__.py" }) as HTMLButtonElement).disabled).toBe(true);
-    expect((screen.getByRole("button", { name: "删除 __init__.py" }) as HTMLButtonElement).disabled).toBe(true);
+    fireEvent.contextMenu(screen.getByRole("treeitem", { name: "__init__.py" }));
+    expect((screen.getByRole("menuitem", { name: "重命名" }) as HTMLButtonElement).disabled).toBe(true);
+    expect((screen.getByRole("menuitem", { name: "删除" }) as HTMLButtonElement).disabled).toBe(true);
   });
 
   it("creates, renames (keeping the open file) and deletes a file", async () => {
     const { transport } = await projects();
-    fireEvent.click(screen.getByRole("button", { name: "新建文件" }));
+    fileMenu("新建文件");
     const input = screen.getByRole("textbox", { name: /新文件路径/ });
     fireEvent.change(input, { target: { value: "utils/a.py" } });
     fireEvent.submit(input.closest("form")!);
@@ -50,7 +87,7 @@ describe("file new / rename / delete", () => {
 
     fireEvent.click(screen.getByRole("button", { name: /^utils\/a\.py/ }));
     await screen.findByText(/demo\/utils\/a\.py/);
-    fireEvent.click(screen.getByRole("button", { name: "重命名 utils/a.py" }));
+    fileMenu("重命名", "utils/a.py");
     const rn = screen.getByRole("textbox", { name: "新路径" }) as HTMLInputElement;
     expect(rn.value).toBe("utils/a.py");
     fireEvent.change(rn, { target: { value: "b.py" } });
@@ -61,13 +98,13 @@ describe("file new / rename / delete", () => {
 
     // the in-app confirm dialog (never window.confirm): cancel first, then confirm
     const native = vi.spyOn(window, "confirm");
-    fireEvent.click(screen.getByRole("button", { name: "删除 b.py" }));
+    fileMenu("删除", "b.py");
     let dlg = await screen.findByRole("alertdialog");
     expect(dlg.textContent).toMatch(/确定从设备上删除 b\.py/);
     fireEvent.click(within(dlg).getByRole("button", { name: "取消" }));
     await waitFor(() => expect(screen.queryByRole("alertdialog")).toBeNull());
     expect(transport.sent.some((m) => m.method === "project.deleteFile")).toBe(false);
-    fireEvent.click(screen.getByRole("button", { name: "删除 b.py" }));
+    fileMenu("删除", "b.py");
     dlg = await screen.findByRole("alertdialog");
     fireEvent.click(within(dlg).getByRole("button", { name: "删除" }));
     await waitFor(() => expect(screen.queryByRole("button", { name: /^b\.py/ })).toBeNull());
@@ -78,19 +115,18 @@ describe("file new / rename / delete", () => {
   it("deletes a folder with everything in it after a confirm that lists its files", async () => {
     const { transport } = await projects();
     for (const path of ["pkg/a.py", "pkg/sub/b.py"]) {
-      fireEvent.click(screen.getByRole("button", { name: "新建文件" }));
+      fileMenu("新建文件");
       const input = screen.getByRole("textbox", { name: /新文件路径/ });
       fireEvent.change(input, { target: { value: path } });
       fireEvent.submit(input.closest("form")!);
       await screen.findByRole("button", { name: new RegExp("^" + path.replace(/[/.]/g, "\\$&")) });
     }
-    const folders = screen.getByRole("list", { name: "文件夹" });
-    expect(within(folders).getByText(/pkg\/$/).parentElement!.textContent).toContain("2 个文件");
-    expect(within(folders).getByText(/pkg\/sub\/$/).parentElement!.textContent).toContain("1 个文件");
+    expect(screen.getByRole("treeitem", { name: "pkg/" })).toBeTruthy();
+    expect(screen.getByRole("treeitem", { name: "pkg/sub/" })).toBeTruthy();
 
     fireEvent.click(screen.getByRole("button", { name: /^pkg\/sub\/b\.py/ }));
     await screen.findByText(/demo\/pkg\/sub\/b\.py/);
-    fireEvent.click(screen.getByRole("button", { name: "删除文件夹 pkg/" }));
+    fileMenu("删除", "pkg/");
     let dlg = await screen.findByRole("alertdialog");
     expect(dlg.textContent).toMatch(/确定从设备上删除文件夹 pkg\/ 和其中的 2 个文件/);
     expect(dlg.textContent).toContain("pkg/a.py");
@@ -99,7 +135,7 @@ describe("file new / rename / delete", () => {
     await waitFor(() => expect(screen.queryByRole("alertdialog")).toBeNull());
     expect(transport.sent.some((m) => m.method === "project.deleteFile")).toBe(false);
 
-    fireEvent.click(screen.getByRole("button", { name: "删除文件夹 pkg/" }));
+    fileMenu("删除", "pkg/");
     dlg = await screen.findByRole("alertdialog");
     fireEvent.click(within(dlg).getByRole("button", { name: "删除" }));
     await waitFor(() => expect(screen.queryByRole("button", { name: /^pkg\/a\.py/ })).toBeNull());
@@ -111,14 +147,14 @@ describe("file new / rename / delete", () => {
 
   it("undo after deleting a file writes the saved copy back", async () => {
     const { transport, api } = await projects();
-    fireEvent.click(screen.getByRole("button", { name: "新建文件" }));
+    fileMenu("新建文件");
     const input = screen.getByRole("textbox", { name: /新文件路径/ });
     fireEvent.change(input, { target: { value: "keep.py" } });
     fireEvent.submit(input.closest("form")!);
     await screen.findByRole("button", { name: /^keep\.py/ });
     const id = (await api.listDevices()).devices[0].id;
     await api.writeFile(id, "demo", "keep.py", "print('keep')\n");
-    fireEvent.click(screen.getByRole("button", { name: "删除 keep.py" }));
+    fileMenu("删除", "keep.py");
     const dlg = await screen.findByRole("alertdialog");
     expect(dlg.textContent).toContain("撤销");
     fireEvent.click(within(dlg).getByRole("button", { name: "删除" }));
@@ -136,7 +172,7 @@ describe("file new / rename / delete", () => {
     const { transport, api } = await projects();
     const id = (await api.listDevices()).devices[0].id;
     for (const path of ["pkg/a.py", "pkg/sub/b.py"]) {
-      fireEvent.click(screen.getByRole("button", { name: "新建文件" }));
+      fileMenu("新建文件");
       const input = screen.getByRole("textbox", { name: /新文件路径/ });
       fireEvent.change(input, { target: { value: path } });
       fireEvent.submit(input.closest("form")!);
@@ -145,7 +181,7 @@ describe("file new / rename / delete", () => {
     }
     const read = api.readFile;
     api.readFile = async (d, p, f) => (f === "pkg/a.py" ? { path: f, encoding: "base64", content: "AAEC" } : read(d, p, f));
-    fireEvent.click(screen.getByRole("button", { name: "删除文件夹 pkg/" }));
+    fileMenu("删除", "pkg/");
     fireEvent.click(within(await screen.findByRole("alertdialog")).getByRole("button", { name: "删除" }));
     await waitFor(() => expect(screen.queryByRole("button", { name: /^pkg\/a\.py/ })).toBeNull());
     const toasts = screen.getAllByRole("status").find((x) => x.className.includes("toasts"))!;
@@ -163,7 +199,7 @@ describe("file new / rename / delete", () => {
   });
 
   const newFile = async (path: string) => {
-    fireEvent.click(screen.getByRole("button", { name: "新建文件" }));
+    fileMenu("新建文件");
     const input = screen.getByRole("textbox", { name: /新文件路径/ });
     fireEvent.change(input, { target: { value: path } });
     fireEvent.submit(input.closest("form")!);
@@ -174,7 +210,7 @@ describe("file new / rename / delete", () => {
   it("undo after renaming moves the file back, also with Ctrl+Z", async () => {
     const { transport } = await projects();
     await newFile("r.py");
-    fireEvent.click(screen.getByRole("button", { name: "重命名 r.py" }));
+    fileMenu("重命名", "r.py");
     const input = screen.getByRole("textbox", { name: "新路径" });
     fireEvent.change(input, { target: { value: "lib/r2.py" } });
     fireEvent.submit(input.closest("form")!);
@@ -214,29 +250,31 @@ describe("file new / rename / delete", () => {
     fireEvent.click(within(await screen.findByRole("alertdialog")).getByRole("button", { name: "删除" }));
     await waitFor(() => expect(screen.queryByRole("button", { name: /^k\.py/ })).toBeNull());
     const moves = transport.sent.length;
+    fireEvent.click(screen.getByRole("button", { name: /新建工程/ }));
     fireEvent.keyDown(screen.getByRole("textbox", { name: "新工程名" }), { key: "z", ctrlKey: true });
     await new Promise((r) => setTimeout(r, 50));
     expect(screen.queryByRole("button", { name: /^k\.py/ })).toBeNull();
     expect(transport.sent.slice(moves).some((m) => m.method === "project.write")).toBe(false);
+    if (screen.queryByRole("dialog", { name: "新建工程" })) fireEvent.click(screen.getByRole("button", { name: "取消" }));
     fireEvent.keyDown(document.body, { key: "z", metaKey: true });
     await screen.findByRole("button", { name: /^k\.py/ });
   });
 
   it("escape / ✕ close the form; a device error is shown", async () => {
     const { transport } = await projects();
-    fireEvent.click(screen.getByRole("button", { name: "新建文件" }));
+    fileMenu("新建文件");
     fireEvent.keyDown(screen.getByRole("textbox", { name: /新文件路径/ }), { key: "Escape" });
     expect(screen.queryByRole("textbox", { name: /新文件路径/ })).toBeNull();
-    fireEvent.click(screen.getByRole("button", { name: "新建文件" }));
-    fireEvent.click(screen.getByRole("button", { name: "✕" }));
+    fileMenu("新建文件");
+    fireEvent.click(screen.getByRole("button", { name: "取消" }));
     expect(screen.queryByRole("textbox", { name: /新文件路径/ })).toBeNull();
     transport.setHandler("project.write", () => {
       throw { code: "device.http", message: "文件已存在: x.py" };
     });
-    fireEvent.click(screen.getByRole("button", { name: "新建文件" }));
+    fileMenu("新建文件");
     fireEvent.change(screen.getByRole("textbox", { name: /新文件路径/ }), { target: { value: "x.py" } });
     fireEvent.click(screen.getByRole("button", { name: "OK" }));
-    expect((await screen.findByRole("alert")).textContent).toMatch(/文件已存在/);
+    expect((await screen.findByText(/文件已存在/, { selector: ".err-hint" })).closest("[role=alert]")).toBeTruthy();
     fireEvent.submit(screen.getByRole("textbox", { name: /新文件路径/ }).closest("form")!); // still open, resubmittable
   });
 });

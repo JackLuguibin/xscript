@@ -25,6 +25,8 @@ async function setup(source = "a = 1\nb = 2\nc = 3\nd = 4\n") {
   fireEvent.click(await screen.findByRole("button", { name: /^__init__\.py/ }));
   const editor = (await screen.findByRole("textbox", { name: "编辑器" })) as HTMLTextAreaElement;
   await waitFor(() => expect(editor.value).toContain("a = 1"));
+  fireEvent.click(within(screen.getByRole("group", { name: "工具窗口" })).getByRole("button", { name: "调试" }));
+  await screen.findByRole("tab", { name: "调试器" });
   return { transport, api, id, editor };
 }
 
@@ -45,7 +47,7 @@ describe("debugger UI", () => {
     await waitFor(() => expect(within(bpList).queryByText("● __init__.py:4")).toBeNull());
     f9(editor, 3);
 
-    fireEvent.click(screen.getByRole("button", { name: "调试" }));
+    fireEvent.click(screen.getByTitle("F5"));
     expect(await screen.findByText("暂停于 __init__.py:2")).toBeTruthy();
     const start = transport.sent.find((m) => m.method === "debug.start")!;
     expect(start.params!.breakpoints).toEqual({ "__init__.py": [2, 3] });
@@ -62,6 +64,7 @@ describe("debugger UI", () => {
     fireEvent.click(screen.getByRole("button", { name: "展开 Globals" }));
     expect(await screen.findByText("__name__")).toBeTruthy();
 
+    fireEvent.click(screen.getByRole("tab", { name: "调试控制台" }));
     fireEvent.change(screen.getByRole("textbox", { name: "求值" }), { target: { value: "a + b" } });
     fireEvent.click(screen.getByRole("button", { name: "求值" }));
     expect(await screen.findByText("a + b → repr(a + b)")).toBeTruthy();
@@ -75,9 +78,9 @@ describe("debugger UI", () => {
     await waitFor(() => expect(transport.sent.some((m) => m.method === "debug.setBreakpoints")).toBe(true));
     fireEvent.keyDown(editor, { key: "F5" });
     expect(await screen.findByText("脚本已结束", { exact: false })).toBeTruthy();
-    await waitFor(() => expect(screen.getByRole("button", { name: "调试" })).toBeTruthy());
+    await waitFor(() => expect(screen.getByTitle("F5")).toBeTruthy());
     expect(screen.queryByTestId("current-line")).toBeNull();
-    expect(screen.getByLabelText("调试控制台").textContent).toContain("[demo] debugging demo");
+    expect(screen.getByLabelText("调试控制台", { selector: "pre" }).textContent).toContain("[demo] debugging demo");
   });
 
   it("stop button and Shift+F5 end the session; step keys are sent only while paused", async () => {
@@ -103,14 +106,14 @@ describe("debugger UI", () => {
     fireEvent.click(await screen.findByRole("button", { name: "删除断点 __init__.py:2" }));
     expect(await screen.findByText("在编辑器行号左侧点击，或按 F9 添加断点")).toBeTruthy();
     f9(editor, 3);
-    fireEvent.click(screen.getByRole("button", { name: "调试" }));
+    fireEvent.click(screen.getByTitle("F5"));
     await screen.findByText("暂停于 __init__.py:3");
     fireEvent.click(screen.getByRole("button", { name: "分离" }));
     expect(await screen.findByText("已分离")).toBeTruthy();
     transport.setHandler("debug.start", () => {
       throw { code: "debug.busy", message: "already running" };
     });
-    fireEvent.click(screen.getByRole("button", { name: "调试" }));
+    fireEvent.click(screen.getByTitle("F5"));
     // an unmapped code: the message is the title, the raw `message [code]` sits behind 详情
     const alert = (await screen.findByText("already running")).closest("[role=alert]") as HTMLElement;
     fireEvent.click(within(alert).getByRole("button", { name: "详情" }));
@@ -153,11 +156,11 @@ describe("debugger UI", () => {
     fireEvent.submit(form2);
     expect(within(bpList).getByText("条件: False")).toBeTruthy();
 
-    fireEvent.click(screen.getByRole("button", { name: "调试" }));
+    fireEvent.click(screen.getByTitle("F5"));
     expect(await screen.findByText("暂停于 __init__.py:4")).toBeTruthy();
     const start = transport.sent.find((m) => m.method === "debug.start")!;
     expect(start.params!.breakpoints).toEqual({ "__init__.py": [{ line: 1, logMessage: "at {line}" }, { line: 2, condition: "False" }, 4] });
-    expect(screen.getByLabelText("调试控制台").textContent).toContain("at 1");
+    expect(screen.getByLabelText("调试控制台", { selector: "pre" }).textContent).toContain("at 1");
 
     // editing mid-session re-sends the file's breakpoints; clearing the value turns it back into a plain breakpoint
     fireEvent.click(screen.getByRole("button", { name: "编辑断点 __init__.py:4" }));
@@ -195,7 +198,7 @@ describe("debugger UI", () => {
     });
     f9(editor, 2);
     f9(editor, 3);
-    fireEvent.click(screen.getByRole("button", { name: "调试" }));
+    fireEvent.click(screen.getByTitle("F5"));
     expect(await within(list).findByText("= v(a * 2)")).toBeTruthy();
     const ev = transport.sent.filter((m) => m.method === "debug.evaluate");
     expect(ev.at(-1)!.params).toMatchObject({ expression: "a * 2", context: "watch", frameId: 1 });

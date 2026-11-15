@@ -21,6 +21,24 @@ async function setup(connect = true) {
 }
 
 describe("ProjectsPage", () => {
+  it("keeps secondary panels collapsed and expands search with its shortcut", async () => {
+    await setup();
+    fireEvent.click(await screen.findByRole("button", { name: /^demo/ }));
+    await screen.findByRole("button", { name: /^__init__\.py/ });
+    for (const title of ["本地文件夹同步", "最近运行", "在工程中搜索"]) {
+      expect((screen.getByText(title, { selector: "summary" }).closest("details") as HTMLDetailsElement).open).toBe(false);
+    }
+    fireEvent.keyDown(window, { key: "F", ctrlKey: true, shiftKey: true });
+    expect(document.activeElement).toBe(screen.getByRole("searchbox", { name: "在工程中搜索" }));
+    fireEvent.click(within(screen.getByRole("group", { name: "工具窗口" })).getByRole("button", { name: "运行日志" }));
+    expect(within(screen.getByRole("group", { name: "工具窗口" })).getByRole("button", { name: "运行日志" }).getAttribute("aria-pressed")).toBe("true");
+    fireEvent.click(within(screen.getByRole("group", { name: "工具窗口" })).getByRole("button", { name: "调试" }));
+    expect(within(screen.getByRole("group", { name: "工具窗口" })).getByRole("button", { name: "运行日志" }).getAttribute("aria-pressed")).toBe("false");
+    expect(await screen.findByRole("tab", { name: /^调试器$/ })).toBeTruthy();
+    fireEvent.click(screen.getByRole("button", { name: "隐藏工具窗口" }));
+    expect(screen.queryByRole("tab", { name: /^调试器$/ })).toBeNull();
+  });
+
   it("shows an empty state without an online device", async () => {
     await setup(false);
     expect(await screen.findByText("还没有在线设备")).toBeTruthy();
@@ -51,12 +69,54 @@ describe("ProjectsPage", () => {
     expect(name?.nextElementSibling?.textContent).toMatch(/ B$/);
   });
 
+  it("focuses the create dialog, rejects blank input, and restores focus on Escape", async () => {
+    await setup();
+    const trigger = await screen.findByRole("button", { name: /新建工程/ });
+    await waitFor(() => expect((trigger as HTMLButtonElement).disabled).toBe(false));
+    expect(screen.queryByRole("textbox", { name: "新工程名" })).toBeNull();
+    trigger.focus();
+    fireEvent.click(trigger);
+    const modal = screen.getByRole("dialog", { name: "新建工程" });
+    const input = within(modal).getByRole("textbox", { name: "新工程名" });
+    await waitFor(() => expect(document.activeElement).toBe(input));
+    expect((within(modal).getByRole("button", { name: "新建" }) as HTMLButtonElement).disabled).toBe(true);
+    fireEvent.keyDown(input, { key: "Escape" });
+    expect(screen.queryByRole("dialog")).toBeNull();
+    expect(document.activeElement).toBe(trigger);
+  });
+
+  it("keeps the name and shows errors inside the create dialog", async () => {
+    const { transport } = await setup();
+    transport.setHandler("project.create", () => { throw new Error("Project already exists"); });
+    await screen.findByRole("button", { name: /^demo/ });
+    fireEvent.click(await screen.findByRole("button", { name: /新建工程/ }));
+    const modal = screen.getByRole("dialog", { name: "新建工程" });
+    fireEvent.change(within(modal).getByRole("textbox", { name: "新工程名" }), { target: { value: "demo" } });
+    fireEvent.click(within(modal).getByRole("button", { name: "新建" }));
+    expect(await within(modal).findByRole("alert")).toBeTruthy();
+    expect((within(modal).getByRole("textbox", { name: "新工程名" }) as HTMLInputElement).value).toBe("demo");
+  });
+
+  it("recovers an invalid dock layout and keeps edits when resetting the workspace", async () => {
+    localStorage.setItem("xscript.project-layout.v1", "invalid json");
+    await setup();
+    fireEvent.click(await screen.findByRole("button", { name: /^demo/ }));
+    fireEvent.click(await screen.findByRole("button", { name: /^__init__\.py/ }));
+    const editor = await screen.findByRole("textbox", { name: "编辑器" });
+    fireEvent.change(editor, { target: { value: "print('unsaved draft')" } });
+    fireEvent.click(screen.getByRole("button", { name: "重置布局" }));
+    await waitFor(() => expect((screen.getByRole("textbox", { name: "编辑器" }) as HTMLTextAreaElement).value).toBe("print('unsaved draft')"));
+    expect(screen.getByRole("button", { name: "保存" }).hasAttribute("disabled")).toBe(false);
+  });
+
   it("creates a project", async () => {
     await setup();
     await screen.findByRole("button", { name: /^demo/ });
+    await screen.findByRole("button", { name: /^demo/ });
+    fireEvent.click(await screen.findByRole("button", { name: /新建工程/ }));
     fireEvent.change(screen.getByRole("textbox", { name: "新工程名" }), { target: { value: "neu" } });
     fireEvent.click(screen.getByRole("button", { name: "新建" }));
-    const list = await screen.findByRole("list", { name: "工程列表" });
+    const list = await screen.findByRole("tree", { name: "工程列表" });
     await waitFor(() => expect(within(list).getByRole("button", { name: /^neu/ })).toBeTruthy());
   });
 
