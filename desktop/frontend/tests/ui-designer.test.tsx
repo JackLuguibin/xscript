@@ -77,7 +77,8 @@ describe("desktop UI designer (D.3 / D.4)", () => {
 
   it("a new file named *.ui.json starts as an empty form spec", async () => {
     const { api, id } = await setup(uiForm.serializeSpec(uiForm.newSpec()));
-    fireEvent.click(screen.getByRole("button", { name: "新建文件" }));
+    fireEvent.contextMenu(screen.getByRole("treeitem", { name: "demo" }));
+    fireEvent.click(screen.getByRole("menuitem", { name: "新建文件" }));
     const input = await screen.findByRole("textbox", { name: /^新文件路径/ });
     fireEvent.change(input, { target: { value: "res/ui/login.ui.json" } });
     fireEvent.click(screen.getByRole("button", { name: "OK" }));
@@ -140,7 +141,8 @@ describe("desktop UI designer (D.3 / D.4)", () => {
     const { api, id } = await setup(uiForm.serializeSpec(uiForm.newSpec()));
     await screen.findByLabelText("界面设计器", undefined, { timeout: 3000 });
     const ask = async (name: string) => {
-      fireEvent.click(screen.getByRole("button", { name: "新建界面" }));
+      fireEvent.contextMenu(screen.getByRole("treeitem", { name: "demo" }));
+      fireEvent.click(screen.getByRole("menuitem", { name: "新建界面" }));
       const input = await screen.findByRole("textbox", { name: "界面名称（例如 settings）" });
       fireEvent.change(input, { target: { value: name } });
       fireEvent.click(screen.getByRole("button", { name: "OK" }));

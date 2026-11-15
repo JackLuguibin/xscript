@@ -204,13 +204,15 @@ def test_e2e_real_frontend_edit_switch_pages_then_close(qapp, qtbot, mock_device
             qtbot.waitUntil(lambda: bool(sh._eval(qtbot, "(() => { const b = %s; if (!b) return false; b.click(); return true; })()" % selector_js)), timeout=8000)
 
         nav = lambda label: "[...document.querySelectorAll('nav .nav-item')].find(b => b.textContent.trim().startsWith(%s))" % json.dumps(label)
-        btn = lambda text: "[...document.querySelectorAll('button')].find(b => !b.disabled && b.textContent.trim().startsWith(%s))" % json.dumps(text)
+        btn = lambda text: "[...document.querySelectorAll('button')].find(b => !b.disabled && (b.getAttribute('aria-label') === %s || b.textContent.trim().startsWith(%s)))" % (json.dumps(text), json.dumps(text))
         click_js(nav("工程"))
         click_js(btn("e2e_unsaved"))
         click_js(btn("__init__.py"))
         sh.wait_js(qtbot, "document.querySelector('.monaco-host[data-ready=true] .monaco-editor')", timeout=20000)
-        ta = "document.querySelector('.monaco-host textarea')"
-        sh._eval(qtbot, "(() => { const t = %s; t.focus(); t.value = 'kept = 1'; t.setSelectionRange(8, 8); t.dispatchEvent(new InputEvent('input', {bubbles: true, data: 'kept = 1', inputType: 'insertText'})); return true; })()" % ta)
+        ta = "[...document.querySelectorAll('.monaco-host textarea')].find(t => t.offsetParent !== null)"
+        sh._eval(qtbot, "(() => { const t = %s; t.focus(); return true; })()" % ta)
+        from PySide6.QtTest import QTest
+        QTest.keyClicks(sh.win.focusProxy(), "kept = 1")
         sh.wait_text(qtbot, "未保存")
         qtbot.waitUntil(lambda: sh.ctx.unsaved is True, timeout=5000)
         assert sh.ctx.ui_lang == "zh"

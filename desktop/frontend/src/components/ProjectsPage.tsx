@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useServices } from "../app-context";
 import { bpKey, hasBpOptions, wireBreakpoints } from "../api";
 import type { BpOptions, BreakpointOptions, Breakpoints, DebugStep, FileContent, LogEntry, ProjectFiles, ProjectSummary, SearchMatch } from "../api";
@@ -7,6 +7,8 @@ import { useBusy } from "../useBusy";
 import { useCurrentDevice } from "../device-context";
 import { Badge } from "./Badge";
 import { CodeEditor } from "./CodeEditor";
+import { ProjectWorkbench } from "./ProjectWorkbench";
+import { ProjectFileTree } from "./ProjectFileTree";
 import { useConfirm } from "./ConfirmDialog";
 import { DebugPanel, useDebugSession } from "./DebugPanel";
 import { ErrorBanner } from "./ErrorBanner";
@@ -25,6 +27,11 @@ const UNDO_MAX_FILES = 50;
 import { Alert } from "./ui/alert";
 import { Button } from "./ui/button";
 import { Input } from "./ui/input";
+import { Toolbar } from "./ui/toolbar";
+import { SectionHeader } from "./ui/panel";
+import { Disclosure } from "./ui/disclosure";
+import { Dialog, isModalOpen } from "./ui/dialog";
+import { Field, FormActions } from "./ui/field";
 import { UI_TRY_PROJECT, uiTryMain } from "../ui-try";
 
 
@@ -54,12 +61,17 @@ export function ProjectsPage({ pollMs = LOG_POLL_MS, onDirtyChange }: { pollMs?:
   const [error, setError] = useState<unknown>(null);
   const [notice, setNotice] = useState("");
   const [newName, setNewName] = useState("");
+  const [createOpen, setCreateOpen] = useState(false);
+  const [createError, setCreateError] = useState<unknown>(null);
+  const createRestoreFocus = useRef(true);
+  const [toolWindow, setToolWindow] = useState<"run" | "debug" | null>(null);
   const [logs, setLogs] = useState<LogEntry[]>([]);
   const cursor = useRef<number | null>(null);
   const logRef = useRef<HTMLPreElement>(null);
   const [breakpoints, setBreakpoints] = useState<Breakpoints>({});
   const [bpOptions, setBpOptions] = useState<BreakpointOptions>({});
   const debug = useDebugSession(devId);
+  useEffect(() => { if (debug.active) setToolWindow("debug"); }, [debug.active]);
 
   const online = devices.filter((d) => d.state === "online");
   const device = devices.find((d) => d.id === devId);
@@ -127,7 +139,7 @@ export function ProjectsPage({ pollMs = LOG_POLL_MS, onDirtyChange }: { pollMs?:
   useEffect(() => {
     const el = logRef.current;
     if (el) el.scrollTop = el.scrollHeight;
-  }, [logs]);
+  }, [logs, toolWindow]);
 
   useEffect(() => {
     onDirtyChange?.(dirty);
@@ -145,6 +157,7 @@ export function ProjectsPage({ pollMs = LOG_POLL_MS, onDirtyChange }: { pollMs?:
       setBpOptions({});
       setFile(null);
       setDirty(false);
+      setFiles(null);
       setFiles(await api.files(devId, name));
     });
   };
@@ -161,13 +174,23 @@ export function ProjectsPage({ pollMs = LOG_POLL_MS, onDirtyChange }: { pollMs?:
   };
 
   const [formText, setFormText] = useState(false); // .ui.json: false = designer, true = raw JSON
-  const [fileForm, setFileForm] = useState<{ mode: "new" | "rename" | "form"; from: string; value: string } | null>(null);
+  const [fileForm, setFileForm] = useState<{ mode: "new" | "rename" | "form" | "directory"; from: string; value: string } | null>(null);
+  const fileRestoreFocus = useRef(true);
   const reloadFiles = async () => setFiles(await api.files(devId, project));
 
   const submitFileForm = () => {
     const f = fileForm;
     if (!f || !f.value.trim()) return;
     let to = f.value.trim();
+    if (f.mode === "directory") {
+      void act("fileform", async () => {
+        await api.createDirectory(devId, project, to);
+        setFileForm(null);
+        await reloadFiles();
+        toast(t.files.created(to + "/"));
+      });
+      return;
+    }
     const isForm = f.mode === "form";
     if (isForm) {
       // 新建界面: a name, not a path; the designer files go to res/ui/<name>.ui.json (+ .html, ui_<name>.py on save)
@@ -251,9 +274,12 @@ export function ProjectsPage({ pollMs = LOG_POLL_MS, onDirtyChange }: { pollMs?:
   // Ctrl/Cmd+Shift+F anywhere on the page (the code editor included) focuses the search box
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
+      if (isModalOpen()) return;
       if (e.key.toLowerCase() !== "f" || !(e.ctrlKey || e.metaKey) || !e.shiftKey || e.altKey || !searchInput.current) return;
       e.preventDefault();
       e.stopPropagation();
+      const searchDetails = searchInput.current.closest("details");
+      if (searchDetails) searchDetails.open = true;
       searchInput.current.focus();
       searchInput.current.select();
     };
@@ -264,6 +290,7 @@ export function ProjectsPage({ pollMs = LOG_POLL_MS, onDirtyChange }: { pollMs?:
   // Ctrl/Cmd+Z outside text fields and the code editor undoes the latest file operation that still offers 撤销.
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
+      if (isModalOpen()) return;
       if (e.key.toLowerCase() !== "z" || !(e.ctrlKey || e.metaKey) || e.shiftKey || e.altKey) return;
       const el = e.target as HTMLElement | null;
       if (el && (el.closest("input, textarea, select, [contenteditable=''], [contenteditable='true'], .monaco-editor"))) return;
@@ -297,7 +324,7 @@ export function ProjectsPage({ pollMs = LOG_POLL_MS, onDirtyChange }: { pollMs?:
     }
   };
 
-  const offerUndo = (text: string, saved: FileContent[] | null) => {
+  const offerUndo = (text: string, saved: FileContent[] | null, directories: string[] = []) => {
     if (!saved) return toast(text);
     const dev = devId;
     const proj = project;
@@ -305,6 +332,15 @@ export function ProjectsPage({ pollMs = LOG_POLL_MS, onDirtyChange }: { pollMs?:
       label: t.files.undo,
       run: () =>
         void act("undo", async () => {
+          if (directories.length) {
+            const existing = new Set((await api.files(dev, proj)).dirs);
+            for (const directory of directories) {
+              if (!existing.has(directory)) {
+                await api.createDirectory(dev, proj, directory);
+                directory.split("/").forEach((_, index, parts) => existing.add(parts.slice(0, index + 1).join("/")));
+              }
+            }
+          }
           for (const f of saved) {
             try {
               await api.writeFile(dev, proj, f.path, f.content, true, f.encoding);
@@ -315,23 +351,10 @@ export function ProjectsPage({ pollMs = LOG_POLL_MS, onDirtyChange }: { pollMs?:
             }
           }
           if (proj === projectRef.current) await reloadFiles();
-          toast(t.files.restored(saved.length));
+          toast(directories.length && saved.length === 0 ? t.files.undone : t.files.restored(saved.length));
         }),
     });
   };
-
-  /** Every folder that holds a file, parents before children (the device lists files only). */
-  const folders = useMemo(() => {
-    const out = new Map<string, number>();
-    for (const f of files?.files ?? []) {
-      const parts = f.path.split("/");
-      for (let i = 1; i < parts.length; i++) {
-        const d = parts.slice(0, i).join("/");
-        out.set(d, (out.get(d) ?? 0) + 1);
-      }
-    }
-    return [...out.entries()].sort(([a], [b]) => a.localeCompare(b));
-  }, [files]);
 
   const deleteFolder = async (dir: string) => {
     const inside = (files?.files ?? []).map((f) => f.path).filter((p) => p.startsWith(dir + "/"));
@@ -345,7 +368,7 @@ export function ProjectsPage({ pollMs = LOG_POLL_MS, onDirtyChange }: { pollMs?:
         setDirty(false);
       }
       await reloadFiles();
-      offerUndo(t.files.deletedFolder(dir, inside.length), saved);
+      offerUndo(t.files.deletedFolder(dir, inside.length), saved, [dir, ...(files?.dirs ?? []).filter((path) => path.startsWith(dir + "/"))].sort((a, b) => a.split("/").length - b.split("/").length));
     });
   };
 
@@ -401,24 +424,38 @@ export function ProjectsPage({ pollMs = LOG_POLL_MS, onDirtyChange }: { pollMs?:
       else toast(t.projects.uiTryStarted(name));
     });
 
-  const create = () =>
-    act("create", async () => {
-      const name = newName.trim();
-      await api.createProject(devId, name);
-      setNewName("");
-      await loadProjects();
-      setProject(name);
-      setBreakpoints({});
-      setBpOptions({});
-      setFile(null);
-      setFiles(await api.files(devId, name));
-    });
+  const create = async () => {
+    const name = newName.trim();
+    if (!name || has("create") || !(await confirmDiscard())) return;
+    let created = false;
+    try {
+      await track("create", async () => {
+        setCreateError(null);
+        await api.createProject(devId, name);
+        created = true;
+        setCreateOpen(false);
+        setNewName("");
+        await loadProjects();
+        setProject(name);
+        setBreakpoints({});
+        setBpOptions({});
+        setFile(null);
+        setDirty(false);
+        setFiles(await api.files(devId, name));
+      });
+    } catch (e) {
+      if (created) setError(e);
+      else setCreateError(e);
+    }
+  };
+  const closeCreate = () => { if (!has("create")) setCreateOpen(false); };
 
   const running = !!device?.info.running;
   const runningProject = device?.info.project ?? "";
 
   const runProject = () =>
     act("run", async () => {
+      setToolWindow("run");
       await save();
       const r = await api.run(devId, project);
       if (r.error) setNotice(`${t.projects.alreadyRunning}${r.project ? `：${r.project}` : ""}`);
@@ -517,9 +554,9 @@ export function ProjectsPage({ pollMs = LOG_POLL_MS, onDirtyChange }: { pollMs?:
   }
 
   return (
-    <div className="page">
-      {error !== null && <ErrorBanner error={error} onDismiss={() => setError(null)} />}
-      {notice && (
+    <div className="page projects-page">
+      {error !== null && !fileForm && <ErrorBanner error={error} onDismiss={() => setError(null)} />}
+      {notice && !fileForm && (
         <Alert tone="warn" role="status">
           <IconAlert size={16} />
           <span className="grow">{notice}</span>
@@ -529,169 +566,15 @@ export function ProjectsPage({ pollMs = LOG_POLL_MS, onDirtyChange }: { pollMs?:
         </Alert>
       )}
 
-      <div className="row toolbar">
-        {running && <Badge tone="ok">{`${t.projects.running}${runningProject ? `：${runningProject}` : ""}`}</Badge>}
-        <span className="grow" />
-        <span className="muted">{t.projects.keys}</span>
+      <Toolbar label={t.projects.editor} className="projects-toolbar" actions={<>
+        <details className="project-device-keys"><summary>{t.projects.keys}</summary><div>
         {(["back", "home", "recents"] as const).map((k) => (
-          <Button key={k} size="sm" onClick={() => void key(k)} disabled={!devId || has("key:" + k)}>
-            {t.projects[k]}
-          </Button>
+          <Button key={k} size="sm" onClick={() => void key(k)} disabled={!devId || has("key:" + k)}>{t.projects[k]}</Button>
         ))}
-      </div>
-
-      <div className="projects-grid">
-        <section aria-labelledby="h-projects" className="panel">
-          <div className="section-head">
-            <h2 id="h-projects">
-              <IconFolder size={16} /> {t.projects.list}
-            </h2>
-            <span className="grow" />
-            <Button size="sm" aria-label={t.refresh} onClick={() => void loadProjects()} disabled={!devId}>
-              <IconRefresh size={14} />
-            </Button>
-          </div>
-          {projects === null && <div className="skeleton" style={{ height: "3rem" }} aria-busy="true" />}
-          {projects !== null && projects.length === 0 && <p className="muted" role="status">{t.projects.empty}</p>}
-          <ul className="list" aria-label={t.projects.list}>
-            {(projects ?? []).map((p) => (
-              <li key={p.name}>
-                <Button variant="bare" className={"list-btn" + (p.name === project ? " active" : "")} aria-current={p.name === project ? "true" : undefined} onClick={() => void openProject(p.name)}>
-                  <span className="list-name" title={p.name}>{p.name}</span>
-                  {running && runningProject === p.name && <Badge tone="ok">{t.projects.running}</Badge>}
-                </Button>
-              </li>
-            ))}
-          </ul>
-          <form
-            className="row"
-            style={{ marginTop: "var(--sp-3)" }}
-            onSubmit={(e) => {
-              e.preventDefault();
-              if (newName.trim()) void create();
-            }}
-          >
-            <Input aria-label={t.projects.newName} className="grow w-auto" value={newName} onChange={(e) => setNewName(e.target.value)} placeholder={t.projects.newName} spellCheck={false} />
-            <Button type="submit" disabled={!newName.trim() || has("create")}>
-              {has("create") ? <Spinner /> : t.projects.create}
-            </Button>
-          </form>
-          {files && (
-            <>
-              <div className="section-head">
-                <h3 className="sub-head grow">{t.projects.files}</h3>
-                <Button size="sm" onClick={() => setFileForm({ mode: "new", from: "", value: "" })} disabled={has("fileform")}>
-                  {t.files.newFile}
-                </Button>
-                <Button size="sm" onClick={() => setFileForm({ mode: "form", from: "", value: "" })} disabled={has("fileform")} title={t.files.newFormHint}>
-                  {t.files.newForm}
-                </Button>
-              </div>
-              <ProjectSearch key={`${devId}/${project}`} devId={devId} project={project} inputRef={searchInput} onOpen={(m) => void openMatch(m)} onError={(e) => setError(e)} />
-              {fileForm && (
-                <form
-                  className="row"
-                  style={{ marginBottom: "var(--sp-2)" }}
-                  onSubmit={(e) => {
-                    e.preventDefault();
-                    submitFileForm();
-                  }}
-                >
-                  <Input
-                    autoFocus
-                    aria-label={fileForm.mode === "new" ? t.files.newFilePrompt : fileForm.mode === "form" ? t.files.newFormPrompt : t.files.renamePrompt}
-                    placeholder={fileForm.mode === "new" ? t.files.newFilePrompt : fileForm.mode === "form" ? t.files.newFormPrompt : t.files.renamePrompt}
-                    className="grow mono w-auto"
-                    value={fileForm.value}
-                    spellCheck={false}
-                    onChange={(e) => setFileForm({ ...fileForm, value: e.target.value })}
-                    onKeyDown={(e) => e.key === "Escape" && setFileForm(null)}
-                  />
-                  <Button type="submit" variant="primary" size="sm" disabled={!fileForm.value.trim() || has("fileform")}>
-                    {has("fileform") ? <Spinner /> : "OK"}
-                  </Button>
-                  <Button size="sm" onClick={() => setFileForm(null)}>
-                    ✕
-                  </Button>
-                </form>
-              )}
-              {folders.length > 0 && (
-                <ul className="list" aria-label={t.files.folders}>
-                  {folders.map(([d, n]) => (
-                    <li key={d} className="file-row">
-                      <span className="ui-btn list-btn mono folder-label">
-                        <span className="list-name" title={`${d}/`}>📁 {d}/</span>
-                        <span className="muted">{t.files.fileCount(n)}</span>
-                      </span>
-                      <Button variant="ghost" size="sm" className="text-danger-fg hover:bg-danger-bg"
-                        aria-label={`${t.files.delFolder} ${d}/`}
-                        title={t.files.delFolder}
-                        disabled={has("deldir:" + d)}
-                        onClick={() => void deleteFolder(d)}
-                      >
-                        {has("deldir:" + d) ? <Spinner /> : "🗑"}
-                      </Button>
-                    </li>
-                  ))}
-                </ul>
-              )}
-              <ul className="list" aria-label={t.projects.files}>
-                {files.files.map((f) => {
-                  const entry = f.path === "__init__.py";
-                  return (
-                    <li key={f.path} className="file-row">
-                      <Button variant="bare" className={"list-btn mono" + (file?.path === f.path ? " active" : "")} onClick={() => void openFile(f.path)}
-                        aria-keyshortcuts={entry ? undefined : "Delete"}
-                        onKeyDown={(e) => {
-                          if (entry || !(e.key === "Delete" || (e.key === "Backspace" && e.metaKey))) return;
-                          e.preventDefault();
-                          void deleteFile(f.path);
-                        }}
-                      >
-                        <span className="list-name" title={f.path}>{f.path}</span>
-                        <span className="muted">{f.size} B</span>
-                      </Button>
-                      <Button variant="ghost" size="sm"
-                       
-                        aria-label={`${t.files.rename} ${f.path}`}
-                        title={entry ? t.files.entryProtected : t.files.rename}
-                        disabled={entry || has("fileform") || has("del:" + f.path)}
-                        onClick={() => setFileForm({ mode: "rename", from: f.path, value: f.path })}
-                      >
-                        ✎
-                      </Button>
-                      <Button variant="ghost" size="sm" className="text-danger-fg hover:bg-danger-bg"
-                       
-                        aria-label={`${t.files.del} ${f.path}`}
-                        title={entry ? t.files.entryProtected : t.files.del}
-                        disabled={entry || has("del:" + f.path) || (fileForm?.mode === "rename" && has("fileform"))}
-                        onClick={() => void deleteFile(f.path)}
-                      >
-                        {has("del:" + f.path) ? <Spinner /> : "🗑"}
-                      </Button>
-                    </li>
-                  );
-                })}
-              </ul>
-              <SyncPanel
-                devId={devId}
-                project={project}
-                onError={(e) => setError(e)}
-                onSynced={() => void api.files(devId, project).then(setFiles).catch(() => undefined)}
-              />
-              <RecentRuns devId={devId} project={project} refresh={running} onError={(e) => setError(e)} onOpenLine={(p, ln) => void openLine(p, ln)} />
-            </>
-          )}
-        </section>
-
-        <section aria-labelledby="h-editor" className="panel editor-panel">
-          <div className="section-head">
-            <h2 id="h-editor">
-              {t.projects.editor}
-              {file && <span className="muted mono">{` ${project}/${file.path}`}</span>}
-            </h2>
-            <span className="grow" />
-            {file && <span className="muted">{dirty ? t.projects.unsaved : t.projects.saved}</span>}
+        </div></details>
+      </>}>
+        <Button className="project-create-trigger" size="sm" disabled={!devId} onClick={() => { setNewName(""); setCreateError(null); setCreateOpen(true); }}>+ {t.projects.newProject}</Button>
+        <IconFolder size={16} /><span className="workspace-name">{project || t.projects.workspace}</span>
             <Button onClick={() => void act("save", save)} disabled={!file || !dirty || has("save") || has("run")}>
               {has("save") ? <Spinner /> : t.projects.save}
             </Button>
@@ -702,9 +585,55 @@ export function ProjectsPage({ pollMs = LOG_POLL_MS, onDirtyChange }: { pollMs?:
             <Button variant="danger" onClick={() => void stopProject()} disabled={!(running || has("run")) || has("stop")}>
               {has("stop") ? <Spinner /> : t.projects.stop}
             </Button>
-          </div>
-          {!project && <EmptyState icon={<IconFolder size={26} />} title={t.projects.pickProject} />}
-          {project && !file && <EmptyState icon={<IconFolder size={26} />} title={t.projects.pickFile} />}
+        {running && <Badge tone="ok">{`${t.projects.running}${runningProject ? `：${runningProject}` : ""}`}</Badge>}
+      </Toolbar>
+
+      <ProjectWorkbench
+        editorTitle={(file ? file.path.split("/").at(-1)! : t.projects.editor) + (dirty ? " ●" : "")}
+        tool={toolWindow} onToolChange={setToolWindow}
+        project={
+        <section aria-labelledby="h-projects" className="panel project-sidebar">
+          <SectionHeader title={<><IconFolder size={16} /> {t.projects.list}</>} titleId="h-projects" actions={
+            <Button variant="ghost" size="sm" aria-label={t.refresh} title={t.refresh} onClick={() => void loadProjects()} disabled={!devId}><IconRefresh size={14} /></Button>
+          } />
+          {projects === null && <div className="skeleton" style={{ height: "3rem" }} aria-busy="true" />}
+          {projects !== null && projects.length === 0 && <p className="muted" role="status">{t.projects.empty}</p>}
+
+          <ProjectFileTree key={devId} projects={projects ?? []} project={project} files={files} selectedFile={file?.path}
+            runningProject={running ? runningProject : undefined} busy={has}
+            onProject={(name) => void openProject(name)} onFile={(path) => void openFile(path)}
+            onCreate={(mode, parent) => { setError(null); setNotice(""); setFileForm({ mode, from: "", value: parent ? parent + "/" : "" }); }}
+            onRename={(path) => { setError(null); setFileForm({ mode: "rename", from: path, value: path }); }}
+            onDelete={(path) => void deleteFile(path)} onDeleteFolder={(path) => void deleteFolder(path)} />
+          {files && (
+            <>
+              <details className="project-search-disclosure"><summary>{t.search.title}</summary>
+              <ProjectSearch key={`${devId}/${project}`} devId={devId} project={project} inputRef={searchInput} onOpen={(m) => void openMatch(m)} onError={(e) => setError(e)} />
+              </details>
+
+              <Disclosure title={t.sync.title}>
+              <SyncPanel
+                devId={devId}
+                project={project}
+                onError={(e) => setError(e)}
+                onSynced={() => void api.files(devId, project).then(setFiles).catch(() => undefined)}
+              />
+              </Disclosure>
+              <Disclosure title={t.projects.recentRuns}>
+              <RecentRuns devId={devId} project={project} refresh={running} onError={(e) => setError(e)} onOpenLine={(p, ln) => void openLine(p, ln)} />
+              </Disclosure>
+            </>
+          )}
+        </section>}
+        editor={
+        <section className="editor-panel" aria-label={t.projects.editor}>
+          {file && <div className="editor-breadcrumb"><IconFolder size={13} /><span>{project}/{file.path}</span></div>}
+          <div className="project-edit-surface">
+          {!project && <div className="project-editor-welcome"><span className="welcome-code" aria-hidden="true">{ "{ }" }</span><h3>{t.projects.pickProject}</h3>
+            <p>{t.projects.workspaceHint}</p>
+            <div className="editor-shortcuts"><span>{t.projects.save}<kbd>⌘ / Ctrl + S</kbd></span><span>{t.projects.run}<kbd>F6</kbd></span><span>{t.projects.searchHint}<kbd>⌘ / Ctrl + Shift + F</kbd></span></div>
+          </div>}
+          {project && !file && <div className="project-editor-welcome"><span className="welcome-code" aria-hidden="true">{ "{ }" }</span><h3>{t.projects.pickFile}</h3><p>{project} · {files?.files.length ?? 0} {t.projects.files}</p><span className="welcome-shortcut">{t.projects.searchHint} <kbd>⌘ / Ctrl + Shift + F</kbd></span></div>}
           {file && file.encoding !== "utf-8" && <p className="muted">{t.projects.binary}</p>}
           {file && file.encoding === "utf-8" && uiForm.formName(file.path) && (
             <div className="row" style={{ justifyContent: "flex-end", marginBottom: "var(--sp-2)" }}>
@@ -767,8 +696,10 @@ export function ProjectsPage({ pollMs = LOG_POLL_MS, onDirtyChange }: { pollMs?:
             />
           )}
           {file && file.encoding === "utf-8" && uiForm.formName(file.path) && formText && <UiPreview text={text} />}
-          {project && (
-            <DebugPanel
+          </div>
+        </section>}
+        debug={<div className="project-debug-surface">
+            {project && <DebugPanel
               devId={devId}
               project={project}
               session={debug}
@@ -782,20 +713,37 @@ export function ProjectsPage({ pollMs = LOG_POLL_MS, onDirtyChange }: { pollMs?:
               onRemoveBreakpoint={toggleBreakpoint}
               onOpenLocation={openLocation}
               onError={onDebugError}
-            />
-          )}
-          <div className="section-head" style={{ marginTop: "var(--sp-3)" }}>
-            <h2>{t.projects.logs}</h2>
-            <span className="grow" />
-            <Button size="sm" onClick={() => setLogs([])}>
-              {t.projects.clear}
-            </Button>
-          </div>
-          <pre className="logs" ref={logRef} aria-label={t.projects.logs} aria-live="polite">
+            />}</div>}
+        run={<div className="project-log-surface"><div className="workbench-output-actions"><Button variant="ghost" size="sm" onClick={() => setLogs([])}>{t.projects.clear}</Button></div>
+          <pre id="project-output" className="logs" ref={logRef} aria-label={t.projects.logs} aria-live="polite">
             {logs.length === 0 ? <span className="muted">{t.projects.noLogs}</span> : logs.map((l) => <span key={l.seq} className={l.stream === "stderr" ? "err" : ""}>{l.line.endsWith("\n") ? l.line : l.line + "\n"}</span>)}
-          </pre>
-        </section>
-      </div>
+          </pre></div>}
+      />
+      <footer className="editor-statusbar">{file && <span>{dirty ? t.projects.unsaved : t.projects.saved}</span>}<span>{project || t.projects.workspace}</span><span className="grow" /><span>{file ? (file.path.endsWith(".py") ? "Python" : file.path.split(".").at(-1)?.toUpperCase()) : "XScript"}</span>{file && <span>{file.encoding.toUpperCase()}</span>}</footer>
+      {fileForm && <Dialog title={fileForm.mode === "directory" ? t.files.newDirectory : fileForm.mode === "rename" ? t.files.rename : fileForm.mode === "form" ? t.files.newForm : t.files.newFile}
+        closeLabel={t.shortcuts.close} restoreFocus={fileRestoreFocus} initialFocus="#project-file-path" ownsKeys closeButton={false} onClose={() => { if (!has("fileform")) setFileForm(null); }}>
+        {error !== null && <ErrorBanner error={error} onDismiss={() => setError(null)} />}
+        {notice && <Alert tone="warn" role="status">{notice}</Alert>}
+        <form className="project-create-dialog" aria-busy={has("fileform")} onSubmit={(e) => { e.preventDefault(); submitFileForm(); }}>
+          <Field label={fileForm.mode === "directory" ? t.files.directoryPrompt : fileForm.mode === "rename" ? t.files.renamePrompt : fileForm.mode === "form" ? t.files.newFormPrompt : t.files.newFilePrompt}>
+            <Input id="project-file-path" className="mono" value={fileForm.value} onChange={(e) => setFileForm({ ...fileForm, value: e.target.value })} disabled={has("fileform")} autoComplete="off" spellCheck={false} required />
+          </Field>
+          <FormActions><Button disabled={has("fileform")} onClick={() => setFileForm(null)}>{t.confirm.cancel}</Button><Button type="submit" variant="primary" disabled={!fileForm.value.trim() || has("fileform")}>{has("fileform") ? <Spinner /> : "OK"}</Button></FormActions>
+        </form>
+      </Dialog>}
+      {createOpen && <Dialog title={t.projects.newProject} closeLabel={t.shortcuts.close} onClose={closeCreate} restoreFocus={createRestoreFocus} initialFocus="#new-project-name" ownsKeys closeButton={false} describedBy="new-project-description">
+        <p id="new-project-description" className="muted">{t.projects.createDescription}</p>
+        {createError !== null && <ErrorBanner error={createError} onDismiss={() => setCreateError(null)} />}
+        <form className="project-create-dialog" onSubmit={(e) => { e.preventDefault(); void create(); }} aria-busy={has("create")}>
+          <Field label={t.projects.newName} hint={t.projects.createHint}>
+            <Input aria-label={t.projects.newName} id="new-project-name" value={newName} onChange={(e) => setNewName(e.target.value)} placeholder={t.projects.nameExample} spellCheck={false} autoComplete="off" disabled={has("create")} required />
+          </Field>
+          <FormActions>
+            <Button onClick={closeCreate} disabled={has("create")}>{t.confirm.cancel}</Button>
+            <Button type="submit" variant="primary" disabled={!newName.trim() || has("create")}>{has("create") ? <Spinner /> : t.projects.create}</Button>
+          </FormActions>
+        </form>
+      </Dialog>}
       {dialog}
       {toasts}
     </div>
