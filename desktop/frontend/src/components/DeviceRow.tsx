@@ -1,14 +1,21 @@
 import { mediaUrl } from "../bridge/electron";
-import { useEffect, useId, useState } from "react";
+import { useEffect, useId, useRef, useState } from "react";
 import type { Device } from "../api";
 import { describeCode, errorLine } from "../errors";
 import { t } from "../strings";
 import { Badge } from "./Badge";
 import { ErrorBanner } from "./ErrorBanner";
-import { IconAlert, IconCamera, IconChevron, IconFolder, IconMonitor, IconPhone, IconUnlink, Spinner } from "./icons";
+import { IconAlert, IconCamera, IconRefresh, Spinner } from "./icons";
 import { Alert } from "./ui/alert";
 import { Button } from "./ui/button";
 import { Input } from "./ui/input";
+import { Dialog } from "./ui/dialog";
+import { TableCell } from "./ui/table";
+import { ActionGroup } from "./ui/action-group";
+import { PreviewLayout } from "./ui/preview-layout";
+import { Toolbar } from "./ui/toolbar";
+import { Field, FormActions } from "./ui/field";
+import { ImagePreview } from "./ui/image-preview";
 
 function Row({ k, v }: { k: string; v: string | number | null | undefined }) {
   return (
@@ -22,12 +29,6 @@ function Row({ k, v }: { k: string; v: string | number | null | undefined }) {
 const yn = (b: boolean | undefined) => (b ? t.info.yes : t.info.no);
 
 type ShotState = "idle" | "loading" | "loaded" | "failed";
-
-/** Screenshot pixels to request: the card is ~13 rem wide, so ask for 360 css px × devicePixelRatio (crisp on HiDPI), capped. */
-function shotMax(): number {
-  const dpr = typeof window !== "undefined" && window.devicePixelRatio ? window.devicePixelRatio : 1;
-  return Math.min(1080, Math.round(360 * Math.max(1, dpr)));
-}
 
 export type DevicePageTarget = "mirror" | "projects";
 
@@ -99,11 +100,8 @@ function PairForm({ title, onPair }: { title: string; onPair: (code: string) => 
   );
 }
 
-/**
- * Compact device card: name, state, model and the primary buttons. Properties, the screenshot, the editable
- * name / group / note / auto-reconnect and 「忘记」 live under 「详情」 (collapsed by default) so a list of devices fits on screen.
- */
-export function DeviceCard({
+/** Compact table row; pairing, diagnostics, properties and editing live in the shared details dialog. */
+export function DeviceRow({
   device,
   onDisconnect,
   onForget,
@@ -129,25 +127,29 @@ export function DeviceCard({
 }) {
   const i = device.info;
   const detailsId = useId();
+  const restoreFocus = useRef(true);
   const [open, setOpen] = useState(false);
   // A per-click nonce, not a counter: a counter restarts at 1 for every new card and Chromium would serve the cached image of the previous session.
   const [shotTick, setShotTick] = useState(0);
   const [shot, setShot] = useState<ShotState>("idle");
   // Screenshots come over the custom scheme (xsapp://app/_shot/...), not through the JSON bridge (design §3.1).
-  const shotUrl = shotTick ? mediaUrl(`/_shot/${encodeURIComponent(device.id)}.jpg?max=${shotMax()}&t=${shotTick}`) : "";
+  const shotUrl = shotTick ? mediaUrl(`/_shot/${encodeURIComponent(device.id)}.jpg?max=native&format=png&t=${shotTick}`) : "";
   const ratio = i.width && i.height ? `${i.width} / ${i.height}` : "9 / 19.5";
   const tone = device.state === "online" ? "ok" : device.state === "connecting" || device.state === "unpaired" ? "warn" : "bad";
   const title = device.name || i.name || i.model || device.id;
-  const [name, setName] = useState(device.name ?? "");
-  const [group, setGroup] = useState(device.group ?? "");
-  const [note, setNote] = useState(device.note ?? "");
+  const defaultName = device.name || i.name || i.model || device.id;
+  const defaultGroup = device.group || t.saved.defaultGroup;
+  const defaultNote = device.note || `${device.transport === "adb" ? "USB / ADB" : "LAN"} · ${device.serial || device.address || device.id}`;
+  const [name, setName] = useState(defaultName);
+  const [group, setGroup] = useState(defaultGroup);
+  const [note, setNote] = useState(defaultNote);
   const [autoConnect, setAutoConnect] = useState(Boolean(device.autoConnect));
   useEffect(() => {
-    setName(device.name ?? "");
-    setGroup(device.group ?? "");
-    setNote(device.note ?? "");
+    setName(defaultName);
+    setGroup(defaultGroup);
+    setNote(defaultNote);
     setAutoConnect(Boolean(device.autoConnect));
-  }, [device.name, device.group, device.note, device.autoConnect]);
+  }, [defaultName, defaultGroup, defaultNote, device.autoConnect]);
   // the raw error comes from health polling; hiding it lasts until the error text changes
   const [hiddenError, setHiddenError] = useState("");
   const requestShot = () => {
@@ -168,61 +170,55 @@ export function DeviceCard({
   const showDisconnect = device.state !== "offline" || device.forwardPort > 0 || Boolean(device.error) || !device.saved;
 
   return (
-    <article className={`card device-card${current ? " current" : ""}${open ? " expanded" : ""}`} aria-label={`device ${device.id}`} aria-current={current ? "true" : undefined}>
-      <header className="card-head">
-        <span className="avatar" aria-hidden="true">
-          <IconPhone size={22} />
-        </span>
-        <div className="titles">
-          <div className="name">
-            <h3>{title}</h3>
-            {device.group ? <span className="muted">{device.group}</span> : null}
-            <Badge tone={tone} busy={device.state === "connecting"}>
-              {t.state[device.state] ?? device.state}
-            </Badge>
-            {i.running && <Badge tone="ok">{`${t.info.running}${i.project ? `：${i.project}` : ""}`}</Badge>}
-            {current && <span className="tag">{t.deviceFlow.current}</span>}
-          </div>
-          <p className="muted summary">{summary || "—"}</p>
-          <p className="muted mono addr">{address}</p>
-        </div>
-        <div className="card-actions">
+    <tr className={`device-row${current ? " current" : ""}`} aria-label={`device ${device.id}`} aria-current={current ? "true" : undefined}>
+      <TableCell>
+        <div className="device-table-name"><strong title={title}>{title}</strong>{current && <span className="tag">{t.deviceFlow.current}</span>}</div>
+        <span className="muted device-table-text" title={device.group || ""}>{device.group || "—"}</span>
+      </TableCell>
+      <TableCell>
+        <Badge tone={tone} busy={device.state === "connecting"}>{t.state[device.state] ?? device.state}</Badge>
+        {i.running && <span className="device-table-text muted" title={i.project}>{t.info.running}</span>}
+        {(device.error || device.warning) && <span className="device-table-notice device-table-text" title={device.error || device.warning}>{device.error ? describeCode(device.errorCode ?? "", device.error).title : device.warning}</span>}
+      </TableCell>
+      <TableCell className="device-model-cell"><span className="device-table-text" title={summary}>{summary || "—"}</span></TableCell>
+      <TableCell><span className="device-table-text mono" title={address}>{address}</span></TableCell>
+      <TableCell className="device-actions-cell">
+        <ActionGroup label={t.deviceFlow.actions}>
           {online && onOpen && (
             <>
-              <Button variant="primary" onClick={() => onOpen("mirror")} aria-label={t.deviceFlow.openMirrorOf(title)}>
-                <IconMonitor size={16} />
+              <Button variant="action" onClick={() => onOpen("mirror")} aria-label={t.deviceFlow.openMirrorOf(title)}>
                 {t.deviceFlow.openMirror}
               </Button>
-              <Button onClick={() => onOpen("projects")} aria-label={t.deviceFlow.openProjectsOf(title)}>
-                <IconFolder size={16} />
+              <Button variant="action" onClick={() => onOpen("projects")} aria-label={t.deviceFlow.openProjectsOf(title)}>
                 {t.deviceFlow.openProjects}
               </Button>
             </>
           )}
           {device.state === "offline" && onRetry && (
-            <Button variant="primary" onClick={onRetry} disabled={busy} aria-label={`${t.saved.retry} ${device.serial || device.address}`}>
+            <Button variant="action" onClick={onRetry} disabled={busy} aria-label={`${t.saved.retry} ${device.serial || device.address}`}>
               {t.saved.retry}
             </Button>
           )}
           {showDisconnect && (
-            <Button variant="danger" onClick={onDisconnect} disabled={busy}>
-              {busy ? <Spinner /> : <IconUnlink size={16} />}
+            <Button variant="actionDanger" onClick={onDisconnect} disabled={busy}>
+              {busy && <Spinner />}
               {t.disconnect}
             </Button>
           )}
           <Button
-            variant="ghost"
+            variant="action"
             className="details-toggle"
             aria-expanded={open}
-            aria-controls={detailsId}
+            aria-haspopup="dialog"
+            aria-controls={open ? detailsId : undefined}
             aria-label={t.deviceFlow.detailsOf(device.id)}
             onClick={() => setOpen((o) => !o)}
           >
-            {open ? t.deviceFlow.hideDetails : t.deviceFlow.details}
-            <IconChevron size={14} />
+            {t.deviceFlow.details}
           </Button>
-        </div>
-      </header>
+        </ActionGroup>
+      {open && <Dialog title={t.deviceFlow.detailsOf(title)} titleId={detailsId} closeLabel={t.shortcuts.close}
+        onClose={() => setOpen(false)} restoreFocus={restoreFocus} ownsKeys size="wide" className="device-details-dialog max-w-[62rem]">
       {device.warning && (
         <Alert tone="warn">
           <IconAlert size={16} />
@@ -238,33 +234,19 @@ export function DeviceCard({
           role="status"
         />
       )}
-      <div className="card-details" id={detailsId} hidden={!open}>
-        {open && hasStatus && (
-          <div className="card-body">
-            <dl className="kv">
-              <Row k={t.info.model} v={[i.brand, i.model].filter(Boolean).join(" ")} />
-              <Row k={t.info.android} v={i.android} />
-              <Row k={t.info.sdk} v={i.sdk} />
-              <Row k={t.info.screen} v={i.width && i.height ? `${i.width}×${i.height}` : ""} />
-              <Row k={t.info.density} v={i.density} />
-              <Row k={t.info.version} v={i.version} />
-              <Row k={t.info.ip} v={i.ip} />
-              <Row k={t.info.deviceId} v={i.deviceId} />
-              <Row k={t.info.running} v={i.running ? `${t.info.yes}${i.project ? ` (${i.project})` : ""}` : t.info.no} />
-              <Row k={t.info.accessibility} v={yn(i.accessibility)} />
-              <Row k={t.info.root} v={yn(i.root)} />
-              <Row k={t.info.capture} v={yn(i.capture)} />
-              <Row k={t.info.channel} v={i.channel} />
-              <Row k={t.info.cloud} v={i.cloud} />
-            </dl>
+      <PreviewLayout preview={hasStatus ? (
             <div className="shot" aria-busy={shot === "loading"}>
-              <Button variant={shot === "idle" ? "primary" : "default"} onClick={requestShot} disabled={shot === "loading"}>
-                {shot === "loading" ? <Spinner /> : <IconCamera size={16} />}
-                {t.takeShot}
-              </Button>
+              <Toolbar label={t.screenshot} className="screenshot-toolbar" actions={
+                <Button variant="ghost" size="sm" onClick={requestShot} disabled={shot === "loading"}>
+                  {shot === "loading" ? <Spinner /> : <IconRefresh size={14} />}
+                  {t.takeShot}
+                </Button>
+              }><span className="muted">{t.screenshot}</span></Toolbar>
               <div className="shot-frame" style={{ aspectRatio: ratio }}>
                 {shotUrl && shot !== "failed" && (
-                  <img
+                  <ImagePreview
+                    viewLabel={t.deviceFlow.viewOriginal} fitLabel={t.deviceFlow.fitImage} closeLabel={t.shortcuts.close}
+                    ready={shot === "loaded"}
                     className={shot === "loaded" ? "" : "loading"}
                     alt={t.screenshot}
                     src={shotUrl}
@@ -288,9 +270,7 @@ export function DeviceCard({
               </div>
               {i.capture === false && (device.state !== "offline" || Boolean(device.error)) && <p className="hint">{t.captureHint}</p>}
             </div>
-          </div>
-        )}
-        {open && device.saved && (onSave || onForget) && (
+      ) : undefined}>
           <form
             className="saved-meta"
             onSubmit={(e) => {
@@ -298,18 +278,36 @@ export function DeviceCard({
               onSave?.({ name, group, note, autoConnect });
             }}
           >
-            <label>
-              {t.saved.name}
+            {device.saved && (onSave || onForget) && <>
+            <Field label={t.saved.name}>
               <Input aria-label={`${t.saved.name} ${device.id}`} value={name} onChange={(e) => setName(e.target.value)} maxLength={80} />
-            </label>
-            <label>
-              {t.saved.group}
+            </Field>
+            <Field label={t.saved.group}>
               <Input aria-label={`${t.saved.group} ${device.id}`} value={group} onChange={(e) => setGroup(e.target.value)} maxLength={80} />
-            </label>
-            <label>
-              {t.saved.note}
+            </Field>
+            <Field label={t.saved.note}>
               <Input aria-label={`${t.saved.note} ${device.id}`} value={note} onChange={(e) => setNote(e.target.value)} maxLength={500} />
-            </label>
+            </Field>
+            </>}
+        {hasStatus && (
+            <dl className="kv">
+              <Row k={t.info.model} v={[i.brand, i.model].filter(Boolean).join(" ")} />
+              <Row k={t.info.android} v={i.android} />
+              <Row k={t.info.sdk} v={i.sdk} />
+              <Row k={t.info.screen} v={i.width && i.height ? `${i.width}×${i.height}` : ""} />
+              <Row k={t.info.density} v={i.density} />
+              <Row k={t.info.version} v={i.version} />
+              <Row k={t.info.ip} v={i.ip} />
+              <Row k={t.info.deviceId} v={i.deviceId} />
+              <Row k={t.info.running} v={i.running ? `${t.info.yes}${i.project ? ` (${i.project})` : ""}` : t.info.no} />
+              <Row k={t.info.accessibility} v={yn(i.accessibility)} />
+              <Row k={t.info.root} v={yn(i.root)} />
+              <Row k={t.info.capture} v={yn(i.capture)} />
+              <Row k={t.info.channel} v={i.channel} />
+              <Row k={t.info.cloud} v={i.cloud} />
+            </dl>
+        )}
+            {device.saved && (onSave || onForget) && <FormActions className="device-meta-actions">
             <label className="check">
               <input type="checkbox" aria-label={`${t.saved.auto} ${device.id}`} checked={autoConnect} onChange={(e) => setAutoConnect(e.target.checked)} />
               {t.saved.auto}
@@ -324,9 +322,11 @@ export function DeviceCard({
                 {t.saved.forget}
               </Button>
             )}
+            </FormActions>}
           </form>
-        )}
-      </div>
-    </article>
+      </PreviewLayout>
+      </Dialog>}
+      </TableCell>
+    </tr>
   );
 }

@@ -3,11 +3,13 @@ import { useServices } from "./app-context";
 import { DevicePage } from "./components/DevicePage";
 import { FlowPage } from "./components/FlowPage";
 import { useGlobalShortcuts } from "./components/GlobalShortcuts";
+import { ToolsPage } from "./components/ToolsPage";
 import { MirrorPage } from "./components/MirrorPage";
 import { ProjectsPage } from "./components/ProjectsPage";
 import { Alert } from "./components/ui/alert";
 import { Select } from "./components/ui/select";
 import { Button } from "./components/ui/button";
+import { PageHeader } from "./components/ui/page-header";
 import { CloudPage } from "./components/CloudPage";
 import { WallPage } from "./components/WallPage";
 import { DeviceProvider, useCurrentDevice } from "./device-context";
@@ -86,7 +88,7 @@ function Shell() {
   return (
     // the provider owns the current device and asks before a switch would drop unsaved edits (the projects page may be hidden)
     <DeviceProvider unsaved={unsaved}>
-      <div className={(shortcuts.collapsed ? "app sidebar-collapsed" : "app") + (page === "flows" ? " is-workspace" : "")}>
+      <div className={(shortcuts.collapsed ? "app sidebar-collapsed" : "app") + (page === "flows" ? " is-workspace" : "") + (page === "devices" ? " is-inventory" : "") + (page === "mirror" ? " is-mirror" : "") + (page === "projects" ? " is-projects" : "")}>
         <a className="skip-link" href="#main">
           {t.skip}
         </a>
@@ -105,6 +107,10 @@ function Shell() {
             <Button variant="nav" aria-current={page === "mirror" ? "page" : undefined} onClick={() => setPage("mirror")}>
               <IconMonitor />
               <span className="label">{t.nav.mirror}</span>
+            </Button>
+            <Button variant="nav" aria-current={page === "tools" ? "page" : undefined} onClick={() => setPage("tools")}>
+              <IconGrid />
+              <span className="label">{t.nav.tools}</span>
             </Button>
             <Button
               variant="nav"
@@ -147,14 +153,9 @@ function Shell() {
           </div>
         </aside>
         <div className="content">
-          <header className="topbar">
-            <div>
-              <h1>{t.nav[page]}</h1>
-              <p className="sub">{page === "devices" ? t.subtitle : page === "mirror" ? t.mirror.subtitle : page === "wall" ? t.wall.subtitle : page === "flows" ? t.flow.subtitle : page === "cloud" ? t.cloud.subtitle : t.projects.subtitle}</p>
-            </div>
-            <span className="grow" />
-            <DeviceSwitcher />
-          </header>
+          <PageHeader title={t.nav[page]}
+            description={page === "devices" ? t.subtitle : page === "mirror" ? t.mirror.subtitle : page === "tools" ? t.tools.hint : page === "wall" ? t.wall.subtitle : page === "flows" ? t.flow.subtitle : page === "cloud" ? t.cloud.subtitle : t.projects.subtitle}
+            actions={<DeviceSwitcher />} />
           {!inShell && (
             <Alert tone="warn" className="mx-sp-5 mb-sp-4">
               {t.demoBanner}
@@ -165,10 +166,13 @@ function Shell() {
               <DevicePage refreshToken={shortcuts.refreshToken} focusToken={shortcuts.focusToken} onNavigate={setPage} />
             ) : page === "mirror" ? (
               <MirrorPage />
+            ) : page === "tools" ? (
+              <ToolsPage />
             ) : page === "wall" ? (
               <WallPage />
             ) : page === "flows" ? (
               <FlowPage />
+
             ) : page === "cloud" ? (
               <CloudPage />
             ) : null}

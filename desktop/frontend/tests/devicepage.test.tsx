@@ -36,7 +36,7 @@ describe("DevicePage", () => {
     const { t } = setup({ "device.connect": () => dev() });
     expect(await screen.findByText("emulator-5554")).toBeTruthy();
     await user.click(screen.getByRole("button", { name: "连接 emulator-5554" }));
-    const card = await screen.findByRole("article", { name: "device adb:emulator-5554" });
+    const card = await screen.findByRole("row", { name: "device adb:emulator-5554" });
     expect(within(card).getByText("emu64a16k", { exact: false })).toBeTruthy();
     // compact card: model · Android · resolution on one line; the full properties under 详情
     expect(within(card).getByText("google sdk_gphone16k_arm64 · Android 17 · 1080×2337")).toBeTruthy();
@@ -78,7 +78,7 @@ describe("DevicePage", () => {
     const { t } = setup({ "device.connect": (p) => dev({ id: "lan:" + p.address, transport: "lan", serial: "", address: String(p.address), warning: "设备 API 没有鉴权" }) });
     await user.type(await screen.findByLabelText("device address"), "192.168.1.20:9860");
     await user.click(screen.getByRole("button", { name: "连接地址" }));
-    expect(await screen.findByText(/没有鉴权/, { selector: ".banner span" })).toBeTruthy();
+    expect(await screen.findByText(/没有鉴权/, { selector: ".device-table-notice" })).toBeTruthy();
     expect(t.sent.find((m) => m.method === "device.connect")?.params).toEqual({ transport: "lan", address: "192.168.1.20:9860" });
   });
 
@@ -86,20 +86,20 @@ describe("DevicePage", () => {
     const user = userEvent.setup();
     const { t } = setup({ "device.connect": () => dev() });
     await user.click(await screen.findByRole("button", { name: "连接 emulator-5554" }));
-    await screen.findByText("在线");
+    await within(await screen.findByRole("row", { name: /^device / })).findByText("在线");
     t.push({ event: true, topic: "device.state", data: dev({ state: "offline", error: "cannot reach" }) });
-    expect(await screen.findByText("离线")).toBeTruthy();
+    expect(await within(screen.getByRole("row", { name: /^device / })).findByText("离线")).toBeTruthy();
     t.push({ event: true, topic: "device.removed", data: { id: "adb:emulator-5554" } });
-    await waitFor(() => expect(screen.queryByRole("article")).toBeNull());
+    await waitFor(() => expect(screen.queryByRole("row", { name: /^device / })).toBeNull());
   });
 
   it("disconnect calls device.disconnect and removes the card", async () => {
     const user = userEvent.setup();
     const { t } = setup({ "device.connect": () => dev(), "device.disconnect": () => ({ removed: true }) });
     await user.click(await screen.findByRole("button", { name: "连接 emulator-5554" }));
-    await screen.findByRole("article");
+    await screen.findByRole("row", { name: /^device / });
     await user.click(screen.getByRole("button", { name: "断开" }));
-    await waitFor(() => expect(screen.queryByRole("article")).toBeNull());
+    await waitFor(() => expect(screen.queryByRole("row", { name: /^device / })).toBeNull());
     expect(t.sent.some((m) => m.method === "device.disconnect")).toBe(true);
   });
 
@@ -110,7 +110,7 @@ describe("DevicePage", () => {
     await user.click(await screen.findByRole("button", { name: "adb:emulator-5554 的详情" }));
     await user.click(await screen.findByRole("button", { name: "刷新截图" }));
     const img = (await screen.findByAltText("截图")) as HTMLImageElement;
-    expect(img.getAttribute("src")).toMatch(/^\/_shot\/adb%3Aemulator-5554\.jpg\?max=360&t=\d+$/);
+    expect(img.getAttribute("src")).toMatch(/^\/_shot\/adb%3Aemulator-5554\.jpg\?max=native&format=png&t=\d+$/);
     expect(t.sent.some((m) => m.method.includes("screen"))).toBe(false);
   });
 

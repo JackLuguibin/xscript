@@ -223,17 +223,18 @@ describe("DevicePage feedback", () => {
       "device.list": () => ({ devices: [dev({ state: "offline", error: "cannot reach 127.0.0.1:41000: refused", errorCode: "device.unreachable" })] }),
       "device.adb.list": () => ({ adbPath: "/x/adb", devices: [] }),
     });
-    const card = await screen.findByRole("article");
+    const card = await screen.findByRole("row", { name: /^device / });
+    fireEvent.click(within(card).getByRole("button", { name: "adb:emulator-5554 的详情" }));
     const banner = within(card).getByRole("status", { name: /adb:emulator-5554/ });
     expect(banner.textContent).toContain("连不上设备");
     expect(banner.textContent).toMatch(/前台/);
     fireEvent.click(within(banner).getByRole("button", { name: "详情" }));
     expect(banner.textContent).toContain("cannot reach 127.0.0.1:41000: refused [device.unreachable]");
     fireEvent.click(within(banner).getByRole("button", { name: "关闭提示" }));
-    expect(within(card).queryByText("连不上设备")).toBeNull();
+    expect(within(card).queryByRole("status", { name: /adb:emulator-5554/ })).toBeNull();
     // a new error text shows again
     act(() => transport.push({ event: true, topic: "device.state", data: dev({ state: "offline", error: "device GET /status timed out", errorCode: "device.timeout" }) }));
-    expect(await within(screen.getByRole("article")).findByText("设备响应超时")).toBeTruthy();
+    expect((await within(card).findByRole("status", { name: /adb:emulator-5554/ })).textContent).toContain("设备响应超时");
   });
 });
 
@@ -299,7 +300,7 @@ describe("ProjectsPage feedback", () => {
       throw { code: "device.http", message: "device POST /projects/demo/run -> 409: busy", details: { status: 409, detail: "busy" } };
     });
     fireEvent.click(screen.getByRole("button", { name: "保存并运行" }));
-    const alert = await screen.findByRole("alert");
+    const alert = (await screen.findByText("设备正忙：已有脚本在运行")).closest("[role=alert]")!;
     expect(alert.textContent).toContain("设备正忙：已有脚本在运行");
     expect(alert.textContent).not.toContain("409");
     expect(screen.queryByText(/已启动/)).toBeNull();

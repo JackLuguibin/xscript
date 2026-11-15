@@ -28,12 +28,15 @@ function frame(): HTMLImageElement {
 }
 
 describe("screen tools", () => {
-  it("shows the control tree, copies a find snippet, samples a color, and opens the device tool page", async () => {
+  it("shows the control tree, copies a find snippet and samples a color", async () => {
     const transport = await setup();
     fireEvent.click(await screen.findByRole("radio", { name: "选控件" }));
     fireEvent.click(await screen.findByRole("button", { name: "刷新控件树" }));
     const row = await screen.findByRole("treeitem", { name: "Search" });
     fireEvent.click(row);
+    expect(screen.queryByRole("dialog", { name: "节点属性" })).toBeNull();
+    expect(row.getAttribute("aria-selected")).toBe("true");
+    expect(screen.getByText("节点属性").closest(".mirror-controls-column")).toBeTruthy();
     const snip = screen.getByRole("textbox", { name: "查找代码" }) as HTMLTextAreaElement;
     expect(snip.value).toContain("com.android.settings:id/search");
     expect(snip.value).toContain("node.Selector(mode=1)");
@@ -52,11 +55,8 @@ describe("screen tools", () => {
 
     fireEvent.click(screen.getByRole("button", { name: "保存截图" }));
     await screen.findByText("已保存 /demo/screen.png");
-    fireEvent.click(screen.getByRole("button", { name: "图色工具" }));
-    await screen.findByText("已打开图色工具");
-    const opened = transport.sent.filter((m) => m.method === "tools.open").at(-1);
-    expect(opened?.params).toMatchObject({ page: "color" });
-    expect(opened?.params).not.toHaveProperty("url");
+    expect(screen.queryByRole("button", { name: "图色工具" })).toBeNull();
+
   });
 });
 
@@ -67,7 +67,7 @@ it("can find nodes beyond the first 400 rows, inspect attributes and switch tree
     roots: Array.from({ length: 650 }, (_, i) => ({ path: `0/${i}`, text: `layout ${i}`, type: "android.view.View", rect: { l: 0, t: i, r: 10, b: i + 1 } })),
   }));
   fireEvent.click(await screen.findByRole("button", { name: "刷新控件树" }));
-  await screen.findByRole("button", { name: "加载更多（还有 250 个）" });
+  await screen.findByRole("button", { name: "下一页" });
   expect(transport.sent.filter((m) => m.method === "device.uiTree").at(-1)?.params).toMatchObject({ mode: 1 });
   fireEvent.change(screen.getByRole("searchbox", { name: "搜索文字 / id / 描述 / 类名 / 路径" }), { target: { value: "layout 649" } });
   fireEvent.click(await screen.findByRole("treeitem", { name: "layout 649" }));

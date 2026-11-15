@@ -46,6 +46,15 @@ function mount() {
   return { transport, ...view };
 }
 
+async function ready() {
+  await screen.findByText("emulator-5554");
+  closeAdd();
+}
+function closeAdd() {
+  const dialog = screen.queryByRole("dialog", { name: /添加设备|Add device/ });
+  if (dialog) fireEvent.click(within(dialog).getByRole("button", { name: /关闭|Close/ }));
+}
+
 function ev(partial: Partial<KeyEventLike> & { key: string }): KeyEventLike {
   return { metaKey: false, ctrlKey: false, altKey: false, shiftKey: false, ...partial };
 }
@@ -139,9 +148,11 @@ describe("shortcut matching", () => {
 describe("command palette, settings, and chords", () => {
   it("opens the palette, filters, runs an action, and restores focus when it closes", async () => {
     mount();
-    const refresh = await screen.findByRole<HTMLButtonElement>("button", { name: "刷新" });
+    let refresh = await screen.findByRole<HTMLButtonElement>("button", { name: "刷新" });
     // disabled until the adb list has loaded, and a disabled button can't take focus (slow runners got here first)
     await waitFor(() => expect(refresh.disabled).toBe(false));
+    closeAdd();
+    refresh = screen.getByRole<HTMLButtonElement>("button", { name: "添加设备" });
     refresh.focus();
     expect(document.activeElement).toBe(refresh);
     press("k", { mod: true });
@@ -160,7 +171,7 @@ describe("command palette, settings, and chords", () => {
 
   it("opens the flow editor from the command palette", async () => {
     mount();
-    await screen.findByText("emulator-5554");
+    await ready();
     press("k", { mod: true });
     const box = await screen.findByRole("combobox", { name: "命令面板" });
     fireEvent.change(box, { target: { value: "流程" } });
@@ -176,10 +187,11 @@ describe("command palette, settings, and chords", () => {
 
   it("moves the active option with the arrow keys and runs it on click", async () => {
     mount();
-    await screen.findByText("emulator-5554");
+    await ready();
     press("k", { mod: true });
     const dialog = await screen.findByRole("dialog", { name: "命令面板" });
     const box = within(dialog).getByRole("combobox");
+    fireEvent.keyDown(box, { key: "ArrowDown" });
     fireEvent.keyDown(box, { key: "ArrowDown" });
     fireEvent.keyDown(box, { key: "Enter" });
     expect(await screen.findByRole("heading", { level: 1, name: "屏幕" })).toBeTruthy();
@@ -191,7 +203,7 @@ describe("command palette, settings, and chords", () => {
 
   it("toggles the palette with the chord, closes from the backdrop, and keeps a click inside", async () => {
     mount();
-    await screen.findByText("emulator-5554");
+    await ready();
     press("k", { mod: true });
     const dialog = await screen.findByRole("dialog");
     fireEvent.mouseDown(dialog);
@@ -205,7 +217,7 @@ describe("command palette, settings, and chords", () => {
 
   it("switches pages with Ctrl/⌘+1…5, ignores 9, and focuses the address with Ctrl/⌘+L", async () => {
     mount();
-    await screen.findByText("emulator-5554");
+    await ready();
     press("2", { mod: true });
     expect(await screen.findByRole("heading", { level: 1, name: "屏幕" })).toBeTruthy();
     press("4", { mod: true });
@@ -224,7 +236,7 @@ describe("command palette, settings, and chords", () => {
 
   it("refreshes the ADB list with F5 and Ctrl/⌘+R on the device page only", async () => {
     const { transport } = mount();
-    await screen.findByText("emulator-5554");
+    await ready();
     const n = () => transport.sent.filter((m) => m.method === "device.adb.list").length;
     const before = n();
     press("F5");
@@ -244,7 +256,7 @@ describe("command palette, settings, and chords", () => {
 
   it("collapses the sidebar, cycles the theme, and ignores key repeat", async () => {
     mount();
-    await screen.findByText("emulator-5554");
+    await ready();
     press("b", { mod: true, repeat: true });
     expect(document.querySelector(".app")?.classList.contains("sidebar-collapsed")).toBe(false);
     press("b", { mod: true });
@@ -267,7 +279,8 @@ describe("command palette, settings, and chords", () => {
     const address = await screen.findByRole("textbox", { name: "device address" }); // the add-device panel is open (no saved devices)
     address.focus();
     fireEvent.keyDown(address, { key: "?" });
-    expect(screen.queryByRole("dialog")).toBeNull();
+    expect(screen.queryByRole("dialog", { name: "快捷键" })).toBeNull();
+    closeAdd();
     address.blur();
     press("?");
     expect(await screen.findByRole("dialog", { name: "快捷键" })).toBeTruthy();
@@ -283,7 +296,7 @@ describe("command palette, settings, and chords", () => {
     expect(screen.queryByRole("dialog")).toBeNull();
     unmount();
     mount();
-    await screen.findByText("emulator-5554");
+    await ready();
     press("?");
     expect(screen.queryByRole("dialog")).toBeNull();
     press("k", { mod: true });
@@ -295,7 +308,7 @@ describe("command palette, settings, and chords", () => {
 
   it("saves an adb path from settings and reports a path that is not a file", async () => {
     const { transport } = mount();
-    await screen.findByText("emulator-5554");
+    await ready();
     press(",", { mod: true });
     const dialog = await screen.findByRole("dialog", { name: "设置" });
     const field = within(dialog).getByRole("textbox", { name: "adb 路径" });
@@ -316,7 +329,7 @@ describe("command palette, settings, and chords", () => {
 
   it("changes theme, language, and the icon rail from the settings dialog", async () => {
     mount();
-    await screen.findByText("emulator-5554");
+    await ready();
     press(",", { mod: true });
     const dialog = await screen.findByRole("dialog", { name: "设置" });
     fireEvent.click(within(dialog).getByRole("radio", { name: "深色" }));
@@ -331,7 +344,7 @@ describe("command palette, settings, and chords", () => {
 
   it("traps Tab inside the dialog", async () => {
     mount();
-    await screen.findByText("emulator-5554");
+    await ready();
     press("k", { mod: true });
     const dialog = await screen.findByRole("dialog");
     const box = within(dialog).getByRole("combobox");
@@ -348,14 +361,14 @@ describe("command palette, settings, and chords", () => {
 
   it("runs refresh, address, theme, language, and the sidebar from the palette", async () => {
     const { transport } = mount();
-    await screen.findByText("emulator-5554");
+    await ready();
     const run = async (query: string) => {
       press("k", { mod: true });
       // the top-bar device switcher is a combobox too; the palette is named (in either language once 切换语言 ran)
       const box = await screen.findByRole("combobox", { name: /命令面板|Command palette/ });
       fireEvent.change(box, { target: { value: query } });
       fireEvent.keyDown(box, { key: "Enter" });
-      await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
+      await waitFor(() => expect(screen.queryByRole("dialog", { name: /命令面板|Command palette/ })).toBeNull());
     };
     press("3", { mod: true });
     await screen.findByText("还没有在线设备");
@@ -365,6 +378,7 @@ describe("command palette, settings, and chords", () => {
     expect(screen.getByRole("heading", { level: 1 }).textContent).toBe("设备");
     await run("聚焦");
     await waitFor(() => expect(document.activeElement).toBe(screen.getByRole("textbox", { name: "device address" })));
+    closeAdd();
     await run("切换主题");
     expect(document.documentElement.getAttribute("data-theme")).toBe("light");
     await run("切换语言");

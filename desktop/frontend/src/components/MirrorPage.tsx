@@ -17,6 +17,8 @@ import { Alert } from "./ui/alert";
 import { Button } from "./ui/button";
 import { Input } from "./ui/input";
 import { Select } from "./ui/select";
+import { Toolbar } from "./ui/toolbar";
+import { SectionHeader } from "./ui/panel";
 
 const WHEEL_IDLE_MS = 120; // one wheel "flick" = events closer together than this
 const MAX_COMPOSE = 2000;
@@ -35,6 +37,8 @@ export function MirrorPage() {
   const [fps, setFps] = useState(prefs.fps);
   const [fit, setFit] = useState<FitMode>(prefs.fit);
   const [shape, setShape] = useState<Size | null>(null); // frame orientation/size from the stream (follows rotation)
+  const [availWidth, setAvailWidth] = useState(600);
+  const stageRef = useRef<HTMLDivElement>(null);
   const [avail, setAvail] = useState(600); // px from the frame's top to the window bottom
   const [, setWinTick] = useState(0);
   const [compose, setComposeState] = useState(""); // typed on the focused frame, sent with Enter
@@ -124,11 +128,20 @@ export function MirrorPage() {
   }, []);
   // H3: the frame gets the height left below the toolbar (banners included), so a tall phone never needs page scrolling
   useLayoutEffect(() => {
-    const el = frameRef.current;
-    if (!el) return;
-    const top = el.getBoundingClientRect().top + window.scrollY;
-    const next = Math.max(200, Math.floor(window.innerHeight - top - 24));
-    setAvail((cur) => (Math.abs(cur - next) > 2 ? next : cur));
+    const stage = stageRef.current;
+    if (!stage) return;
+    const measure = () => {
+      const bounds = stage.getBoundingClientRect();
+      const height = Math.max(80, Math.floor(bounds.height - 32));
+      const width = Math.max(80, Math.floor(bounds.width - 32));
+      setAvail((cur) => Math.abs(cur - height) > 2 ? height : cur);
+      setAvailWidth((cur) => Math.abs(cur - width) > 2 ? width : cur);
+    };
+    measure();
+    if (typeof ResizeObserver === "undefined") return;
+    const observer = new ResizeObserver(measure);
+    observer.observe(stage);
+    return () => observer.disconnect();
   });
 
   useEffect(() => {
@@ -340,7 +353,7 @@ export function MirrorPage() {
   const screen: Size | null = shape ?? (device?.info.width && device.info.height ? { w: device.info.width, h: device.info.height } : null);
   const landscape = isLandscape(screen);
   const dpr = typeof window !== "undefined" && window.devicePixelRatio ? window.devicePixelRatio : 1;
-  const shotW = fitWidth({ w: Infinity, h: avail }, screen, fit, dpr);
+  const shotW = fitWidth({ w: availWidth, h: avail }, screen, fit, dpr);
   shotWRef.current = shotW;
   fitRef.current = fit;
 
@@ -358,9 +371,10 @@ export function MirrorPage() {
   const stalled = mirrorState === "stalled";
   const capture = captureState(device.info);
   return (
-    <div className="page">
+    <div className="page mirror-page">
       {error !== null && <ErrorBanner error={error} onDismiss={() => setError(null)} />}
       <CaptureCard
+        compact
         state={capture}
         busy={rechecking}
         requested={requested}
@@ -387,8 +401,12 @@ export function MirrorPage() {
           <span className="grow">{t.mirror.viewersFull}</span>
         </Alert>
       )}
-      <div className="row toolbar">
-        <Button variant="bare" className={playing ? "" : "primary"} onClick={() => setPlaying((p) => !p)}>
+      <Toolbar label={t.mirror.view} className="mirror-toolbar" actions={<>
+        {(["back", "home", "recents"] as const).map((k) => (
+          <Button size="sm" key={k} onClick={() => void send({ type: "key", name: k })}>{t.projects[k]}</Button>
+        ))}
+      </>}>
+        <Button size="sm" variant={playing ? "default" : "primary"} onClick={() => setPlaying((p) => !p)}>
           {playing ? t.mirror.pause : t.mirror.start}
         </Button>
         <label className="row">
@@ -409,14 +427,9 @@ export function MirrorPage() {
           ))}
         </div>
         <CaptureChip state={capture} />
-        <span className="grow" />
-        {(["back", "home", "recents"] as const).map((k) => (
-          <Button size="sm" key={k} onClick={() => void send({ type: "key", name: k })}>
-            {t.projects[k]}
-          </Button>
-        ))}
-      </div>
+      </Toolbar>
       <div className={"mirror-grid" + (landscape ? " stacked" : "")}>
+        <div className="mirror-stage" ref={stageRef}>
         <div
           className={"mirror-frame" + (fit === "actual" ? " actual" : "")}
           ref={frameRef}
@@ -519,7 +532,12 @@ export function MirrorPage() {
           {!playing && <span className="mirror-badge">{t.mirror.paused}</span>}
           {playing && mirrorState === "streaming" && <span className="mirror-badge">{t.mirror.live}</span>}
         </div>
-        <div className="panel">
+        </div>
+          <ScreenTools compact renderLayout={(controls, tree) => <>
+            <aside className="mirror-inspector mirror-tree-column screen-tools-split" aria-label={t.inspect.tree}>{tree}</aside>
+            <aside className="mirror-inspector mirror-controls-column screen-tools-split" aria-label={t.inspect.mode}>{controls}</aside>
+          </>} inputContent={<>
+          <SectionHeader title={t.mirror.text} level={2} />
           <form
             className="row"
             onSubmit={(e) => {
@@ -538,8 +556,7 @@ export function MirrorPage() {
               {t.mirror.send}
             </Button>
           </form>
-          <p className="hint">{t.mirror.hint}</p>
-          <ScreenTools
+          </>}
             device={device}
             mode={mode}
             onMode={setMode}
@@ -548,7 +565,6 @@ export function MirrorPage() {
             onHit={(rect, screen) => setHitBox(rect && screen ? rectPercent(rect, screen) : null)}
             toast={toast}
           />
-        </div>
       </div>
       {toasts}
     </div>

@@ -1,4 +1,4 @@
-import { act, fireEvent, render, screen } from "@testing-library/react";
+import { act, fireEvent, render, within, screen } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { ServicesContext } from "../src/app-context";
 import { createApi, type Device } from "../src/api";
@@ -49,8 +49,11 @@ describe("screen page capture card", () => {
     const { transport, withInfo } = await setup({ captureVia: "", captureLost: true });
     const card = await screen.findByRole("region", { name: "截图状态" });
     expect(card.textContent).toContain("截图权限已失效");
-    expect(card.textContent).toContain("图色权限");
-    expect(card.textContent).toContain("无障碍");
+    fireEvent.click(within(card).getByRole("button", { name: "操作说明" }));
+    const help = screen.getByRole("dialog");
+    expect(help.textContent).toContain("图色权限");
+    expect(help.textContent).toContain("无障碍");
+    fireEvent.click(within(help).getByRole("button", { name: "关闭" }));
     const fixed = withInfo({ captureVia: "accessibility", captureLost: true });
     transport.setHandler("device.refresh", () => {
       transport.push({ event: true, topic: "device.state", data: fixed });

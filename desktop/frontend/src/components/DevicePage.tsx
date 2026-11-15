@@ -7,13 +7,21 @@ import { t } from "../strings";
 import { useBusy } from "../useBusy";
 import { Badge } from "./Badge";
 import { ConnectCheck } from "./ConnectCheck";
-import { DeviceCard, type DevicePageTarget } from "./DeviceCard";
+import { DeviceRow, type DevicePageTarget } from "./DeviceRow";
 import { EmptyState } from "./EmptyState";
 import { ErrorBanner } from "./ErrorBanner";
 import { IconAlert, IconPhone, IconPlus, IconRefresh, IconSearch, IconUsb, IconWifi, Spinner } from "./icons";
 import { Alert } from "./ui/alert";
 import { Button } from "./ui/button";
 import { Input } from "./ui/input";
+import { Dialog } from "./ui/dialog";
+import { Toolbar } from "./ui/toolbar";
+import { SearchField } from "./ui/search-field";
+import { StatCard } from "./ui/stat-card";
+import { Select } from "./ui/select";
+import { Pagination } from "./ui/pagination";
+import { Table, TableHead } from "./ui/table";
+import { Panel, SectionHeader } from "./ui/panel";
 
 /** ADB list refresh while the device page is visible: plug-in detection (Python auto-connects saved devices on it). */
 export const ADB_POLL_MS = 2500;
@@ -49,12 +57,19 @@ export function DevicePage({
     error: unknown;
   } | null>(null);
   const [adbLoading, setAdbLoading] = useState(false);
+  const gridRef = useRef<HTMLDivElement>(null);
+  const [pageSize, setPageSize] = useState(6);
+  const [listPage, setListPage] = useState(1);
+  const [query, setQuery] = useState("");
+  const [stateFilter, setStateFilter] = useState("all");
+  const [transportFilter, setTransportFilter] = useState("all");
   const [devices, setDevices] = useState<Device[]>([]);
   const [loaded, setLoaded] = useState(false);
   const { has, track } = useBusy();
   const [error, setError] = useState<unknown>(null);
   /** The connect attempt that just failed with a connection problem: shown as 「逐项检查连接」. */
   const [checking, setChecking] = useState<{ transport: "adb" | "lan"; target: string } | null>(null);
+  const restoreAddFocus = useRef(true);
   const [address, setAddress] = useState("");
   const [scan, setScan] = useState<ScanState | null>(null);
   const [dbNotice, setDbNotice] = useState("");
@@ -271,8 +286,46 @@ export function DevicePage({
   const adbHint = (state: string) => (state === "unauthorized" ? t.adbUnauthorized : state === "offline" ? t.adbOffline : "");
   const pct = scan && scan.total ? Math.round((scan.done / scan.total) * 100) : 0;
 
+  const normalizedQuery = query.trim().toLocaleLowerCase();
+  const visibleDevices = devices.filter((d) =>
+    (stateFilter === "all" || d.state === stateFilter) &&
+    (transportFilter === "all" || d.transport === transportFilter) &&
+    (!normalizedQuery || [d.name, d.group, d.note, d.id, d.address, d.serial, d.info.name, d.info.model, d.info.brand]
+      .some((value) => value?.toLocaleLowerCase().includes(normalizedQuery))),
+  );
+  useEffect(() => { setListPage(1); }, [query, stateFilter, transportFilter]);
+  useEffect(() => {
+    const grid = gridRef.current;
+    if (!grid || typeof ResizeObserver === "undefined") return;
+    const observer = new ResizeObserver(([entry]) => {
+      const { width, height } = entry.contentRect;
+      if (!width || !height) return;
+      // Reserve the column header; fixed-height rows keep pagination within the workspace.
+      setPageSize(Math.max(1, Math.floor((height - 42) / 88)));
+    });
+    observer.observe(grid);
+    return () => observer.disconnect();
+  }, [loaded, devices.length === 0]);
+  const pages = Math.max(1, Math.ceil(visibleDevices.length / pageSize));
+  const currentPage = Math.min(listPage, pages);
+  useEffect(() => { setListPage((page) => Math.min(page, pages)); }, [pages]);
+  const pageDevices = visibleDevices.slice((currentPage - 1) * pageSize, currentPage * pageSize);
+  const filtered = Boolean(query || stateFilter !== "all" || transportFilter !== "all");
+  const resetFilters = () => { setQuery(""); setStateFilter("all"); setTransportFilter("all"); };
+
+  const feedback = <>
+    {error !== null && <ErrorBanner error={error} onDismiss={() => setError(null)} />}
+    {checking && <ConnectCheck key={checking.transport + ":" + checking.target} transport={checking.transport} target={checking.target}
+      onClose={() => setChecking(null)} onConnect={() => void (checking.transport === "adb" ? connectAdb(checking.target) : connectLan(checking.target))} />}
+  </>;
+
   return (
     <div className="page devices-page">
+      <div className="device-overview" aria-label={t.connected}>
+        <StatCard label={t.deviceFlow.totalDevices} value={devices.length} selected={stateFilter === "all"} onClick={() => setStateFilter("all")} />
+        <StatCard label={t.state.online} value={devices.filter((d) => d.state === "online").length} tone="success" selected={stateFilter === "online"} onClick={() => setStateFilter(stateFilter === "online" ? "all" : "online")} />
+        <StatCard label={t.state.offline} value={devices.filter((d) => d.state === "offline").length} selected={stateFilter === "offline"} onClick={() => setStateFilter(stateFilter === "offline" ? "all" : "offline")} />
+      </div>
       {dbNotice === "db.newer" && (
         <Alert tone="warn" role="status">
           <IconAlert size={16} />
@@ -285,22 +338,10 @@ export function DevicePage({
           <span className="grow">{t.saved.corrupt(dbDetail)}</span>
         </Alert>
       )}
-      {error !== null && <ErrorBanner error={error} onDismiss={() => setError(null)} />}
-      {checking && (
-        <ConnectCheck
-          key={checking.transport + ":" + checking.target}
-          transport={checking.transport}
-          target={checking.target}
-          onClose={() => setChecking(null)}
-          onConnect={() => void (checking.transport === "adb" ? connectAdb(checking.target) : connectLan(checking.target))}
-        />
-      )}
+      {!addOpen && feedback}
 
       <section aria-labelledby="h-connected">
-        <div className="section-head">
-          <h2 id="h-connected">{t.connected}</h2>
-          {devices.length > 0 && <span className="count">{devices.length}</span>}
-          <span className="grow" />
+        <SectionHeader title={t.connected} titleId="h-connected" count={devices.length || undefined} actions={<>
           {autoReconnect !== null && (
             <label className="check small" title={t.deviceFlow.autoReconnectHint}>
               <input type="checkbox" checked={autoReconnect} disabled={has("auto")} onChange={(e) => void toggleAuto(e.target.checked)} />
@@ -311,27 +352,41 @@ export function DevicePage({
             size="sm"
             variant={addOpen ? "default" : "primary"}
             aria-expanded={Boolean(addOpen)}
-            aria-controls="add-device"
+            aria-haspopup="dialog"
+            aria-controls={addOpen ? "add-device" : undefined}
             onClick={() => setAddOpen((o) => !o)}
           >
             <IconPlus size={14} />
             {t.deviceFlow.addDevice}
           </Button>
-        </div>
+        </>} />
+
+        {devices.length > 0 && <Toolbar label={t.deviceFlow.filters} actions={filtered && <Button variant="ghost" size="sm" onClick={resetFilters}>{t.deviceFlow.resetFilters}</Button>}>
+          <SearchField label={t.deviceFlow.search} clearLabel={t.deviceFlow.clearSearch} placeholder={t.deviceFlow.searchHint} value={query} onValueChange={setQuery} />
+          <label className="ui-filter-field"><span>{t.deviceFlow.statusFilter}</span>
+            <Select value={stateFilter} onChange={(e) => setStateFilter(e.target.value)}>
+              <option value="all">{t.deviceFlow.allStates}</option>
+              {["online", "offline", "connecting", "unpaired"].map((state) => <option key={state} value={state}>{t.state[state]}</option>)}
+            </Select>
+          </label>
+          <label className="ui-filter-field"><span>{t.deviceFlow.transportFilter}</span>
+            <Select value={transportFilter} onChange={(e) => setTransportFilter(e.target.value)}>
+              <option value="all">{t.deviceFlow.allTransports}</option><option value="adb">USB / ADB</option><option value="lan">{t.lanTitle}</option>
+            </Select>
+          </label>
+        </Toolbar>}
+        {loaded && devices.length > 0 && <p className="device-results muted" role="status" aria-live="polite">{t.deviceFlow.results(visibleDevices.length, devices.length)}</p>}
 
         {addOpen && (
+          <Dialog title={t.deviceFlow.addDevice} closeLabel={t.shortcuts.close} onClose={() => setAddOpen(false)}
+            restoreFocus={restoreAddFocus} initialFocus="#device-address" ownsKeys className="connect-dialog">
+            {feedback}
           <div id="add-device" className="add-device" aria-label={t.deviceFlow.addDevice} role="region">
-            <div className="add-col">
-              <div className="section-head">
-                <h3 id="h-adb">
-                  <IconUsb size={16} /> {t.adbDevices}
-                </h3>
-                <span className="grow" />
+            <Panel className="add-col" titleId="h-adb" level={3} title={<><IconUsb size={16} /> {t.adbDevices}</>} actions={
                 <Button size="sm" onClick={() => void loadAdb()} disabled={adb === null || adbLoading}>
-                  {adbLoading ? <Spinner /> : <IconRefresh size={14} />}
-                  {t.refresh}
+                  {adbLoading ? <Spinner /> : <IconRefresh size={14} />}{t.refresh}
                 </Button>
-              </div>
+            }>
               {adb === null && (
                 <div className="list" aria-busy="true" aria-label={t.adbLoading}>
                   <div className="skeleton" style={{ height: "3.25rem" }} />
@@ -391,14 +446,9 @@ export function DevicePage({
                   );
                 })}
               </ul>
-            </div>
+            </Panel>
 
-            <div className="add-col">
-              <div className="section-head">
-                <h3 id="h-lan">
-                  <IconWifi size={16} /> {t.lanTitle}
-                </h3>
-              </div>
+            <Panel className="add-col" titleId="h-lan" level={3} title={<><IconWifi size={16} /> {t.lanTitle}</>}>
               <p className="muted" style={{ marginBottom: "var(--sp-3)" }}>
                 {t.lanWarning}
               </p>
@@ -474,18 +524,30 @@ export function DevicePage({
                   ))}
                 </ul>
               )}
-            </div>
+            </Panel>
           </div>
+          </Dialog>
         )}
 
+        <div className="device-list-viewport" ref={gridRef}>
         {devices.length === 0 ? (
           <EmptyState icon={<IconPhone size={26} />} title={t.emptyDevicesTitle} role="status">
             {t.emptyDevicesDesc}
           </EmptyState>
+        ) : visibleDevices.length === 0 ? (
+          <EmptyState icon={<IconSearch size={26} />} title={t.deviceFlow.noResults} actions={<Button onClick={resetFilters}>{t.deviceFlow.resetFilters}</Button>}>
+            {t.deviceFlow.noResultsHint}
+          </EmptyState>
         ) : (
-          <div className="cards">
-            {devices.map((d) => (
-              <DeviceCard
+          <Table aria-label={t.connected} className="device-table">
+            <colgroup><col className="device-name-col" /><col className="device-state-col" /><col className="device-model-col" /><col className="device-address-col" /><col className="device-actions-col" /></colgroup>
+            <thead><tr>
+              <TableHead>{t.saved.name} / {t.saved.group}</TableHead><TableHead>{t.deviceFlow.statusFilter}</TableHead>
+              <TableHead className="device-model-cell">{t.info.model}</TableHead><TableHead>{t.deviceFlow.connection}</TableHead><TableHead className="device-actions-cell">{t.deviceFlow.actions}</TableHead>
+            </tr></thead>
+            <tbody>
+            {pageDevices.map((d) => (
+              <DeviceRow
                 key={d.id}
                 device={d}
                 current={d.id === devId}
@@ -498,8 +560,13 @@ export function DevicePage({
                 busy={has("rm:" + d.id) || has("fg:" + d.id) || has("re:" + d.id) || has("sv:" + d.id)}
               />
             ))}
-          </div>
+            </tbody>
+          </Table>
         )}
+        </div>
+        {pages > 1 && <Pagination page={currentPage} pages={pages} onPageChange={setListPage}
+          label={t.deviceFlow.pagination} previousLabel={t.deviceFlow.previousPage} nextLabel={t.deviceFlow.nextPage}
+          summary={t.deviceFlow.pageSummary(currentPage, pages)} />}
       </section>
     </div>
   );

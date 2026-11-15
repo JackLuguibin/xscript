@@ -1,3 +1,4 @@
+import { Toolbar } from "./ui/toolbar";
 import { useEffect, useState, type PointerEvent as RPointerEvent } from "react";
 import { useServices } from "../app-context";
 import type { Device } from "../api";
@@ -101,7 +102,7 @@ export function WallPage() {
   return (
     <div className="page">
       {error !== null && <ErrorBanner error={error} onDismiss={() => setError(null)} />}
-      <div className="row toolbar">
+      <Toolbar label={t.nav.wall}>
         <Button size="sm" type="button" onClick={() => setSelected(new Set(devices.filter((d) => d.state === "online").map((d) => d.id)))}>
           {t.wall.selectAll}
         </Button>
@@ -115,7 +116,7 @@ export function WallPage() {
             {t.projects[k]}
           </Button>
         ))}
-      </div>
+      </Toolbar>
       <p className="hint">{t.wall.hint}</p>
       <div className="wall-grid">
         {devices.map((d) => {

@@ -75,9 +75,9 @@ describe("empty / loading / error states", () => {
   it("screenshot states: idle placeholder → loading skeleton (button disabled) → loaded", async () => {
     const user = userEvent.setup();
     setup({ "device.list": () => ({ devices: [dev()] }) });
-    const card = await screen.findByRole("article");
+    const card = await screen.findByRole("row", { name: /^device / });
     await user.click(within(card).getByRole("button", { name: "adb:e 的详情" }));
-    expect(within(card).getByText("点击下方按钮获取截图")).toBeTruthy();
+    expect(within(card).getByText("点击右上角按钮获取截图")).toBeTruthy();
     await user.click(within(card).getByRole("button", { name: "刷新截图" }));
     expect(within(card).getByRole("status", { name: "正在截图…" })).toBeTruthy();
     expect((within(card).getByRole("button", { name: "刷新截图" }) as HTMLButtonElement).disabled).toBe(true);
@@ -91,7 +91,7 @@ describe("empty / loading / error states", () => {
 
   it("screenshot keeps the device aspect ratio so the frame does not jump", async () => {
     setup({ "device.list": () => ({ devices: [dev()] }) });
-    const card = await screen.findByRole("article");
+    const card = await screen.findByRole("row", { name: /^device / });
     fireEvent.click(within(card).getByRole("button", { name: "adb:e 的详情" }));
     const frame = card.querySelector(".shot-frame") as HTMLElement;
     expect(frame.style.aspectRatio.replace(/\s/g, "")).toBe("1080/2337");
@@ -99,10 +99,10 @@ describe("empty / loading / error states", () => {
 
   it("connecting devices get a warn badge, offline a bad one; the text is always present", async () => {
     setup({ "device.list": () => ({ devices: [dev({ id: "adb:a", state: "connecting" }), dev({ id: "adb:b", state: "offline" })] }) });
-    await screen.findAllByRole("article");
-    expect(screen.getByText("连接中").className).toContain("warn");
-    expect(screen.getByText("连接中").className).toContain("busy");
-    expect(screen.getByText("离线").className).toContain("bad");
+    await screen.findAllByRole("row", { name: /^device / });
+    expect(screen.getByText("连接中", { selector: ".badge" }).className).toContain("warn");
+    expect(screen.getByText("连接中", { selector: ".badge" }).className).toContain("busy");
+    expect(screen.getByText("离线", { selector: ".badge" }).className).toContain("bad");
   });
 });
 

@@ -50,7 +50,7 @@ describe("DevicePage — states and error paths", () => {
 
   it("restores already-connected devices (device.list) on mount", async () => {
     setup({ "device.list": () => ({ devices: [dev()] }) });
-    expect(await screen.findByRole("article", { name: "device adb:emulator-5554" })).toBeTruthy();
+    expect(await screen.findByRole("row", { name: "device adb:emulator-5554" })).toBeTruthy();
   });
 
   it("a connected device cannot be connected twice, and connect is disabled while another action is busy", async () => {
@@ -59,7 +59,7 @@ describe("DevicePage — states and error paths", () => {
     const btn = await screen.findByRole("button", { name: "连接 emulator-5554" });
     await user.click(btn);
     expect((screen.getByRole("button", { name: "连接 emulator-5554" }) as HTMLButtonElement).disabled).toBe(true); // busy
-    await screen.findByRole("article");
+    await screen.findByRole("row", { name: /^device / });
     expect((screen.getByRole("button", { name: "连接 emulator-5554" }) as HTMLButtonElement).disabled).toBe(true); // already connected
   });
 
@@ -96,7 +96,7 @@ describe("DevicePage — states and error paths", () => {
     await screen.findByRole("alert");
     ok = true;
     await user.click(screen.getByRole("button", { name: "连接 emulator-5554" }));
-    await screen.findByRole("article");
+    await screen.findByRole("row", { name: /^device / });
     expect(screen.queryByRole("alert")).toBeNull();
   });
 
@@ -111,18 +111,19 @@ describe("DevicePage — states and error paths", () => {
 
   it("device card: capture hint only without capture permission, warning/error banners, offline pill", async () => {
     setup({ "device.list": () => ({ devices: [dev({ state: "offline", error: "cannot reach", warning: "无鉴权", info: { ...info, capture: false } })] }) });
-    const card = await screen.findByRole("article");
+    const card = await screen.findByRole("row", { name: /^device / });
     expect(within(card).getByText("离线")).toBeTruthy();
     expect(within(card).getByText("cannot reach")).toBeTruthy();
-    expect(within(card).getByText("无鉴权")).toBeTruthy(); // banners stay visible on the compact card
+    expect(within(card).queryByText("无鉴权")).toBeNull(); // diagnostic content lives in the details dialog
     expect(within(card).queryByText(/录屏（图色）权限/)).toBeNull(); // the capture hint sits with the screenshot, under 详情
     fireEvent.click(within(card).getByRole("button", { name: "adb:emulator-5554 的详情" }));
+    expect(within(screen.getByRole("dialog")).getByText("无鉴权")).toBeTruthy();
     expect(within(card).getByText(/尚未授予录屏|尚未授予|录屏（图色）权限/)).toBeTruthy();
   });
 
   it("device card: no capture hint when capture is granted; unknown values render as an em dash", async () => {
     setup({ "device.list": () => ({ devices: [dev({ info: { ...info, ip: "", version: "" } })] }) });
-    const card = await screen.findByRole("article");
+    const card = await screen.findByRole("row", { name: /^device / });
     fireEvent.click(within(card).getByRole("button", { name: "adb:emulator-5554 的详情" }));
     expect(within(card).queryByText(/录屏（图色）权限/)).toBeNull();
     expect(within(card).getAllByText("—").length).toBeGreaterThanOrEqual(2);
@@ -131,11 +132,14 @@ describe("DevicePage — states and error paths", () => {
   it("screenshot: a failed image load shows the failure text and a retry works with a new URL", async () => {
     const user = userEvent.setup();
     setup({ "device.list": () => ({ devices: [dev()] }) });
-    await screen.findByRole("article");
+    await screen.findByRole("row", { name: /^device / });
     await user.click(screen.getByRole("button", { name: "adb:emulator-5554 的详情" }));
     await user.click(screen.getByRole("button", { name: "刷新截图" }));
     const img = (await screen.findByAltText("截图")) as HTMLImageElement;
     const first = img.getAttribute("src");
+    const query = new URL(first!, "http://localhost").searchParams;
+    expect(query.get("max")).toBe("native");
+    expect(query.get("format")).toBe("png");
     fireEvent.error(img);
     expect(await screen.findByText("截图失败")).toBeTruthy();
     expect(screen.queryByAltText("截图")).toBeNull();
@@ -144,6 +148,24 @@ describe("DevicePage — states and error paths", () => {
     const again = (await screen.findByAltText("截图")) as HTMLImageElement;
     expect(again.getAttribute("src")).not.toBe(first); // a fresh nonce: never the cached (or cached-failed) URL
     expect(screen.queryByText("截图失败")).toBeNull();
+  });
+
+  it("opens a loaded screenshot at native size and returns focus on close", async () => {
+    const user = userEvent.setup();
+    setup({ "device.list": () => ({ devices: [dev()] }) });
+    await user.click(await screen.findByRole("button", { name: "adb:emulator-5554 的详情" }));
+    await user.click(screen.getByRole("button", { name: "刷新截图" }));
+    const img = await screen.findByAltText("截图");
+    fireEvent.load(img);
+    const trigger = screen.getByRole("button", { name: "查看原始截图" });
+    await user.click(trigger);
+    const viewer = screen.getByRole("dialog", { name: "查看原始截图" });
+    expect(within(viewer).getByRole("button", { name: "100%" }).getAttribute("aria-pressed")).toBe("true");
+    expect(within(viewer).getByAltText("截图").getAttribute("src")).toBe(img.getAttribute("src"));
+    await user.click(within(viewer).getByRole("button", { name: "适应窗口" }));
+    await user.keyboard("{Escape}");
+    expect(screen.queryByRole("dialog", { name: "查看原始截图" })).toBeNull();
+    expect(document.activeElement).toBe(trigger);
   });
 
   it("device ids with special characters are URL-encoded in the screenshot path", async () => {
