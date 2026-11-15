@@ -12,6 +12,8 @@ export default defineConfig({
   // Monaco is imported file-by-file (src/editor/monaco-lean.ts) to leave out ~80 language packs; the package's
   // "exports" map only allows *.js, so the CSS it needs is reached through this alias. Everything is bundled (no CDN).
   resolve: { alias: { "monaco-esm": fileURLToPath(new URL("./node_modules/monaco-editor/esm/vs", import.meta.url)) } },
+  // Worker constructors must be transformed by Vite rather than prebundled as ordinary modules.
+  optimizeDeps: { exclude: ["monaco-esm/editor/editor.worker.js", "monaco-esm/editor/editor.worker.js?worker"] },
   base: "./",
   server: { port: 5173, strictPort: true, fs: { allow: [fileURLToPath(new URL("..", import.meta.url))] } },
   build: {

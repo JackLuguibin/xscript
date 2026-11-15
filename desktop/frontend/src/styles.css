@@ -12,6 +12,7 @@
 @import "./styles/controls.css" layer(controls);
 @import "./styles/base.css" layer(base);
 @import "@xyflow/react/dist/style.css" layer(vendor);
+@import "dockview-react/dist/styles/dockview.css" layer(vendor);
 @import "./styles/ui.css" layer(ui);
 @import "./styles/components.css" layer(components);
 @import "./styles/overrides.css";
