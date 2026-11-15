@@ -80,7 +80,8 @@ test('Web IDE native HTTP contract and packaged asset routes', {timeout:15000}, 
       // same caching as the device: a validator, revalidated each load; 304 without a body while it still matches
       const tag=r.headers.get('etag');assert.match(tag||'',/^"xs-/,url);assert.equal(r.headers.get('cache-control'),'no-cache',url);
       const again=await fetch(base+url,{headers:{'If-None-Match':tag}});assert.equal(again.status,304,url);assert.equal((await again.text()).length,0,url);
-      assert.equal((await fetch(base+url,{headers:{'If-None-Match':'"xs-other"'}})).status,200,url);
+      const changed=await fetch(base+url,{headers:{'If-None-Match':'"xs-other"'}});
+      assert.equal(changed.status,200,url);await changed.arrayBuffer();
     }
     // editor.html loads its scripts in one combo request: the files joined in the listed order, cached like the rest
     const html=await (await fetch(base+'/tools/ui/editor.html')).text();
