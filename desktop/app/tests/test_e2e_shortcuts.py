@@ -58,6 +58,7 @@ def ui(_shell, qtbot):
     sh.redirect[41000] = fd.port
     sh.win.resize(1100, 720)
     sh.reload(qtbot, "document.querySelector('main') && document.body.innerText.includes('emulator-5554')")
+    sh.click(qtbot, "关闭")  # Dismiss the initial add-device modal before testing global chords.
     sh.js(qtbot, _PRESS)
     return sh
 

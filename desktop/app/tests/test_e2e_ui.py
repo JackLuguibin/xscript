@@ -79,11 +79,11 @@ def test_e2e_02_connect_shows_info_screenshot_and_disconnect_cleans_forward(ui, 
     assert ui.js(qtbot, "document.querySelector('img[alt=\"截图\"]').naturalWidth") == 270  # the FakeDevice gradient, decoded by the browser
     ui.click(qtbot, "断开")
     ui.wait_text(qtbot, "离线")
-    ui.wait_no_text(qtbot, "在线")
+    ui.wait_js(qtbot, "[...document.querySelectorAll('tr.device-row .badge')].every(e => e.textContent !== '在线')")
     assert ui.fake.forwards == {}
-    assert ui.js(qtbot, "document.querySelectorAll('article').length") == 1  # saved device stays as an offline card
+    assert ui.js(qtbot, "document.querySelectorAll('tr.device-row').length") == 1  # saved device stays as an offline card
     ui.click(qtbot, "忘记 adb:emulator-5554")
-    ui.wait_js(qtbot, "document.querySelectorAll('article').length === 0")
+    ui.wait_js(qtbot, "document.querySelectorAll('tr.device-row').length === 0")
 
 
 def test_e2e_03_screenshot_failure_when_capture_not_authorised(ui, qtbot):
@@ -132,7 +132,7 @@ def test_e2e_06_connect_errors_surface_as_alerts(ui, qtbot, mode, code, title):
     assert "[%s]" % code not in ui.text(qtbot)
     ui.click(qtbot, "详情")
     ui.wait_text(qtbot, "[%s]" % code)
-    assert ui.js(qtbot, "document.querySelectorAll('article').length") == 0
+    assert ui.js(qtbot, "document.querySelectorAll('tr.device-row').length") == 0
     # the forwards created for the probe (and for the step-by-step check that opens after unreachable) are removed again
     qtbot.waitUntil(lambda: ui.fake.forwards == {}, timeout=10000)
     assert ui.js(qtbot, "!!document.querySelector('[role=alert]')") is True
@@ -147,12 +147,13 @@ def test_e2e_07_device_goes_offline_and_comes_back_via_pushed_events(ui, qtbot):
     ui.run_async(ui.ctx.devices.refresh("adb:emulator-5554"))
     ui.wait_text(qtbot, "离线")
     ui.wait_text(qtbot, "设备内部出错")  # the card's raw error goes through the same mapping (errorCode + status)
+    ui.click(qtbot, "adb:emulator-5554 的详情")
     ui.click(qtbot, "详情")
     ui.wait_text(qtbot, "[device.http]")
     assert "500" in ui.text(qtbot)
     ui.fake_device.mode = "ok"
     ui.run_async(ui.ctx.devices.refresh("adb:emulator-5554"))
-    ui.wait_no_text(qtbot, "离线")
+    ui.wait_js(qtbot, "[...document.querySelectorAll('tr.device-row .badge')].every(e => e.textContent !== '离线')")
     assert "在线" in ui.text(qtbot)
 
 
@@ -240,7 +241,7 @@ def test_e2e_15_reconnect_replaces_card_and_keeps_single_forward(ui, qtbot):
     assert r is None
     ui.run_async(ui.ctx.devices.connect_adb("emulator-5554"))
     assert len(ui.fake.forwards) == 1
-    assert ui.js(qtbot, "document.querySelectorAll('article').length") == 1
+    assert ui.js(qtbot, "document.querySelectorAll('tr.device-row').length") == 1
 
 
 def test_e2e_16_theme_button_switches_and_survives_reload(ui, qtbot):
@@ -261,7 +262,7 @@ METRICS_FONT = base64.b64encode((Path(__file__).parent / "fixtures" / "xs-metric
 
 # elements sticking out past the viewport, deepest first: "tag.class 'text' right=…px" (empty when nothing overflows)
 OVERFLOWING = """(() => { const w = document.documentElement.clientWidth;
-  return [...document.querySelectorAll('body *')].filter(e => e.getBoundingClientRect().right > w + 1 && ![...e.children].some(c => c.getBoundingClientRect().right > w + 1))
+  return [...document.querySelectorAll('body *')].filter(e => !e.closest('.device-list-viewport') && e.getBoundingClientRect().right > w + 1 && ![...e.children].some(c => c.getBoundingClientRect().right > w + 1))
     .slice(0, 8).map(e => `${e.tagName.toLowerCase()}${e.className && typeof e.className === 'string' ? '.' + e.className.trim().split(/\\s+/).join('.') : ''} '${(e.textContent || '').trim().slice(0, 40)}' right=${Math.round(e.getBoundingClientRect().right)}px > ${w}px`); })()"""
 
 
