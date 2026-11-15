@@ -10,7 +10,7 @@ for (const key of keys) {
 fs.mkdirSync(path.join(root, 'sidecar-build'), { recursive: true });
 fs.writeFileSync(path.join(root, 'sidecar-build/update-keys.json'), JSON.stringify({ keys }));
 const platformTools = path.join(root, 'sidecar-build/platform-tools');
-const fetched = spawnSync(python, [path.join(root, '../app/packaging/fetch_platform_tools.py'), process.platform, platformTools], { cwd: root, stdio: 'inherit' });
+const fetched = spawnSync(python, [path.join(root, '../app/packaging/fetch_platform_tools.py'), process.platform === 'win32' ? 'win' : process.platform, platformTools], { cwd: root, stdio: 'inherit' });
 if (fetched.status !== 0) process.exit(fetched.status ?? 1);
 const result = spawnSync(python, ['-m', 'PyInstaller', '--noconfirm', '--clean', '--name', 'xscript-service', '--onedir',
   '--distpath', path.join(root, 'sidecar-dist'), '--workpath', path.join(root, 'sidecar-build/pyinstaller'), '--specpath', path.join(root, 'sidecar-build'),

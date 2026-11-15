@@ -16,14 +16,18 @@ test('only the application or explicit dev origin is trusted', () => {
   assert.equal(trusted('http://localhost:5173/', 'http://localhost:5173'), true);
   assert.equal(trusted('http://localhost:5174/', 'http://localhost:5173'), false);
 });
-test('static resources reject traversal and symlink escapes', async () => {
+test('static resources reject traversal and symlink escapes', async (t) => {
   const temp = await fs.mkdtemp(path.join(os.tmpdir(), 'xscript-policy-'));
   try {
     const root = path.join(temp, 'web');
     await fs.mkdir(root);
     await fs.writeFile(path.join(root, 'index.html'), 'ok');
     await fs.writeFile(path.join(temp, 'secret'), 'secret');
-    await fs.symlink(path.join(temp, 'secret'), path.join(root, 'escape'));
+    try { await fs.symlink(path.join(temp, 'secret'), path.join(root, 'escape')); }
+    catch (error) {
+      if (process.platform !== 'win32' || error.code !== 'EPERM') throw error;
+      t.diagnostic('Runner cannot create symlinks; traversal checks still run');
+    }
     assert.equal(await staticPath(root, '/'), await fs.realpath(path.join(root, 'index.html')));
     for (const url of ['/../secret', '/%2e%2e/secret', '/escape', '/a%00', '/a%5cb']) assert.equal(await staticPath(root, url), null);
   } finally { await fs.rm(temp, { recursive: true, force: true }); }
