@@ -48,7 +48,7 @@ def test_e2e_p01_monaco_edit_save_run_logs_stop(shell, qtbot):
 
     sh.run_async(seed())
     sh.click(qtbot, "连接 emulator-5554")
-    sh.wait_text(qtbot, "在线")
+    sh.wait_device_state(qtbot, "adb:emulator-5554", "在线")
     click_js(sh, qtbot, btn_starting("工程"))
     click_js(sh, qtbot, btn_starting("e2e_proj"))
     click_js(sh, qtbot, btn_starting("__init__.py"))
@@ -81,7 +81,7 @@ def test_e2e_p02_mirror_frames_and_tap_becomes_action(shell, qtbot):
     sh = shell
     mock = __import__("mock_device")
     sh.click(qtbot, "连接 emulator-5554")
-    sh.wait_text(qtbot, "在线")
+    sh.wait_device_state(qtbot, "adb:emulator-5554", "在线")
     click_js(sh, qtbot, btn_starting("屏幕"))
     img = "document.querySelector('img[alt=\"设备屏幕\"]')"
     sh.wait_js(qtbot, "%s && %s.complete && %s.naturalWidth > 0" % (img, img, img), timeout=15000)
