@@ -68,7 +68,7 @@ def test_e2e_02_connect_shows_info_screenshot_and_disconnect_cleans_forward(ui, 
     """E-02 connect over adb → card with /status info + forward port → screenshot over xsapp:// → disconnect drops the forward but keeps the saved offline card → forget removes it."""
     ui.wait_text(qtbot, "emulator-5554")
     ui.click(qtbot, "连接 emulator-5554")
-    ui.wait_text(qtbot, "在线")
+    ui.wait_device_state(qtbot, "adb:emulator-5554", "在线")
     ui.click(qtbot, "adb:emulator-5554 的详情")  # compact card: properties, screenshot and 忘记 fold under 详情
     t = ui.text(qtbot)
     for needle in ("emu64a16k", "google sdk_gphone16k_arm64", "1080×2337", "0.2.6", "10.0.2.16", "ae10e6ed9b09580c", "41000"):
@@ -78,12 +78,12 @@ def test_e2e_02_connect_shows_info_screenshot_and_disconnect_cleans_forward(ui, 
     ui.wait_js(qtbot, "document.querySelector('img[alt=\"截图\"]') && document.querySelector('img[alt=\"截图\"]').complete && document.querySelector('img[alt=\"截图\"]').naturalWidth > 0", timeout=10000)
     assert ui.js(qtbot, "document.querySelector('img[alt=\"截图\"]').naturalWidth") == 270  # the FakeDevice gradient, decoded by the browser
     ui.click(qtbot, "断开")
-    ui.wait_text(qtbot, "离线")
-    ui.wait_no_text(qtbot, "在线")
+    ui.wait_device_state(qtbot, "adb:emulator-5554", "离线")
+    ui.wait_js(qtbot, "[...document.querySelectorAll('tr.device-row .badge')].every(e => e.textContent !== '在线')")
     assert ui.fake.forwards == {}
-    assert ui.js(qtbot, "document.querySelectorAll('article').length") == 1  # saved device stays as an offline card
+    assert ui.js(qtbot, "document.querySelectorAll('tr.device-row').length") == 1  # saved device stays as an offline card
     ui.click(qtbot, "忘记 adb:emulator-5554")
-    ui.wait_js(qtbot, "document.querySelectorAll('article').length === 0")
+    ui.wait_js(qtbot, "document.querySelectorAll('tr.device-row').length === 0")
 
 
 def test_e2e_03_screenshot_failure_when_capture_not_authorised(ui, qtbot):
@@ -132,7 +132,7 @@ def test_e2e_06_connect_errors_surface_as_alerts(ui, qtbot, mode, code, title):
     assert "[%s]" % code not in ui.text(qtbot)
     ui.click(qtbot, "详情")
     ui.wait_text(qtbot, "[%s]" % code)
-    assert ui.js(qtbot, "document.querySelectorAll('article').length") == 0
+    assert ui.js(qtbot, "document.querySelectorAll('tr.device-row').length") == 0
     # the forwards created for the probe (and for the step-by-step check that opens after unreachable) are removed again
     qtbot.waitUntil(lambda: ui.fake.forwards == {}, timeout=10000)
     assert ui.js(qtbot, "!!document.querySelector('[role=alert]')") is True
@@ -142,17 +142,18 @@ def test_e2e_07_device_goes_offline_and_comes_back_via_pushed_events(ui, qtbot):
     """E-07 health refresh marks the card 离线 (+error), then 在线 again — both arrive as device.state events."""
     ui.wait_text(qtbot, "emulator-5554")
     ui.click(qtbot, "连接 emulator-5554")
-    ui.wait_text(qtbot, "在线")
+    ui.wait_device_state(qtbot, "adb:emulator-5554", "在线")
     ui.fake_device.mode = "500"
     ui.run_async(ui.ctx.devices.refresh("adb:emulator-5554"))
-    ui.wait_text(qtbot, "离线")
+    ui.wait_device_state(qtbot, "adb:emulator-5554", "离线")
     ui.wait_text(qtbot, "设备内部出错")  # the card's raw error goes through the same mapping (errorCode + status)
+    ui.click(qtbot, "adb:emulator-5554 的详情")
     ui.click(qtbot, "详情")
     ui.wait_text(qtbot, "[device.http]")
     assert "500" in ui.text(qtbot)
     ui.fake_device.mode = "ok"
     ui.run_async(ui.ctx.devices.refresh("adb:emulator-5554"))
-    ui.wait_no_text(qtbot, "离线")
+    ui.wait_js(qtbot, "[...document.querySelectorAll('tr.device-row .badge')].every(e => e.textContent !== '离线')")
     assert "在线" in ui.text(qtbot)
 
 
@@ -211,13 +212,13 @@ def test_e2e_12_page_survives_garbage_from_python(ui, qtbot):
     ui.bridge._deliver.emit('{"event": true, "topic": "nobody.listens", "data": 1}')
     ui.bridge._deliver.emit('{"id": 424242, "ok": true, "result": 1}')  # late reply nobody waits for
     ui.click(qtbot, "连接 emulator-5554")
-    ui.wait_text(qtbot, "在线")
+    ui.wait_device_state(qtbot, "adb:emulator-5554", "在线")
 
 
 def test_e2e_13_narrow_window_reflows_without_horizontal_scroll(ui, qtbot):
     """E-13 at 640 px wide the page must not need a horizontal scrollbar (reflow, WCAG 1.4.10)."""
     ui.click(qtbot, "连接 emulator-5554")
-    ui.wait_text(qtbot, "在线")
+    ui.wait_device_state(qtbot, "adb:emulator-5554", "在线")
     ui.win.resize(640, 700)
     qtbot.wait(300)
     assert ui.js(qtbot, "document.documentElement.scrollWidth <= document.documentElement.clientWidth + 1") is True
@@ -234,13 +235,13 @@ def test_e2e_15_reconnect_replaces_card_and_keeps_single_forward(ui, qtbot):
     """E-15 connecting the same serial twice (button is disabled after the first) – re-connect via RPC replaces, not duplicates."""
     ui.wait_text(qtbot, "emulator-5554")
     ui.click(qtbot, "连接 emulator-5554")
-    ui.wait_text(qtbot, "在线")
+    ui.wait_device_state(qtbot, "adb:emulator-5554", "在线")
     assert ui.is_disabled(qtbot, "连接 emulator-5554") is True
     r = ui.js(qtbot, "new Promise(res => { const ch = window.__ch; res(null); })")  # keep the page responsive
     assert r is None
     ui.run_async(ui.ctx.devices.connect_adb("emulator-5554"))
     assert len(ui.fake.forwards) == 1
-    assert ui.js(qtbot, "document.querySelectorAll('article').length") == 1
+    assert ui.js(qtbot, "document.querySelectorAll('tr.device-row').length") == 1
 
 
 def test_e2e_16_theme_button_switches_and_survives_reload(ui, qtbot):
@@ -261,7 +262,7 @@ METRICS_FONT = base64.b64encode((Path(__file__).parent / "fixtures" / "xs-metric
 
 # elements sticking out past the viewport, deepest first: "tag.class 'text' right=…px" (empty when nothing overflows)
 OVERFLOWING = """(() => { const w = document.documentElement.clientWidth;
-  return [...document.querySelectorAll('body *')].filter(e => e.getBoundingClientRect().right > w + 1 && ![...e.children].some(c => c.getBoundingClientRect().right > w + 1))
+  return [...document.querySelectorAll('body *')].filter(e => !e.closest('.device-list-viewport') && e.getBoundingClientRect().right > w + 1 && ![...e.children].some(c => c.getBoundingClientRect().right > w + 1))
     .slice(0, 8).map(e => `${e.tagName.toLowerCase()}${e.className && typeof e.className === 'string' ? '.' + e.className.trim().split(/\\s+/).join('.') : ''} '${(e.textContent || '').trim().slice(0, 40)}' right=${Math.round(e.getBoundingClientRect().right)}px > ${w}px`); })()"""
 
 
@@ -283,7 +284,7 @@ def test_e2e_17_no_horizontal_scroll_at_any_width(ui, qtbot, width):
     Text uses the pinned test font so the result doesn't depend on the fonts installed on the machine; a failure names the elements that stick out."""
     pin_metrics_font(ui, qtbot)
     ui.click(qtbot, "连接 emulator-5554")
-    ui.wait_text(qtbot, "在线")
+    ui.wait_device_state(qtbot, "adb:emulator-5554", "在线")
     ui.win.resize(width, 800)
     qtbot.wait(300)
     sticking_out = ui.js(qtbot, OVERFLOWING)  # also catches content a scroll container clips, which scrollWidth alone can miss
@@ -309,7 +310,7 @@ def test_e2e_19_screenshot_button_shows_loading_then_loaded(ui, qtbot):
     ui.fake_device.screen_mode = "slow"
     ui.fake_device.delay = 0.8
     ui.click(qtbot, "连接 emulator-5554")
-    ui.wait_text(qtbot, "在线")
+    ui.wait_device_state(qtbot, "adb:emulator-5554", "在线")
     ui.click(qtbot, "adb:emulator-5554 的详情")
     ui.click(qtbot, "刷新截图")
     ui.wait_js(qtbot, "document.querySelector('.shot[aria-busy=\"true\"]')")

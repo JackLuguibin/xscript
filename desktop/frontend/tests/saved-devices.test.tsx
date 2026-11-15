@@ -39,8 +39,8 @@ function setup(handlers: ConstructorParameters<typeof MemoryTransport>[0]) {
 describe("saved devices", () => {
   it("shows an offline saved card with name, group and transport, and no capture nag", async () => {
     setup({ "device.list": () => ({ devices: [saved()] }) });
-    const card = await screen.findByRole("article", { name: "device adb:emulator-5554" });
-    expect(within(card).getByRole("heading", { name: "实验室" })).toBeTruthy();
+    const card = await screen.findByRole("row", { name: "device adb:emulator-5554" });
+    expect(within(card).getByText("实验室")).toBeTruthy();
     expect(within(card).getByText("甲")).toBeTruthy();
     expect(within(card).getByText("离线")).toBeTruthy();
     expect(within(card).getByText("adb emulator-5554")).toBeTruthy();
@@ -55,13 +55,31 @@ describe("saved devices", () => {
     expect(within(card).queryByText(/录屏（图色）权限/)).toBeNull();
   });
 
+  it("fills missing metadata with defaults and submits them only on save", async () => {
+    const user = userEvent.setup();
+    const transport = setup({
+      "device.list": () => ({ devices: [saved({ name: "", group: "", note: "", state: "online" })] }),
+      "device.update": () => saved(),
+    });
+    const row = await screen.findByRole("row", { name: "device adb:emulator-5554" });
+    await user.click(within(row).getByRole("button", { name: "adb:emulator-5554 的详情" }));
+    const name = screen.getByLabelText("名称 adb:emulator-5554") as HTMLInputElement;
+    expect(name.value).toBe("emu");
+    expect(screen.getByLabelText("分组 adb:emulator-5554")).toHaveProperty("value", "默认分组");
+    expect(screen.getByLabelText("备注 adb:emulator-5554")).toHaveProperty("value", "USB / ADB · emulator-5554");
+    expect(name.closest("form")?.querySelector("dl")).toBeTruthy();
+    expect(transport.sent.some((message) => message.method === "device.update")).toBe(false);
+    await user.click(screen.getByRole("button", { name: "保存 adb:emulator-5554" }));
+    await waitFor(() => expect(transport.sent.find((message) => message.method === "device.update")?.params).toMatchObject({ name: "emu", group: "默认分组", note: "USB / ADB · emulator-5554" }));
+  });
+
   it("saves name, group, note and auto-connect through device.update", async () => {
     const user = userEvent.setup();
     const t = setup({
       "device.list": () => ({ devices: [saved()] }),
       "device.update": (p) => saved({ name: String(p.name), group: String(p.group), note: String(p.note), autoConnect: Boolean(p.autoConnect), state: "offline" }),
     });
-    const card = await screen.findByRole("article");
+    const card = await screen.findByRole("row", { name: /^device / });
     await user.click(within(card).getByRole("button", { name: "adb:emulator-5554 的详情" }));
     await user.clear(within(card).getByLabelText("名称 adb:emulator-5554"));
     await user.type(within(card).getByLabelText("名称 adb:emulator-5554"), "新名字");
@@ -70,7 +88,7 @@ describe("saved devices", () => {
     await waitFor(() => expect(t.sent.some((m) => m.method === "device.update")).toBe(true));
     const params = t.sent.find((m) => m.method === "device.update")?.params;
     expect(params).toMatchObject({ id: "adb:emulator-5554", name: "新名字", group: "甲", note: "门口", autoConnect: true });
-    expect(await screen.findByRole("heading", { name: "新名字" })).toBeTruthy();
+    expect(await screen.findByText("新名字", { selector: "strong" })).toBeTruthy();
   });
 
   it("disconnect keeps the saved card offline; forget removes it", async () => {
@@ -81,13 +99,13 @@ describe("saved devices", () => {
       "device.disconnect": () => ({ removed: true, device: saved() }),
       "device.forget": () => ({ forgotten: true }),
     });
-    const card = await screen.findByRole("article");
+    const card = await screen.findByRole("row", { name: /^device / });
     await user.click(within(card).getByRole("button", { name: "断开" }));
     expect(await within(card).findByText("离线")).toBeTruthy();
     expect(t.sent.some((m) => m.method === "device.disconnect")).toBe(true);
     await user.click(within(card).getByRole("button", { name: "adb:emulator-5554 的详情" }));
     await user.click(within(card).getByRole("button", { name: "忘记 adb:emulator-5554" }));
-    await waitFor(() => expect(screen.queryByRole("article")).toBeNull());
+    await waitFor(() => expect(screen.queryByRole("row", { name: /^device / })).toBeNull());
     expect(t.sent.some((m) => m.method === "device.forget")).toBe(true);
   });
 
@@ -99,7 +117,7 @@ describe("saved devices", () => {
     });
     await user.click(await screen.findByRole("button", { name: "重试 emulator-5554" }));
     await waitFor(() => expect(t.sent.find((m) => m.method === "device.connect")?.params).toEqual({ transport: "adb", serial: "emulator-5554" }));
-    expect(await screen.findByText("在线")).toBeTruthy();
+    expect(await screen.findByText("在线", { selector: ".badge" })).toBeTruthy();
   });
 
   it("shows the read-only database notice", async () => {

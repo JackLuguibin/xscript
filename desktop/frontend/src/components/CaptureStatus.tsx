@@ -3,6 +3,7 @@ import { t } from "../strings";
 import { IconAlert, IconPhone, IconRefresh } from "./icons";
 import { Alert } from "./ui/alert";
 import { Button } from "./ui/button";
+import { HelpButton } from "./ui/help-button";
 
 export type CaptureState =
   | { kind: "ok"; via: string; lost: boolean }
@@ -35,12 +36,14 @@ export function CaptureChip({ state }: { state: CaptureState }) {
 
 /** The 截图状态 card: shown when the device cannot capture, with what happened and how to restore it. */
 export function CaptureCard({
+  compact = false,
   state,
   onRecheck,
   busy,
   onRequest,
   requested,
 }: {
+  compact?: boolean;
   state: CaptureState;
   onRecheck: () => void;
   busy: boolean;
@@ -56,12 +59,21 @@ export function CaptureCard({
       <IconAlert size={16} />
       <div className="grow">
         <strong>{lost ? t.capture.lostTitle : t.capture.noneTitle}</strong>
+        {compact ? <HelpButton title={t.mirror.interactionHelp} closeLabel={t.shortcuts.close}>
         <p>{lost ? t.capture.lostBody : t.capture.noneBody}</p>
         <ol>
           {(lost ? t.capture.lostSteps : t.capture.noneSteps).map((s) => (
             <li key={s}>{s}</li>
           ))}
         </ol>
+        </HelpButton> : <>
+        <p>{lost ? t.capture.lostBody : t.capture.noneBody}</p>
+        <ol>
+          {(lost ? t.capture.lostSteps : t.capture.noneSteps).map((s) => (
+            <li key={s}>{s}</li>
+          ))}
+        </ol>
+        </>}
         {requested && (
           <p role="status" className="capture-requested">
             {requested === "sent" ? t.capture.requested : t.capture.requestOld}

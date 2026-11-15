@@ -92,25 +92,29 @@ const actions = (transport: ReturnType<typeof createDemoTransport>) => transport
 const frameEl = () => screen.getByLabelText("设备屏幕（点一下后可直接打字，Enter 发送）");
 
 describe("MirrorPage layout (H3)", () => {
-  it("portrait fits the window height; a landscape stream stacks the layout; 1:1 scrolls inside the window height", async () => {
+  it("fits portrait and landscape inside the available stage; 1:1 scrolls inside that height", async () => {
     const { transport } = await setup();
     await screen.findByAltText("设备屏幕");
     const fr = frameEl();
-    const grid = fr.parentElement!;
-    // jsdom: innerHeight 768, frame top 0 → 744 px available
+    const stage = fr.parentElement!;
+    const grid = stage.parentElement!;
+    vi.spyOn(stage, "getBoundingClientRect").mockReturnValue({ width: 640, height: 600, top: 0, left: 0, right: 640, bottom: 600, x: 0, y: 0, toJSON: () => ({}) });
+    fireEvent(window, new Event("resize"));
+    // The stage reserves 16px padding on each side: 608 × 568 available.
     await act(async () => {
       transport.push({ event: true, topic: "mirror.frame", data: { id: "adb:emulator-5554", seq: 2, w: 1080, h: 2340 } });
     });
     expect(grid.className).not.toContain("stacked");
-    expect(fr.style.width).toBe(`${Math.floor((744 * 1080) / 2340)}px`);
+    expect(fr.style.width).toBe(`${Math.floor((568 * 1080) / 2340)}px`);
     await act(async () => {
       transport.push({ event: true, topic: "mirror.frame", data: { id: "adb:emulator-5554", seq: 3, w: 2340, h: 1080 } });
     });
     expect(grid.className).toContain("stacked");
+    expect(fr.style.width).toBe("608px");
     fireEvent.click(screen.getByRole("button", { name: "1:1" }));
     expect(screen.getByRole("button", { name: "1:1" }).getAttribute("aria-pressed")).toBe("true");
     expect(fr.className).toContain("actual");
-    expect(fr.style.maxHeight).toBe("744px");
+    expect(fr.style.maxHeight).toBe("568px");
     expect((fr.querySelector(".mirror-shot") as HTMLElement).style.width).toBe("2340px");
   });
 });

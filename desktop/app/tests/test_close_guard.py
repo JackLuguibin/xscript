@@ -198,7 +198,7 @@ def test_e2e_real_frontend_edit_switch_pages_then_close(qapp, qtbot, mock_device
 
         sh.run_async(seed())
         sh.click(qtbot, "连接 emulator-5554")
-        sh.wait_text(qtbot, "在线")
+        sh.wait_device_state(qtbot, "adb:emulator-5554", "在线")
 
         def click_js(selector_js: str) -> None:
             qtbot.waitUntil(lambda: bool(sh._eval(qtbot, "(() => { const b = %s; if (!b) return false; b.click(); return true; })()" % selector_js)), timeout=8000)

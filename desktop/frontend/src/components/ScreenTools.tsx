@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { useServices } from "../app-context";
 import type { Device } from "../api";
 import { t } from "../strings";
@@ -7,14 +7,18 @@ import { useToast } from "./Toast";
 import { flattenTree, hitTest, nodeLabel, nodeXPath, rectPercent, selectorCode, type UiNode, type UiRect, type UiTree } from "../ui-tree";
 import { Button } from "./ui/button";
 import { Input } from "./ui/input";
+import { Panel } from "./ui/panel";
+import { HelpButton } from "./ui/help-button";
+import { TreeView, type TreeEntry } from "./ui/tree-view";
 import { Textarea } from "./ui/textarea";
 import { sendToCanvas } from "../flow/inbox";
 
 export type PointerMode = "control" | "inspect" | "color";
 
-const TOOL_PAGES = ["color", "label", "mirror", "home"] as const;
-
 export function ScreenTools({
+  compact = false,
+  inputContent,
+  renderLayout,
   device,
   mode,
   onMode,
@@ -23,6 +27,9 @@ export function ScreenTools({
   onHit,
   toast: toastProp,
 }: {
+  compact?: boolean;
+  inputContent?: ReactNode;
+  renderLayout?: (controls: ReactNode, tree: ReactNode) => ReactNode;
   device: Device;
   mode: PointerMode;
   onMode: (m: PointerMode) => void;
@@ -32,11 +39,10 @@ export function ScreenTools({
   /** The host page's toast; without one the panel shows its own. */
   toast?: (text: string) => void;
 }) {
-  const { api, inShell } = useServices();
+  const { api } = useServices();
   const [fullTree, setFullTree] = useState(true);
   const [noSystem, setNoSystem] = useState(false);
   const [query, setQuery] = useState("");
-  const [visibleRows, setVisibleRows] = useState(400);
   const request = useRef(0);
   const treeMode = (fullTree ? 1 : 0) | (noSystem ? 2 : 0);
   const [tree, setTree] = useState<UiTree | null>(null);
@@ -87,7 +93,6 @@ export function ScreenTools({
       const data = (await api.uiTree(devId, treeMode)) as UiTree;
       if (token !== request.current) return;
       if (data.error) throw new Error(t.inspect.readError(data.error));
-      setVisibleRows(400);
       applyTree({ ...data, mode: treeMode }, point);
     } catch (e) {
       if (token !== request.current) return;
@@ -139,7 +144,16 @@ export function ScreenTools({
   const allRows = tree ? flattenTree(tree.roots ?? []) : [];
   const search = query.trim().toLocaleLowerCase();
   const matches = search ? allRows.filter(({ node }) => [node.text, node.desc, node.id, node.type, node.path].some((v) => v?.toLocaleLowerCase().includes(search))) : allRows;
-  const rows = matches.slice(0, visibleRows);
+  const entries = (nodes: UiNode[], prefix = ""): TreeEntry<UiNode>[] => nodes.map((node, index) => ({
+    id: `${prefix}/${index}`, label: nodeLabel(node), value: node,
+    searchText: [node.text, node.desc, node.id, node.type, node.path].filter(Boolean).join(" "),
+    children: node.children ? entries(node.children, `${prefix}/${index}`) : undefined,
+  }));
+  const treeEntries = useMemo(() => entries(tree?.roots ?? []), [tree]);
+  const selectNode = (node: UiNode) => {
+    setSelected(node); setMiss(false);
+    onHit(node.rect ?? null, { w: tree?.width || 0, h: tree?.height || 0 });
+  };
 
   const copy = async (text: string) => {
     setError(null);
@@ -152,23 +166,31 @@ export function ScreenTools({
     }
   };
 
-  const openTool = async (page: (typeof TOOL_PAGES)[number]) => {
-    setError(null);
-    setNotice("");
-    try {
-      const res = await api.toolsOpen(devId, page);
-      const name = t.tools[page];
-      const opened = inShell ? t.tools.opened(name) : `${t.tools.demo} ${res.url}`;
-      // a warning (e.g. plain-HTTP LAN) must stay readable, so only the plain success becomes a toast
-      if (res.warning) setNotice(`${opened} ${res.warning}`);
-      else toast(opened);
-    } catch (e) {
-      setError(e);
-    }
-  };
+  const treePanel = (
+      <Panel title={t.inspect.tree} className="inspect-tree-panel" actions={
+        <Button size="sm" onClick={() => { void refresh().catch((e) => setError(e)); }}>
+          {t.inspect.refresh}
+        </Button>
+      }>
+        <div className="row wrap">
+          <label><input type="checkbox" checked={fullTree} onChange={(e) => setFullTree(e.target.checked)} />{t.inspect.fullTree}</label>
+          <label><input type="checkbox" checked={noSystem} onChange={(e) => setNoSystem(e.target.checked)} />{t.inspect.noSystem}</label>
+        </div>
+        <Input type="search" aria-label={t.inspect.search} placeholder={t.inspect.search} value={query} onChange={(e) => { setQuery(e.target.value); }} />
+        {tree && <p className="hint" role="status">{t.inspect.count(matches.length, allRows.length)}</p>}
+        {tree && allRows.length === 0 && <p className="muted">{t.inspect.noNodes}</p>}
+        {tree && allRows.length > 0 && matches.length === 0 && <p className="muted">{t.inspect.noMatch}</p>}
+        {!tree && <p className="muted">{t.inspect.empty}</p>}
+        {miss && !selected && <p className="muted">{t.inspect.noHit}</p>}
+        {tree && allRows.length > 0 && <TreeView label={t.inspect.tree} entries={treeEntries} query={query} selected={selected} onSelect={selectNode}
+          previousLabel={t.deviceFlow.previousPage} nextLabel={t.deviceFlow.nextPage} pageSummary={t.deviceFlow.pageSummary} />}
 
-  return (
-    <div className="screen-tools">
+      </Panel>
+  );
+
+  const controls = (
+      <div className="inspector-control-region">
+      {inputContent}
       <fieldset className="mode-row">
         <legend>{t.inspect.mode}</legend>
         {(
@@ -183,9 +205,10 @@ export function ScreenTools({
             {label}
           </label>
         ))}
+      {compact && <HelpButton title={t.mirror.interactionHelp} closeLabel={t.shortcuts.close}><p className="hint">{t.mirror.hint}</p></HelpButton>}
       </fieldset>
       <p className="hint" role="status">
-        {t.inspect.coords}：{hover ? `(${hover.x}, ${hover.y})` : t.inspect.none}
+        {t.inspect.coords}：{hover ? `(${hover.x}, ${hover.y})` : compact ? "—" : t.inspect.none}
         {color ? ` · ${t.inspect.colorLabel} ${color}` : ""}
       </p>
       {color && <span className="swatch" style={{ background: color }} aria-hidden="true" />}
@@ -196,12 +219,9 @@ export function ScreenTools({
         </p>
       )}
       <div className="row wrap">
-        <Button size="sm" onClick={() => void refresh().catch((e) => setError(e))}>
-          {t.inspect.refresh}
-        </Button>
         <Button size="sm"
           type="button"
-         
+
           onClick={() => {
             setError(null);
             setNotice("");
@@ -214,49 +234,9 @@ export function ScreenTools({
           {t.inspect.saveShot}
         </Button>
       </div>
-      <div className="panel tight">
-        <h2>{t.inspect.tree}</h2>
-        <div className="row wrap">
-          <label><input type="checkbox" checked={fullTree} onChange={(e) => setFullTree(e.target.checked)} />{t.inspect.fullTree}</label>
-          <label><input type="checkbox" checked={noSystem} onChange={(e) => setNoSystem(e.target.checked)} />{t.inspect.noSystem}</label>
-        </div>
-        <Input type="search" aria-label={t.inspect.search} placeholder={t.inspect.search} value={query} onChange={(e) => { setQuery(e.target.value); setVisibleRows(400); }} />
-        {tree && <p className="hint" role="status">{t.inspect.count(matches.length, allRows.length)}</p>}
-        {tree && allRows.length === 0 && <p className="muted">{t.inspect.noNodes}</p>}
-        {tree && allRows.length > 0 && matches.length === 0 && <p className="muted">{t.inspect.noMatch}</p>}
-        {!tree && <p className="muted">{t.inspect.empty}</p>}
-        {miss && !selected && <p className="muted">{t.inspect.noHit}</p>}
-        {rows.length > 0 && (
-          <div className="tree-scroll" role="tree" aria-label={t.inspect.tree}>
-            {rows.map((row, i) =>
-              row.truncated ? (
-                <p key="more" className="muted">
-                  …
-                </p>
-              ) : (
-                <Button variant="bare" className="tree-item"
-                  key={`${row.node.path || i}`}
-                  type="button"
-                  role="treeitem"
-                 
-                  aria-selected={selected === row.node}
-                  style={{ paddingLeft: `${8 + row.depth * 12}px` }}
-                  onClick={() => {
-                    setSelected(row.node);
-                    setMiss(false);
-                    onHit(row.node.rect ?? null, { w: tree?.width || 0, h: tree?.height || 0 });
-                  }}
-                >
-                  {nodeLabel(row.node)}
-                </Button>
-              ),
-            )}
-          </div>
-        )}
-        {matches.length > visibleRows && <Button size="sm" type="button" onClick={() => setVisibleRows((n) => n + 400)}>{t.inspect.showMore(matches.length - visibleRows)}</Button>}
+      <Panel title={t.inspect.attributes} className="inspect-attributes-panel">
         {selected && (
           <>
-            <h3>{t.inspect.attributes}</h3>
             <dl className="grid gap-sp-1 text-sm">
               {Object.entries(selected).filter(([key]) => key !== "children").map(([key, value]) => (
                 <div key={key} className="grid grid-cols-[6rem_minmax(0,1fr)] gap-sp-2"><dt className="text-muted">{key}</dt><dd className="m-0 break-all">{typeof value === "object" ? JSON.stringify(value) : String(value)}</dd></div>
@@ -280,20 +260,21 @@ export function ScreenTools({
             </div>
           </>
         )}
+
+      </Panel>
       </div>
-      <div className="panel tight">
-        <h2>{t.tools.title}</h2>
-        <p className="hint">{t.tools.hint}</p>
-        <div className="row wrap">
-          {TOOL_PAGES.map((page) => (
-            <Button size="sm" key={page} type="button" onClick={() => void openTool(page)}>
-              {t.tools[page]}
-            </Button>
-          ))}
+  );
+
+  return (
+    <>
+      {renderLayout ? renderLayout(controls, treePanel) : (
+        <div className={compact ? "screen-tools screen-tools-split" : "screen-tools"}>
+          {controls}
+          {treePanel}
         </div>
-      </div>
+      )}
       {!toastProp && local.toasts}
-    </div>
+    </>
   );
 }
 

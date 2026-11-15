@@ -105,10 +105,10 @@ describe("current device (H4)", () => {
       await api.connectAdb("emulator-5554");
       await api.connectLan("10.0.0.8:9860");
     });
-    const cards = await screen.findAllByRole("article");
-    await waitFor(() => expect(screen.getAllByRole("article")).toHaveLength(2));
+    const cards = await screen.findAllByRole("row", { name: /^device / });
+    await waitFor(() => expect(screen.getAllByRole("row", { name: /^device / })).toHaveLength(2));
     expect(cards[0].getAttribute("aria-current")).toBe("true");
-    const lan = screen.getByRole("article", { name: "device lan:10.0.0.8:9860" });
+    const lan = screen.getByRole("row", { name: "device lan:10.0.0.8:9860" });
     await user.click(within(lan).getByRole("button", { name: /的屏幕$/ }));
     expect(screen.getByRole("heading", { level: 1 }).textContent).toBe("屏幕");
     expect((screen.getByRole("combobox", { name: "当前设备" }) as HTMLSelectElement).value).toBe("lan:10.0.0.8:9860");
@@ -117,7 +117,7 @@ describe("current device (H4)", () => {
     expect(screen.queryByRole("combobox", { name: "设备" })).toBeNull();
 
     await user.click(within(screen.getByRole("navigation", { name: "main" })).getByRole("button", { name: "设备" }));
-    const adb = await screen.findByRole("article", { name: "device adb:emulator-5554" });
+    const adb = await screen.findByRole("row", { name: "device adb:emulator-5554" });
     await user.click(within(adb).getByRole("button", { name: /的工程$/ }));
     expect(screen.getByRole("heading", { level: 1 }).textContent).toBe("工程");
     await waitFor(() => expect(transport.sent.some((m) => m.method === "project.list" && m.params?.id === "adb:emulator-5554")).toBe(true));
@@ -125,7 +125,7 @@ describe("current device (H4)", () => {
 
   it("an offline card has no shortcuts, only 重试", async () => {
     page({ "device.list": () => ({ devices: [dev({ state: "offline", forwardPort: 0 })] }) });
-    const card = await screen.findByRole("article");
+    const card = await screen.findByRole("row", { name: /^device / });
     expect(within(card).queryByRole("button", { name: /的屏幕$/ })).toBeNull();
     expect(within(card).getByRole("button", { name: /^重试/ })).toBeTruthy();
   });
@@ -150,7 +150,7 @@ describe("unsaved edits guard the current device", () => {
     const user = userEvent.setup();
     const { t } = page({ "device.list": () => ({ devices: [dev({ id: "adb:a" }), dev({ id: "adb:b" })] }), "device.forget": () => ({ forgotten: true }) }, { unsaved: true });
     await waitFor(() => expect(screen.getByTestId("current").textContent).toBe("adb:a"));
-    const a = screen.getByRole("article", { name: "device adb:a" });
+    const a = screen.getByRole("row", { name: "device adb:a" });
     await user.click(within(a).getByRole("button", { name: "adb:a 的详情" }));
     await user.click(within(a).getByRole("button", { name: "忘记 adb:a" }));
     const dialog = await screen.findByRole("alertdialog");
@@ -161,7 +161,7 @@ describe("unsaved edits guard the current device", () => {
     await user.click(within(await screen.findByRole("alertdialog")).getByRole("button", { name: "放弃修改" }));
     await waitFor(() => expect(t.sent.filter((m) => m.method === "device.forget")).toHaveLength(1));
 
-    const b = screen.getByRole("article", { name: "device adb:b" });
+    const b = screen.getByRole("row", { name: "device adb:b" });
     await user.click(within(b).getByRole("button", { name: "adb:b 的详情" }));
     await user.click(within(b).getByRole("button", { name: "忘记 adb:b" }));
     await waitFor(() => expect(t.sent.filter((m) => m.method === "device.forget")).toHaveLength(2));
@@ -176,14 +176,96 @@ describe("device page layout (M4)", () => {
     const toggle = await screen.findByRole("button", { name: "添加设备" });
     await waitFor(() => expect(toggle.getAttribute("aria-expanded")).toBe("true"));
     expect(screen.getByRole("textbox", { name: "device address" })).toBeTruthy();
-    await user.click(toggle);
+    expect(screen.getByRole("dialog", { name: "添加设备" })).toBeTruthy();
+    await user.keyboard("{Escape}");
     expect(toggle.getAttribute("aria-expanded")).toBe("false");
     expect(screen.queryByRole("textbox", { name: "device address" })).toBeNull();
   });
 
+  it("restores focus to the add button when the connection dialog closes", async () => {
+    const user = userEvent.setup();
+    page({ "device.list": () => ({ devices: [dev()] }) });
+    await screen.findByRole("row", { name: /^device / });
+    const toggle = screen.getByRole("button", { name: "添加设备" });
+    await user.click(toggle);
+    await waitFor(() => expect(document.activeElement).toBe(screen.getByRole("textbox", { name: "device address" })));
+    await user.click(within(screen.getByRole("dialog", { name: "添加设备" })).getByRole("button", { name: "关闭" }));
+    expect(screen.queryByRole("dialog")).toBeNull();
+    expect(document.activeElement).toBe(toggle);
+  });
+
+  it("combines search, status and transport filters and can reset empty results", async () => {
+    const user = userEvent.setup();
+    page({ "device.list": () => ({ devices: [
+      dev({ name: "Pixel", group: "Lab" }),
+      dev({ id: "lan:b", name: "Tablet", transport: "lan", state: "offline", address: "10.0.0.8:9860" }),
+    ] }) });
+    await screen.findByRole("row", { name: "device adb:e" });
+    await user.type(screen.getByRole("searchbox", { name: "搜索设备" }), "LAB");
+    expect(screen.getAllByRole("row", { name: /^device / })).toHaveLength(1);
+    await user.selectOptions(screen.getByRole("combobox", { name: "连接方式" }), "lan");
+    expect(screen.queryByRole("row", { name: /^device / })).toBeNull();
+    expect(screen.getByText("没有匹配的设备")).toBeTruthy();
+    await user.click(screen.getAllByRole("button", { name: "重置筛选" })[0]);
+    expect(screen.getAllByRole("row", { name: /^device / })).toHaveLength(2);
+    await user.click(screen.getByRole("button", { name: "离线 1" }));
+    expect(screen.getByRole("combobox", { name: "设备状态" })).toHaveProperty("value", "offline");
+    expect(screen.getAllByRole("row", { name: /^device / })).toHaveLength(1);
+    expect(screen.getByRole("row", { name: "device lan:b" })).toBeTruthy();
+    await user.click(screen.getByRole("button", { name: "离线 1" }));
+    expect(screen.getAllByRole("row", { name: /^device / })).toHaveLength(2);
+  });
+
+  it("updates filtered results when a device state is pushed", async () => {
+    const user = userEvent.setup();
+    const { t } = page({ "device.list": () => ({ devices: [dev()] }) });
+    await screen.findByRole("row", { name: /^device / });
+    await user.selectOptions(screen.getByRole("combobox", { name: "设备状态" }), "offline");
+    expect(screen.queryByRole("row", { name: /^device / })).toBeNull();
+    act(() => t.push({ event: true, topic: "device.state", data: dev({ state: "offline" }) }));
+    expect(await screen.findByRole("row", { name: /^device / })).toBeTruthy();
+    expect(screen.getByText("显示 1 / 1 台设备")).toBeTruthy();
+  });
+
+  it("opens details in a dialog and restores focus without expanding the card", async () => {
+    const user = userEvent.setup();
+    page({ "device.list": () => ({ devices: [dev()] }) });
+    const card = await screen.findByRole("row", { name: /^device / });
+    const button = within(card).getByRole("button", { name: "adb:e 的详情" });
+    await user.click(button);
+    expect(screen.getByRole("dialog", { name: "emu 的详情" })).toBeTruthy();
+    expect(card.classList.contains("expanded")).toBe(false);
+    await user.keyboard("{Escape}");
+    expect(screen.queryByRole("dialog")).toBeNull();
+    expect(document.activeElement).toBe(button);
+  });
+
+  it("paginates devices and clamps the page after filtering", async () => {
+    const user = userEvent.setup();
+    page({ "device.list": () => ({ devices: Array.from({ length: 8 }, (_, index) => dev({ id: `adb:${index}`, name: `Device ${index}` })) }) });
+    await screen.findByRole("row", { name: "device adb:0" });
+    expect(screen.getAllByRole("row", { name: /^device / })).toHaveLength(6);
+    await user.click(screen.getByRole("button", { name: "下一页" }));
+    expect(screen.getAllByRole("row", { name: /^device / })).toHaveLength(2);
+    await user.type(screen.getByRole("searchbox"), "Device 0");
+    expect(screen.getByRole("row", { name: "device adb:0" })).toBeTruthy();
+    expect(screen.queryByRole("navigation", { name: "设备分页" })).toBeNull();
+  });
+
+  it("renders the inventory as a semantic table with direct actions", async () => {
+    page({ "device.list": () => ({ devices: [dev({ name: "Pixel", group: "Lab" })] }) });
+    const table = await screen.findByRole("table", { name: "已连接设备" });
+    expect(within(table).getAllByRole("columnheader")).toHaveLength(5);
+    const row = within(table).getByRole("row", { name: "device adb:e" });
+    expect(within(row).getAllByRole("cell")).toHaveLength(5);
+    expect(within(row).getByText("Lab")).toBeTruthy();
+    expect(within(row).getByRole("button", { name: "打开 Pixel 的屏幕" })).toBeTruthy();
+    expect(within(row).getByRole("button", { name: "打开 Pixel 的工程" })).toBeTruthy();
+  });
+
   it("with saved devices the panel starts folded; the cards come first", async () => {
     page({ "device.list": () => ({ devices: [dev()] }) });
-    await screen.findByRole("article");
+    await screen.findByRole("row", { name: /^device / });
     const toggle = screen.getByRole("button", { name: "添加设备" });
     await waitFor(() => expect(toggle.getAttribute("aria-expanded")).toBe("false"));
     expect(screen.queryByRole("region", { name: "添加设备" })).toBeNull();

@@ -31,7 +31,7 @@ def shell(qapp, qtbot):
 def test_e2e_d01_gutter_breakpoint_pause_variables_step_stop(shell, qtbot):
     sh = shell
     sh.click(qtbot, "连接 dbg01")
-    sh.wait_text(qtbot, "在线")
+    sh.wait_device_state(qtbot, "adb:dbg01", "在线")
     click_js(sh, qtbot, btn_starting("工程"))
     click_js(sh, qtbot, btn_starting("dbg"))
     click_js(sh, qtbot, btn_starting("__init__.py"))
