@@ -13,11 +13,19 @@ BPY=.venv-build/Scripts/python.exe
 "$BPY" -m pip install -q -e . "pyinstaller>=6.10"
 mkdir -p build
 "$BPY" packaging/make_ico.py build/XScript.ico
+# Google's adb.exe + its two DLLs (pinned version, official URL, sha256-checked) go into _internal/platform-tools (#213)
+PT=$APP_DIR/build/platform-tools
+"$BPY" packaging/fetch_platform_tools.py win "$PT"
+PTW=$(cygpath -w "$PT")  # Windows path: MSYS would not convert "SRC;DEST"
 "$BPY" -m PyInstaller --noconfirm --clean --windowed \
   --name XScript --icon "$APP_DIR/build/XScript.ico" \
   --paths "$APP_DIR" --collect-submodules xscript_desktop --collect-data xscript_desktop \
+  --add-binary "$PTW\\adb.exe;platform-tools" --add-binary "$PTW\\AdbWinApi.dll;platform-tools" \
+  --add-binary "$PTW\\AdbWinUsbApi.dll;platform-tools" --add-data "$PTW\\NOTICE.txt;platform-tools" \
+  --add-data "$PTW\\source.properties;platform-tools" \
   --distpath dist --workpath build/pyinstaller --specpath build \
   "$APP_DIR/packaging/launch.py"
+dist/XScript/_internal/platform-tools/adb.exe version  # the bundled adb runs (`version` starts no server)
 ISCC=${ISCC:-}
 for c in "$ISCC" "/c/Program Files (x86)/Inno Setup 6/ISCC.exe" "/c/Program Files/Inno Setup 6/ISCC.exe"; do
   if [ -n "$c" ] && [ -x "$c" ]; then ISCC=$c; break; fi

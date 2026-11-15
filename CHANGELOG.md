@@ -4,6 +4,8 @@
 
 ## 未发布
 
+- **桌面端自带 adb**：macOS dmg 和 Windows 安装包里带上 Google 官方 Android SDK Platform-Tools 的 `adb`（37.0.1），不用再单独安装 platform-tools；设置里指定的 adb 路径和 `XSCRIPT_ADB` 仍然优先，内置的找不到时照旧用 Android SDK / `PATH` 里的（#213）。
+
 ## v0.6.0（2026-10-22）
 
 - **桌面端自动更新本版仍未启用**：仓库还没有配置更新签名密钥（`DESKTOP_UPDATE_KEY`），Release 里没有更新清单，「设置与更新」会提示到 Release 页面手动下载新版本。

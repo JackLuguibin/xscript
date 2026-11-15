@@ -17,11 +17,19 @@ lnk="$APPDATA/Microsoft/Windows/Start Menu/Programs/XScript.lnk"
 cat "$root/selftest.json"; echo
 grep -q '"selftest": "ok"' "$root/selftest.json" || { echo "selftest did not pass" >&2; exit 1; }
 grep -q "\"version\": \"$want\"" "$root/selftest.json" || { echo "installed version is not $want" >&2; exit 1; }
+# the bundled adb (issue #213) is installed, is the one the app picks, and runs; its server must not block the uninstall
+adb="$dir/_internal/platform-tools/adb.exe"
+[ -x "$adb" ] && [ -f "$dir/_internal/platform-tools/NOTICE.txt" ] || { echo "bundled adb / NOTICE.txt missing" >&2; exit 1; }
+grep -q 'platform-tools\\\\adb.exe"' "$root/selftest.json" || { echo "the app does not use the bundled adb" >&2; exit 1; }
+"$adb" version
+"$adb" start-server
 du -sh "$dir" || true
 "$dir/unins000.exe" /VERYSILENT /SUPPRESSMSGBOXES /NORESTART
 # the uninstaller re-launches itself from %TEMP% and returns at once: wait for it to finish
 for _ in $(seq 1 60); do [ -e "$dir/XScript.exe" ] || break; sleep 1; done
 [ ! -e "$dir/XScript.exe" ] || { echo "uninstall left XScript.exe behind" >&2; exit 1; }
+for _ in $(seq 1 30); do [ -e "$adb" ] || break; sleep 1; done
+[ ! -e "$adb" ] || { echo "uninstall left the bundled adb.exe behind (adb server still running?)" >&2; exit 1; }
 [ ! -f "$lnk" ] || { echo "uninstall left the Start-menu shortcut" >&2; exit 1; }
 rm -rf "$root"
 echo "install / selftest / uninstall ok: $setup ($want)"

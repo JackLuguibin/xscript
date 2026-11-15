@@ -62,5 +62,24 @@ Name: "{autodesktop}\XScript"; Filename: "{app}\XScript.exe"; Tasks: desktopicon
 [Run]
 Filename: "{app}\XScript.exe"; Description: "{cm:LaunchProgram,XScript}"; Flags: nowait postinstall skipifsilent
 
+[UninstallRun]
+; the bundled adb (issue #213) leaves its server running after the app quits; stop it so the folder can be removed
+Filename: "{app}\_internal\platform-tools\adb.exe"; Parameters: "kill-server"; Flags: runhidden waituntilterminated skipifdoesntexist; RunOnceId: "KillAdbServer"
+
 [UninstallDelete]
 Type: filesandordirs; Name: "{app}\_internal"
+
+[Code]
+// An upgrade (also the silent auto-update) replaces _internal: stop a server started by the previous bundled adb first,
+// otherwise adb.exe is in use and cannot be overwritten. kill-server stops whichever adb server holds the default port
+// (also one an Android SDK adb started); adb starts it again on the next command.
+function PrepareToInstall(var NeedsRestart: Boolean): String;
+var
+  Adb: String;
+  ResultCode: Integer;
+begin
+  Result := '';
+  Adb := ExpandConstant('{app}\_internal\platform-tools\adb.exe');
+  if FileExists(Adb) then
+    Exec(Adb, 'kill-server', '', SW_HIDE, ewWaitUntilTerminated, ResultCode);
+end;
