@@ -174,13 +174,13 @@ describe("CloudPage logs and tasks (P4.4)", () => {
     fireEvent.change(screen.getByLabelText(t.cloud.logs.device), { target: { value: "farm-01" } });
     fireEvent.change(screen.getByLabelText(t.cloud.logs.stream), { target: { value: "stderr" } });
     fireEvent.click(screen.getByRole("button", { name: t.cloud.logs.find }));
-    const log = await screen.findByLabelText(t.cloud.tabs.logs);
+    const log = await screen.findByLabelText(t.cloud.tabs.logs, { selector: "pre" });
     expect(log.querySelectorAll(".stderr").length).toBe(40);
     expect(transport.sent.find((m) => m.method === "cloud.logs")?.params).toMatchObject({ id: "farm-01", stream: "stderr" });
     fireEvent.change(screen.getByLabelText(t.cloud.logs.stream), { target: { value: "" } });
     fireEvent.click(screen.getByRole("button", { name: t.cloud.logs.find }));
     fireEvent.click(await screen.findByRole("button", { name: t.cloud.logs.older }));
-    await waitFor(() => expect(screen.getByLabelText(t.cloud.tabs.logs).children.length).toBe(360));
+    await waitFor(() => expect(screen.getByLabelText(t.cloud.tabs.logs, { selector: "pre" }).children.length).toBe(360));
   });
 
   it("fills the device from a single selection", async () => {
@@ -302,13 +302,11 @@ describe("CloudPage screens, packaging and web console (P4.6)", () => {
     expect(await screen.findByText(t.cloud.pack.status.cancelled)).toBeTruthy();
   });
 
-  it("links into the web console without a token", async () => {
-    await openTab("xsk_admin", "alice", "admin", t.cloud.tabs.console);
-    await screen.findAllByRole("link");
-    const link = screen.getAllByRole("link").find((a) => a.textContent?.startsWith(t.cloud.console.pages.account)) as HTMLAnchorElement;
-    expect(link.getAttribute("href")).toBe("https://cloud.example.com/account");
-    expect(link.getAttribute("target")).toBeNull(); // the shell refuses new windows; a plain link goes to the system browser
-    for (const a of screen.getAllByRole("link")) expect(a.getAttribute("href")).not.toMatch(/xsk_|token/);
+  it("keeps administration outside cloud tabs", async () => {
+    mount();
+    await screen.findByRole("tab", { name: t.cloud.tabs.connect });
+    expect(screen.queryByRole("tab", { name: t.cloud.tabs.console })).toBeNull();
+    expect(screen.queryByRole("tab", { name: "后台管理" })).toBeNull();
   });
 });
 

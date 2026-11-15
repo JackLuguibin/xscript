@@ -4,26 +4,25 @@ import type { CloudStatus } from "../api";
 import { errorLine } from "../errors";
 import { t } from "../strings";
 import { CloudBatch } from "./CloudBatch";
-import { CloudConsole } from "./CloudConsole";
 import { CloudDeploy } from "./CloudDeploy";
 import { CloudDevices } from "./CloudDevices";
 import { CloudLogs } from "./CloudLogs";
 import { CloudOverview } from "./CloudOverview";
-import { CloudManagement } from "./CloudManagement";
-import { getLanguage } from "../strings";
 import { CloudPack } from "./CloudPack";
 import { CloudTasks } from "./CloudTasks";
 import { CloudWall } from "./CloudWall";
 import { useConfirm } from "./ConfirmDialog";
-import { EmptyState } from "./EmptyState";
 import { IconCloud } from "./icons";
 import { Alert } from "./ui/alert";
 import { Badge, type BadgeTone } from "./ui/badge";
 import { Button } from "./ui/button";
 import { Input } from "./ui/input";
+import { Field, FormActions } from "./ui/field";
+import { Toolbar } from "./ui/toolbar";
+import { Tabs } from "./ui/tabs";
 
-export type CloudTab = "connect" | "overview" | "devices" | "wall" | "logs" | "tasks" | "deploy" | "pack" | "console" | "management";
-const TABS: CloudTab[] = ["connect", "overview", "devices", "wall", "logs", "tasks", "deploy", "pack", "management", "console"];
+export type CloudTab = "connect" | "overview" | "devices" | "wall" | "logs" | "tasks" | "deploy" | "pack";
+const TABS: CloudTab[] = ["connect", "overview", "devices", "wall", "logs", "tasks", "deploy", "pack"];
 const TONE: Record<CloudStatus["state"], BadgeTone> = { connected: "ok", expired: "warn", unreachable: "bad", error: "bad", not_configured: "neutral" };
 
 /** Backend address + API token. The token is sent once (to the OS keyring) and the field is cleared. */
@@ -50,29 +49,26 @@ function ConnectForm({ initialOrigin, onConnected }: { initialOrigin: string; on
           .finally(() => setBusy(false));
       }}
     >
-      <fieldset>
-        <legend>{t.cloud.connectTitle}</legend>
-        <p className="muted">{t.cloud.connectHint}</p>
-      </fieldset>
-      <label className="stack">
-        {t.cloud.origin}
+      <div className="cloud-connect-heading">
+        <span className="cloud-connect-icon" aria-hidden="true"><IconCloud size={24} /></span>
+        <div><h2>{t.cloud.connectTitle}</h2><p className="muted">{t.cloud.setupDescription}</p></div>
+      </div>
+      <Field label={t.cloud.origin} hint={t.cloud.insecure}>
         <Input aria-label={t.cloud.origin} value={origin} placeholder={t.cloud.originPlaceholder} autoComplete="url" spellCheck={false} onChange={(e) => setOrigin(e.target.value)} />
-        <span className="hint">{t.cloud.insecure}</span>
-      </label>
-      <label className="stack">
-        {t.cloud.token}
+      </Field>
+      <Field label={t.cloud.token}>
         <Input aria-label={t.cloud.token} type="password" value={token} placeholder={t.cloud.tokenPlaceholder} autoComplete="off" spellCheck={false} maxLength={512} onChange={(e) => setToken(e.target.value)} />
-      </label>
+      </Field>
       {err && (
         <Alert tone="error" role="alert">
           {err}
         </Alert>
       )}
-      <div className="row">
+      <FormActions>
         <Button type="submit" variant="primary" disabled={busy || !origin.trim() || !token.trim()}>
           {busy ? t.cloud.connecting : t.cloud.connect}
         </Button>
-      </div>
+      </FormActions>
     </form>
   );
 }
@@ -111,10 +107,7 @@ export function CloudPage() {
     body = <CloudPack account={account} />;
   } else if (tab === "overview") {
     body = <CloudOverview onOpen={setTab} reloadKey={reloadKey} />;
-  } else if (tab === "management" && account) {
-    body = <CloudManagement account={account} />;
-  } else if (tab === "console") {
-    body = <CloudConsole />;
+
   } else if (tab === "deploy" && account) {
     body = <CloudDeploy account={account} />;
   } else if (tab === "logs") {
@@ -130,7 +123,7 @@ export function CloudPage() {
     );
   } else {
     body = (
-      <div className="cloud-pane cloud-narrow">
+      <div className="cloud-pane cloud-connection-pane">
         {status.state === "expired" && <Alert tone="warn">{t.cloud.expired}</Alert>}
         {status.state === "unreachable" && <Alert tone="error">{t.cloud.unreachable}</Alert>}
         {status.state === "error" && status.message && <Alert tone="error">{status.message}</Alert>}
@@ -146,6 +139,7 @@ export function CloudPage() {
           </section>
         )}
         {showForm && (
+          <div className="cloud-setup-layout">
           <ConnectForm
             initialOrigin={status.origin}
             onConnected={(s) => {
@@ -153,11 +147,16 @@ export function CloudPage() {
               setStatus(s);
             }}
           />
-        )}
-        {!status.origin && !editing && (
-          <EmptyState icon={<IconCloud size={26} />} title={t.cloud.state.not_configured}>
-            {t.cloud.subtitle}
-          </EmptyState>
+          <aside className="cloud-setup-guide" aria-label={t.cloud.setupGuide}>
+            <h3>{t.cloud.setupGuide}</h3>
+            <ol>
+              <li><strong>{t.cloud.setupStepAccount}</strong><p>{t.cloud.setupAccountHint}</p></li>
+              <li><strong>{t.cloud.setupStepToken}</strong><p>{t.cloud.setupTokenHint}</p></li>
+              <li><strong>{t.cloud.setupStepConnect}</strong><p>{t.cloud.setupConnectHint}</p></li>
+            </ol>
+            <p className="cloud-token-note">{t.cloud.tokenStorageHint}</p>
+          </aside>
+          </div>
         )}
       </div>
     );
@@ -165,7 +164,7 @@ export function CloudPage() {
 
   return (
     <div className="page cloud-page">
-      <div className="row toolbar cloud-head">
+      <Toolbar label={t.nav.cloud} className="cloud-head">
         <Badge tone={TONE[status.state]}>{t.cloud.state[status.state]}</Badge>
         {status.origin && <span className="cloud-origin">{status.origin}</span>}
         {account && (
@@ -194,18 +193,12 @@ export function CloudPage() {
             {t.cloud.disconnect}
           </Button>
         )}
-      </div>
+      </Toolbar>
       {err && <Alert tone="error">{err}</Alert>}
-      <div className="cloud-tabs" role="tablist" aria-label={t.cloud.tablist}>
-        {TABS.map((id) => (
-          <Button key={id} size="sm" type="button" role="tab" aria-selected={tab === id} variant={tab === id ? "primary" : undefined} onClick={() => setTab(id)}>
-            {id === "management" ? (getLanguage() === "en" ? "Management" : "后台管理") : t.cloud.tabs[id]}
-          </Button>
-        ))}
-      </div>
-      <div className="cloud-pane" role="tabpanel">
+      <Tabs label={t.cloud.tablist} value={tab} onValueChange={setTab} className="cloud-content-tabs" panelClassName="cloud-pane"
+        items={TABS.map((id) => ({ value: id, label: t.cloud.tabs[id] }))}>
         {body}
-      </div>
+      </Tabs>
       {dialog}
     </div>
   );

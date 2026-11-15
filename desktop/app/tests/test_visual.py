@@ -154,7 +154,7 @@ def test_v_flow_page(vis, qtbot, theme, width):
 
 @pytest.mark.parametrize("theme", ["light", "dark"])
 def test_v_cloud_management(vis, qtbot, theme):
-    """Native script management on the real shell, using a credential-free backend fixture."""
+    """Cloud overview on the real shell, using a credential-free backend fixture."""
     from .fake_backend import FakeBackend, ORIGIN
     prepare(vis, qtbot, theme, size=(1280, 800))
     backend = FakeBackend()
@@ -164,6 +164,6 @@ def test_v_cloud_management(vis, qtbot, theme):
     vis.ctx.cloud.transport = backend.transport()
     vis.run_async(vis.ctx.cloud.connect(ORIGIN, "xsk_admin"))
     vis.click(qtbot, "云控")
-    vis.click(qtbot, "后台管理")
-    vis.wait_text(qtbot, "签到助手")
+    vis.click(qtbot, "概览")
+    vis.wait_text(qtbot, "24 小时内活跃")
     verify("cloud-management-" + theme, vis, qtbot)
