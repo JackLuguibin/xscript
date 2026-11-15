@@ -6,7 +6,6 @@ from urllib.parse import quote
 from typing import Any
 
 from .backend_client import BackendClient, BackendError, account
-from .secrets import redact
 
 # resource: API path, minimum role; writes are explicitly listed below.
 RESOURCES = {
@@ -63,7 +62,8 @@ def identifier(value: Any) -> str:
 
 def clean(value: Any, token: str) -> Any:
     if isinstance(value, str):
-        return redact(value, token)
+        # Error-message redaction truncates to 300 chars; management payloads include complete source code.
+        return value.replace(token, '***') if token else value
     if isinstance(value, list):
         return [clean(item, token) for item in value]
     if isinstance(value, dict):

@@ -21,6 +21,12 @@ def test_flow_file_bounds_and_atomic_replacement(tmp_path):
     assert not list(tmp_path.glob('.xscript-flow-*'))
 
 
+def test_management_keeps_complete_source_while_redacting_credentials():
+    source = "print('hello')\n" * 100
+    assert management.clean({'code': source, 'description': 'xsk_secret'}, 'xsk_secret') == {
+        'code': source, 'description': '***'}
+
+
 @pytest.mark.parametrize('resource', list(management.RESOURCES))
 async def test_management_reads_have_fixed_routes(resource):
     client = AsyncMock()
