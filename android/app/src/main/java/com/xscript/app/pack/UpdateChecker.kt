@@ -8,9 +8,6 @@ import com.xscript.app.runtime.LogBuffer
 import com.xscript.app.runtime.RunState
 import org.json.JSONObject
 import java.io.ByteArrayInputStream
-import java.io.ByteArrayOutputStream
-import java.net.HttpURLConnection
-import java.net.URL
 import kotlin.concurrent.thread
 
 /**
@@ -103,26 +100,5 @@ object UpdateChecker {
 
     private fun enc(s: String) = java.net.URLEncoder.encode(s, "UTF-8")
 
-    private fun get(url: String, limit: Long): ByteArray {
-        val conn = URL(url).openConnection() as HttpURLConnection
-        try {
-            conn.connectTimeout = 10_000
-            conn.readTimeout = 60_000
-            val codeHttp = conn.responseCode
-            require(codeHttp == 200) { "HTTP $codeHttp" }
-            val out = ByteArrayOutputStream()
-            conn.inputStream.use { input ->
-                val buf = ByteArray(64 * 1024)
-                while (true) {
-                    val n = input.read(buf)
-                    if (n < 0) break
-                    out.write(buf, 0, n)
-                    require(out.size() <= limit) { "response too large" }
-                }
-            }
-            return out.toByteArray()
-        } finally {
-            conn.disconnect()
-        }
-    }
+    private fun get(url: String, limit: Long): ByteArray = UpdateDownload.get(url, limit)
 }

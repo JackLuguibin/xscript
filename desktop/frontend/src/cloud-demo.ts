@@ -63,6 +63,18 @@ export function cloudDemoHandlers(): Record<string, Handler> {
     { id: 10, status: "failed", app_id: "com.demo.farm", app_name: "Farm", version: "0.9.0", version_code: 9, project_name: "farm", created_by: "olga", created_at: 1_791_800_000, finished_at: 1_791_800_090, apk_size: null, error: "签名密钥不可用", has_apk: false, queue_position: null },
   ];
   const scripts = new Map<string, { id: number; versions: CloudVersion[] }>();
+  const management: Record<string, Array<Record<string, unknown>>> = {
+    scripts: [{id: 1, name: "签到助手", project_name: "daily_signin", protect: false, description: "演示流程"}],
+    notices: [{id: 1, app: "*", title: "欢迎使用", body: "维护通知", level: "info", enabled: true}],
+    updates: [], keys: [{id: 1, name: "生产设备", hint: "xsd_…demo", revoked: false}],
+    workers: [{id: 1, name: "pack-worker-1", disabled: false}],
+    cards: [{id: 1, app: "com.demo.app", status: "active"}], batches: [{batch: "demo-batch", total: 100}],
+    users: [{id: 1, username: "alice", role: "admin", enabled: true}], resellers: [], balances: [],
+    audit: [{id: 1, actor: "alice", action: "script.publish", target: "daily_signin"}],
+    tokens: [{id: 1, name: "Desktop", current: true}, {id: 2, name: "Old client", current: false}],
+    settings: [{site_name: "XScript", public_url: "https://cloud.example.com"}],
+    maintenance: [{backups: [], database: "sqlite"}], bans: [], cardStats: [{total: 100, active: 20}],
+  };
   const installOn = (group: string, run: boolean) => {
     const rows = devices.filter((d) => d.online && d.group === group).map((d) => ({ id: d.id, ok: true, offline: false, msg: run ? "已安装并启动" : "已安装" }));
     return { rows, ok: rows.length, total: rows.length };
@@ -71,6 +83,26 @@ export function cloudDemoHandlers(): Record<string, Handler> {
     if (!role) fail("backend.not_configured", "还没有连接后台");
   };
   return {
+    "cloud.manage": (p) => {
+      needConn();
+      const resource = String(p.resource), action = String(p.action || "list");
+      if (action !== "list" && role === "viewer") fail("backend.forbidden", "当前账号没有权限");
+      if (resource === "devices") return {items: devices};
+      if (resource === "account") return status().account;
+      if (resource === "trends") return {days: Array.from({length: 7}, (_, i) => `day ${i + 1}`), series: {activations: [1, 2, 4, 2, 6, 8, 5], expirations: [0, 1, 0, 2, 1, 0, 1], new_devices: [1, 1, 3, 1, 2, 4, 2], online_devices: [4, 5, 6, 6, 8, 9, 9]}};
+      if (resource === "ai") return action === "generate" ? {code: "from xscript import system\nsystem.toast('Hello')\n", notes: "演示代码"} : {configured: true, model: "demo"};
+      if (action === "versions") return {items: [{id: 1, version: "1.0.0", version_code: 1}]};
+      if (action === "source") return {code: "print('demo')"};
+      const rows = management[resource] || [];
+      if (action === "list") return {items: rows};
+      if (action === "create") {const row = {id: Date.now(), ...(p.body as object)}; rows.push(row); return row;}
+      const row = rows.find(r => String(r.id ?? r.app) === String(p.item));
+      if (action === "update" && row) Object.assign(row, p.body);
+      if (action === "delete" && row) rows.splice(rows.indexOf(row), 1);
+      return {ok: true};
+    },
+    "cloud.upload": () => (needConn(), {id: 100}),
+    "cloud.exportLogs": () => (needConn(), {saved: true}),
     "cloud.status": () => status(),
     "cloud.devices": (p) => {
       needConn();
@@ -185,7 +217,7 @@ export function cloudDemoHandlers(): Record<string, Handler> {
     },
     "cloud.console": () => {
       needConn();
-      return { links: ["devices", "wall", "tasks", "scripts", "pack", "audit"].map((page) => ({ page, url: `${origin}/${page}` })) };
+      return { links: ["account", "cards", "users", "resellers", "settings"].map((page) => ({ page, url: `${origin}/${page}` })) };
     },
     "cloud.packJobs": () => (needConn(), { available: true, reason: "", items: pack, total: pack.length }),
     "cloud.packLog": (p) => ({ text: `[#${p.id}] gradle assembleRelease\n[#${p.id}] BUILD SUCCESSFUL in 41s\n`, next: 64 }),

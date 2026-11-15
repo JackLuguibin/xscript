@@ -92,7 +92,9 @@ jobs:
             backend/pyproject.toml
             ide/mcp-server/pyproject.toml
       - name: Install backend and MCP server
-        run: python -m pip install -e "backend[test]" -e "ide/mcp-server[test]"
+        run: python -m pip install -e "backend[test,object-storage]" -e "ide/mcp-server[test]"
+      - name: OSS and COS SDK boundary tests (no cloud credentials)
+        run: PYTHONPATH=backend python -m pytest -q backend/tests/test_update_storage.py
       - name: Backend tests (3.12 with a coverage floor, see [tool.coverage] in backend/pyproject.toml)
         run: |
           if [ "${{ matrix.python }}" = "3.12" ]; then

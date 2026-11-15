@@ -100,15 +100,25 @@
 
   /** `<module>.Selector(...)` chain: resource id, text, content-desc as needed to be unique in `roots`, else class +
    *  path; plus .clickable(). */
-  function selectorChain(n, module = "node", mode = 0, roots = null) {
+  function selectorChain(n, module = "node", mode = 0, roots = null, query = null) {
+    if (query) {
+      if (!Object.hasOwn(CALL, query.field)) throw new Error("不支持的节点匹配属性");
+      return module + ".Selector(" + (mode ? String(mode) : "") + ")" + (query.regex ? ".regex()" : "") + "." + CALL[query.field] + "(" + pyStr(query.value) + ")";
+    }
     const calls = selectorFields(n, roots).map(f => "." + CALL[f] + "(" + pyStr(n[f]) + ")");
     if (n.clickable) calls.push(".clickable()");
     const chain = calls.length ? calls.join("") : ".path(" + pyStr(n.path || "0") + ")";
-    return module + ".Selector(" + (mode ? "1" : "") + ")" + chain;
+    return module + ".Selector(" + (mode ? String(mode) : "") + ")" + chain;
   }
 
   /** One XPath for the node: resource-id, text, content-desc as needed to be unique in `roots`, else path. */
-  function nodeXPath(n, roots = null) {
+  function nodeXPath(n, roots = null, query = null) {
+    if (query) {
+      const names = {id: "resource-id", text: "text", desc: "content-desc", type: "class", path: "path"};
+      if (!Object.hasOwn(names, query.field)) throw new Error("不支持的节点匹配属性");
+      const attr = "@" + names[query.field], value = xpathStr(String(query.value));
+      return "//*[" + (query.regex ? "matches(" + attr + "," + value + ")" : attr + "=" + value) + "]";
+    }
     const cls = shortType(n.type) || "*";
     const fields = selectorFields(n, roots).filter(f => f !== "type");
     if (!fields.length) return "//" + cls;
@@ -149,14 +159,14 @@
   const NODE_IMPORT = "from xscript.android import node", ACTION_IMPORT = "from xscript.android import action";
 
   /** Code for one node: {imports: [lines], code}. `mode` 1 when the tree was dumped in full mode (Selector(1) sees it). */
-  function snippet(n, kind = "find", mode = 0, roots = null) {
+  function snippet(n, kind = "find", mode = 0, roots = null, query = null) {
     if (kind === "tap") {
       const c = center(n.rect) || {x: 0, y: 0};
       return {imports: [ACTION_IMPORT], code: "action.click(" + c.x + ", " + c.y + ")  # " + label(n).replace(/\s+/g, " ").slice(0, 40)};
     }
-    const note = fragile(n, roots) ? FRAGILE : "";
-    if (kind === "xpath") return {imports: [NODE_IMPORT], code: note + "hit = node.Selector(" + (mode ? "1, " : "") + "xpath=" + pyStr(nodeXPath(n, roots)) + ").find(timeout=5)"};
-    const chain = selectorChain(n, "node", mode, roots);
+    const note = (query ? query.field === "path" : fragile(n, roots)) ? FRAGILE : "";
+    if (kind === "xpath") return {imports: [NODE_IMPORT], code: note + "hit = node.Selector(" + (mode ? String(mode) + ", " : "") + "xpath=" + pyStr(nodeXPath(n, roots, query)) + ").find(timeout=5)"};
+    const chain = selectorChain(n, "node", mode, roots, query);
     if (kind === "click") return {imports: [NODE_IMPORT], code: note + chain + ".click().find(timeout=5)"};
     if (kind === "exists") return {imports: [NODE_IMPORT], code: note + "if " + chain + ".exists(timeout=5):\n    pass"};
     return {imports: [NODE_IMPORT], code: note + "hit = " + chain + ".find(timeout=5)"};
@@ -165,16 +175,16 @@
 
   /** Snippet for POST /eval that runs the node's selector on the phone without acting on anything: every match (at most
    *  20) as [path, l, t, r, b]. null for 点击中心坐标, which has nothing to look up. */
-  function tryCode(n, kind = "find", mode = 0, roots = null) {
+  function tryCode(n, kind = "find", mode = 0, roots = null, query = null) {
     if (kind === "tap") return null;
-    const sel = kind === "xpath" ? "node.Selector(" + (mode ? "1, " : "") + "xpath=" + pyStr(nodeXPath(n, roots)) + ")" : selectorChain(n, "node", mode, roots);
+    const sel = kind === "xpath" ? "node.Selector(" + (mode ? String(mode) + ", " : "") + "xpath=" + pyStr(nodeXPath(n, roots, query)) + ")" : selectorChain(n, "node", mode, roots, query);
     return NODE_IMPORT + "\n_hits = " + sel + ".find_all(timeout=0, limit=20)\n_result = [[h.path, h.left, h.top, h.right, h.bottom, h.id, h.text, h.desc, h.type] for h in _hits]";
   }
 
   /** The inserted snippet as a POST /eval body that really runs on the phone (find-and-click clicks, 点击中心坐标 taps)
    *  and answers in `_result`: what was found, whether the condition held, or that the tap was sent. */
-  function runCode(n, kind = "find", mode = 0, roots = null) {
-    const s = snippet(n, kind, mode, roots);
+  function runCode(n, kind = "find", mode = 0, roots = null, query = null) {
+    const s = snippet(n, kind, mode, roots, query);
     let code = s.code;
     if (kind === "tap") code += "\n_result = \"已点击坐标\"";
     else if (kind === "exists") code = code.replace(/\n    pass$/, "\n    _result = \"条件成立：找到了\"\nelse:\n    _result = \"条件不成立：5 秒内没找到\"");
@@ -203,7 +213,7 @@
   }
 
   /** What a try found, for the picked node `n`: {text, ok, hits: [{path, rect}]}. `result` is /eval's JSON text. */
-  function tryVerdict(result, n) {
+  function tryVerdict(result, n, custom = false) {
     let list = [];
     try { list = JSON.parse(result || "[]"); } catch (e) { list = []; }
     // the picked node itself: the same id / text / desc / type (it may have moved since the tree was read); the path only for nodes without them
@@ -212,6 +222,7 @@
     for (const h of hits) { h.self = !!me(h); delete h.vals; }
     if (!hits.length) return {ok: false, hits, text: "试一下：没找到。界面可能变了，点「重新获取」再试"};
     const many = hits.length >= 20 ? "20 个及以上" : hits.length + " 个";
+    if (custom) return {ok: true, hits, text: "试一下：自定义条件找到 " + many + "（.find 用第一个，路径 " + hits[0].path + "）"};
     if (!hits[0].self) return {ok: false, hits, text: "试一下：找到 " + many + "，第一个不是选中的节点（路径 " + hits[0].path + "）"};
     if (hits[0].path !== n.path) return {ok: true, hits, text: "试一下：找到 " + many + "，" + (hits.length > 1 ? "第一个" : "") + "是选中的节点，但它移动了（现在路径 " + hits[0].path + "），可点「重新获取」"};
     return {ok: true, hits, text: hits.length === 1 ? "试一下：找到 1 个，就是选中的节点" : "试一下：找到 " + many + "，第一个是选中的节点（.find 用第一个）"};
@@ -284,18 +295,23 @@
     }
     try { const saved = localStorage.getItem("xs-node-kind"); if (KINDS.some(k => k.id === saved)) $("node-kind").value = saved; } catch (e) { /* storage off */ }
 
-    function current() { return st.selected ? snippet(st.selected, $("node-kind").value, mode(), st.tree && st.tree.roots) : null; }
+    function query() {
+      return $("node-custom").checked ? {field: $("node-field").value, value: $("node-pattern").value, regex: $("node-regex").checked} : null;
+    }
+    function current() { return st.selected ? snippet(st.selected, $("node-kind").value, mode(), st.tree && st.tree.roots, query()) : null; }
     function renderDetail() {
       const n = st.selected, dl = $("node-attrs"); dl.replaceChildren();
       if (!n) { dl.append(make("p", "node-empty", st.tree ? "在树里或截图上点一个节点" : "")); }
       else for (const [k, v] of attrs(n)) dl.append(make("dt", "", k), make("dd", "", v));
+      $("node-query").hidden = !$("node-custom").checked;
+      for (const id of ["node-field", "node-pattern", "node-regex"]) $(id).disabled = !n;
       const s = current();
       $("node-code").value = s ? fullText(s) : "";
       $("node-copy").disabled = $("node-insert").disabled = !s;
-      const alt = n && st.tree ? stableAlternative(n, st.tree.roots) : null;
+      const alt = n && st.tree && !query() ? stableAlternative(n, st.tree.roots) : null;
       $("node-alt").hidden = !alt; st.alt = alt && alt.node;
       if (alt) $("node-alt-text").textContent = "更稳的选择：" + alt.rel + "「" + label(alt.node) + "」，它的 id、文字或描述在界面上唯一";
-      $("node-try").disabled = !n || !tryCode(n, $("node-kind").value, mode(), st.tree && st.tree.roots);
+      $("node-try").disabled = !n || !tryCode(n, $("node-kind").value, mode(), st.tree && st.tree.roots, query());
       clearTry();
       $("node-run").hidden = true;
       const box = $("node-box"), css = n && st.tree && boxStyle(n.rect, st.tree.width, st.tree.height);
@@ -323,6 +339,11 @@
       if (sel) sel.tabIndex = 0;
     }
     function select(n, {reveal = false, focus = false} = {}) {
+      if (n && st.selected !== n) {
+        const field = ["text", "id", "desc", "type", "path"].find(f => n[f]) || "path";
+        $("node-field").value = field;
+        $("node-pattern").value = n[field] || "";
+      }
       st.selected = n;
       if (n && reveal) for (const a of ancestry(st.tree.roots, n)) if (a !== n) st.collapsed.delete(key(a));
       renderTree(); renderDetail();
@@ -337,7 +358,7 @@
     }
     /** Run the selector on the phone (POST /eval, find_all only: nothing is clicked) and box what it finds. */
     async function tryIt() {
-      const n = st.selected, code = n && tryCode(n, $("node-kind").value, mode(), st.tree && st.tree.roots);
+      const n = st.selected, code = n && tryCode(n, $("node-kind").value, mode(), st.tree && st.tree.roots, query());
       if (!code) return;
       clearTry();
       const token = st.tryToken, out = $("node-try-result");
@@ -350,7 +371,7 @@
         let data = null; try { data = await r.json(); } catch (e) { /* not JSON */ }
         if (token !== st.tryToken) return;
         if (!r.ok || !data || !data.ok) throw new Error("试一下失败：" + ((data && (data.error || "").trim().split("\n").pop()) || "HTTP " + r.status));
-        const v = tryVerdict(data.result, n);
+        const v = tryVerdict(data.result, n, !!query());
         const blob = await fresh; if (token !== st.tryToken) return;
         if (blob) {
           if (st.shotUrl) URL.revokeObjectURL(st.shotUrl);
@@ -369,7 +390,7 @@
     /** Run the snippet that was just inserted, for real (POST /eval): find-and-click clicks, 点击中心坐标 taps. */
     async function runIt() {
       const n = st.selected; if (!n) return;
-      const code = runCode(n, $("node-kind").value, mode(), st.tree && st.tree.roots);
+      const code = runCode(n, $("node-kind").value, mode(), st.tree && st.tree.roots, query());
       clearTry();
       const token = st.tryToken, out = $("node-try-result");
       $("node-run").disabled = true; out.textContent = "在手机上运行…";
@@ -453,6 +474,12 @@
     });
     $("node-full").addEventListener("change", take);
     $("node-filter").addEventListener("input", renderTree);
+    for (const id of ["node-custom", "node-regex"]) $(id).addEventListener("change", renderDetail);
+    $("node-pattern").addEventListener("input", renderDetail);
+    $("node-field").addEventListener("change", () => {
+      $("node-pattern").value = st.selected && st.selected[$("node-field").value] || "";
+      renderDetail();
+    });
     $("node-kind").addEventListener("change", () => { try { localStorage.setItem("xs-node-kind", $("node-kind").value); } catch (e) { /* storage off */ } renderDetail(); });
     $("node-copy").addEventListener("click", () => { const s = current(); if (s) XS.copy(fullText(s), "已复制代码"); });
     $("node-insert").addEventListener("click", () => {

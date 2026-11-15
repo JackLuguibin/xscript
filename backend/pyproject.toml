@@ -22,7 +22,9 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
-test = ["httpx==0.28.1", "coverage>=7.6"]
+# Native SDKs for private OSS/COS hot-update downloads (local storage needs neither).
+object-storage = ["oss2==2.19.1", "cos-python-sdk-v5==1.9.44"]
+test = ["httpx==0.28.1", "coverage>=7.6", "pytest>=8"]
 # PostgreSQL instead of the default SQLite file (XSCRIPT_DATABASE_URL); see backend/README.md.
 postgres = ["psycopg[binary]==3.3.8"]
 

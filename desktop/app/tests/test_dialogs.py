@@ -42,3 +42,18 @@ def test_directory_picker_runs_the_dialog_on_the_gui_thread(qtbot, monkeypatch):
         assert seen["title"] == "选择文件夹"
     finally:
         rt.stop()
+
+
+def test_flow_file_opener_runs_on_gui_thread(qtbot, monkeypatch):
+    from PySide6.QtWidgets import QWidget
+    monkeypatch.setattr(dialogs.QFileDialog, "getOpenFileName", staticmethod(lambda *args: ("/picked/sample.xflow", "")))
+    widget = QWidget()
+    qtbot.addWidget(widget)
+    opener = dialogs.FileOpener(widget)
+    runtime = AsyncRuntime().start()
+    try:
+        future = runtime.submit(opener.save("Open flow", "", "Flow (*.xflow)"))
+        qtbot.waitUntil(future.done, timeout=5000)
+        assert future.result() == "/picked/sample.xflow"
+    finally:
+        runtime.stop()

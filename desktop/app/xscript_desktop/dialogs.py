@@ -73,3 +73,14 @@ class TextClipboard(QObject):
         fut: concurrent.futures.Future = concurrent.futures.Future()
         self._ask.emit(text, fut)
         await asyncio.wrap_future(fut)
+
+
+class FileOpener(FileSaver):
+    """Open a user-selected flow document on the GUI thread."""
+
+    def _show(self, fut, title, name, filt):
+        try:
+            path, _selected = QFileDialog.getOpenFileName(self._parent, title, name, filt)
+            fut.set_result(path or None)
+        except Exception as error:
+            fut.set_exception(error)

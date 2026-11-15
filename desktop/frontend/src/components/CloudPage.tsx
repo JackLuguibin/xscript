@@ -9,6 +9,8 @@ import { CloudDeploy } from "./CloudDeploy";
 import { CloudDevices } from "./CloudDevices";
 import { CloudLogs } from "./CloudLogs";
 import { CloudOverview } from "./CloudOverview";
+import { CloudManagement } from "./CloudManagement";
+import { getLanguage } from "../strings";
 import { CloudPack } from "./CloudPack";
 import { CloudTasks } from "./CloudTasks";
 import { CloudWall } from "./CloudWall";
@@ -20,8 +22,8 @@ import { Badge, type BadgeTone } from "./ui/badge";
 import { Button } from "./ui/button";
 import { Input } from "./ui/input";
 
-export type CloudTab = "connect" | "overview" | "devices" | "wall" | "logs" | "tasks" | "deploy" | "pack" | "console";
-const TABS: CloudTab[] = ["connect", "overview", "devices", "wall", "logs", "tasks", "deploy", "pack", "console"];
+export type CloudTab = "connect" | "overview" | "devices" | "wall" | "logs" | "tasks" | "deploy" | "pack" | "console" | "management";
+const TABS: CloudTab[] = ["connect", "overview", "devices", "wall", "logs", "tasks", "deploy", "pack", "management", "console"];
 const TONE: Record<CloudStatus["state"], BadgeTone> = { connected: "ok", expired: "warn", unreachable: "bad", error: "bad", not_configured: "neutral" };
 
 /** Backend address + API token. The token is sent once (to the OS keyring) and the field is cleared. */
@@ -109,6 +111,8 @@ export function CloudPage() {
     body = <CloudPack account={account} />;
   } else if (tab === "overview") {
     body = <CloudOverview onOpen={setTab} reloadKey={reloadKey} />;
+  } else if (tab === "management" && account) {
+    body = <CloudManagement account={account} />;
   } else if (tab === "console") {
     body = <CloudConsole />;
   } else if (tab === "deploy" && account) {
@@ -195,7 +199,7 @@ export function CloudPage() {
       <div className="cloud-tabs" role="tablist" aria-label={t.cloud.tablist}>
         {TABS.map((id) => (
           <Button key={id} size="sm" type="button" role="tab" aria-selected={tab === id} variant={tab === id ? "primary" : undefined} onClick={() => setTab(id)}>
-            {t.cloud.tabs[id]}
+            {id === "management" ? (getLanguage() === "en" ? "Management" : "后台管理") : t.cloud.tabs[id]}
           </Button>
         ))}
       </div>

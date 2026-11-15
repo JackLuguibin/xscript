@@ -374,8 +374,8 @@ async def test_console_links_carry_no_token(ctx):
     assert r["error"]["code"] == "backend.not_configured"
     await connected(ctx, "xsk_admin")
     r, raw = await rpc(ctx, "cloud.console")
-    assert r["result"]["links"][0] == {"page": "devices", "url": ORIGIN + "/devices"}
-    assert {x["page"] for x in r["result"]["links"]} >= {"pack", "tasks", "audit"} and "xsk_" not in raw
+    assert r["result"]["links"][0] == {"page": "account", "url": ORIGIN + "/account"}
+    assert {x["page"] for x in r["result"]["links"]} == {"account", "cards", "users", "resellers", "settings"} and "xsk_" not in raw
 
 
 async def test_pack_jobs_log_and_cancel(ctx, fb):

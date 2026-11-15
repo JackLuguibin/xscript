@@ -11,15 +11,23 @@ export interface FlowDraft {
 }
 
 let draft: FlowDraft | null = null;
+const KEY = "xscript.flow.draft.v1";
 
 export function keepDraft(next: FlowDraft): void {
   draft = next;
+  try { localStorage.setItem(KEY, JSON.stringify(next)); } catch { /* storage may be full */ }
 }
 
 export function readDraft(): FlowDraft | null {
+  if (draft) return draft;
+  try {
+    const saved = JSON.parse(localStorage.getItem(KEY) || "null");
+    if (saved && typeof saved.text === "string" && typeof saved.valid === "string" && saved.layout?.xflowLayout === 1) draft = saved;
+  } catch { /* corrupted drafts do not prevent opening the editor */ }
   return draft;
 }
 
 export function clearDraft(): void {
   draft = null;
+  try { localStorage.removeItem(KEY); } catch { /* storage disabled */ }
 }

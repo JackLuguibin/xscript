@@ -490,6 +490,53 @@ class ServerTest(unittest.IsolatedAsyncioTestCase):
         return await client.post("/api/scripts/%d/versions" % sid, data={k: str(v) for k, v in form.items()},
                                  files={"file": ("p.zip", self.script_zip(text), "application/zip")})
 
+    async def test_desktop_management_against_real_backend(self):
+        sys.path.insert(0, str(HERE.parents[1] / "desktop" / "app"))
+        from xscript_desktop.services.backend_client import BackendClient, BackendError
+        from xscript_desktop.services.cloud_management import request as manage
+
+        token = (await self.admin.post("/api/auth/tokens", json={"name": "desktop-integration"})).json()["token"]
+        client = BackendClient(self.srv.base, token)
+        try:
+            for resource in ("trends", "devices", "scripts", "notices", "updates", "keys", "cards", "batches",
+                             "cardStats", "bans", "workers", "audit", "users", "resellers", "balances",
+                             "settings", "maintenance", "account", "tokens", "ai"):
+                self.assertIsNotNone(await manage(client, resource), resource)
+            script = await manage(client, "scripts", "create", body={"name": "Desktop test", "project_name": "desktop_test"})
+            await manage(client, "scripts", "update", item=script["id"], body={"description": "updated"})
+            notice = await manage(client, "notices", "create", body={"title": "Desktop notice"})
+            await manage(client, "notices", "update", item=notice["id"], body={"body": "updated"})
+            await manage(client, "notices", "delete", item=notice["id"])
+            current = next(row for row in (await manage(client, "tokens"))["items"] if row["current"])
+            with self.assertRaises(BackendError):
+                await manage(client, "tokens", "delete", item=current["id"])
+        finally:
+            await client.aclose()
+
+    async def test_object_storage_bundle_redirect_and_failure(self):
+        from xscript_server.update_storage import StorageError
+
+        sc = (await self.admin.post("/api/scripts", json={"name": "Storage", "project_name": "storage"})).json()
+        version = (await self.upload_version(self.admin, sc["id"], "print('storage')", publish="true")).json()
+        url = "/pub/bundle/%s/%d.zip" % (sc["channel"], version["version_code"])
+        with mock.patch("xscript_server.routes.scripts.update_storage.download_url",
+                        return_value="https://bucket.example.com/bundle?signature=test") as sign:
+            response = await self.admin.get(url, follow_redirects=False)
+            self.assertEqual(response.status_code, 302)
+            self.assertEqual(response.headers["location"], "https://bucket.example.com/bundle?signature=test")
+            self.assertEqual(response.headers["cache-control"], "no-store")
+            import hashlib
+            _, bundle, digest = sign.call_args.args
+            self.assertEqual(hashlib.sha256(bundle.read_bytes()).hexdigest(), digest)
+            unpublished = await self.admin.post("/api/scripts/%d/unpublish" % sc["id"])
+            self.assertEqual(unpublished.status_code, 200)
+            self.assertEqual((await self.admin.get(url)).status_code, 404)
+            self.assertEqual(sign.call_count, 1)
+        await self.admin.post("/api/scripts/%d/publish" % sc["id"], json={"version_id": version["id"]})
+        with mock.patch("xscript_server.routes.scripts.update_storage.download_url",
+                        side_effect=StorageError("storage unavailable")):
+            self.assertEqual((await self.admin.get(url)).status_code, 503)
+
     async def test_scripts_versions_update_and_deploy(self):
         op = await self.make_user("op3", "operator")
         try:

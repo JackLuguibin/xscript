@@ -261,7 +261,7 @@ def end_other_sessions(request: Request, p: Principal = Depends(signed_in), s: S
 def list_tokens(p: Principal = Depends(signed_in), s: Session = Depends(db_session)):
     rows = s.scalars(select(AuthToken).where(AuthToken.user_id == p.id, AuthToken.kind == "api")
                      .order_by(AuthToken.id.desc()))
-    return {"items": [{"id": t.id, "name": t.name, "created_at": t.created_at, "expires_at": t.expires_at,
+    return {"items": [{"id": t.id, "name": t.name, "current": t.id == p.token_id, "created_at": t.created_at, "expires_at": t.expires_at,
                        "last_used_at": t.last_used_at} for t in rows]}
 
 

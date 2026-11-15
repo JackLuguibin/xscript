@@ -3,8 +3,10 @@
 from __future__ import annotations
 
 import os
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
+
+from .update_storage import UpdateStorage
 
 PKG_DIR = Path(__file__).resolve().parent
 BACKEND_DIR = PKG_DIR.parent
@@ -32,6 +34,7 @@ class Config:
     # XSCRIPT_PACK_MODE: "local" (default) builds here, one job at a time; "remote" leaves jobs in the
     # database for separate 打包机 (`python -m xscript_server pack-worker`) to claim.
     pack_mode: str = "local"
+    update_storage: UpdateStorage = field(default_factory=UpdateStorage)
 
     @classmethod
     def load(cls, data_dir: str | os.PathLike | None = None, web_dir: str | None = None) -> "Config":
@@ -39,6 +42,7 @@ class Config:
         web = web_dir or os.environ.get("XSCRIPT_WEB_DIR")
         return cls(
             data_dir=data,
+            update_storage=UpdateStorage.load(),
             web_dir=Path(web).resolve() if web else DEFAULT_WEB_DIR,
             session_hours=float(os.environ.get("XSCRIPT_SESSION_HOURS", "12")),
             # XSCRIPT_PACK=off: images without the Android toolchain (APK 打包 shows as unavailable).

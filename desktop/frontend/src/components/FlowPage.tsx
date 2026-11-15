@@ -39,6 +39,8 @@ import { Button } from "./ui/button";
 import { Input } from "./ui/input";
 import { Select } from "./ui/select";
 import { Textarea } from "./ui/textarea";
+import { FlowDelivery } from "./FlowDelivery";
+import { alignNodes, type AlignMode } from "../flow/align";
 
 class CanvasBoundary extends Component<{ children: ReactNode }, { failed: boolean }> {
   state = { failed: false };
@@ -863,12 +865,13 @@ export function FlowPage({ initialLayout }: { initialLayout?: FlowLayout } = {})
   }, [services, hasShared]);
 
   useEffect(() => {
-    if (!follow || !services || !devId) return;
+    const logDevice = onDevice?.devId || devId;
+    if (!follow || !services || !logDevice) return;
     let stop = false;
     let timer: number | undefined;
     const tick = async () => {
       try {
-        const page = await services.api.logs(devId, logCursor.current.next ?? 0);
+        const page = await services.api.logs(logDevice, logCursor.current.next ?? 0);
         if (stop) return;
         const next = followLogs(logCursor.current, page);
         logCursor.current = next;
@@ -886,7 +889,7 @@ export function FlowPage({ initialLayout }: { initialLayout?: FlowLayout } = {})
       stop = true;
       if (timer) window.clearTimeout(timer);
     };
-  }, [follow, services, devId]);
+  }, [follow, services, devId, onDevice?.devId]);
 
   const recordRun = () => {
     const events = readTrace(traceLog).events;
@@ -1897,6 +1900,8 @@ export function FlowPage({ initialLayout }: { initialLayout?: FlowLayout } = {})
     return title && title !== id ? title : "";
   };
   return (
+    <div className="flow-workspace">
+      {services && <FlowDelivery graph={graph} layout={layout} text={text} breaks={breaks} currentDevice={devId} onPick={setPicked} onRemoveBreakpoint={node => setBreaks(current => current.filter(bp => bp.node !== node))} onRun={(id, project, map, cursor) => {logCursor.current = {...emptyLogCursor(), next: cursor}; setTraceLog(""); setUserLog([]); setDeployedMap(map); setOnDevice({devId: id, project}); setFollow(true);}} onOpen={(next, position) => {checkpoint(); restore({graph: next, text: printFlow(next), layout: position});}} />}
     <div className="flow-page" data-library={libraryShown(library, narrow) ? "open" : "closed"} data-inspector={inspectorOpen ? "open" : "closed"}>
       <div className="flow-canvas" aria-label={t.flow.nodes} data-snap={snap ? "on" : "off"} data-flowing={tracePicture && flowEdges(tracePicture.running, graph.nodes.length, reducedMotion) ? tracePicture.running ?? "" : ""}>
         <nav className="flow-scope" aria-label={t.flow.scope}>
@@ -2183,6 +2188,13 @@ export function FlowPage({ initialLayout }: { initialLayout?: FlowLayout } = {})
           <Button variant="toolbar" type="button" onClick={collapseSelection} disabled={!picked.some((id) => layout.nodes[id])}>
             {t.flow.collapse}
           </Button>
+          <Select aria-label={getLanguage() === "en" ? "Align selected nodes" : "对齐选中节点"} value="" disabled={picked.length < 2} onChange={event => {
+            const next = alignNodes(layoutRef.current, picked, event.target.value as AlignMode, measured);
+            if (next !== layoutRef.current) {checkpoint(); layoutRef.current = next; setLayout(next);}
+          }}>
+            <option value="">{getLanguage() === "en" ? "Align / distribute" : "对齐 / 分布"}</option>
+            {([['left', '左对齐', 'Left'], ['right', '右对齐', 'Right'], ['top', '上对齐', 'Top'], ['bottom', '下对齐', 'Bottom'], ['horizontal', '水平分布', 'Distribute horizontally'], ['vertical', '垂直分布', 'Distribute vertically']] as const).map(([id, zh, en]) => <option key={id} value={id}>{getLanguage() === "en" ? en : zh}</option>)}
+          </Select>
           <Button variant="toolbar" type="button" onClick={fold} disabled={picked.length < 1}>
             {t.flow.fold}
           </Button>
@@ -2713,6 +2725,7 @@ export function FlowPage({ initialLayout }: { initialLayout?: FlowLayout } = {})
           </div>
         ) : null}
       </section>
+    </div>
     </div>
   );
 }
