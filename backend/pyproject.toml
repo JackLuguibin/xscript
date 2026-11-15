@@ -10,7 +10,7 @@ description = "XScript 管理后台: 云控, 卡密授权, APK 打包 (FastAPI +
 requires-python = ">=3.10"  # same floor as the device (Chaquopy 3.10) and the MCP server; 代码保护 needs a 3.10 interpreter (see protect.py)
 # Pinned to the versions verified in this repo.
 dependencies = [
-    "fastapi==0.162.0",
+    "fastapi==0.162.5",
     "uvicorn==0.54.0",
     # websockets 17 and sqlalchemy 2.1 need Python 3.11; 3.10 gets the newest releases that support it.
     "websockets==17.1; python_version >= '3.11'",
@@ -23,10 +23,10 @@ dependencies = [
 
 [project.optional-dependencies]
 # Native SDKs for private OSS/COS hot-update downloads (local storage needs neither).
-object-storage = ["oss2==2.19.1", "cos-python-sdk-v5==1.9.44"]
+object-storage = ["oss2==2.19.1", "cos-python-sdk-v5==1.9.45"]
 test = ["httpx==0.28.1", "coverage>=7.6", "pytest>=8"]
 # PostgreSQL instead of the default SQLite file (XSCRIPT_DATABASE_URL); see backend/README.md.
-postgres = ["psycopg[binary]==3.3.8"]
+postgres = ["psycopg[binary]==3.3.9"]
 
 [project.scripts]
 xscript-server = "xscript_server.__main__:main"
