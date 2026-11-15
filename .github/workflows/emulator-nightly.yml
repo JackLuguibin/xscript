@@ -1,5 +1,5 @@
 # Device checks on a throwaway emulator: the 十分钟上手 sample + OCR smoke + landscape screen.size(), and the home
-# screen's developer-address states incl. the USB-only dialog's copied command (scripts/ci_emulator_checks.sh). Nightly, on demand, and on pull requests that change these checks.
+# screen's developer-address states incl. the USB-only dialog's copied command (scripts/ci_emulator_checks.sh). Nightly, on demand, and on pull requests that change these checks. Plus soft 小程序列表/运行日志 benchmarks (scripts/bench/device_screens.py).
 name: emulator nightly
 
 on:
@@ -15,6 +15,7 @@ on:
       - scripts/device_pairing_copy_e2e.py
       - scripts/device_float_e2e.py
       - scripts/device_ui_try_e2e.py
+      - scripts/bench/device_screens.py
       - desktop/frontend/src/ui-try.ts
       - android/app/src/main/assets/tools/ui-form.js
 
