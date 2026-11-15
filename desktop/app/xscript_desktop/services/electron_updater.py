@@ -1,7 +1,6 @@
 """Electron adapter for the signed-manifest updater; never guesses a sidecar as the app."""
 from __future__ import annotations
 
-import os
 from pathlib import Path
 
 from .updater import UpdateError, UpdateService

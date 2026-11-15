@@ -360,7 +360,9 @@ jobs:
           cd desktop/electron
           npm ci
           npm test
-          xvfb-run -a npm run smoke
+          # GitHub Linux runners cannot use the downloaded setuid sandbox helper.
+          # Only this disposable CI smoke process disables it; packaged apps keep sandboxing.
+          xvfb-run -a npm run smoke -- --no-sandbox
 
   # Split from the frontend job so the two run side by side. The Python tests load the built frontend in QtWebEngine,
   # so this job builds it again (npm ci + vite, ~10 s) instead of waiting for the other job's artifact.
