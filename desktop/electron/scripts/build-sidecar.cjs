@@ -14,7 +14,7 @@ const fetched = spawnSync(python, [path.join(root, '../app/packaging/fetch_platf
 if (fetched.status !== 0) process.exit(fetched.status ?? 1);
 const result = spawnSync(python, ['-m', 'PyInstaller', '--noconfirm', '--clean', '--name', 'xscript-service', '--onedir',
   '--distpath', path.join(root, 'sidecar-dist'), '--workpath', path.join(root, 'sidecar-build/pyinstaller'), '--specpath', path.join(root, 'sidecar-build'),
-  '--paths', path.join(root, '../app'), '--collect-submodules', 'keyring.backends', '--exclude-module', 'PySide6',
+  '--paths', path.join(root, '../app'), '--paths', path.join(root, '../../backend'), '--collect-submodules', 'xscript_server', '--collect-data', 'xscript_server', '--collect-submodules', 'keyring.backends', '--exclude-module', 'PySide6',
   '--add-data', platformTools + path.delimiter + 'platform-tools',
   path.join(root, 'scripts/service-entry.py')], { cwd: root, stdio: 'inherit' });
 if (result.error) console.error(result.error);

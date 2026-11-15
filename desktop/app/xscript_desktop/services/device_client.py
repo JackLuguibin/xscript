@@ -234,6 +234,9 @@ class DeviceClient:
         params = {"path": path, "recursive": "1"} if recursive else {"path": path}
         return await self._json("DELETE", "/projects/%s/file" % self._p(project), params=params)
 
+    async def create_directory(self, project: str, path: str) -> dict[str, Any]:
+        return await self._json("POST", "/projects/%s/dir" % self._p(project), json={"path": path})
+
     async def move(self, project: str, src: str, dst: str) -> dict[str, Any]:
         return await self._json("POST", "/projects/%s/move" % self._p(project), json={"from": src, "to": dst})
 

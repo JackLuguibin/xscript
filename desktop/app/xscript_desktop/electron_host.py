@@ -32,6 +32,8 @@ class ElectronHost:
         ctx.save_file = lambda *a: self.native("save", *a)
         ctx.open_file = lambda *a: self.native("open", *a)
         ctx.copy_text = lambda text: self.native("clipboard", text)
+        ctx.embed_console = lambda origin: self.native("cloud.embed", origin)
+        ctx.embed_tools = lambda *a: self.native("tools.embed", *a)
         ctx.open_tools = lambda *a: self.native("tools", *a)
         ctx.quit_app = lambda: self.write({"native": "quit", "args": []})
 
@@ -63,8 +65,13 @@ class ElectronHost:
                 raise ValueError("frame unavailable")
         else:
             query = parse_qs(url.query)
-            size = max(64, min(2400, int(query.get("max", ["480"])[0])))
-            body, mime = await (self.ctx.cloud_thumb(device_id, size) if prefix == "_cloudshot" else self.ctx.screen(device_id, size))
+            raw_size = query.get("max", ["480"])[0]
+            size = None if prefix == "_shot" and raw_size == "native" else max(64, min(2400, int(raw_size)))
+            quality = max(10, min(100, int(query.get("quality", ["60"])[0])))
+            if prefix == "_shot" and query.get("format") == ["png"]:
+                body, mime = await self.ctx.screen(device_id, size, 100, fmt="png")
+            else:
+                body, mime = await (self.ctx.cloud_thumb(device_id, size) if prefix == "_cloudshot" else self.ctx.screen(device_id, size, quality))
         return {"body": base64.b64encode(body).decode("ascii"), "mime": mime}
 
     async def handle(self, message: dict) -> None:

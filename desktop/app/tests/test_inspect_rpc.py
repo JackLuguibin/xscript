@@ -114,3 +114,23 @@ async def test_copy_does_not_echo_and_secret_rpc_omits_the_value(tmp_path):
     await ctx.shutdown()
     blob = b"".join(p.read_bytes() for p in tmp_path.iterdir() if p.is_file())
     assert secret.encode() not in blob
+
+
+async def test_embedded_tools_prepare_auth_without_opening_window(mock_device):
+    ctx = await online(mock_device)
+    seen = []
+
+    async def prepare(host, port, url, title):
+        seen.append(url)
+
+    async def unexpected_window(*args):
+        raise AssertionError("embedding must not open a window")
+
+    ctx.embed_tools = prepare
+    ctx.open_tools = unexpected_window
+    result = await rpc(ctx, "tools.open", id="adb:emulator-5554", page="label", embed=True)
+    assert result["ok"]
+    assert result["result"]["url"].endswith("/tools/ui/label.html")
+    assert "code=" not in result["result"]["url"]
+    assert len(seen) == 1
+    await ctx.shutdown()

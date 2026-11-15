@@ -43,3 +43,35 @@ async def test_stdio_roundtrip_native_and_shutdown(tmp_path):
         if proc.returncode is None:
             proc.kill()
             await proc.wait()
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("query, expected_size, expected_quality", [
+    ("max=1920&quality=95", 1920, 95),
+    ("max=9999&quality=999", 2400, 100),
+    ("max=480", 480, 60),
+])
+async def test_screenshot_resource_preserves_requested_quality(query, expected_size, expected_quality):
+    from types import SimpleNamespace
+    from unittest.mock import AsyncMock, Mock
+    from xscript_desktop.electron_host import ElectronHost
+
+    screen = AsyncMock(return_value=(b"image", "image/jpeg"))
+    ctx = SimpleNamespace(dispatcher=Mock(), screen=screen)
+    host = ElectronHost(ctx)
+    resource = await host.resource(f"/_shot/adb%3Aphone.jpg?{query}")
+    screen.assert_awaited_once_with("adb:phone", expected_size, expected_quality)
+    assert resource["mime"] == "image/jpeg"
+
+
+@pytest.mark.asyncio
+async def test_native_png_does_not_resize_or_apply_jpeg_compression():
+    from types import SimpleNamespace
+    from unittest.mock import AsyncMock, Mock
+    from xscript_desktop.electron_host import ElectronHost
+
+    screen = AsyncMock(return_value=(b"png", "image/png"))
+    host = ElectronHost(SimpleNamespace(dispatcher=Mock(), screen=screen))
+    result = await host.resource("/_shot/adb%3Aphone.jpg?max=native&format=png")
+    screen.assert_awaited_once_with("adb:phone", None, 100, fmt="png")
+    assert result["mime"] == "image/png"

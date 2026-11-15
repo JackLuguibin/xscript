@@ -1,4 +1,4 @@
-const { app, BrowserWindow, ipcMain, protocol, net, dialog, clipboard, Menu, shell } = require('electron');
+const { app, BrowserWindow, session, ipcMain, protocol, net, dialog, clipboard, Menu, shell } = require('electron');
 const path = require('node:path');
 const fs = require('node:fs');
 const { pathToFileURL } = require('node:url');
@@ -14,6 +14,8 @@ let backend, mainWindow, quitting = false, serviceDataDir;
 const dataFlag = process.argv.indexOf('--data-dir');
 const cliDataDir = dataFlag >= 0 ? process.argv[dataFlag + 1] : undefined;
 const toolWindows = new Set();
+const embeddedToolOrigins = new Set();
+const embeddedConsoleOrigins = new Set();
 const csp = "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self' data:; connect-src 'self'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'";
 
 function filters(spec = '') {
@@ -38,6 +40,23 @@ async function native(message) {
         result = response.canceled ? null : response.filePaths[0]; break;
       }
       case 'clipboard': clipboard.writeText(args[0]); break;
+      case 'cloud.embed': {
+        const parsed = new URL(args[0]);
+        if (parsed.username || parsed.password || (parsed.protocol !== 'https:' && !(parsed.protocol === 'http:' && ['localhost', '127.0.0.1', '[::1]'].includes(parsed.hostname)))) throw new Error('Invalid console origin');
+        embeddedConsoleOrigins.add(parsed.origin);
+        break;
+      }
+      case 'tools.embed': {
+        const [host, port, url] = args;
+        const origin = `http://${host.includes(':') ? `[${host}]` : host}:${port}`;
+        const parsed = new URL(url);
+        if (parsed.origin !== origin) throw new Error('Invalid device tools origin');
+        const profile = session.fromPartition('xscript-tools');
+        const code = parsed.searchParams.get('code');
+        if (code) await profile.cookies.set({ url: origin, name: 'xs_pair', value: code, path: '/', httpOnly: true, sameSite: 'strict' });
+        embeddedToolOrigins.add(origin);
+        break;
+      }
       case 'tools': {
         const [host, port, url, title] = args;
         const origin = `http://${host.includes(':') ? `[${host}]` : host}:${port}`;
@@ -86,7 +105,29 @@ function startBackend() {
 }
 async function createWindow() {
   mainWindow = new BrowserWindow({ width: 1280, height: 820, minWidth: 720, minHeight: 480, title: 'XScript', show: !smoke,
-    webPreferences: { preload: path.join(__dirname, 'preload.cjs'), contextIsolation: true, nodeIntegration: false, sandbox: true } });
+    webPreferences: { webviewTag: true, preload: path.join(__dirname, 'preload.cjs'), contextIsolation: true, nodeIntegration: false, sandbox: true } });
+  mainWindow.webContents.on('will-attach-webview', (event, preferences, params) => {
+    delete preferences.preload;
+    preferences.nodeIntegration = false;
+    preferences.nodeIntegrationInSubFrames = false;
+    preferences.contextIsolation = true;
+    preferences.sandbox = true;
+    preferences.webviewTag = false;
+    try {
+      const allowed = params.partition === 'xscript-tools' ? embeddedToolOrigins : params.partition === 'xscript-cloud-console' ? embeddedConsoleOrigins : new Set();
+      if (!allowed.has(new URL(params.src).origin)) event.preventDefault();
+    } catch { event.preventDefault(); }
+  });
+  mainWindow.webContents.on('did-attach-webview', (_event, contents) => {
+    let origin;
+    contents.once('did-start-navigation', (_event, url) => { origin = new URL(url).origin; });
+    contents.setWindowOpenHandler(() => ({ action: 'deny' }));
+    const guard = (event, target) => {
+      if (!origin || new URL(target).origin !== origin) event.preventDefault();
+    };
+    contents.on('will-navigate', guard);
+    contents.on('will-redirect', guard);
+  });
   mainWindow.webContents.setWindowOpenHandler(({ url }) => {
     if (/^https?:/.test(url)) shell.openExternal(url);
     return { action: 'deny' };

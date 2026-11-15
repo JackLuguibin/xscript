@@ -374,8 +374,8 @@ async def test_console_links_carry_no_token(ctx):
     assert r["error"]["code"] == "backend.not_configured"
     await connected(ctx, "xsk_admin")
     r, raw = await rpc(ctx, "cloud.console")
-    assert r["result"]["links"][0] == {"page": "account", "url": ORIGIN + "/account"}
-    assert {x["page"] for x in r["result"]["links"]} == {"account", "cards", "users", "resellers", "settings"} and "xsk_" not in raw
+    assert r["result"]["links"][0] == {"page": "overview", "url": ORIGIN + "/"}
+    assert {x["page"] for x in r["result"]["links"]} == {"overview", "devices", "wall", "tasks", "device-keys", "cards", "resellers", "app-ops", "scripts", "ai", "pack", "users", "audit", "settings", "account"} and "xsk_" not in raw
 
 
 async def test_pack_jobs_log_and_cancel(ctx, fb):
@@ -414,3 +414,17 @@ async def test_pack_save_writes_the_apk_where_the_user_chose(ctx, tmp_path):
 
     ctx.save_file = cancel
     assert (await rpc(ctx, "cloud.packSave", id=7))[0]["result"] == {"saved": False}
+
+
+async def test_console_embedding_authorizes_only_configured_origin(ctx):
+    await connected(ctx, "xsk_admin")
+    origins = []
+
+    async def prepare(origin):
+        origins.append(origin)
+
+    ctx.embed_console = prepare
+    result, raw = await rpc(ctx, "cloud.console", embed=True, origin="https://evil.example")
+    assert result["ok"]
+    assert origins == [ORIGIN]
+    assert "xsk_" not in raw and "evil.example" not in raw

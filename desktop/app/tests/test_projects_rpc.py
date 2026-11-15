@@ -186,3 +186,17 @@ async def test_runs_on_an_app_without_the_route_is_unsupported_not_an_error():
 
     c = DeviceClient(DeviceTarget("127.0.0.1", 9860), transport=httpx.MockTransport(handler))
     assert await c.runs("p") == {"runs": [], "unsupported": True}
+
+async def test_create_empty_directory_and_validate_path(ctx_dev):
+    ctx, dev = ctx_dev
+    await rpc(ctx, "project.create", id=dev, project="directory_test")
+    result = await rpc(ctx, "project.createDir", id=dev, project="directory_test", path="src/empty")
+    assert result["ok"], result
+    listing = (await rpc(ctx, "project.files", id=dev, project="directory_test"))["result"]
+    assert "src/empty" in listing["dirs"]
+    assert all(not file["path"].startswith("src/") for file in listing["files"])
+    duplicate = await rpc(ctx, "project.createDir", id=dev, project="directory_test", path="src/empty")
+    assert duplicate["error"]["code"] == "device.http"
+    assert duplicate["error"]["details"]["status"] == 409
+    invalid = await rpc(ctx, "project.createDir", id=dev, project="directory_test", path="../outside")
+    assert invalid["error"]["code"] == "rpc.bad_params"
