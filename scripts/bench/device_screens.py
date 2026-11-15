@@ -105,6 +105,12 @@ def wait_top(activity, timeout=20):
     return False
 
 
+def displayed_ms(log):
+    pattern = r"Displayed %s/(?:com\.xscript\.app)?\.ui\.ProjectsActivity[^+]*\+(?:(\d+)s)?(\d+)ms" % re.escape(PKG)
+    m = re.search(pattern, log)
+    return int(m[1] or 0) * 1000 + int(m[2]) if m else None
+
+
 def bench_projects():
     for i in range(N_PROJ):
         files = [{"path": "__init__.py", "content": "print('hi')\n"}] + \
@@ -120,9 +126,9 @@ def bench_projects():
                 raise SystemExit("bench: 小程序列表 did not open")
             time.sleep(1)
             log = adb("logcat", "-d", "-s", "ActivityTaskManager")
-            m = re.search(r"Displayed %s/com\.xscript\.app\.ui\.ProjectsActivity[^+]*\+(?:(\d+)s)?(\d+)ms" % re.escape(PKG), log)
-            if m:
-                times.append(int(m[1] or 0) * 1000 + int(m[2]))
+            elapsed = displayed_ms(log)
+            if elapsed is not None:
+                times.append(elapsed)
             if k < 4:
                 adb("shell", "input", "keyevent", "KEYCODE_BACK")
                 time.sleep(1)
