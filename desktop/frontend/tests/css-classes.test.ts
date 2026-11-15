@@ -49,6 +49,7 @@ describe("cascade layers", () => {
       ["./styles/controls.css", "controls"],
       ["./styles/base.css", "base"],
       ["@xyflow/react/dist/style.css", "vendor"],
+      ["dockview-react/dist/styles/dockview.css", "vendor"],
       ["./styles/ui.css", "ui"],
       ["./styles/components.css", "components"],
       ["./styles/overrides.css", null],

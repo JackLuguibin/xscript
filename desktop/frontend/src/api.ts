@@ -299,6 +299,7 @@ export function createApi(rpc: RpcClient) {
     /** A folder and everything in it (DELETE ?recursive=1); `deleted` is the number of files removed. */
     deleteFolder: (id: string, project: string, path: string) =>
       rpc.call<{ ok: boolean; deleted: number }>("project.deleteFile", { id, project, path, recursive: true }),
+    createDirectory: (id: string, project: string, path: string) => rpc.call<{ ok: boolean }>("project.createDir", { id, project, path }),
     moveFile: (id: string, project: string, from: string, to: string) => rpc.call<{ ok: boolean }>("project.move", { id, project, from, to }),
     run: (id: string, project: string) => rpc.call<RunResult>("project.run", { id, project }),
     stop: (id: string, project: string) => rpc.call<RunResult>("project.stop", { id, project }),
@@ -347,6 +348,8 @@ export function createApi(rpc: RpcClient) {
     secretSet: (kind: string, name: string, value: string) => rpc.call<{ ok: boolean; kind: string; name: string }>("secret.set", { kind, name, value }),
     secretDelete: (kind: string, name: string) => rpc.call<{ deleted: boolean }>("secret.delete", { kind, name }),
     secretHas: (kind: string, name: string) => rpc.call<{ present: boolean }>("secret.has", { kind, name }),
+    adminCatalog: () => rpc.call<{ operations: AdminOperation[]; local: boolean }>("admin.catalog", {}, { timeoutMs: 120_000 }),
+    adminExecute: (operation: string, parameters: Record<string, unknown>, body: Record<string, unknown>) => rpc.call<unknown>("admin.execute", { operation, parameters, body }, { timeoutMs: 600_000 }),
     cloudStatus: () => rpc.call<CloudStatus>("cloud.status", {}, { timeoutMs: 20_000 }),
     /** The token goes to the OS keyring; it is never sent back. */
     cloudConnect: (origin: string, token: string) => rpc.call<CloudStatus>("cloud.connect", { origin, token }, { timeoutMs: 20_000 }),
@@ -372,7 +375,7 @@ export function createApi(rpc: RpcClient) {
     cloudManage: (resource: string, action = "list", options: {item?: string | number; child?: string | number; body?: Record<string, unknown>; query?: Record<string, unknown>} = {}) => rpc.call<unknown>("cloud.manage", {resource, action, ...options}, {timeoutMs: 120_000}),
     cloudUpload: (kind: "version" | "pack", options: Record<string, unknown>) => rpc.call<{cancelled?: boolean}>("cloud.upload", {kind, ...options}, {timeoutMs: 600_000}),
     cloudExportLogs: (id: string) => rpc.call<{cancelled?: boolean; saved?: boolean}>("cloud.exportLogs", {id}, {timeoutMs: 600_000}),
-    cloudConsole: () => rpc.call<{ links: Array<{ page: string; url: string }> }>("cloud.console"),
+    cloudConsole: (embed = false) => rpc.call<{ links: Array<{ page: string; url: string }> }>("cloud.console", { embed }),
     cloudPackJobs: (page = 1) => rpc.call<{ available: boolean; reason: string; items: CloudPackJob[]; total: number }>("cloud.packJobs", { page }, { timeoutMs: 20_000 }),
     cloudPackLog: (id: number, offset = 0) => rpc.call<{ text: string; next: number }>("cloud.packLog", { id, offset }, { timeoutMs: 20_000 }),
     cloudPackCancel: (id: number) => rpc.call<{ ok: boolean }>("cloud.packCancel", { id }, { timeoutMs: 20_000 }),
@@ -385,6 +388,7 @@ export function createApi(rpc: RpcClient) {
     updateDownload: () => rpc.call<UpdateStatus>("update.download", {}, { timeoutMs: 1_800_000 }),
     updateInstall: () => rpc.call<UpdateStatus & { helperLog: string }>("update.install", {}, { timeoutMs: 180_000 }),
     copyText: (text: string) => rpc.call<{ ok: boolean }>("app.copyText", { text }),
+    toolsEmbed: (id: string, page: string) => rpc.call<{ url: string; page: string; warning: string }>("tools.open", { id, page, embed: true }),
     toolsOpen: (id: string, page: string) => rpc.call<{ url: string; page: string; warning: string }>("tools.open", { id, page }),
     uiTree: (id: string, mode = 0) => rpc.call<UiTreeResult>("device.uiTree", { id, mode }),
     pixel: (id: string, x: number, y: number) => rpc.call<{ color: string | null; x: number; y: number }>("device.pixel", { id, x, y }),
@@ -493,4 +497,15 @@ export interface CloudPackJob {
 /** xsapp:// URL of a cloud device's screenshot (fetched by Python over the backend relay). */
 export function cloudThumbUrl(deviceId: string, tick: number): string {
   return mediaUrl(`/_cloudshot/${encodeURIComponent(deviceId)}.jpg?max=320&t=${tick}`);
+}
+
+export interface AdminSchema {
+  type?: string; title?: string; description?: string; format?: string; default?: unknown;
+  enum?: (string | number)[]; properties?: Record<string, AdminSchema>; required?: string[];
+  minimum?: number; maximum?: number; minLength?: number; maxLength?: number;
+}
+export interface AdminOperation {
+  id: string; method: string; path: string; group: string; title: string; media: string;
+  parameters: { name: string; in: string; required?: boolean; schema: AdminSchema }[];
+  body: AdminSchema;
 }

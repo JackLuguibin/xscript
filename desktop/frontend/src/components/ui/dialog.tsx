@@ -31,6 +31,7 @@ export function Dialog({
   describedBy,
   children,
   className,
+  size = "default",
 }: {
   title: string;
   onClose: () => void;
@@ -44,6 +45,7 @@ export function Dialog({
   describedBy?: string;
   children: ReactNode;
   className?: string;
+  size?: "default" | "wide";
 }) {
   const panel = useRef<HTMLDivElement>(null);
   const autoId = useId();
@@ -91,12 +93,14 @@ export function Dialog({
   const stop = (e: MouseEvent) => e.stopPropagation();
   return (
     <div
-      className="overlay-backdrop fixed inset-0 z-40 grid items-start justify-items-center bg-[color-mix(in_srgb,var(--bg)_35%,transparent)] px-sp-4 pb-sp-4 pt-[12vh]"
+      className={cn("overlay-backdrop fixed inset-0 z-40 grid justify-items-center bg-[color-mix(in_srgb,var(--bg)_35%,transparent)] px-sp-4",
+        size === "wide" ? "items-center py-sp-4" : "items-start pb-sp-4 pt-[12vh]")}
       onMouseDown={onClose}
     >
       <div
         className={cn(
-          "overlay-panel flex max-h-[min(70vh,32rem)] w-full max-w-lg flex-col gap-sp-3 overflow-auto rounded-lg border border-line-strong bg-surface p-sp-4 text-fg shadow-pop",
+          "overlay-panel flex w-full flex-col gap-sp-3 overflow-auto rounded-lg border border-line-strong bg-surface p-sp-4 text-fg shadow-pop",
+          size === "wide" ? "max-h-[calc(100dvh-2rem)] max-w-[72rem]" : "max-h-[min(70vh,32rem)] max-w-lg",
           className,
         )}
         role={role}

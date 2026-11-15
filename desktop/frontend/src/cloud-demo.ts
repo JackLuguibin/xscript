@@ -1,3 +1,4 @@
+import adminCatalog from "./generated/admin-catalog.json";
 import type { CloudDevice, CloudLogLine, CloudPackJob, CloudRole, CloudStatus, CloudTask, CloudVersion } from "./api";
 
 // Demo admin backend for plain-browser mode (`npm run dev`, screenshots). Same shapes as the Python cloud.* RPCs.
@@ -43,6 +44,8 @@ export function demoLogs(id: string): CloudLogLine[] {
 }
 
 export function cloudDemoHandlers(): Record<string, Handler> {
+  const localRecords = new Map<string, Record<string, unknown>[]>();
+  let localId = 0;
   let origin = "";
   let role: CloudRole | null = null;
   const fail = (code: string, message: string): never => {
@@ -83,6 +86,21 @@ export function cloudDemoHandlers(): Record<string, Handler> {
     if (!role) fail("backend.not_configured", "还没有连接后台");
   };
   return {
+    "admin.catalog": () => adminCatalog,
+    "admin.execute": (p) => {
+      const operation = adminCatalog.operations.find((item) => item.id === p.operation);
+      if (!operation) return fail("rpc.bad_params", "Unknown local operation");
+      const body = (p.body || {}) as Record<string, unknown>;
+      const parameters = (p.parameters || {}) as Record<string, unknown>;
+      const rows = localRecords.get(operation.group) || [];
+      if (operation.path === "/api/overview") return { devices: { total: 0, online: 0 }, scripts: (localRecords.get("scripts") || []).length };
+      if (operation.method === "GET") return { items: rows, total: rows.length };
+      if (operation.method === "POST") { const row = { id: ++localId, ...body }; localRecords.set(operation.group, [...rows, row]); return row; }
+      const id = Object.values(parameters)[0];
+      if (operation.method === "DELETE") localRecords.set(operation.group, rows.filter((row) => String(row.id) !== String(id)));
+      else localRecords.set(operation.group, rows.map((row) => String(row.id) === String(id) ? { ...row, ...body } : row));
+      return { ok: true };
+    },
     "cloud.manage": (p) => {
       needConn();
       const resource = String(p.resource), action = String(p.action || "list");
@@ -217,7 +235,7 @@ export function cloudDemoHandlers(): Record<string, Handler> {
     },
     "cloud.console": () => {
       needConn();
-      return { links: ["account", "cards", "users", "resellers", "settings"].map((page) => ({ page, url: `${origin}/${page}` })) };
+      return { links: ["overview", "devices", "wall", "tasks", "device-keys", "cards", "resellers", "app-ops", "scripts", "ai", "pack", "users", "audit", "settings", "account"].map((page) => ({ page, url: `${origin}/${page === "overview" ? "" : page}` })) };
     },
     "cloud.packJobs": () => (needConn(), { available: true, reason: "", items: pack, total: pack.length }),
     "cloud.packLog": (p) => ({ text: `[#${p.id}] gradle assembleRelease\n[#${p.id}] BUILD SUCCESSFUL in 41s\n`, next: 64 }),

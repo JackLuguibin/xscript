@@ -12,6 +12,8 @@ const buttonVariants = cva("ui-btn", {
       primary: "ui-btn-primary",
       ghost: "ui-btn-ghost",
       danger: "ui-btn-danger",
+      action: "ui-btn-action",
+      actionDanger: "ui-btn-action ui-btn-action-danger",
       /* Flow canvas toolbar: flat, compact; toolbarPrimary / toolbarDanger keep the intent. */
       toolbar: "ui-btn-toolbar",
       toolbarPrimary: "ui-btn-toolbar-primary",
